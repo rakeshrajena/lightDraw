@@ -850,7 +850,7 @@ Update this table as phases complete.
 | 9 | ✅ Complete | 2026-07-05 | 2026-07-05 | ≥90% | 255+ tests, v0.8.0 — force layout, state machine, network, CAN, smart routing |
 | 10 | ✅ Complete | 2026-07-05 | 2026-07-05 | ≥92% | 270+ tests, v0.9.0 — PNG/SVG/PDF/HTML export, unified API |
 | 11 | ✅ Complete | 2026-07-05 | 2026-07-05 | ≥94% | 313+ tests, v0.9.0 — guides, TypeDoc, playground, Playwright visual regression |
-| 12 | 🔄 In progress | 2026-07-05 | — | ≥95% | GitHub repo, cross-browser CI, release workflow |
+| 12 | 🔄 In progress | 2026-07-05 | — | ≥95% | PR #1 open — CI pending, release after owner verification |
 
 **Legend:** ⬜ Pending · 🔄 In progress · ✅ Complete
 
