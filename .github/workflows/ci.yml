@@ -1,3 +1,5 @@
+# Slim CI on GitHub — fast sanity checks on push/PR.
+# Full suite (coverage, perf, visual, memory, benchmarks): run locally via `npm run ci:local`
 name: CI
 
 on:
@@ -28,64 +30,5 @@ jobs:
       - name: Bundle size gate
         run: npm run size-gate
 
-      - name: Security audit (no critical production vulns)
-        run: npm audit --production --audit-level=critical
-
-      - name: Run unit & integration tests
+      - name: Unit tests (excludes perf — run locally with ci:local)
         run: npm test -- --exclude test/perf.test.ts
-
-      - name: Performance regression tests
-        run: npm run test:perf
-
-      - name: Coverage gate (Phase 12 ≥95%)
-        run: npm run test:coverage -- --exclude test/perf.test.ts
-
-      - name: Phase 12 release hardening tests
-        run: npm run test:phase12
-
-      - name: Documentation & playground (Phase 11)
-        run: npm run test:phase11
-
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium firefox webkit
-
-      - name: Build website for visual tests
-        run: npm run build:website
-
-      - name: Visual regression (Chromium) + cross-browser smoke
-        run: |
-          npx vite preview --config website/vite.config.ts --port 4173 --strictPort --host 127.0.0.1 &
-          for i in $(seq 1 30); do
-            curl -sf http://127.0.0.1:4173/ >/dev/null && break
-            sleep 2
-          done
-          curl -sf http://127.0.0.1:4173/
-          PW_NO_WEBSERVER=1 npm run test:visual
-
-      - name: Memory tests
-        run: npm run test:memory
-
-      - name: Renderer smoke tests
-        run: npm test -- test/renderers/
-
-      - name: Upload coverage
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage
-          path: coverage/
-
-  benchmark:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - run: npm ci
-      - run: npm run build
-      - run: npm run benchmark
-      - name: Compare against baseline (25% tolerance)
-        run: npm run benchmark:compare
