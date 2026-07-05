@@ -2,7 +2,7 @@ import type { App } from '../App';
 import type { Node } from '../Node';
 import type { Group } from '../shapes/Group';
 import type { DiagramData, DiagramEdge, DiagramNode } from './types';
-import { centerTextX, createLabeledBox } from './primitives';
+import { createLabeledBox } from './primitives';
 
 export { centerTextX, measureTextWidth } from './primitives';
 
