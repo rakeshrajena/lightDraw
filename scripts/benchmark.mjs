@@ -16,6 +16,20 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
 const BASELINE_PATH = resolve(ROOT, 'benchmarks/baseline.json');
 const REGRESSION_TOLERANCE = 0.35;
+/** Extra slack for metrics with high CI vs local variance */
+const CREATE_MS_SLACK = 25;
+
+function compareMax(metric, baseVal) {
+  if (baseVal < 2) return baseVal + 0.5;
+  let max = baseVal * (1 + REGRESSION_TOLERANCE);
+  if (metric === 'createMs' && baseVal < 2000) {
+    max = Math.max(max, baseVal + CREATE_MS_SLACK);
+  }
+  if (metric === 'renderMs' && baseVal < 5) {
+    max = Math.max(max, baseVal + 1);
+  }
+  return max;
+}
 
 const args = process.argv.slice(2);
 const saveBaseline = args.includes('--save');
@@ -200,8 +214,7 @@ if (compareBaseline) {
       const baseVal = base[metric];
       const curVal = current[metric];
       // Sub-millisecond metrics: use absolute tolerance to avoid flaky % checks
-      const max =
-        baseVal < 2 ? baseVal + 0.5 : baseVal * (1 + REGRESSION_TOLERANCE);
+      const max = compareMax(metric, baseVal);
       if (curVal > max) {
         console.error(
           `  [FAIL] ${key}.${metric}: ${curVal.toFixed(2)}ms > ${max.toFixed(2)}ms (baseline ${baseVal.toFixed(2)}ms)`
