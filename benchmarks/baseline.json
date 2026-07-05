@@ -1,29 +1,29 @@
 {
   "version": "0.1.1",
   "phase": 0,
-  "recordedAt": "2026-07-05T08:50:27.923Z",
-  "environment": "node v20.18.2, jsdom, html renderer",
+  "recordedAt": "2026-07-05T16:33:23.440Z",
+  "environment": "node v20.18.2, jsdom, canvas renderer",
   "scenarios": {
     "nodes-500": {
       "nodeCount": 500,
-      "createMs": 176.16202899999996,
-      "renderMs": 65.2522368,
-      "hitTestMs": 0.2064933000000019,
-      "animateMs": 0.41404499999998734
+      "createMs": 52.611481000000026,
+      "renderMs": 0.2855940999999973,
+      "hitTestMs": 0.032776420000000146,
+      "animateMs": 0.2717419999999606
     },
     "nodes-1000": {
       "nodeCount": 1000,
-      "createMs": 131.49240399999985,
-      "renderMs": 111.14157100000003,
-      "hitTestMs": 0.20065832000000228,
-      "animateMs": 0.07427400000005946
+      "createMs": 1533.7916,
+      "renderMs": 0.46095430000000304,
+      "hitTestMs": 0.014612999999999375,
+      "animateMs": 0.05357600000002094
     },
     "nodes-5000": {
       "nodeCount": 5000,
-      "createMs": 737.310763,
-      "renderMs": 561.0194954000001,
-      "hitTestMs": 0.44860993999998755,
-      "animateMs": 0.10734599999886996
+      "createMs": 38978.774766999995,
+      "renderMs": 1.1594323000004807,
+      "hitTestMs": 0.01263145999997505,
+      "animateMs": 0.07377000000269618
     }
   }
 }

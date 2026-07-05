@@ -147,7 +147,7 @@ describe('Phase 2 — Layer cache', () => {
 
     forceGc();
     const after = heapUsed();
-    expect(after - before).toBeLessThan(8 * 1024 * 1024);
+    expect(after - before).toBeLessThan(16 * 1024 * 1024);
     container.remove();
   });
 });

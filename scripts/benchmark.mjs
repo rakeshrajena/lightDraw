@@ -99,7 +99,7 @@ function avgMs(fn, iterations) {
   return (performance.now() - start) / iterations;
 }
 
-function runScenario(nodeCount, renderer = 'html') {
+function runScenario(nodeCount, renderer = 'canvas') {
   const container = document.getElementById('app');
   container.innerHTML = '';
 
@@ -156,10 +156,10 @@ console.log('LightDraw Benchmark');
 console.log('====================\n');
 
 for (const count of COUNTS) {
-  const result = runScenario(count, 'html');
+  const result = runScenario(count, 'canvas');
   const key = `nodes-${count}`;
   scenarios[key] = result;
-  console.log(`Scenario: ${count} nodes (html renderer)`);
+  console.log(`Scenario: ${count} nodes (canvas renderer)`);
   console.log(`  Create + add:  ${result.createMs.toFixed(2)} ms`);
   console.log(`  Render (avg):  ${result.renderMs.toFixed(2)} ms`);
   console.log(`  HitTest (avg): ${result.hitTestMs.toFixed(2)} ms`);
@@ -171,7 +171,7 @@ const report = {
   version: '0.1.1',
   phase: 0,
   recordedAt: new Date().toISOString(),
-  environment: `node ${process.version}, jsdom, html renderer`,
+  environment: `node ${process.version}, jsdom, canvas renderer`,
   scenarios,
 };
 
