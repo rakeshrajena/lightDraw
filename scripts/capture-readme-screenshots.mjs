@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Capture demo screenshots for README.md
+ * Capture full-viewport demo screenshots for README.md
  * Usage: npm run build && npm run build:website && node scripts/capture-readme-screenshots.mjs
  * Requires: playwright chromium (`npx playwright install chromium`)
  */
@@ -14,12 +14,15 @@ const BASE = `http://127.0.0.1:${PORT}`;
 const OUT_DIR = 'docs/images';
 const FIXED_TIME = new Date('2026-07-05T12:00:00Z').getTime();
 
+/** Desktop viewport — full browser frame, not a cropped #app element */
+const VIEWPORT = { width: 1280, height: 800 };
+
 const SHOTS = [
-  { path: '/examples/demo-dashboard.html?embed=1', file: 'dashboard.png', selector: '#app', wait: 400 },
-  { path: '/examples/demo-automotive.html?embed=1', file: 'automotive.png', selector: '#app', wait: 500 },
-  { path: '/examples/demo-diagram.html?embed=1', file: 'diagram.png', selector: '#app', wait: 400 },
-  { path: '/examples/demo-ui.html?embed=1', file: 'ui-components.png', selector: '#app', wait: 300 },
-  { path: '/examples/demo-animation.html?embed=1', file: 'animation.png', selector: '#app', wait: 300 },
+  { path: '/examples/demo-dashboard.html', file: 'dashboard.png', wait: 500 },
+  { path: '/examples/demo-automotive.html', file: 'automotive.png', wait: 600 },
+  { path: '/examples/demo-diagram.html', file: 'diagram.png', wait: 500 },
+  { path: '/examples/demo-ui.html', file: 'ui-components.png', wait: 400 },
+  { path: '/examples/demo-animation.html', file: 'animation.png', wait: 400 },
 ];
 
 async function waitForServer(url, attempts = 60) {
@@ -54,7 +57,7 @@ async function main() {
   try {
     await waitForServer(BASE);
     const browser = await chromium.launch();
-    const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
+    const page = await browser.newPage({ viewport: VIEWPORT });
 
     await page.addInitScript((fixed) => {
       const RealDate = Date;
@@ -71,14 +74,16 @@ async function main() {
 
     for (const shot of SHOTS) {
       const out = `${OUT_DIR}/${shot.file}`;
-      console.log(`Capturing ${shot.file}…`);
+      console.log(`Capturing ${shot.file} (${VIEWPORT.width}×${VIEWPORT.height})…`);
       await page.goto(`${BASE}${shot.path}`, { waitUntil: 'networkidle' });
-      await page.waitForSelector(`${shot.selector} canvas, ${shot.selector} .lightdraw-html-root`, {
-        timeout: 15000,
-      });
+      await page.waitForSelector('#app canvas, #app .lightdraw-html-root', { timeout: 15000 });
       if (shot.wait) await delay(shot.wait);
-      const el = page.locator(shot.selector);
-      await el.screenshot({ path: out, animations: 'disabled' });
+      await page.screenshot({
+        path: out,
+        fullPage: false,
+        animations: 'disabled',
+        type: 'png',
+      });
       console.log(`  → ${out}`);
     }
 

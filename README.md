@@ -45,12 +45,14 @@ Use it when you want to:
 
 ## Screenshots
 
+Full demo pages at 1280×800 — header, controls, and canvas included (not cropped).
+
 ### Dashboard widgets
 
 Live gauges, line charts, progress bars, and status cards — interactive hover tooltips included.
 
 <p align="center">
-  <img src="docs/images/dashboard.png" alt="LightDraw dashboard widgets — gauges and charts" width="720" />
+  <img src="docs/images/dashboard.png" alt="LightDraw dashboard widgets — gauges and charts" width="100%" />
 </p>
 
 ### Automotive instrument cluster
@@ -58,7 +60,7 @@ Live gauges, line charts, progress bars, and status cards — interactive hover 
 Full digital cockpit with speedometer, tachometer, fuel, TPMS (FL/FR/RL/RR), and warning lamps.
 
 <p align="center">
-  <img src="docs/images/automotive.png" alt="LightDraw automotive instrument cluster" width="720" />
+  <img src="docs/images/automotive.png" alt="LightDraw automotive instrument cluster" width="100%" />
 </p>
 
 ### Diagram module
@@ -66,7 +68,7 @@ Full digital cockpit with speedometer, tachometer, fuel, TPMS (FL/FR/RL/RR), and
 Flowcharts, state machines, class diagrams, mind maps, and network topology with routed connectors.
 
 <p align="center">
-  <img src="docs/images/diagram.png" alt="LightDraw diagram module — flowchart and network" width="720" />
+  <img src="docs/images/diagram.png" alt="LightDraw diagram module — flowchart and network" width="100%" />
 </p>
 
 ### UI component library
@@ -74,7 +76,7 @@ Flowcharts, state machines, class diagrams, mind maps, and network topology with
 17 built-in components with professional CSS theming — buttons, forms, tabs, tables, dialogs, and more.
 
 <p align="center">
-  <img src="docs/images/ui-components.png" alt="LightDraw UI component library" width="720" />
+  <img src="docs/images/ui-components.png" alt="LightDraw UI component library" width="100%" />
 </p>
 
 ### Animation engine
@@ -82,7 +84,7 @@ Flowcharts, state machines, class diagrams, mind maps, and network topology with
 Timelines, easing, motion paths, and stagger — no GSAP or third-party animation library required.
 
 <p align="center">
-  <img src="docs/images/animation.png" alt="LightDraw animation demo" width="720" />
+  <img src="docs/images/animation.png" alt="LightDraw animation demo" width="100%" />
 </p>
 
 > Regenerate screenshots after UI changes: `npm run screenshots:readme`
