@@ -4659,6 +4659,15 @@ var App = class extends EventEmitter {
   toDataURL(type = "image/png", quality) {
     return this.renderer.toDataURL(type, quality);
   }
+  /** Remove all nodes from the scene (keeps the App instance). */
+  clear() {
+    this.stage.clear();
+    this.nodeCount = 0;
+    this.spatialIndex.clear();
+    this.renderer.forceFullRedraw();
+    this.requestRender();
+    return this;
+  }
   destroy() {
     if (this.renderFrameId)
       cancelFrame(this.renderFrameId);
