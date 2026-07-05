@@ -416,6 +416,16 @@ export class App extends EventEmitter {
     return this.renderer.toDataURL(type, quality);
   }
 
+  /** Remove all nodes from the scene (keeps the App instance). */
+  clear(): this {
+    this.stage.clear();
+    this.nodeCount = 0;
+    this.spatialIndex.clear();
+    this.renderer.forceFullRedraw();
+    this.requestRender();
+    return this;
+  }
+
   destroy(): void {
     if (this.renderFrameId) cancelFrame(this.renderFrameId);
     if (this.resizeHandler) {

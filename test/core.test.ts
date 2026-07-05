@@ -49,6 +49,14 @@ describe('App', () => {
     expect(hit?.node).toBe(rect);
   });
 
+  it('clear removes all stage children', () => {
+    app.add(app.rect({ width: 10, height: 10 }));
+    app.add(app.circle({ radius: 5 }));
+    expect(app.stage.children.length).toBeGreaterThan(0);
+    app.clear();
+    expect(app.stage.children).toHaveLength(0);
+  });
+
   it('exports and imports JSON', () => {
     const circle = app.circle({ x: 50, y: 50, radius: 30, fill: '#2563eb' });
     app.add(circle);
