@@ -1,8 +1,93 @@
-# LightDraw.js
+<p align="center">
+  <img src="docs/images/logo.svg" alt="LightDraw logo" width="96" height="96" />
+</p>
 
-Ultra-lightweight, production-ready 2D graphics and UI engine for the web.
+<h1 align="center">LightDraw.js</h1>
+
+<p align="center">
+  <strong>Ultra-lightweight, production-ready 2D graphics and UI engine for the web.</strong><br/>
+  Build dashboards, automotive instrument clusters, diagrams, and interactive UIs — with zero dependencies.
+</p>
+
+<p align="center">
+  <a href="https://github.com/rakeshrajena/lightDraw">GitHub</a>
+  ·
+  <a href="./docs/getting-started.md">Documentation</a>
+  ·
+  <a href="./docs/README.md">Docs index</a>
+  ·
+  <a href="https://www.npmjs.com/package/lightdraw">npm</a>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" />
+  <img src="https://img.shields.io/badge/version-0.9.0-2563eb" alt="Version 0.9.0" />
+  <img src="https://img.shields.io/badge/deps-zero-success" alt="Zero dependencies" />
+  <img src="https://img.shields.io/badge/renderers-Canvas%20%7C%20SVG%20%7C%20HTML-64748b" alt="Renderers" />
+</p>
+
+---
+
+## What is LightDraw?
+
+**LightDraw** is a retained-mode 2D scene graph for browsers and embedded WebViews. It ships as small, tree-shakeable bundles and targets use cases where you need **real graphics performance** without pulling in React, D3, or a charting framework.
+
+Use it when you want to:
+
+- Render **live dashboards** (gauges, charts, clocks) on canvas or HTML
+- Build **automotive digital cockpits** with tachometers, TPMS, ADAS status, and themes
+- Draw **flowcharts, org charts, UML, and network diagrams** with smart connector routing
+- Ship **accessible UI components** (buttons, forms, tables, dialogs) via the HTML renderer
+- Load scenes from **JSON** — ideal for AI-generated UIs and low-code tools
+- Support **legacy ES5 browsers** in automotive and industrial embedded targets
 
 **Repository:** [github.com/rakeshrajena/lightDraw](https://github.com/rakeshrajena/lightDraw)
+
+## Screenshots
+
+Full demo pages at 1280×800 — header, controls, and canvas included (not cropped).
+
+### Dashboard widgets
+
+Live gauges, line charts, progress bars, and status cards — interactive hover tooltips included.
+
+<p align="center">
+  <img src="docs/images/dashboard.png" alt="LightDraw dashboard widgets — gauges and charts" width="100%" />
+</p>
+
+### Automotive instrument cluster
+
+Full digital cockpit with speedometer, tachometer, fuel, TPMS (FL/FR/RL/RR), and warning lamps.
+
+<p align="center">
+  <img src="docs/images/automotive.png" alt="LightDraw automotive instrument cluster" width="100%" />
+</p>
+
+### Diagram module
+
+Flowcharts, state machines, class diagrams, mind maps, and network topology with routed connectors.
+
+<p align="center">
+  <img src="docs/images/diagram.png" alt="LightDraw diagram module — flowchart and network" width="100%" />
+</p>
+
+### UI component library
+
+17 built-in components with professional CSS theming — buttons, forms, tabs, tables, dialogs, and more.
+
+<p align="center">
+  <img src="docs/images/ui-components.png" alt="LightDraw UI component library" width="100%" />
+</p>
+
+### Animation engine
+
+Timelines, easing, motion paths, and stagger — no GSAP or third-party animation library required.
+
+<p align="center">
+  <img src="docs/images/animation.png" alt="LightDraw animation demo" width="100%" />
+</p>
+
+> Regenerate screenshots after UI changes: `npm run screenshots:readme`
 
 ## Features
 
@@ -138,7 +223,8 @@ app.loadJSON({
 npm run docs:api        # TypeDoc API reference
 npm run dev:website     # Vite playground (build library first)
 npm run build:website   # Static site → website/dist/
-npm run test:visual     # Playwright screenshot regression
+npm run screenshots:readme  # Refresh README demo images
+npm run ci:local        # Full local test + benchmark suite
 ```
 
 ## Development
@@ -150,7 +236,7 @@ See [PROJECT_STATUS.md](./PROJECT_STATUS.md) for current feature status.
 npm install
 npm run build
 npm test
-npm run benchmark
+npm run ci:local      # coverage, perf, phase tests, benchmarks
 ```
 
 ## Browser Support
