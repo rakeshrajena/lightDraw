@@ -74,7 +74,7 @@ describe('HTMLRenderer', () => {
   it('renders native button element for button component', () => {
     container = createTestContainer();
     const app = createTestApp(container, { renderer: 'html' });
-    const btn = app.loadJSON({ type: 'button', props: { label: 'Submit', x: 10, y: 10, width: 120 } });
+    app.loadJSON({ type: 'button', props: { label: 'Submit', x: 10, y: 10, width: 120 } });
     app.render();
     const el = container.querySelector('.lightdraw-btn');
     expect(el).not.toBeNull();
