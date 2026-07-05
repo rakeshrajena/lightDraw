@@ -1,0 +1,19 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": [
+    "src/App.ts",
+    "src/Node.ts",
+    "src/core/index.ts",
+    "src/animation/Timeline.ts",
+    "src/io/export.ts",
+    "src/io/json.ts",
+    "src/plugins/index.ts"
+  ],
+  "out": "docs/api",
+  "name": "LightDraw.js API",
+  "readme": "docs/getting-started.md",
+  "excludePrivate": true,
+  "excludeInternal": true,
+  "skipErrorChecking": true,
+  "categorizeByGroup": true
+}

@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LightDraw — Diagrams</title>
+  <script src="demo-embed.js"></script>
+  <link rel="stylesheet" href="demo-common.css">
+  <link rel="stylesheet" href="../lightdraw.min.css">
+</head>
+<body>
+  <div class="demo-shell">
+    <header class="demo-header">
+      <span class="demo-badge">Diagram Module</span>
+      <h1>Diagram Studio</h1>
+      <p>Flowcharts, state machines, network topology, CAN bus, UML, and organizational charts.</p>
+    </header>
+    <main class="demo-main demo-layout-split">
+      <aside class="demo-sidebar">
+        <h2>Diagram types</h2>
+        <button class="demo-btn secondary active" data-diagram="flowchart" onclick="pick(this, 'flowchart')">Flowchart</button>
+        <button class="demo-btn secondary" data-diagram="stateMachine" onclick="pick(this, 'stateMachine')">State Machine</button>
+        <button class="demo-btn secondary" data-diagram="network" onclick="pick(this, 'network')">Network</button>
+        <button class="demo-btn secondary" data-diagram="can" onclick="pick(this, 'can')">CAN Bus</button>
+        <button class="demo-btn secondary" data-diagram="pipeline" onclick="pick(this, 'pipeline')">Pipeline</button>
+        <button class="demo-btn secondary" data-diagram="mindMap" onclick="pick(this, 'mindMap')">Mind Map</button>
+        <button class="demo-btn secondary" data-diagram="uml" onclick="pick(this, 'uml')">UML Class</button>
+        <button class="demo-btn secondary" data-diagram="schematic" onclick="pick(this, 'schematic')">Schematic</button>
+        <button class="demo-btn secondary" data-diagram="org" onclick="pick(this, 'org')">Org Chart</button>
+        <button class="demo-btn" style="margin-top:0.5rem" onclick="runForceLayout()">Force Layout</button>
+      </aside>
+      <div class="demo-canvas-wrap">
+        <div id="app"></div>
+      </div>
+    </main>
+  </div>
+  <script src="../lightdraw.min.js"></script>
+  <script>
+    const app = LightDraw.createApp('#app', {
+      width: 900,
+      height: 500,
+      background: '#0d1322',
+      renderer: 'canvas',
+    });
+
+    let currentGroup = null;
+
+    const samples = {
+      flowchart: () =>
+        LightDraw.Diagram.flowchart(app, {
+          nodes: [
+            { id: 'start', label: 'Start', type: 'start', x: 380, y: 24 },
+            { id: 'check', label: 'Valid input?', type: 'decision', x: 350, y: 100 },
+            { id: 'process', label: 'Process data', x: 350, y: 190 },
+            { id: 'end', label: 'Complete', type: 'end', x: 380, y: 280 },
+          ],
+          edges: [
+            { from: 'start', to: 'check' },
+            { from: 'check', to: 'process', label: 'yes' },
+            { from: 'process', to: 'end' },
+          ],
+        }),
+      stateMachine: () =>
+        LightDraw.Diagram.stateMachine(app, {
+          states: [
+            { id: 'idle', label: 'Idle', type: 'initial', x: 60, y: 200 },
+            { id: 'load', label: 'Loading', x: 240, y: 80 },
+            { id: 'run', label: 'Running', x: 440, y: 200 },
+            { id: 'err', label: 'Error', x: 240, y: 340 },
+            { id: 'done', label: 'Done', type: 'final', x: 640, y: 200 },
+          ],
+          transitions: [
+            { from: 'idle', to: 'load', label: 'fetch' },
+            { from: 'load', to: 'run', label: 'ok' },
+            { from: 'load', to: 'err', label: 'fail' },
+            { from: 'run', to: 'done', label: 'complete' },
+            { from: 'err', to: 'idle', label: 'retry' },
+          ],
+        }),
+      network: () =>
+        LightDraw.Diagram.network(app, {
+          nodes: [
+            { id: 'r1', label: 'Edge Router', type: 'router', x: 400, y: 40 },
+            { id: 's1', label: 'API Server', type: 'server', x: 180, y: 170 },
+            { id: 's2', label: 'Database', type: 'server', x: 400, y: 170 },
+            { id: 's3', label: 'Cache', type: 'server', x: 620, y: 170 },
+            { id: 'c1', label: 'Client A', type: 'client', x: 120, y: 320 },
+            { id: 'c2', label: 'Client B', type: 'client', x: 680, y: 320 },
+          ],
+          edges: [
+            { from: 'r1', to: 's1', label: 'eth0' },
+            { from: 'r1', to: 's2' },
+            { from: 'r1', to: 's3' },
+            { from: 's1', to: 'c1' },
+            { from: 's3', to: 'c2' },
+          ],
+        }),
+      can: () =>
+        LightDraw.Diagram.canNetwork(
+          app,
+          {
+            busLabel: 'CAN HS · 500 kbps',
+            ecus: [
+              { id: 'ecm', label: 'ECM', address: '0x7E0' },
+              { id: 'tcu', label: 'TCU', address: '0x7E1' },
+              { id: 'abs', label: 'ABS', address: '0x7E2' },
+              { id: 'bcm', label: 'BCM', address: '0x7E3' },
+              { id: 'icu', label: 'ICU', address: '0x7E4' },
+            ],
+          },
+          { x: 80, y: 140 }
+        ),
+      pipeline: () =>
+        LightDraw.Diagram.pipeline(
+          app,
+          [
+            { id: 'ingest', label: 'Ingest', status: 'done' },
+            { id: 'validate', label: 'Validate', status: 'done' },
+            { id: 'transform', label: 'Transform', status: 'active' },
+            { id: 'load', label: 'Load', status: 'pending' },
+            { id: 'notify', label: 'Notify', status: 'pending' },
+          ],
+          { x: 60, y: 200 }
+        ),
+      mindMap: () =>
+        LightDraw.Diagram.mindMap(app, 'LightDraw.js', [
+          { label: 'Core Engine', children: ['Shapes', 'Renderers', 'Animation'] },
+          { label: 'Modules', children: ['UI', 'Dashboard', 'Automotive'] },
+          { label: 'Diagrams', children: ['Flowchart', 'Network', 'UML'] },
+          { label: 'I/O', children: ['JSON', 'Export'] },
+        ]),
+      uml: () =>
+        LightDraw.Diagram.classDiagram(app, {
+          classes: [
+            {
+              id: 'node',
+              name: 'Node',
+              x: 80,
+              y: 40,
+              attributes: ['- x: number', '- y: number'],
+              methods: ['+ render(): void'],
+            },
+            {
+              id: 'shape',
+              name: 'Shape',
+              x: 80,
+              y: 200,
+              methods: ['+ hitTest(): boolean'],
+            },
+            {
+              id: 'group',
+              name: 'Group',
+              x: 380,
+              y: 40,
+              attributes: ['- children: Node[]'],
+              methods: ['+ add(node): void'],
+            },
+          ],
+          relations: [
+            { from: 'shape', to: 'node', type: 'inheritance' },
+            { from: 'group', to: 'node', type: 'inheritance' },
+          ],
+        }),
+      schematic: () =>
+        LightDraw.Diagram.schematic(app, [
+          { id: 'b1', type: 'battery', x: 60, y: 200, label: '9V' },
+          { id: 'sw1', type: 'switch', x: 160, y: 200 },
+          { id: 'r1', type: 'resistor', x: 260, y: 200, label: '220Ω' },
+          { id: 'd1', type: 'led', x: 360, y: 200, label: 'LED' },
+          { id: 'g1', type: 'ground', x: 460, y: 200 },
+        ]),
+      org: () =>
+        LightDraw.Diagram.orgChart(app, {
+          name: 'CEO',
+          children: [
+            { name: 'CTO', children: [{ name: 'Engineering Lead' }, { name: 'QA Lead' }] },
+            { name: 'CFO', children: [{ name: 'Accounting' }] },
+            { name: 'COO', collapsed: true, children: [{ name: 'Operations Manager' }] },
+          ],
+        }),
+    };
+
+    function pick(btn, name) {
+      document.querySelectorAll('[data-diagram]').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      showDiagram(name);
+    }
+
+    function showDiagram(name) {
+      app.stage.clear();
+      currentGroup = samples[name]();
+      app.add(currentGroup);
+      app.render();
+    }
+
+    function runForceLayout() {
+      if (!currentGroup || !LightDraw.Diagram.forceLayout) return;
+      const edges = [];
+      const ids = currentGroup.children
+        .filter((c) => c.metadata && c.metadata.diagramId)
+        .map((c) => c.metadata.diagramId);
+      for (let i = 0; i < ids.length - 1; i++) {
+        edges.push({ from: ids[i], to: ids[i + 1] });
+      }
+      if (edges.length && LightDraw.applyForceLayout) {
+        LightDraw.applyForceLayout(currentGroup, edges, { seed: 42, iterations: 60 });
+      } else if (edges.length) {
+        const positions = LightDraw.Diagram.forceLayout(ids.map((id) => ({ id })), edges, {
+          seed: 42,
+          iterations: 60,
+          width: 800,
+          height: 440,
+        });
+        for (const child of currentGroup.children) {
+          const id = child.metadata?.diagramId;
+          if (id && positions.has(id)) {
+            const p = positions.get(id);
+            child.x = p.x;
+            child.y = p.y;
+          }
+        }
+      }
+      app.render();
+    }
+
+    showDiagram('flowchart');
+  </script>
+</body>
+</html>

@@ -1,0 +1,34 @@
+# Slim CI on GitHub — fast sanity checks on push/PR.
+# Full suite (coverage, perf, visual, memory, benchmarks): run locally via `npm run ci:local`
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - run: npm run typecheck
+
+      - run: npm run lint
+
+      - run: npm run build
+
+      - name: Bundle size gate
+        run: npm run size-gate
+
+      - name: Unit tests (excludes perf — run locally with ci:local)
+        run: npm test -- --exclude test/perf.test.ts

@@ -1,0 +1,277 @@
+import type { App } from '../App';
+import type { Node } from '../Node';
+import type { EventType, LightDrawEvent } from '../types';
+import { createEvent } from '../core/EventEmitter';
+import { collectFocusable } from '../utils/focusOrder';
+
+interface DragState {
+  node: Node;
+  startX: number;
+  startY: number;
+  nodeStartX: number;
+  nodeStartY: number;
+  payload: unknown;
+  overNode: Node | null;
+}
+
+export class EventManager {
+  private app: App;
+  private element: HTMLElement;
+  private dragState: DragState | null = null;
+  private hoverNode: Node | null = null;
+  private focusedNode: Node | null = null;
+  private boundHandlers: Record<string, EventListener> = {};
+
+  constructor(app: App, element: HTMLElement) {
+    this.app = app;
+    this.element = element;
+    if (!element.hasAttribute('tabindex')) {
+      element.tabIndex = 0;
+    }
+    element.setAttribute('role', 'application');
+    this.bindEvents();
+  }
+
+  getFocusedNode(): Node | null {
+    return this.focusedNode;
+  }
+
+  setFocus(node: Node | null, originalEvent?: Event): void {
+    if (this.focusedNode === node) return;
+    const prev = this.focusedNode;
+    this.focusedNode = node;
+    if (prev) {
+      this.dispatchDirect(prev, 'blur', originalEvent ?? new Event('blur'), 0, 0, 0, 0);
+    }
+    if (node) {
+      this.dispatchDirect(node, 'focus', originalEvent ?? new Event('focus'), 0, 0, 0, 0);
+    }
+    this.app.requestRender();
+  }
+
+  private bindEvents(): void {
+    const events = [
+      'click',
+      'dblclick',
+      'mousedown',
+      'mouseup',
+      'mousemove',
+      'wheel',
+      'touchstart',
+      'touchmove',
+      'touchend',
+      'keydown',
+      'keyup',
+    ];
+
+    for (const type of events) {
+      const handler = (e: Event) => this.handleEvent(type as EventType, e);
+      this.boundHandlers[type] = handler;
+      this.element.addEventListener(type, handler, {
+        passive: type === 'touchmove' || type === 'wheel',
+      });
+    }
+  }
+
+  destroy(): void {
+    for (const type in this.boundHandlers) {
+      this.element.removeEventListener(type, this.boundHandlers[type]);
+    }
+  }
+
+  private getPointerCoords(e: Event): { x: number; y: number } {
+    const rect = this.element.getBoundingClientRect();
+    if ('touches' in e && (e as TouchEvent).touches.length > 0) {
+      const touch = (e as TouchEvent).touches[0];
+      return { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
+    }
+    if ('clientX' in e) {
+      return { x: (e as MouseEvent).clientX - rect.left, y: (e as MouseEvent).clientY - rect.top };
+    }
+    return { x: 0, y: 0 };
+  }
+
+  private handleEvent(type: EventType, originalEvent: Event): void {
+    if (type === 'keydown') {
+      this.handleKeydown(originalEvent as KeyboardEvent);
+      return;
+    }
+
+    const { x, y } = this.getPointerCoords(originalEvent);
+    const world = this.app.camera.screenToWorld(x, y);
+
+    if (this.dragState && (type === 'mousemove' || type === 'touchmove')) {
+      const dx = world.x - this.dragState.startX;
+      const dy = world.y - this.dragState.startY;
+      this.dragState.node.x = this.dragState.nodeStartX + dx;
+      this.dragState.node.y = this.dragState.nodeStartY + dy;
+      this.dispatchBubble(
+        this.dragState.node,
+        'dragmove',
+        originalEvent,
+        x,
+        y,
+        world.x,
+        world.y,
+        this.dragState.payload
+      );
+
+      const over = this.app.hitTest(world.x, world.y)?.node ?? null;
+      if (over && over.dropTarget && over !== this.dragState.node) {
+        this.dispatchBubble(over, 'dragover', originalEvent, x, y, world.x, world.y, this.dragState.payload);
+        this.dragState.overNode = over;
+      } else {
+        this.dragState.overNode = null;
+      }
+
+      this.app.requestRender();
+      return;
+    }
+
+    if (type === 'mouseup' || type === 'touchend') {
+      if (this.dragState) {
+        const dropTarget = this.dragState.overNode;
+        this.dispatchBubble(
+          this.dragState.node,
+          'dragend',
+          originalEvent,
+          x,
+          y,
+          world.x,
+          world.y,
+          this.dragState.payload
+        );
+        if (dropTarget && dropTarget !== this.dragState.node) {
+          this.dispatchBubble(
+            dropTarget,
+            'drop',
+            originalEvent,
+            x,
+            y,
+            world.x,
+            world.y,
+            this.dragState.payload
+          );
+        }
+        this.dragState = null;
+      }
+    }
+
+    const hit = this.app.hitTest(world.x, world.y);
+    const target = hit?.node ?? null;
+
+    if (type === 'mousemove' || type === 'touchmove') {
+      if (target !== this.hoverNode) {
+        if (this.hoverNode) {
+          this.dispatchBubble(this.hoverNode, 'mouseleave', originalEvent, x, y, world.x, world.y);
+        }
+        if (target) {
+          this.dispatchBubble(target, 'mouseenter', originalEvent, x, y, world.x, world.y);
+        }
+        this.hoverNode = target;
+      }
+    }
+
+    if (target) {
+      if (type === 'click' || type === 'dblclick') {
+        if (target.focusable) {
+          this.setFocus(target, originalEvent);
+        }
+      }
+
+      this.dispatchBubble(target, type, originalEvent, x, y, world.x, world.y);
+
+      if (type === 'mousedown' || type === 'touchstart') {
+        if (target.draggable) {
+          this.dragState = {
+            node: target,
+            startX: world.x,
+            startY: world.y,
+            nodeStartX: target.x,
+            nodeStartY: target.y,
+            payload: target.dragPayload ?? target.metadata?.dragPayload,
+            overNode: null,
+          };
+          this.dispatchBubble(
+            target,
+            'dragstart',
+            originalEvent,
+            x,
+            y,
+            world.x,
+            world.y,
+            this.dragState.payload
+          );
+        }
+      }
+    }
+
+    if (type === 'wheel') {
+      const wheelEvent = originalEvent as WheelEvent;
+      this.app.camera.pan(wheelEvent.deltaX / this.app.camera.zoom, wheelEvent.deltaY / this.app.camera.zoom);
+    }
+  }
+
+  private handleKeydown(e: KeyboardEvent): void {
+    const focusable = collectFocusable(this.app.stage);
+
+    if (e.key === 'Tab' && focusable.length > 0) {
+      e.preventDefault();
+      const idx = this.focusedNode ? focusable.indexOf(this.focusedNode) : -1;
+      const delta = e.shiftKey ? -1 : 1;
+      const next = focusable[(idx + delta + focusable.length) % focusable.length];
+      this.setFocus(next, e);
+      return;
+    }
+
+    if ((e.key === 'Enter' || e.key === ' ') && this.focusedNode) {
+      e.preventDefault();
+      this.dispatchBubble(this.focusedNode, 'click', e, 0, 0, 0, 0);
+    }
+  }
+
+  /** Dispatch without bubbling (focus/blur). */
+  dispatchDirect(
+    node: Node,
+    type: EventType,
+    originalEvent: Event,
+    x: number,
+    y: number,
+    worldX: number,
+    worldY: number,
+    payload?: unknown
+  ): void {
+    if (!node.listening) return;
+    const event = createEvent(type, node, originalEvent, x, y, worldX, worldY, payload);
+    event.currentTarget = node;
+    node.emit(type, event);
+    this.app.emit(type, { ...event, target: node });
+  }
+
+  private dispatchBubble(
+    node: Node,
+    type: EventType,
+    originalEvent: Event,
+    x: number,
+    y: number,
+    worldX: number,
+    worldY: number,
+    payload?: unknown
+  ): void {
+    const event = createEvent(type, node, originalEvent, x, y, worldX, worldY, payload);
+    let current: Node | null = node;
+
+    while (current) {
+      if (current.listening) {
+        event.currentTarget = current;
+        current.emit(type, event as LightDrawEvent);
+        if (event.propagationStopped) break;
+      }
+      current = current.parent;
+    }
+
+    if (!event.propagationStopped) {
+      this.app.emit(type, { ...event, target: node });
+    }
+  }
+}

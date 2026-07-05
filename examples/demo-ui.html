@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LightDraw — UI Components</title>
+  <script src="demo-embed.js"></script>
+  <link rel="stylesheet" href="demo-common.css">
+  <link rel="stylesheet" href="../dist/lightdraw.min.css">
+</head>
+<body>
+  <div class="demo-shell">
+    <header class="demo-header">
+      <span class="demo-badge">UI Module</span>
+      <h1>Component Library</h1>
+      <p>Production-ready controls out of the box — no custom CSS required. Theme via <code>uiTheme</code> API or optional CSS variables.</p>
+    </header>
+    <main class="demo-main">
+      <div class="demo-canvas-wrap light" id="canvas-wrap">
+        <div id="app"></div>
+      </div>
+      <div class="demo-log" id="log">Event log — interact with components above…</div>
+    </main>
+  </div>
+  <script src="../dist/lightdraw.min.js"></script>
+  <script>
+    const logEl = document.getElementById('log');
+    function log(msg) {
+      logEl.textContent = msg + '\n' + logEl.textContent.slice(0, 900);
+    }
+
+    const CANVAS_H = 580;
+    let app;
+
+    function initApp() {
+      const wrap = document.getElementById('canvas-wrap');
+      const W = Math.max(wrap.clientWidth || 960, 960);
+      const colW = Math.floor((W - 56) / 3);
+
+      if (app) app.destroy();
+      app = LightDraw.createApp('#app', {
+        width: W,
+        height: CANVAS_H,
+        background: '#f1f5f9',
+        renderer: 'html',
+      });
+
+      const c1 = 20;
+      const c2 = 20 + colW + 8;
+      const c3 = 20 + (colW + 8) * 2;
+      const top = 16;
+      const cardH = CANVAS_H - 16;
+
+      const panels = [
+        { type: 'card', props: { x: 12, y: 8, width: colW, height: cardH, title: 'Form Controls' } },
+        { type: 'card', props: { x: 12 + colW + 8, y: 8, width: colW, height: cardH, title: 'Navigation & Data' } },
+        { type: 'card', props: { x: 12 + (colW + 8) * 2, y: 8, width: colW, height: cardH, title: 'Feedback' } },
+      ];
+
+      app.loadJSON({
+        type: 'group',
+        children: [
+          ...panels,
+          { type: 'button', props: { label: 'Save changes', x: c1, y: top + 36, width: 136 } },
+          { type: 'button', props: { label: 'Cancel', x: c1 + 144, y: top + 36, width: 96, variant: 'secondary' } },
+          { type: 'button', props: { label: 'Delete', x: c1, y: top + 76, width: 96, variant: 'danger', size: 'sm' } },
+          { type: 'slider', props: { value: 62, x: c1, y: top + 112, width: colW - 32, label: 'Volume' } },
+          { type: 'checkbox', props: { label: 'Email notifications', checked: true, x: c1, y: top + 168 } },
+          { type: 'toggle', props: { value: true, label: 'Dark mode', x: c1, y: top + 204 } },
+          { type: 'input', props: { label: 'Full name', value: 'Jane Cooper', placeholder: 'Enter name', x: c1, y: top + 244, width: colW - 32 } },
+          { type: 'textarea', props: { label: 'Notes', value: 'Add project notes…', x: c1, y: top + 324, width: colW - 32, height: 72 } },
+          { type: 'radio', props: { label: 'Monthly billing', group: 'plan', selected: true, x: c1, y: top + 414 } },
+          { type: 'radio', props: { label: 'Annual billing', group: 'plan', x: c1, y: top + 446 } },
+
+          { type: 'progressBar', props: { value: 72, label: 'Upload', x: c2, y: top + 36, width: colW - 36 } },
+          { type: 'tabs', props: { tabs: ['Overview', 'Analytics', 'Settings'], x: c2, y: top + 56, width: colW - 28 } },
+          {
+            type: 'accordion',
+            props: {
+              x: c2,
+              y: top + 104,
+              width: colW - 32,
+              sections: [
+                { title: 'General', content: 'Workspace preferences and defaults.' },
+                { title: 'Security', content: 'Two-factor auth and session timeout.' },
+              ],
+            },
+          },
+          { type: 'toolbar', props: { buttons: ['New', 'Edit', 'Save'], x: c2, y: top + 228 } },
+          {
+            type: 'table',
+            props: {
+              x: c2,
+              y: top + 272,
+              colWidth: Math.floor((colW - 36) / 3),
+              columns: ['Product', 'Status', 'Revenue'],
+              rows: [
+                ['Analytics Pro', 'Active', '$12.4k'],
+                ['Dashboard Kit', 'Active', '$8.1k'],
+                ['Diagram Suite', 'Beta', '$2.3k'],
+              ],
+            },
+          },
+          { type: 'tree', props: { x: c2, y: top + 448, width: colW - 36 } },
+
+          { type: 'menu', props: { items: ['Copy', 'Paste', 'Delete'], x: c3, y: top + 36, open: false, width: 160 } },
+          { type: 'tooltip', props: { text: 'Keyboard accessible', x: c3, y: top + 88, visible: false } },
+          { type: 'statusBar', props: { segments: ['Ready', 'UTF-8', 'Ln 42'], x: c3, y: top + 132, width: colW - 36 } },
+          { type: 'toast', props: { message: 'Saved successfully', variant: 'success', x: c3, y: top + 172, duration: 12000 } },
+          {
+            type: 'dialog',
+            props: {
+              title: 'Confirm delete',
+              message: 'This action cannot be undone.',
+              open: false,
+              x: c3,
+              y: top + 232,
+              width: colW - 44,
+              height: 160,
+              overlayWidth: W,
+              overlayHeight: CANVAS_H,
+            },
+          },
+        ],
+      });
+
+      const layer = app.stage.children[0];
+      layer.children.forEach((node) => {
+        if (node.metadata?.componentType === 'card') return;
+        ['change', 'select', 'open', 'close', 'input', 'click'].forEach((ev) => {
+          node.on(ev, (e) =>
+            log(
+              `${node.metadata?.componentType || node.type}: ${ev} ${JSON.stringify(e.value ?? e.item ?? e.index ?? '')}`
+            )
+          );
+        });
+      });
+    }
+
+    initApp();
+    window.addEventListener('resize', () => {
+      clearTimeout(window._ldUiResize);
+      window._ldUiResize = setTimeout(initApp, 150);
+    });
+  </script>
+</body>
+</html>

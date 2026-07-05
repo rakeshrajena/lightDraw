@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LightDraw — Dashboard</title>
+  <script src="demo-embed.js"></script>
+  <link rel="stylesheet" href="demo-common.css">
+  <link rel="stylesheet" href="../dist/lightdraw.min.css">
+</head>
+<body>
+  <div class="demo-shell">
+    <header class="demo-header">
+      <span class="demo-badge">Dashboard Module</span>
+      <h1>Analytics Dashboard</h1>
+      <p>Live gauges, charts, and status widgets — production dashboard widgets on canvas.</p>
+    </header>
+    <main class="demo-main">
+      <div class="demo-toolbar">
+        <button class="demo-btn" onclick="randomize()">Randomize values</button>
+        <button class="demo-btn secondary" onclick="toggleLive()">Toggle live feed</button>
+      </div>
+      <div class="demo-canvas-wrap" id="canvas-wrap">
+        <div id="app"></div>
+      </div>
+    </main>
+  </div>
+  <script src="../dist/lightdraw.min.js"></script>
+  <script>
+    let liveTimer = null;
+    let app;
+
+    function buildDashboard() {
+      const wrap = document.getElementById('canvas-wrap');
+      const W = Math.max(wrap.clientWidth || 980, 980);
+      const H = 500;
+
+      if (app) app.destroy();
+      app = LightDraw.createApp('#app', {
+        width: W,
+        height: H,
+        background: '#0d1322',
+        renderer: 'canvas',
+      });
+
+      const scene = app.group();
+
+      const panels = [
+        [16, 16, 218, 190],
+        [246, 16, 178, 190],
+        [438, 16, 136, 190],
+        [586, 16, 136, 190],
+        [736, 16, W - 752, 190],
+        [16, 218, Math.floor(W * 0.48), 130],
+        [24 + Math.floor(W * 0.48), 218, W - 40 - Math.floor(W * 0.48), 130],
+        [16, 362, 288, 122],
+        [316, 362, 156, 122],
+        [486, 362, 214, 122],
+        [714, 362, W - 730, 122],
+      ];
+
+      panels.forEach(([x, y, w, h]) => {
+        scene.add(
+          app.roundedRect({
+            x,
+            y,
+            width: w,
+            height: h,
+            cornerRadius: 12,
+            fill: '#151d2e',
+            stroke: '#2a3654',
+            strokeWidth: 1,
+            listening: false,
+          })
+        );
+      });
+
+      const widgets = app.group();
+      const json = {
+        type: 'group',
+        children: [
+          { type: 'speedometer', props: { value: 84, size: 168, x: 40, y: 28 } },
+          { type: 'gauge', props: { value: 68, size: 118, x: 276, y: 48 } },
+          { type: 'thermometer', props: { value: 72, x: 472, y: 36 } },
+          { type: 'compass', props: { heading: 128, size: 96, x: 606, y: 36 } },
+          {
+            type: 'legend',
+            props: {
+              items: [
+                { label: 'CPU', color: '#3b82f6' },
+                { label: 'Memory', color: '#f59e0b' },
+                { label: 'Network', color: '#10b981' },
+              ],
+              x: 756,
+              y: 44,
+            },
+          },
+          {
+            type: 'areaChart',
+            props: {
+              data: [22, 38, 31, 52, 48, 64, 58, 71],
+              width: Math.floor(W * 0.46),
+              height: 108,
+              x: 28,
+              y: 232,
+              seriesLabel: 'Throughput',
+            },
+          },
+          {
+            type: 'lineChart',
+            props: {
+              data: [12, 28, 22, 44, 36, 58, 52],
+              width: W - 56 - Math.floor(W * 0.48),
+              height: 108,
+              x: 32 + Math.floor(W * 0.48),
+              y: 232,
+              seriesLabel: 'Latency',
+            },
+          },
+          { type: 'barChart', props: { data: [34, 52, 41, 68, 55], width: 256, height: 92, x: 32, y: 378 } },
+          { type: 'battery', props: { value: 82, x: 364, y: 394 } },
+          { type: 'signalStrength', props: { value: 4, x: 428, y: 394 } },
+          { type: 'meter', props: { value: 76, width: 176, x: 504, y: 386 } },
+          { type: 'knob', props: { value: 55, size: 74, x: 744, y: 374 } },
+          { type: 'clock', props: { size: 86, x: W - 108, y: 374 } },
+        ],
+      };
+
+      app.loadJSON(json);
+      widgets.add(app.stage.children[0]);
+      app.stage.clear();
+      scene.add(widgets);
+      app.stage.add(scene);
+      app.render();
+    }
+
+    function widgetLayer() {
+      const root = app.stage.children[0];
+      return root?.children?.[root.children.length - 1];
+    }
+
+    function findWidget(type) {
+      return widgetLayer()?.children?.find((n) => n.metadata?.widgetType === type);
+    }
+
+    function animateWidget(node, value) {
+      const from = node.metadata.widgetState?.value ?? 0;
+      const start = performance.now();
+      const duration = 450;
+      function tick() {
+        const t = Math.min(1, (performance.now() - start) / duration);
+        const v = from + (value - from) * t;
+        node.metadata.refresh?.(v);
+        node.metadata.widgetState = { ...node.metadata.widgetState, value: v };
+        app.requestRender();
+        if (t < 1) requestAnimationFrame(tick);
+      }
+      tick();
+    }
+
+    function randomize() {
+      ['speedometer', 'gauge', 'thermometer'].forEach((t) => {
+        const w = findWidget(t);
+        if (w) animateWidget(w, Math.random() * (t === 'speedometer' ? 160 : 100));
+      });
+    }
+
+    function toggleLive() {
+      if (liveTimer) {
+        clearInterval(liveTimer);
+        liveTimer = null;
+        return;
+      }
+      liveTimer = setInterval(() => {
+        const speedo = findWidget('speedometer');
+        if (speedo) animateWidget(speedo, 40 + Math.random() * 100);
+      }, 1800);
+    }
+
+    buildDashboard();
+    window.addEventListener('resize', () => {
+      clearTimeout(window._ldDashResize);
+      window._ldDashResize = setTimeout(buildDashboard, 150);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LightDraw — Automotive Cluster</title>
+  <script src="demo-embed.js"></script>
+  <link rel="stylesheet" href="demo-common.css">
+  <link rel="stylesheet" href="../lightdraw.min.css">
+</head>
+<body>
+  <div class="demo-shell">
+    <header class="demo-header">
+      <span class="demo-badge">Automotive Module</span>
+      <h1>Digital Instrument Cluster</h1>
+      <p>Full cockpit simulation with classic, sport, and digital themes — canvas renderer for crisp dials.</p>
+    </header>
+    <main class="demo-main">
+      <div class="demo-toolbar">
+        <button class="demo-btn" onclick="toggleDrive()">Toggle drive simulation</button>
+        <button class="demo-btn secondary" onclick="randomFrame()">Random frame</button>
+        <label class="demo-label">Theme
+          <select class="demo-select" id="theme" onchange="setTheme(this.value)">
+            <option value="classic">Classic</option>
+            <option value="sport">Sport</option>
+            <option value="digital">Digital</option>
+          </select>
+        </label>
+      </div>
+      <div class="demo-canvas-wrap">
+        <div id="app"></div>
+      </div>
+    </main>
+  </div>
+  <script src="../lightdraw.min.js"></script>
+  <script>
+    let driveTimer = null;
+    let frameIndex = 0;
+    let cluster = null;
+    const frames = LightDraw.sampleDriveFrames ? LightDraw.sampleDriveFrames(120) : [];
+
+    const app = LightDraw.createApp('#app', {
+      width: 920,
+      height: 420,
+      background: '#0a0a0a',
+      renderer: 'canvas',
+    });
+
+    function loadCluster(theme) {
+      cluster = null;
+      app.loadJSON({
+        type: 'instrumentCluster',
+        props: {
+          theme,
+          width: 900,
+          height: 400,
+          x: 10,
+          y: 10,
+          speed: 0,
+          rpm: 800,
+          fuel: 75,
+          engineTemp: 85,
+          batteryVoltage: 12.4,
+          tpms: [32, 32, 32, 32],
+          gear: 'P',
+          parkingBrake: true,
+        },
+      });
+      cluster = app.stage.children[0];
+    }
+
+    loadCluster('classic');
+
+    function applyFrame(state) {
+      if (!cluster || !LightDraw.applyDriveState) return;
+      LightDraw.applyDriveState(cluster, state);
+    }
+
+    function toggleDrive() {
+      if (driveTimer) {
+        clearInterval(driveTimer);
+        driveTimer = null;
+        return;
+      }
+      driveTimer = setInterval(() => {
+        if (!frames.length) return;
+        applyFrame(frames[frameIndex % frames.length]);
+        frameIndex++;
+      }, 100);
+    }
+
+    function randomFrame() {
+      applyFrame({
+        speed: Math.round(Math.random() * 140),
+        rpm: Math.round(1000 + Math.random() * 5000),
+        fuel: Math.round(Math.random() * 100),
+        engineTemp: Math.round(70 + Math.random() * 50),
+        batteryVoltage: Math.round((11.5 + Math.random() * 1.5) * 10) / 10,
+        tpms: [28, 30, 22, 31].map(() => Math.round(20 + Math.random() * 15)),
+        parkingBrake: Math.random() > 0.7,
+        headlights: Math.random() > 0.5,
+        cruiseSpeed: Math.random() > 0.6 ? 65 : 0,
+        gear: ['P', 'R', 'N', 'D'][Math.floor(Math.random() * 4)],
+        turnLeft: Math.random() > 0.8,
+        turnRight: Math.random() > 0.8,
+        signals: {
+          'engine.rpm': Math.round(Math.random() * 6000),
+          'vehicle.speed': Math.round(Math.random() * 120),
+          'battery.voltage': 12.4,
+        },
+      });
+    }
+
+    function setTheme(theme) {
+      const wasRunning = !!driveTimer;
+      if (driveTimer) clearInterval(driveTimer);
+      driveTimer = null;
+      loadCluster(theme);
+      if (wasRunning) toggleDrive();
+    }
+  </script>
+</body>
+</html>

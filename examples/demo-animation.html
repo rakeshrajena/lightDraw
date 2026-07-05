@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LightDraw — Animation Demo</title>
+  <script src="demo-embed.js"></script>
+  <link rel="stylesheet" href="demo-common.css">
+  <style>
+    .demo-layout-split { grid-template-columns: 1fr 240px; }
+    .demo-sidebar button { width: 100%; text-align: left; }
+  </style>
+</head>
+<body>
+  <div class="demo-shell">
+    <header class="demo-header">
+      <span class="demo-badge">Animation Engine</span>
+      <h1>Motion &amp; Timeline</h1>
+      <p>Path motion, stroke dash, morphing, stagger, and multi-property group animations.</p>
+    </header>
+    <main class="demo-main demo-layout-split">
+      <div class="demo-canvas-wrap">
+        <div id="app"></div>
+      </div>
+      <aside class="demo-sidebar">
+        <h2>Demos</h2>
+        <button class="demo-btn secondary" onclick="demoMotionPath()">Motion Path</button>
+        <button class="demo-btn secondary" onclick="demoDash()">Stroke Dash</button>
+        <button class="demo-btn secondary" onclick="demoMorph()">Path Morph</button>
+        <button class="demo-btn secondary" onclick="demoStagger()">Stagger</button>
+        <button class="demo-btn secondary" onclick="demoGroup()">Multi-Prop Group</button>
+        <button class="demo-btn" onclick="stopAll()">Stop All</button>
+      </aside>
+    </main>
+  </div>
+  <script src="../dist/lightdraw.min.js"></script>
+  <script>
+    let app = LightDraw.createApp('#app', { width: 800, height: 500, background: '#1e293b' });
+    let controls = [];
+
+    function clear() {
+      controls.forEach(c => c.stop?.());
+      controls = [];
+      LightDraw.AnimationEngine.stopAll();
+      app.destroy();
+      app = LightDraw.createApp('#app', { width: 800, height: 500, background: '#1e293b' });
+    }
+
+    function stopAll() {
+      controls.forEach(c => c.stop?.());
+      controls = [];
+      LightDraw.AnimationEngine.stopAll();
+    }
+
+    function demoMotionPath() {
+      clear();
+      const track = app.path({
+        d: 'M 50 250 Q 200 50 400 250 T 750 250',
+        stroke: '#475569',
+        strokeWidth: 2,
+        dash: [8, 6],
+      });
+      const dot = app.circle({ x: 50, y: 250, radius: 12, fill: '#2563eb' });
+      app.add(track, dot);
+      controls.push(app.animate(dot, {
+        motionPath: track,
+        duration: 3000,
+        loop: true,
+        easing: 'easeInOutCubic',
+      }));
+    }
+
+    function demoDash() {
+      clear();
+      const line = app.path({
+        d: 'M 80 250 L 720 250',
+        stroke: '#22d3ee',
+        strokeWidth: 4,
+        dash: [20, 12],
+        dashOffset: 0,
+      });
+      app.add(line);
+      controls.push(line.animate({
+        dashOffset: 200,
+        duration: 2000,
+        loop: true,
+        easing: 'linear',
+      }));
+    }
+
+    function demoMorph() {
+      clear();
+      const w = 120, h = 90, r = 24;
+      const rectPath = `M0 0 L${w} 0 L${w} ${h} L0 ${h} Z`;
+      const roundPath = [
+        `M${r} 0`, `L${w-r} 0`, `Q${w} 0 ${w} ${r}`,
+        `L${w} ${h-r}`, `Q${w} ${h} ${w-r} ${h}`,
+        `L${r} ${h}`, `Q0 ${h} 0 ${h-r}`, `L0 ${r}`, `Q0 0 ${r} 0`, 'Z'
+      ].join(' ');
+      const shape = app.path({ d: rectPath, x: 340, y: 205, fill: '#f59e0b', stroke: '#fff', strokeWidth: 2 });
+      app.add(shape);
+      controls.push(shape.animate({
+        morphTo: roundPath,
+        duration: 1200,
+        loop: true,
+        reverse: true,
+        easing: 'easeInOutQuad',
+      }));
+    }
+
+    function demoStagger() {
+      clear();
+      const nodes = [];
+      for (let i = 0; i < 8; i++) {
+        const bar = app.rect({
+          x: 100 + i * 70,
+          y: 400,
+          width: 40,
+          height: 20,
+          fill: '#6366f1',
+          cornerRadius: 4,
+        });
+        nodes.push(bar);
+      }
+      app.add(...nodes);
+      app.timeline()
+        .stagger(nodes, { y: 120, duration: 600, easing: 'easeOutBounce' }, 80)
+        .play();
+    }
+
+    function demoGroup() {
+      clear();
+      const card = app.roundedRect({
+        x: 280, y: 180, width: 240, height: 140,
+        fill: '#1e40af', cornerRadius: 12,
+        stroke: '#93c5fd', strokeWidth: 2,
+      });
+      app.add(card);
+      controls.push(app.animate(card, {
+        x: 300,
+        y: 160,
+        opacity: 0.85,
+        rotation: 5,
+        duration: 1500,
+        loop: true,
+        reverse: true,
+        easing: 'easeInOutCubic',
+      }));
+    }
+
+    demoMotionPath();
+    LightDraw.AnimationEngine.stopAll();
+  </script>
+</body>
+</html>
