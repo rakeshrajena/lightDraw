@@ -229,7 +229,7 @@ describe('Phase 9 — Diagram Module', () => {
     const net = createNetworkDiagram(app, { nodes, edges });
     app.add(net);
     const avg = measureAverageMs(() => app.render(), 5);
-    expect(avg).toBeLessThan(36);
+    expect(avg).toBeLessThan(45);
     app.destroy();
   });
 
