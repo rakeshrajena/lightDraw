@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LightDraw — Animation Demo (Phase 3)</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; background: #0f172a; color: #e2e8f0; }
+    header { padding: 1rem 2rem; border-bottom: 1px solid #334155; }
+    header h1 { font-size: 1.25rem; }
+    header p { color: #94a3b8; margin-top: 0.25rem; font-size: 0.875rem; }
+    main { display: grid; grid-template-columns: 1fr 280px; gap: 1rem; padding: 1rem 2rem; }
+    #app { background: #1e293b; border-radius: 8px; border: 1px solid #334155; min-height: 500px; }
+    aside { background: #1e293b; border-radius: 8px; border: 1px solid #334155; padding: 1rem; }
+    aside h2 { font-size: 0.875rem; margin-bottom: 0.75rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
+    aside button { display: block; width: 100%; padding: 0.5rem; margin-bottom: 0.5rem; background: #2563eb; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 0.875rem; }
+    aside button:hover { background: #1d4ed8; }
+    aside button.secondary { background: #334155; }
+    aside button.secondary:hover { background: #475569; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>LightDraw.js — Phase 3 Animation</h1>
+    <p>Path motion · dash offset · morph · sprite · stagger</p>
+  </header>
+  <main>
+    <div id="app"></div>
+    <aside>
+      <h2>Demos</h2>
+      <button onclick="demoMotionPath()">Motion Path</button>
+      <button onclick="demoDash()">Stroke Dash</button>
+      <button onclick="demoMorph()">Path Morph</button>
+      <button onclick="demoStagger()">Stagger</button>
+      <button onclick="demoGroup()">Multi-Prop Group</button>
+      <button class="secondary" onclick="stopAll()">Stop All</button>
+    </aside>
+  </main>
+  <script src="../dist/lightdraw.min.js"></script>
+  <script>
+    let app = LightDraw.createApp('#app', { width: 800, height: 500, background: '#1e293b' });
+    let controls = [];
+
+    function clear() {
+      controls.forEach(c => c.stop?.());
+      controls = [];
+      LightDraw.AnimationEngine.stopAll();
+      app.destroy();
+      app = LightDraw.createApp('#app', { width: 800, height: 500, background: '#1e293b' });
+    }
+
+    function stopAll() {
+      controls.forEach(c => c.stop?.());
+      controls = [];
+      LightDraw.AnimationEngine.stopAll();
+    }
+
+    function demoMotionPath() {
+      clear();
+      const track = app.path({
+        d: 'M 50 250 Q 200 50 400 250 T 750 250',
+        stroke: '#475569',
+        strokeWidth: 2,
+        dash: [8, 6],
+      });
+      const dot = app.circle({ x: 50, y: 250, radius: 12, fill: '#2563eb' });
+      app.add(track, dot);
+      controls.push(app.animate(dot, {
+        motionPath: track,
+        duration: 3000,
+        loop: true,
+        easing: 'easeInOutCubic',
+      }));
+    }
+
+    function demoDash() {
+      clear();
+      const line = app.path({
+        d: 'M 80 250 L 720 250',
+        stroke: '#22d3ee',
+        strokeWidth: 4,
+        dash: [20, 12],
+        dashOffset: 0,
+      });
+      app.add(line);
+      controls.push(line.animate({
+        dashOffset: 200,
+        duration: 2000,
+        loop: true,
+        easing: 'linear',
+      }));
+    }
+
+    function demoMorph() {
+      clear();
+      const w = 120, h = 90, r = 24;
+      const rectPath = `M0 0 L${w} 0 L${w} ${h} L0 ${h} Z`;
+      const roundPath = [
+        `M${r} 0`, `L${w-r} 0`, `Q${w} 0 ${w} ${r}`,
+        `L${w} ${h-r}`, `Q${w} ${h} ${w-r} ${h}`,
+        `L${r} ${h}`, `Q0 ${h} 0 ${h-r}`, `L0 ${r}`, `Q0 0 ${r} 0`, 'Z'
+      ].join(' ');
+      const shape = app.path({ d: rectPath, x: 340, y: 205, fill: '#f59e0b', stroke: '#fff', strokeWidth: 2 });
+      app.add(shape);
+      controls.push(shape.animate({
+        morphTo: roundPath,
+        duration: 1200,
+        loop: true,
+        reverse: true,
+        easing: 'easeInOutQuad',
+      }));
+    }
+
+    function demoStagger() {
+      clear();
+      const nodes = [];
+      for (let i = 0; i < 8; i++) {
+        const bar = app.rect({
+          x: 100 + i * 70,
+          y: 400,
+          width: 40,
+          height: 20,
+          fill: '#6366f1',
+          cornerRadius: 4,
+        });
+        nodes.push(bar);
+      }
+      app.add(...nodes);
+      app.timeline()
+        .stagger(nodes, { y: 120, duration: 600, easing: 'easeOutBounce' }, 80)
+        .play();
+    }
+
+    function demoGroup() {
+      clear();
+      const card = app.roundedRect({
+        x: 280, y: 180, width: 240, height: 140,
+        fill: '#1e40af', cornerRadius: 12,
+        stroke: '#93c5fd', strokeWidth: 2,
+      });
+      app.add(card);
+      controls.push(app.animate(card, {
+        x: 300,
+        y: 160,
+        opacity: 0.85,
+        rotation: 5,
+        duration: 1500,
+        loop: true,
+        reverse: true,
+        easing: 'easeInOutCubic',
+      }));
+    }
+
+    demoMotionPath();
+    LightDraw.AnimationEngine.stopAll();
+  </script>
+</body>
+</html>

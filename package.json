@@ -1,0 +1,136 @@
+{
+  "name": "lightdraw",
+  "version": "0.9.0",
+  "description": "Ultra-lightweight 2D graphics and UI engine for the web",
+  "main": "dist/lightdraw.js",
+  "module": "dist/lightdraw.esm.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/lightdraw.esm.js",
+      "require": "./dist/lightdraw.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./core": {
+      "import": "./dist/lightdraw.core.esm.js",
+      "require": "./dist/lightdraw.core.min.js",
+      "types": "./dist/core/index.d.ts"
+    },
+    "./svg": {
+      "import": "./dist/lightdraw.svg.esm.js",
+      "require": "./dist/lightdraw.svg.min.js",
+      "types": "./dist/modules/svg/index.d.ts"
+    },
+    "./html": {
+      "import": "./dist/lightdraw.html.esm.js",
+      "require": "./dist/lightdraw.html.min.js",
+      "types": "./dist/modules/html/index.d.ts"
+    },
+    "./ui": {
+      "import": "./dist/lightdraw.ui.esm.js",
+      "require": "./dist/lightdraw.ui.min.js",
+      "types": "./dist/modules/ui/index.d.ts"
+    },
+    "./dashboard": {
+      "import": "./dist/lightdraw.dashboard.esm.js",
+      "require": "./dist/lightdraw.dashboard.min.js",
+      "types": "./dist/modules/dashboard/index.d.ts"
+    },
+    "./automotive": {
+      "import": "./dist/lightdraw.automotive.esm.js",
+      "require": "./dist/lightdraw.automotive.min.js",
+      "types": "./dist/modules/automotive/index.d.ts"
+    },
+    "./diagram": {
+      "import": "./dist/lightdraw.diagram.esm.js",
+      "require": "./dist/lightdraw.diagram.min.js",
+      "types": "./dist/modules/diagram/index.d.ts"
+    },
+    "./legacy": {
+      "require": "./dist/lightdraw.legacy.js",
+      "default": "./dist/lightdraw.legacy.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/build.mjs --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:memory": "vitest run test/memory.test.ts",
+    "test:perf": "vitest run test/perf.test.ts",
+    "test:phase0": "vitest run test/memory.test.ts test/perf.test.ts test/renderers/",
+    "test:phase1": "vitest run test/phase1.test.ts",
+    "test:phase2": "vitest run test/phase2.test.ts",
+  "test:phase3": "vitest run test/phase3.test.ts",
+  "test:phase4": "vitest run test/phase4.test.ts",
+  "test:phase5": "vitest run test/phase5.test.ts",
+  "test:phase6": "vitest run test/phase6.test.ts",
+  "test:phase7": "vitest run test/phase7.test.ts",
+  "test:phase10": "vitest run test/phase10.test.ts",
+  "test:phase11": "vitest run test/phase11.test.ts test/phase11-coverage.test.ts test/phase11-integration.test.ts test/phase11-shapes.test.ts test/phase11-renderers.test.ts test/doc-snippets.test.ts",
+  "test:phase12": "vitest run test/phase12.test.ts test/phase12-legacy.test.ts test/phase12-coverage.test.ts",
+  "test:docs": "vitest run test/doc-snippets.test.ts",
+  "test:visual": "playwright test",
+  "test:visual:update": "playwright test --update-snapshots",
+  "docs:api": "typedoc",
+  "prepare:website": "node scripts/prepare-website.mjs",
+  "dev:website": "npm run prepare:website && vite --config website/vite.config.ts",
+  "build:website": "npm run prepare:website && vite build --config website/vite.config.ts",
+  "size-gate": "node scripts/size-gate.mjs",
+    "lint": "eslint src test --ext .ts",
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+    "typecheck": "tsc --noEmit",
+    "benchmark": "node scripts/benchmark.mjs",
+    "benchmark:save": "node scripts/benchmark.mjs --save",
+    "benchmark:compare": "node scripts/benchmark.mjs --compare",
+    "prepublishOnly": "npm run build && npm run test"
+  },
+  "keywords": [
+    "2d",
+    "graphics",
+    "canvas",
+    "svg",
+    "animation",
+    "dashboard",
+    "automotive",
+    "diagram",
+    "scene-graph"
+  ],
+  "author": "Rakesh Ranjan Jena <https://rakeshranjanjena.com>",
+  "license": "MIT",
+  "homepage": "https://rakeshranjanjena.com",
+  "bugs": {
+    "url": "https://github.com/rakeshrajena/lightDraw/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rakeshrajena/lightDraw.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.42.0",
+    "@types/node": "^20.11.0",
+    "@vitest/coverage-v8": "^1.2.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "esbuild": "^0.20.0",
+    "eslint": "^8.56.0",
+    "jsdom": "^24.0.0",
+    "prettier": "^3.2.0",
+    "typedoc": "^0.26.0",
+    "typescript": "^5.3.0",
+    "vite": "^5.2.0",
+    "vitest": "^1.2.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

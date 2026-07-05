@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LightDraw — Automotive Demo (Phase 8)</title>
+  <link rel="stylesheet" href="../dist/lightdraw.min.css">
+  <style>
+    body { font-family: system-ui, sans-serif; background: #0f172a; color: #e2e8f0; margin: 0; }
+    header { padding: 1rem 2rem; border-bottom: 1px solid #334155; }
+    main { padding: 1rem 2rem; }
+    #app { border: 1px solid #334155; border-radius: 8px; min-height: 440px; background: #111; overflow: hidden; }
+    .controls { margin-top: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+    .controls button, .controls select { padding: 0.4rem 0.8rem; background: #2563eb; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
+    .controls select { background: #1e293b; border: 1px solid #475569; }
+    label { font-size: 0.9rem; color: #94a3b8; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>LightDraw.js — Phase 8 Instrument Cluster</h1>
+    <p>Full cluster · JSON drive simulation · classic / sport / digital themes</p>
+  </header>
+  <main>
+    <div id="app"></div>
+    <div class="controls">
+      <button onclick="toggleDrive()">Toggle drive sim</button>
+      <button onclick="randomFrame()">Random frame</button>
+      <label>Theme
+        <select id="theme" onchange="setTheme(this.value)">
+          <option value="classic">Classic</option>
+          <option value="sport">Sport</option>
+          <option value="digital">Digital</option>
+        </select>
+      </label>
+    </div>
+  </main>
+  <script src="../dist/lightdraw.min.js"></script>
+  <script>
+    let driveTimer = null;
+    let frameIndex = 0;
+    let cluster = null;
+    const frames = LightDraw.sampleDriveFrames ? LightDraw.sampleDriveFrames(120) : [];
+
+    const app = LightDraw.createApp('#app', {
+      width: 860, height: 420, background: '#0f172a', renderer: 'html',
+    });
+
+    function loadCluster(theme) {
+      app.clear();
+      cluster = null;
+      app.loadJSON({
+        type: 'instrumentCluster',
+        props: {
+          theme,
+          width: 840,
+          height: 400,
+          x: 10,
+          y: 10,
+          speed: 0,
+          rpm: 800,
+          fuel: 75,
+          engineTemp: 85,
+          batteryVoltage: 12.4,
+          tpms: [32, 32, 32, 32],
+          gear: 'P',
+          parkingBrake: true,
+        },
+      });
+      cluster = app.stage.children[0];
+    }
+
+    loadCluster('classic');
+
+    function applyFrame(state) {
+      if (!cluster || !LightDraw.applyDriveState) return;
+      LightDraw.applyDriveState(cluster, state);
+    }
+
+    function toggleDrive() {
+      if (driveTimer) {
+        clearInterval(driveTimer);
+        driveTimer = null;
+        return;
+      }
+      driveTimer = setInterval(() => {
+        if (!frames.length) return;
+        applyFrame(frames[frameIndex % frames.length]);
+        frameIndex++;
+      }, 100);
+    }
+
+    function randomFrame() {
+      applyFrame({
+        speed: Math.round(Math.random() * 140),
+        rpm: Math.round(1000 + Math.random() * 5000),
+        fuel: Math.round(Math.random() * 100),
+        engineTemp: Math.round(70 + Math.random() * 50),
+        batteryVoltage: Math.round((11.5 + Math.random() * 1.5) * 10) / 10,
+        tpms: [28, 30, 22, 31].map(() => Math.round(20 + Math.random() * 15)),
+        parkingBrake: Math.random() > 0.7,
+        headlights: Math.random() > 0.5,
+        cruiseSpeed: Math.random() > 0.6 ? 65 : 0,
+        gear: ['P', 'R', 'N', 'D'][Math.floor(Math.random() * 4)],
+        turnLeft: Math.random() > 0.8,
+        turnRight: Math.random() > 0.8,
+        signals: {
+          'engine.rpm': Math.round(Math.random() * 6000),
+          'vehicle.speed': Math.round(Math.random() * 120),
+          'battery.voltage': 12.4,
+        },
+      });
+    }
+
+    function setTheme(theme) {
+      const wasRunning = !!driveTimer;
+      if (driveTimer) clearInterval(driveTimer);
+      driveTimer = null;
+      loadCluster(theme);
+      if (wasRunning) toggleDrive();
+    }
+  </script>
+</body>
+</html>

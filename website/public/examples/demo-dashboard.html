@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LightDraw — Dashboard Demo (Phase 7)</title>
+  <link rel="stylesheet" href="../lightdraw.min.css">
+  <style>
+    body { font-family: system-ui, sans-serif; background: #0f172a; color: #e2e8f0; margin: 0; }
+    header { padding: 1rem 2rem; border-bottom: 1px solid #334155; }
+    main { padding: 1rem 2rem; }
+    #app { border: 1px solid #334155; border-radius: 8px; min-height: 520px; background: #1e293b; }
+    .controls { margin-top: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .controls button { padding: 0.4rem 0.8rem; background: #2563eb; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>LightDraw.js — Phase 7 Dashboard</h1>
+    <p>Live data updates · chart interaction · 16 widgets via JSON</p>
+  </header>
+  <main>
+    <div id="app"></div>
+    <div class="controls">
+      <button onclick="randomize()">Randomize values</button>
+      <button onclick="toggleLive()">Toggle live feed</button>
+    </div>
+  </main>
+  <script src="../lightdraw.min.js"></script>
+  <script>
+    let liveTimer = null;
+    const widgets = {};
+
+    const app = LightDraw.createApp('#app', {
+      width: 960, height: 520, background: '#1e293b', renderer: 'html',
+    });
+
+    app.loadJSON({
+      type: 'group',
+      children: [
+        { type: 'speedometer', props: { value: 72, size: 160, x: 20, y: 20 } },
+        { type: 'gauge', props: { value: 64, size: 120, x: 200, y: 40 } },
+        { type: 'thermometer', props: { value: 68, x: 340, y: 30 } },
+        { type: 'compass', props: { heading: 135, size: 90, x: 400, y: 30 } },
+        { type: 'areaChart', props: { data: [20, 35, 28, 50, 45, 62, 58], width: 320, height: 140, x: 520, y: 20, seriesLabel: 'Load' } },
+        { type: 'lineChart', props: { data: [10, 25, 18, 40, 32, 55], width: 320, height: 120, x: 520, y: 180 } },
+        { type: 'barChart', props: { data: [30, 45, 38, 60], width: 280, height: 100, x: 20, y: 200 } },
+        { type: 'battery', props: { value: 78, x: 320, y: 200 } },
+        { type: 'signalStrength', props: { value: 4, x: 380, y: 200 } },
+        { type: 'meter', props: { value: 72, width: 160, x: 20, y: 320 } },
+        { type: 'knob', props: { value: 40, size: 70, x: 200, y: 320 } },
+        { type: 'timeline', props: { height: 140, x: 300, y: 300 } },
+        { type: 'calendar', props: { x: 520, y: 320, highlightDay: 5 } },
+        { type: 'clock', props: { size: 100, x: 760, y: 320 } },
+        { type: 'legend', props: { items: [{ label: 'CPU', color: '#3b82f6' }, { label: 'Mem', color: '#ef4444' }], x: 860, y: 20 } },
+      ],
+    });
+
+    app.stage.children.forEach((node) => {
+      if (node.metadata?.widgetType) widgets[node.metadata.widgetType + node.id] = node;
+      node.on('select', (e) => console.log('chart select', e.index, e.value));
+      node.on('hover', (e) => console.log('chart hover', e.index, e.value));
+    });
+
+    function findWidget(type) {
+      return app.stage.children.find((n) => n.metadata?.widgetType === type);
+    }
+
+    function randomize() {
+      const speedo = findWidget('speedometer');
+      const gauge = findWidget('gauge');
+      const thermo = findWidget('thermometer');
+      if (speedo) LightDraw.animateLiveValue?.(speedo, 'value', Math.random() * 180) ?? animateWidget(speedo, Math.random() * 180);
+      if (gauge) animateWidget(gauge, Math.random() * 100);
+      if (thermo) animateWidget(thermo, Math.random() * 100);
+    }
+
+    function animateWidget(node, value) {
+      if (typeof animateLiveValue === 'function') return;
+      const from = (node.metadata.widgetState?.value ?? 0);
+      const start = performance.now();
+      const duration = 400;
+      function tick() {
+        const t = Math.min(1, (performance.now() - start) / duration);
+        const v = from + (value - from) * t;
+        node.metadata.refresh?.(v);
+        node.metadata.widgetState = { ...node.metadata.widgetState, value: v };
+        app.requestRender();
+        if (t < 1) requestAnimationFrame(tick);
+      }
+      tick();
+    }
+
+    function toggleLive() {
+      if (liveTimer) {
+        clearInterval(liveTimer);
+        liveTimer = null;
+        return;
+      }
+      liveTimer = setInterval(() => {
+        const speedo = findWidget('speedometer');
+        if (speedo) {
+          const v = 40 + Math.random() * 100;
+          animateWidget(speedo, v);
+        }
+      }, 1500);
+    }
+  </script>
+</body>
+</html>

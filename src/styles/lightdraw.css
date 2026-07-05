@@ -1,0 +1,64 @@
+/** LightDraw HTML renderer styles */
+.lightdraw-html-root {
+  box-sizing: border-box;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.lightdraw-html-root *,
+.lightdraw-html-root *::before,
+.lightdraw-html-root *::after {
+  box-sizing: inherit;
+}
+
+.lightdraw-html-root [role='button']:focus,
+.lightdraw-html-root [role='checkbox']:focus,
+.lightdraw-html-root [role='slider']:focus,
+.lightdraw-html-root [role='switch']:focus,
+.lightdraw-html-root .lightdraw-focused {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.lightdraw-high-contrast [role='button']:focus,
+.lightdraw-high-contrast .lightdraw-focused {
+  outline: 3px solid #ffff00;
+  outline-offset: 2px;
+}
+
+.lightdraw-high-contrast {
+  color: #ffffff;
+}
+
+.lightdraw-high-contrast [role='button'],
+.lightdraw-high-contrast [role='checkbox'],
+.lightdraw-high-contrast [role='slider'] {
+  border: 1px solid #ffffff;
+}
+
+.lightdraw-native-input,
+.lightdraw-native-textarea {
+  font-family: system-ui, -apple-system, sans-serif;
+  background: #ffffff;
+  color: #111827;
+}
+
+.lightdraw-native-input:focus,
+.lightdraw-native-textarea:focus {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+  border-color: #2563eb;
+}
+
+.lightdraw-html-root [role='button'][aria-disabled='true'] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.lightdraw-html-root [role='dialog'] {
+  z-index: 100;
+}
+
+.lightdraw-html-root [role='toolbar'] {
+  display: flex;
+  gap: 4px;
+}
