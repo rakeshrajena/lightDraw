@@ -21,7 +21,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" />
-  <img src="https://img.shields.io/badge/version-0.9.0-2563eb" alt="Version 0.9.0" />
+  <img src="https://img.shields.io/badge/version-0.9.0-2563eb" alt="Version 1.0.0" />
   <img src="https://img.shields.io/badge/deps-zero-success" alt="Zero dependencies" />
   <img src="https://img.shields.io/badge/renderers-Canvas%20%7C%20SVG%20%7C%20HTML-64748b" alt="Renderers" />
 </p>
