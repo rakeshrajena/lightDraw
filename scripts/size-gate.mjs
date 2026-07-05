@@ -4,22 +4,28 @@
  * Run after `npm run build`.
  *
  * Phase 5 aspirational targets (IMPLEMENTATION_PLAN): core 8 KB, svg/html 3 KB, etc.
- * v0.4.0 measured baselines below are enforced until further tree-shaking.
+ * v0.9.0 measured baselines below are enforced until further tree-shaking.
  * See IMPLEMENTATION_PLAN.md Phase 5 — documented size exceptions.
  */
 import { readFileSync, existsSync } from 'fs';
 import { gzipSync } from 'zlib';
 
-/** Gzip limits in bytes (v0.9.0 measured baselines + headroom). */
+/**
+ * Gzip limits in bytes (v0.9.0 measured baselines + headroom).
+ *
+ * Measured after professional UI/dashboard/automotive/diagram styling (2026-07):
+ *   core 24.1 KB | svg 9.6 KB | html 15.6 KB | ui 9.7 KB
+ *   dashboard 11.0 KB | automotive 10.8 KB | diagram 9.1 KB | full 52.5 KB
+ */
 const TARGETS = {
-  'lightdraw.core.min.js': 24 * 1024,
+  'lightdraw.core.min.js': 26 * 1024,
   'lightdraw.svg.min.js': 10 * 1024,
-  'lightdraw.html.min.js': 9 * 1024,
-  'lightdraw.ui.min.js': 8 * 1024,
-  'lightdraw.dashboard.min.js': 10 * 1024,
-  'lightdraw.automotive.min.js': 10 * 1024,
-  'lightdraw.diagram.min.js': 6 * 1024,
-  'lightdraw.min.js': 41 * 1024,
+  'lightdraw.html.min.js': 17 * 1024,
+  'lightdraw.ui.min.js': 11 * 1024,
+  'lightdraw.dashboard.min.js': 12 * 1024,
+  'lightdraw.automotive.min.js': 12 * 1024,
+  'lightdraw.diagram.min.js': 10 * 1024,
+  'lightdraw.min.js': 54 * 1024,
 };
 
 const LEGACY_BUNDLES = [

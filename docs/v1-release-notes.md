@@ -73,9 +73,13 @@ None intentional since v0.2.0 modular architecture. If you pinned `0.1.0`:
 
 | Bundle | Size gate |
 |--------|-----------|
-| Core | ≤ 24 KB |
-| Full | ≤ 41 KB |
-| Per-plugin | ≤ 10 KB each |
+| Core | ≤ 26 KB |
+| Full | ≤ 54 KB |
+| HTML plugin | ≤ 17 KB |
+| UI plugin | ≤ 11 KB |
+| Dashboard / Automotive | ≤ 12 KB each |
+| Diagram | ≤ 10 KB |
+| SVG plugin | ≤ 10 KB |
 
 Original aspirational targets (8 KB core / 25 KB full) are documented in `IMPLEMENTATION_PLAN.md` as deferred goals.
 
