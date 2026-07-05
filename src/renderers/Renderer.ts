@@ -9,6 +9,7 @@ export interface RenderContext {
   background: string;
   focusedNodeId?: string | null;
   highContrast?: boolean;
+  uiTheme?: import('../components/uiTheme').UiThemeTokens;
 }
 
 export abstract class Renderer {

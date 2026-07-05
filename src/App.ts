@@ -54,10 +54,12 @@ export class App extends EventEmitter {
   private spatialIndex = new SpatialIndex();
   private nodeCount = 0;
   private highContrast: boolean;
+  private uiTheme: import('./components/uiTheme').UiThemeTokens;
 
   constructor(container: string | HTMLElement, options: AppOptions = {}) {
     super();
     this.highContrast = options.highContrast ?? false;
+    this.uiTheme = options.uiTheme ?? {};
     this.perf = {
       spatialIndex: options.performance?.spatialIndex ?? true,
       spatialIndexThreshold: options.performance?.spatialIndexThreshold ?? 100,
@@ -85,6 +87,7 @@ export class App extends EventEmitter {
       pixelRatio: this.pixelRatio,
       background: this.background,
       highContrast: this.highContrast,
+      uiTheme: this.uiTheme,
     });
 
     this.eventManager = new EventManager(this, this.renderer.getElement() as HTMLElement);
@@ -380,6 +383,17 @@ export class App extends EventEmitter {
 
   setBackground(color: string): this {
     this.background = color;
+    this.requestRender();
+    return this;
+  }
+
+  /** Update built-in UI theme tokens (CSS variables) without custom stylesheets. */
+  setUiTheme(tokens: import('./components/uiTheme').UiThemeTokens): this {
+    this.uiTheme = { ...this.uiTheme, ...tokens };
+    const renderer = this.renderer as Renderer & { setUiTheme?: (t: import('./components/uiTheme').UiThemeTokens) => void };
+    if (typeof renderer.setUiTheme === 'function') {
+      renderer.setUiTheme(tokens);
+    }
     this.requestRender();
     return this;
   }

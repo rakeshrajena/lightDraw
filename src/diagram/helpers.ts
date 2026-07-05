@@ -2,6 +2,9 @@ import type { App } from '../App';
 import type { Node } from '../Node';
 import type { Group } from '../shapes/Group';
 import type { DiagramData, DiagramEdge, DiagramNode } from './types';
+import { centerTextX, createLabeledBox } from './primitives';
+
+export { centerTextX, measureTextWidth } from './primitives';
 
 export function num(props: Record<string, unknown>, key: string, fallback: number): number {
   const v = props[key];
@@ -75,6 +78,23 @@ export function seededRandom(seed: number): () => number {
   };
 }
 
+/** Auto-place diagram nodes on a grid when positions are missing */
+export function autoLayoutNodes(
+  nodes: Array<{ id: string; x?: number; y?: number }>,
+  cols = 3,
+  cellW = 150,
+  cellH = 80,
+  paddingX = 24,
+  paddingY = 24
+): void {
+  const needs = nodes.some((n) => n.x === undefined || n.y === undefined);
+  if (!needs) return;
+  nodes.forEach((n, i) => {
+    if (n.x === undefined) n.x = paddingX + (i % cols) * cellW;
+    if (n.y === undefined) n.y = paddingY + Math.floor(i / cols) * cellH;
+  });
+}
+
 /** Build a labeled node box used across diagram types. */
 export function createNodeBox(
   app: App,
@@ -83,27 +103,7 @@ export function createNodeBox(
   height: number,
   style: { fill?: string; stroke?: string; cornerRadius?: number } = {}
 ): Group {
-  const node = app.group();
-  node.add(
-    app.roundedRect({
-      width,
-      height,
-      cornerRadius: style.cornerRadius ?? 4,
-      fill: style.fill ?? '#dbeafe',
-      stroke: style.stroke ?? '#2563eb',
-      strokeWidth: 1,
-    })
-  );
-  node.add(
-    app.text({
-      text: label,
-      x: Math.max(8, width / 2 - label.length * 3),
-      y: height / 2 - 7,
-      fontSize: 12,
-      fill: '#1e40af',
-    })
-  );
-  return node;
+  return createLabeledBox(app, label, width, height, style);
 }
 
 /** Apply positions from a map to diagram node groups by diagramId. */

@@ -3277,6 +3277,688 @@ function automotiveToJSON(node) {
   };
 }
 
+// src/diagram/theme.ts
+var DIAGRAM = {
+  fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif",
+  fontMono: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
+  fontSize: {
+    xs: 9,
+    sm: 10,
+    md: 11,
+    base: 12,
+    lg: 13,
+    xl: 14
+  },
+  radii: {
+    sm: 4,
+    md: 6,
+    lg: 8,
+    pill: 20,
+    round: 999
+  },
+  spacing: {
+    xs: 4,
+    sm: 8,
+    md: 12,
+    lg: 16,
+    xl: 24
+  },
+  shadow: {
+    color: "rgba(0,0,0,0.35)",
+    blur: 10,
+    offsetX: 0,
+    offsetY: 3
+  },
+  shadowSoft: {
+    color: "rgba(0,0,0,0.22)",
+    blur: 6,
+    offsetX: 0,
+    offsetY: 2
+  },
+  canvasBg: "#0d1322",
+  surface: "#151d2e",
+  surfaceElevated: "#1c2740",
+  nodeFill: "#1c2740",
+  nodeStroke: "#3b82f6",
+  nodeText: "#f1f5f9",
+  nodeTextMuted: "#94a3b8",
+  edge: "#5b8fd9",
+  edgeMuted: "#475569",
+  edgeLabel: "#cbd5e1",
+  labelPillFill: "#1e293b",
+  labelPillStroke: "#334155",
+  decisionFill: "#1e3a5f",
+  decisionStroke: "#60a5fa",
+  terminalFill: "#172554",
+  terminalStroke: "#3b82f6",
+  stateFill: "#1c2740",
+  stateStroke: "#6366f1",
+  stateInitialFill: "#422006",
+  stateInitialStroke: "#f59e0b",
+  stateFinalFill: "#14532d",
+  stateFinalStroke: "#22c55e",
+  classFill: "#1c2740",
+  classStroke: "#475569",
+  classHeaderBg: "#243044",
+  classHeader: "#f1f5f9",
+  classBody: "#94a3b8",
+  classDivider: "#334155",
+  networkRouter: { fill: "#1e3a5f", stroke: "#3b82f6", glyph: "#60a5fa" },
+  networkServer: { fill: "#14532d", stroke: "#22c55e", glyph: "#4ade80" },
+  networkSwitch: { fill: "#422006", stroke: "#f59e0b", glyph: "#fbbf24" },
+  networkClient: { fill: "#3b0764", stroke: "#a855f7", glyph: "#c084fc" },
+  networkDefault: { fill: "#1c2740", stroke: "#64748b", glyph: "#94a3b8" },
+  pipelineDone: "#22c55e",
+  pipelineActive: "#3b82f6",
+  pipelinePending: "#475569",
+  pipelinePendingFill: "#1c2740",
+  pipelineActiveFill: "#1e3a5f",
+  pipelineDoneFill: "#14532d",
+  pipelineErrorFill: "#450a0a",
+  pipelineErrorStroke: "#ef4444",
+  mindCenter: { fill: "#422006", stroke: "#f59e0b" },
+  mindBranch: { fill: "#1e3a5f", stroke: "#0ea5e9" },
+  mindLeaf: { fill: "#1c2740", stroke: "#64748b" },
+  orgToggle: "#94a3b8",
+  orgToggleBg: "#243044",
+  orgRole: "#64748b",
+  canBus: "#3b82f6",
+  canTermination: "#22c55e",
+  schematicStroke: "#94a3b8",
+  schematicFill: "#1e293b",
+  schematicLedFill: "#fde047",
+  schematicLedStroke: "#eab308",
+  schematicLabel: "#94a3b8"
+};
+
+// src/diagram/primitives.ts
+var measureCtx = null;
+function getMeasureCtx() {
+  if (typeof document === "undefined")
+    return null;
+  if (!measureCtx) {
+    const canvas = document.createElement("canvas");
+    measureCtx = canvas.getContext("2d");
+  }
+  return measureCtx;
+}
+function measureTextWidth(text, fontSize, fontWeight = "600", fontFamily = DIAGRAM.fontFamily) {
+  const ctx = getMeasureCtx();
+  if (!ctx)
+    return text.length * fontSize * 0.55;
+  ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+  return ctx.measureText(text).width;
+}
+function centerTextX(label, boxWidth, fontSize = DIAGRAM.fontSize.base, fontWeight = "600", fontFamily = DIAGRAM.fontFamily) {
+  const w = measureTextWidth(label, fontSize, fontWeight, fontFamily);
+  return Math.max(DIAGRAM.spacing.sm, (boxWidth - w) / 2);
+}
+var defaultBoxStyle = () => ({
+  strokeWidth: 1.5,
+  shadow: DIAGRAM.shadowSoft
+});
+function createLabeledBox(app, label, width, height, style = {}, textOpts = {}) {
+  const { strokeWidth, shadow } = defaultBoxStyle();
+  const node = app.group();
+  const fontSize = textOpts.fontSize ?? DIAGRAM.fontSize.base;
+  node.add(
+    app.roundedRect({
+      width,
+      height,
+      cornerRadius: style.cornerRadius ?? DIAGRAM.radii.md,
+      fill: style.fill ?? DIAGRAM.nodeFill,
+      stroke: style.stroke ?? DIAGRAM.nodeStroke,
+      strokeWidth: style.strokeWidth ?? strokeWidth,
+      ...style.shadow !== null && (style.shadow ?? shadow) ? { shadow: style.shadow ?? shadow } : {},
+      listening: false
+    })
+  );
+  node.add(
+    app.text({
+      text: label,
+      x: centerTextX(label, width, fontSize, textOpts.fontWeight ?? "600"),
+      y: textOpts.y ?? height / 2 - fontSize / 2 - 1,
+      fontSize,
+      fontWeight: textOpts.fontWeight ?? "600",
+      fontFamily: DIAGRAM.fontFamily,
+      fill: textOpts.fill ?? DIAGRAM.nodeText,
+      listening: false
+    })
+  );
+  return node;
+}
+function createFlowchartNode(app, label, type) {
+  const width = 128;
+  const height = 44;
+  const isTerminal = type === "start" || type === "end";
+  const isDecision = type === "decision";
+  const node = app.group();
+  if (isDecision) {
+    node.add(
+      app.polygon({
+        points: [64, 2, 126, 22, 64, 42, 2, 22],
+        fill: DIAGRAM.decisionFill,
+        stroke: DIAGRAM.decisionStroke,
+        strokeWidth: 2,
+        shadow: DIAGRAM.shadowSoft,
+        listening: false
+      })
+    );
+    const fs = DIAGRAM.fontSize.sm;
+    node.add(
+      app.text({
+        text: label,
+        x: centerTextX(label, 128, fs),
+        y: 22 - fs / 2 - 1,
+        fontSize: fs,
+        fontWeight: "600",
+        fontFamily: DIAGRAM.fontFamily,
+        fill: DIAGRAM.nodeText,
+        listening: false
+      })
+    );
+    return node;
+  }
+  node.add(
+    app.roundedRect({
+      width,
+      height,
+      cornerRadius: isTerminal ? DIAGRAM.radii.pill : DIAGRAM.radii.md,
+      fill: isTerminal ? DIAGRAM.terminalFill : DIAGRAM.nodeFill,
+      stroke: isTerminal ? DIAGRAM.terminalStroke : DIAGRAM.nodeStroke,
+      strokeWidth: 1.5,
+      shadow: DIAGRAM.shadowSoft,
+      listening: false
+    })
+  );
+  if (isTerminal) {
+    node.add(
+      app.text({
+        text: label.toUpperCase(),
+        x: centerTextX(label, width, DIAGRAM.fontSize.sm),
+        y: height / 2 - 6,
+        fontSize: DIAGRAM.fontSize.sm,
+        fontWeight: "700",
+        letterSpacing: 0.04,
+        fontFamily: DIAGRAM.fontFamily,
+        fill: DIAGRAM.nodeText,
+        listening: false
+      })
+    );
+  } else {
+    node.add(
+      app.text({
+        text: label,
+        x: centerTextX(label, width),
+        y: height / 2 - 7,
+        fontSize: DIAGRAM.fontSize.base,
+        fontWeight: "600",
+        fontFamily: DIAGRAM.fontFamily,
+        fill: DIAGRAM.nodeText,
+        listening: false
+      })
+    );
+  }
+  return node;
+}
+function createClassNode(app, name, attributes, methods) {
+  const width = 172;
+  const lineH = 17;
+  const headerH = 32;
+  const bodyLines = attributes.length + methods.length;
+  const height = headerH + bodyLines * lineH + (methods.length > 0 && attributes.length > 0 ? 8 : 4);
+  const node = app.group();
+  node.add(
+    app.roundedRect({
+      width,
+      height,
+      cornerRadius: DIAGRAM.radii.md,
+      fill: DIAGRAM.classFill,
+      stroke: DIAGRAM.classStroke,
+      strokeWidth: 1.5,
+      shadow: DIAGRAM.shadowSoft,
+      listening: false
+    })
+  );
+  node.add(
+    app.rect({
+      x: 1,
+      y: 1,
+      width: width - 2,
+      height: headerH - 1,
+      fill: DIAGRAM.classHeaderBg,
+      stroke: null,
+      listening: false
+    })
+  );
+  node.add(
+    app.text({
+      text: name,
+      x: DIAGRAM.spacing.sm,
+      y: 9,
+      fontSize: DIAGRAM.fontSize.lg,
+      fontWeight: "bold",
+      fontFamily: DIAGRAM.fontFamily,
+      fill: DIAGRAM.classHeader,
+      listening: false
+    })
+  );
+  node.add(
+    app.line({
+      x: 0,
+      y: headerH,
+      x2: width,
+      y2: 0,
+      stroke: DIAGRAM.classDivider,
+      strokeWidth: 1,
+      listening: false
+    })
+  );
+  let y = headerH + 4;
+  for (const attr of attributes) {
+    node.add(
+      app.text({
+        text: attr,
+        x: DIAGRAM.spacing.sm,
+        y,
+        fontSize: DIAGRAM.fontSize.md,
+        fontFamily: DIAGRAM.fontMono,
+        fill: DIAGRAM.classBody,
+        listening: false
+      })
+    );
+    y += lineH;
+  }
+  if (methods.length > 0 && attributes.length > 0) {
+    node.add(
+      app.line({
+        x: 0,
+        y: y - 2,
+        x2: width,
+        y2: 0,
+        stroke: DIAGRAM.classDivider,
+        strokeWidth: 1,
+        listening: false
+      })
+    );
+    y += 4;
+  }
+  for (const method of methods) {
+    node.add(
+      app.text({
+        text: method,
+        x: DIAGRAM.spacing.sm,
+        y,
+        fontSize: DIAGRAM.fontSize.md,
+        fontFamily: DIAGRAM.fontMono,
+        fill: DIAGRAM.classBody,
+        listening: false
+      })
+    );
+    y += lineH;
+  }
+  return node;
+}
+var NETWORK_STYLES = {
+  router: DIAGRAM.networkRouter,
+  server: DIAGRAM.networkServer,
+  switch: DIAGRAM.networkSwitch,
+  client: DIAGRAM.networkClient,
+  default: DIAGRAM.networkDefault
+};
+function addNetworkGlyph(app, parent, type, size, color) {
+  const cx = size / 2;
+  const cy = size / 2;
+  if (type === "router") {
+    parent.add(
+      app.line({ x: cx, y: 6, x2: 0, y2: -7, stroke: color, strokeWidth: 2, lineCap: "round", listening: false })
+    );
+    parent.add(
+      app.line({ x: cx - 5, y: 8, x2: 0, y2: -5, stroke: color, strokeWidth: 1.5, lineCap: "round", listening: false })
+    );
+    parent.add(
+      app.line({ x: cx + 5, y: 8, x2: 0, y2: -5, stroke: color, strokeWidth: 1.5, lineCap: "round", listening: false })
+    );
+    parent.add(
+      app.circle({ x: cx, y: cy + 2, radius: 10, fill: null, stroke: color, strokeWidth: 1.5, listening: false })
+    );
+  } else if (type === "server") {
+    for (let i = 0; i < 3; i++) {
+      parent.add(
+        app.roundedRect({
+          x: cx - 13,
+          y: cy - 11 + i * 9,
+          width: 26,
+          height: 7,
+          cornerRadius: 2,
+          fill: null,
+          stroke: color,
+          strokeWidth: 1.2,
+          listening: false
+        })
+      );
+      parent.add(
+        app.circle({ x: cx + 8, y: cy - 8 + i * 9, radius: 1.5, fill: color, listening: false })
+      );
+    }
+  } else if (type === "switch") {
+    parent.add(
+      app.roundedRect({
+        x: cx - 14,
+        y: cy - 6,
+        width: 28,
+        height: 12,
+        cornerRadius: 2,
+        fill: null,
+        stroke: color,
+        strokeWidth: 1.5,
+        listening: false
+      })
+    );
+    for (let i = 0; i < 4; i++) {
+      parent.add(
+        app.circle({ x: cx - 9 + i * 6, y: cy, radius: 2, fill: color, listening: false })
+      );
+    }
+  } else if (type === "client") {
+    parent.add(
+      app.roundedRect({
+        x: cx - 12,
+        y: cy - 10,
+        width: 24,
+        height: 16,
+        cornerRadius: 2,
+        fill: null,
+        stroke: color,
+        strokeWidth: 1.5,
+        listening: false
+      })
+    );
+    parent.add(
+      app.line({
+        x: cx - 6,
+        y: cy + 6,
+        x2: 12,
+        y2: 0,
+        stroke: color,
+        strokeWidth: 1.5,
+        lineCap: "round",
+        listening: false
+      })
+    );
+  } else {
+    parent.add(
+      app.circle({ x: cx, y: cy, radius: 12, fill: null, stroke: color, strokeWidth: 1.5, listening: false })
+    );
+  }
+}
+function createNetworkNode(app, label, type) {
+  const netType = type in NETWORK_STYLES ? type : "default";
+  const style = NETWORK_STYLES[netType];
+  const size = netType === "router" ? 52 : 44;
+  const node = app.group();
+  node.add(
+    app.roundedRect({
+      width: size,
+      height: size,
+      cornerRadius: netType === "server" ? DIAGRAM.radii.sm : size / 2,
+      fill: style.fill,
+      stroke: style.stroke,
+      strokeWidth: 2,
+      shadow: DIAGRAM.shadowSoft,
+      listening: false
+    })
+  );
+  addNetworkGlyph(app, node, netType, size, style.glyph);
+  const labelW = Math.max(size, measureTextWidth(label, DIAGRAM.fontSize.sm) + 8);
+  node.add(
+    app.text({
+      text: label,
+      x: centerTextX(label, labelW, DIAGRAM.fontSize.sm),
+      y: size + DIAGRAM.spacing.xs,
+      fontSize: DIAGRAM.fontSize.sm,
+      fontWeight: "600",
+      fontFamily: DIAGRAM.fontFamily,
+      fill: DIAGRAM.nodeText,
+      listening: false
+    })
+  );
+  return node;
+}
+function createOrgNode(app, name, role, childCount = 0, collapsed = false) {
+  const width = 152;
+  const height = role ? 58 : 50;
+  const node = app.group();
+  node.add(
+    app.roundedRect({
+      width,
+      height,
+      cornerRadius: DIAGRAM.radii.md,
+      fill: DIAGRAM.nodeFill,
+      stroke: DIAGRAM.nodeStroke,
+      strokeWidth: 1.5,
+      shadow: DIAGRAM.shadowSoft,
+      listening: false
+    })
+  );
+  node.add(
+    app.line({
+      x: 0,
+      y: 0,
+      x2: 4,
+      y2: height,
+      stroke: DIAGRAM.nodeStroke,
+      strokeWidth: 3,
+      lineCap: "round",
+      listening: false
+    })
+  );
+  node.add(
+    app.text({
+      text: name,
+      x: DIAGRAM.spacing.md,
+      y: role ? 10 : 16,
+      fontSize: DIAGRAM.fontSize.lg,
+      fontWeight: "600",
+      fontFamily: DIAGRAM.fontFamily,
+      fill: DIAGRAM.nodeText,
+      listening: false
+    })
+  );
+  if (role) {
+    node.add(
+      app.text({
+        text: role,
+        x: DIAGRAM.spacing.md,
+        y: 32,
+        fontSize: DIAGRAM.fontSize.sm,
+        fontFamily: DIAGRAM.fontFamily,
+        fill: DIAGRAM.orgRole,
+        listening: false
+      })
+    );
+  }
+  let indicator;
+  if (childCount > 0) {
+    node.add(
+      app.roundedRect({
+        x: width - 28,
+        y: 12,
+        width: 20,
+        height: 20,
+        cornerRadius: DIAGRAM.radii.sm,
+        fill: DIAGRAM.orgToggleBg,
+        stroke: DIAGRAM.labelPillStroke,
+        strokeWidth: 1,
+        listening: false
+      })
+    );
+    indicator = app.text({
+      text: collapsed ? `+${childCount}` : "\u2212",
+      x: width - 23,
+      y: 15,
+      fontSize: DIAGRAM.fontSize.base,
+      fontWeight: "bold",
+      fontFamily: DIAGRAM.fontFamily,
+      fill: DIAGRAM.orgToggle
+    });
+    node.add(indicator);
+  }
+  return { node, indicator };
+}
+function createPipelineStage(app, label, status) {
+  const colors = {
+    pending: { fill: DIAGRAM.pipelinePendingFill, stroke: DIAGRAM.pipelinePending },
+    active: { fill: DIAGRAM.pipelineActiveFill, stroke: DIAGRAM.pipelineActive },
+    done: { fill: DIAGRAM.pipelineDoneFill, stroke: DIAGRAM.pipelineDone },
+    error: { fill: DIAGRAM.pipelineErrorFill, stroke: DIAGRAM.pipelineErrorStroke }
+  };
+  const c = colors[status] ?? colors.pending;
+  const width = 112;
+  const height = 48;
+  const node = app.group();
+  node.add(
+    app.roundedRect({
+      width,
+      height,
+      cornerRadius: DIAGRAM.radii.md,
+      fill: c.fill,
+      stroke: c.stroke,
+      strokeWidth: 1.5,
+      shadow: DIAGRAM.shadowSoft,
+      listening: false
+    })
+  );
+  node.add(
+    app.rect({
+      x: 0,
+      y: 0,
+      width: 4,
+      height,
+      fill: c.stroke,
+      stroke: null,
+      listening: false
+    })
+  );
+  const icons = { pending: "\u25CB", active: "\u25C9", done: "\u2713", error: "\u2715" };
+  node.add(
+    app.text({
+      text: icons[status] ?? "\u25CB",
+      x: DIAGRAM.spacing.sm,
+      y: height / 2 - 8,
+      fontSize: DIAGRAM.fontSize.xl,
+      fill: c.stroke,
+      listening: false
+    })
+  );
+  node.add(
+    app.text({
+      text: label,
+      x: DIAGRAM.spacing.lg + 4,
+      y: height / 2 - 7,
+      fontSize: DIAGRAM.fontSize.base,
+      fontWeight: "600",
+      fontFamily: DIAGRAM.fontFamily,
+      fill: DIAGRAM.nodeText,
+      listening: false
+    })
+  );
+  return node;
+}
+function createStateNode(app, label, type) {
+  const radius = 32;
+  const node = app.group();
+  const isFinal = type === "final";
+  const isInitial = type === "initial";
+  if (isFinal) {
+    node.add(
+      app.circle({
+        x: radius - 6,
+        y: radius - 6,
+        radius: radius - 2,
+        fill: DIAGRAM.stateFinalFill,
+        stroke: DIAGRAM.stateFinalStroke,
+        strokeWidth: 2.5,
+        shadow: DIAGRAM.shadowSoft,
+        listening: false
+      })
+    );
+    node.add(
+      app.circle({
+        x: radius - 6,
+        y: radius - 6,
+        radius: radius - 9,
+        fill: null,
+        stroke: DIAGRAM.stateFinalStroke,
+        strokeWidth: 2,
+        listening: false
+      })
+    );
+  } else {
+    node.add(
+      app.roundedRect({
+        width: radius * 2 - 4,
+        height: radius * 2 - 4,
+        cornerRadius: isInitial ? radius : DIAGRAM.radii.lg,
+        fill: isInitial ? DIAGRAM.stateInitialFill : DIAGRAM.stateFill,
+        stroke: isInitial ? DIAGRAM.stateInitialStroke : DIAGRAM.stateStroke,
+        strokeWidth: 2,
+        shadow: DIAGRAM.shadowSoft,
+        listening: false
+      })
+    );
+  }
+  const fs = DIAGRAM.fontSize.md;
+  node.add(
+    app.text({
+      text: label,
+      x: centerTextX(label, radius * 2 - 4, fs),
+      y: radius - fs / 2 - 3,
+      fontSize: fs,
+      fontWeight: "600",
+      fontFamily: DIAGRAM.fontFamily,
+      fill: DIAGRAM.nodeText,
+      listening: false
+    })
+  );
+  return node;
+}
+function createEdgeLabel(app, text, x, y) {
+  const fontSize = DIAGRAM.fontSize.sm;
+  const tw = measureTextWidth(text, fontSize, "500");
+  const padX = 8;
+  const padY = 4;
+  const pw = tw + padX * 2;
+  const ph = fontSize + padY * 2;
+  const g = app.group({ listening: false });
+  g.add(
+    app.roundedRect({
+      x: x - pw / 2,
+      y: y - ph / 2,
+      width: pw,
+      height: ph,
+      cornerRadius: DIAGRAM.radii.sm,
+      fill: DIAGRAM.labelPillFill,
+      stroke: DIAGRAM.labelPillStroke,
+      strokeWidth: 1,
+      listening: false
+    })
+  );
+  g.add(
+    app.text({
+      text,
+      x: x - tw / 2,
+      y: y - fontSize / 2 - 1,
+      fontSize,
+      fontWeight: "500",
+      fontFamily: DIAGRAM.fontFamily,
+      fill: DIAGRAM.edgeLabel,
+      listening: false
+    })
+  );
+  return g;
+}
+
 // src/diagram/helpers.ts
 function str4(props, key, fallback = "") {
   const v = props[key];
@@ -3322,28 +4004,19 @@ function seededRandom(seed) {
     return s / 4294967295;
   };
 }
+function autoLayoutNodes(nodes, cols = 3, cellW = 150, cellH = 80, paddingX = 24, paddingY = 24) {
+  const needs = nodes.some((n) => n.x === void 0 || n.y === void 0);
+  if (!needs)
+    return;
+  nodes.forEach((n, i) => {
+    if (n.x === void 0)
+      n.x = paddingX + i % cols * cellW;
+    if (n.y === void 0)
+      n.y = paddingY + Math.floor(i / cols) * cellH;
+  });
+}
 function createNodeBox(app, label, width, height, style = {}) {
-  const node = app.group();
-  node.add(
-    app.roundedRect({
-      width,
-      height,
-      cornerRadius: style.cornerRadius ?? 4,
-      fill: style.fill ?? "#dbeafe",
-      stroke: style.stroke ?? "#2563eb",
-      strokeWidth: 1
-    })
-  );
-  node.add(
-    app.text({
-      text: label,
-      x: Math.max(8, width / 2 - label.length * 3),
-      y: height / 2 - 7,
-      fontSize: 12,
-      fill: "#1e40af"
-    })
-  );
-  return node;
+  return createLabeledBox(app, label, width, height, style);
 }
 function normalizeDiagramData(data) {
   return {
@@ -4353,6 +5026,7 @@ var App = class extends EventEmitter {
     this.spatialIndex = new SpatialIndex();
     this.nodeCount = 0;
     this.highContrast = options.highContrast ?? false;
+    this.uiTheme = options.uiTheme ?? {};
     this.perf = {
       spatialIndex: options.performance?.spatialIndex ?? true,
       spatialIndexThreshold: options.performance?.spatialIndexThreshold ?? 100,
@@ -4377,7 +5051,8 @@ var App = class extends EventEmitter {
       height: this.height,
       pixelRatio: this.pixelRatio,
       background: this.background,
-      highContrast: this.highContrast
+      highContrast: this.highContrast,
+      uiTheme: this.uiTheme
     });
     this.eventManager = new EventManager(this, this.renderer.getElement());
     if (this.autoResize && typeof window !== "undefined") {
@@ -4633,6 +5308,16 @@ var App = class extends EventEmitter {
   }
   setBackground(color) {
     this.background = color;
+    this.requestRender();
+    return this;
+  }
+  /** Update built-in UI theme tokens (CSS variables) without custom stylesheets. */
+  setUiTheme(tokens) {
+    this.uiTheme = { ...this.uiTheme, ...tokens };
+    const renderer = this.renderer;
+    if (typeof renderer.setUiTheme === "function") {
+      renderer.setUiTheme(tokens);
+    }
     this.requestRender();
     return this;
   }
@@ -4960,6 +5645,947 @@ var svgPlugin = {
   }
 };
 
+// src/components/uiTheme.ts
+var VAR_MAP = {
+  primary: "--ld-primary",
+  primaryHover: "--ld-primary-hover",
+  primaryActive: "--ld-primary-active",
+  primarySubtle: "--ld-primary-subtle",
+  secondary: "--ld-secondary",
+  secondaryHover: "--ld-secondary-hover",
+  danger: "--ld-danger",
+  dangerSubtle: "--ld-danger-subtle",
+  success: "--ld-success",
+  successSubtle: "--ld-success-subtle",
+  warning: "--ld-warning",
+  warningSubtle: "--ld-warning-subtle",
+  surface: "--ld-surface",
+  surfaceMuted: "--ld-surface-muted",
+  surfaceInset: "--ld-surface-inset",
+  overlay: "--ld-overlay",
+  border: "--ld-border",
+  borderStrong: "--ld-border-strong",
+  text: "--ld-text",
+  textSecondary: "--ld-text-secondary",
+  textMuted: "--ld-text-muted",
+  textInverse: "--ld-text-inverse",
+  placeholder: "--ld-placeholder",
+  radius: "--ld-radius",
+  radiusSm: "--ld-radius-sm",
+  radiusLg: "--ld-radius-lg",
+  fontFamily: "--ld-font-family",
+  controlHeight: "--ld-control-h",
+  shadowMd: "--ld-shadow-md",
+  statusBarBg: "--ld-statusbar-bg",
+  statusBarText: "--ld-statusbar-text",
+  statusBarBorder: "--ld-statusbar-border",
+  tooltipBg: "--ld-tooltip-bg"
+};
+function applyUiTheme(el, tokens) {
+  if (tokens.mode) {
+    el.setAttribute("data-ld-theme", tokens.mode);
+  }
+  for (const [key, value] of Object.entries(tokens)) {
+    if (key === "mode")
+      continue;
+    const cssVar = VAR_MAP[key];
+    if (cssVar && value !== void 0 && value !== "") {
+      el.style.setProperty(cssVar, value);
+    }
+  }
+}
+var DARK_BASE = {
+  mode: "dark",
+  surface: "#1e293b",
+  surfaceMuted: "#0f172a",
+  surfaceInset: "#334155",
+  border: "#334155",
+  borderStrong: "#475569",
+  text: "#f1f5f9",
+  textSecondary: "#cbd5e1",
+  textMuted: "#94a3b8",
+  textInverse: "#0f172a",
+  placeholder: "#64748b",
+  primarySubtle: "#1e3a5f",
+  successSubtle: "#14532d",
+  warningSubtle: "#422006",
+  dangerSubtle: "#450a0a",
+  overlay: "rgba(0, 0, 0, 0.65)",
+  statusBarBg: "#0f172a",
+  statusBarText: "#94a3b8",
+  statusBarBorder: "#334155",
+  tooltipBg: "#0f172a"
+};
+var UI_PRESETS = {
+  default: { mode: "light" },
+  dark: {
+    ...DARK_BASE,
+    primary: "#3b82f6",
+    primaryHover: "#2563eb",
+    primaryActive: "#1d4ed8"
+  },
+  violet: {
+    primary: "#7c3aed",
+    primaryHover: "#6d28d9",
+    primaryActive: "#5b21b6",
+    primarySubtle: "#ede9fe"
+  },
+  emerald: {
+    primary: "#059669",
+    primaryHover: "#047857",
+    primaryActive: "#065f46",
+    primarySubtle: "#d1fae5"
+  },
+  slate: {
+    primary: "#334155",
+    primaryHover: "#1e293b",
+    primaryActive: "#0f172a",
+    primarySubtle: "#f1f5f9"
+  },
+  ocean: {
+    primary: "#0284c7",
+    primaryHover: "#0369a1",
+    primaryActive: "#075985",
+    primarySubtle: "#e0f2fe"
+  },
+  rose: {
+    primary: "#e11d48",
+    primaryHover: "#be123c",
+    primaryActive: "#9f1239",
+    primarySubtle: "#ffe4e6"
+  },
+  darkViolet: {
+    ...DARK_BASE,
+    primary: "#8b5cf6",
+    primaryHover: "#7c3aed",
+    primaryActive: "#6d28d9",
+    primarySubtle: "#2e1065"
+  }
+};
+
+// src/renderers/htmlComponents.ts
+function positionStyle(node, width, height) {
+  return `
+    position: absolute;
+    left: ${node.x}px;
+    top: ${node.y}px;
+    width: ${width}px;
+    height: ${height}px;
+    opacity: ${node.opacity};
+    pointer-events: ${node.listening ? "auto" : "none"};
+  `;
+}
+function getState4(node) {
+  return node.metadata?.componentState ?? {};
+}
+function syncNativeButton(node, parent, ctx) {
+  const state = getState4(node);
+  const label = String(state.label ?? "Button");
+  const width = Number(state.width ?? 128);
+  const height = Number(state.height ?? 40);
+  const variant = String(state.variant ?? "primary");
+  const size = String(state.size ?? "md");
+  const disabled = Boolean(state.disabled);
+  let el = ctx.nodeElements.get(node.id);
+  if (!el) {
+    el = document.createElement("button");
+    el.type = "button";
+    el.id = node.id;
+    parent.appendChild(el);
+    el.addEventListener("click", (e) => {
+      if (getState4(node).disabled) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+      node.emit("click", syntheticEvent("click", node));
+      node.emit("change", syntheticEvent("change", node, { value: label }));
+    });
+    el.addEventListener("focus", () => node.getApp()?.focusNode(node));
+    ctx.nodeElements.set(node.id, el);
+  } else if (el.parentElement !== parent) {
+    parent.appendChild(el);
+  }
+  el.className = `lightdraw-btn lightdraw-btn--${variant}${size !== "md" ? ` lightdraw-btn--${size}` : ""}`;
+  el.textContent = label;
+  el.disabled = disabled;
+  el.style.cssText = positionStyle(node, width, height);
+  ctx.applyA11y(node, el);
+  ctx.applyUiClasses(node, el);
+  ctx.seenIds.add(node.id);
+}
+function syncNativeCheckbox(node, parent, ctx) {
+  const state = getState4(node);
+  const label = String(state.label ?? "");
+  const checked = Boolean(state.checked);
+  let wrap = ctx.nodeElements.get(node.id);
+  if (!wrap) {
+    wrap = document.createElement("label");
+    wrap.id = node.id;
+    wrap.className = "lightdraw-checkbox";
+    wrap.innerHTML = '<input type="checkbox" class="lightdraw-checkbox-input" /><span class="lightdraw-checkbox-box" aria-hidden="true"></span><span class="lightdraw-checkbox-label"></span>';
+    parent.appendChild(wrap);
+    const input2 = wrap.querySelector("input");
+    input2.addEventListener("change", () => {
+      const v = input2.checked;
+      node.metadata.componentState = { ...getState4(node), checked: v };
+      node.ariaChecked = v;
+      node.emit("change", syntheticEvent("change", node, { value: v }));
+      node.getApp()?.requestRender();
+    });
+    input2.addEventListener("focus", () => node.getApp()?.focusNode(node));
+    ctx.nodeElements.set(node.id, wrap);
+  } else if (wrap.parentElement !== parent) {
+    parent.appendChild(wrap);
+  }
+  const input = wrap.querySelector("input");
+  const labelEl = wrap.querySelector(".lightdraw-checkbox-label");
+  input.checked = checked;
+  labelEl.textContent = label;
+  wrap.style.cssText = positionStyle(node, Math.max(label.length * 8 + 36, 160), 24);
+  ctx.applyA11y(node, wrap);
+  ctx.applyUiClasses(node, wrap);
+  if (node.focusable)
+    input.tabIndex = node.id === ctx.focusedNodeId ? 0 : -1;
+  ctx.seenIds.add(node.id);
+}
+function syncNativeInput(node, parent, ctx) {
+  const state = getState4(node);
+  const width = Number(state.width ?? 240);
+  const value = String(state.value ?? "");
+  const placeholder = String(state.placeholder ?? "");
+  const label = String(state.label ?? "");
+  let wrap = ctx.nodeElements.get(node.id);
+  if (!wrap) {
+    wrap = document.createElement("div");
+    wrap.id = node.id;
+    wrap.className = "lightdraw-field";
+    const input2 = document.createElement("input");
+    input2.type = "text";
+    input2.className = "lightdraw-native-input";
+    wrap.appendChild(input2);
+    parent.appendChild(wrap);
+    input2.addEventListener("input", () => {
+      const v = input2.value;
+      node.metadata.componentState = { ...getState4(node), value: v };
+      node.emit("input", syntheticEvent("input", node, { value: v }));
+    });
+    input2.addEventListener("change", () => {
+      node.emit("change", syntheticEvent("change", node, { value: input2.value }));
+    });
+    input2.addEventListener("focus", () => node.getApp()?.focusNode(node));
+    ctx.nodeElements.set(node.id, wrap);
+  } else if (wrap.parentElement !== parent) {
+    parent.appendChild(wrap);
+  }
+  const input = wrap.querySelector("input");
+  if (label) {
+    let labelEl = wrap.querySelector(".lightdraw-field-label");
+    if (!labelEl) {
+      labelEl = document.createElement("label");
+      labelEl.className = "lightdraw-field-label";
+      wrap.insertBefore(labelEl, input);
+    }
+    labelEl.textContent = label;
+    labelEl.setAttribute("for", `${node.id}-input`);
+    input.id = `${node.id}-input`;
+  }
+  input.value = value;
+  input.placeholder = placeholder;
+  const fieldH = label ? 70 : 40;
+  wrap.style.cssText = absPosition(node, width, fieldH);
+  ctx.applyA11y(node, input);
+  ctx.applyUiClasses(node, wrap);
+  if (node.focusable)
+    input.tabIndex = node.id === ctx.focusedNodeId ? 0 : -1;
+  ctx.seenIds.add(node.id);
+}
+function syncNativeTextarea(node, parent, ctx) {
+  const state = getState4(node);
+  const width = Number(state.width ?? 280);
+  const height = Number(state.height ?? 88);
+  const value = String(state.value ?? "");
+  const placeholder = String(state.placeholder ?? "");
+  const label = String(state.label ?? "");
+  let wrap = ctx.nodeElements.get(node.id);
+  if (!wrap) {
+    wrap = document.createElement("div");
+    wrap.id = node.id;
+    wrap.className = "lightdraw-field lightdraw-field--textarea";
+    const ta2 = document.createElement("textarea");
+    ta2.className = "lightdraw-native-textarea";
+    wrap.appendChild(ta2);
+    parent.appendChild(wrap);
+    ta2.addEventListener("input", () => {
+      node.metadata.componentState = { ...getState4(node), value: ta2.value };
+      node.emit("input", syntheticEvent("input", node, { value: ta2.value }));
+    });
+    ta2.addEventListener("change", () => {
+      node.emit("change", syntheticEvent("change", node, { value: ta2.value }));
+    });
+    ta2.addEventListener("focus", () => node.getApp()?.focusNode(node));
+    ctx.nodeElements.set(node.id, wrap);
+  } else if (wrap.parentElement !== parent) {
+    parent.appendChild(wrap);
+  }
+  const ta = wrap.querySelector("textarea");
+  if (label) {
+    let labelEl = wrap.querySelector(".lightdraw-field-label");
+    if (!labelEl) {
+      labelEl = document.createElement("label");
+      labelEl.className = "lightdraw-field-label";
+      wrap.insertBefore(labelEl, ta);
+    }
+    labelEl.textContent = label;
+  }
+  ta.value = value;
+  ta.placeholder = placeholder;
+  ta.style.height = `${height}px`;
+  const fieldH = label ? height + 30 : height;
+  wrap.style.cssText = absPosition(node, width, fieldH);
+  ctx.applyA11y(node, ta);
+  ctx.applyUiClasses(node, wrap);
+  ctx.seenIds.add(node.id);
+}
+function syncNativeToggle(node, parent, ctx) {
+  const state = getState4(node);
+  const on = Boolean(state.value);
+  const label = String(state.label ?? "");
+  let wrap = ctx.nodeElements.get(node.id);
+  if (!wrap) {
+    wrap = document.createElement("label");
+    wrap.id = node.id;
+    wrap.className = "lightdraw-switch-wrap";
+    wrap.innerHTML = '<input type="checkbox" class="lightdraw-switch-input" role="switch" /><span class="lightdraw-switch-track" aria-hidden="true"><span class="lightdraw-switch-thumb"></span></span><span class="lightdraw-switch-label"></span>';
+    parent.appendChild(wrap);
+    const input2 = wrap.querySelector("input");
+    input2.addEventListener("change", () => {
+      const v = input2.checked;
+      node.metadata.componentState = { ...getState4(node), value: v };
+      node.ariaChecked = v;
+      node.emit("change", syntheticEvent("change", node, { value: v }));
+      node.getApp()?.requestRender();
+    });
+    input2.addEventListener("focus", () => node.getApp()?.focusNode(node));
+    ctx.nodeElements.set(node.id, wrap);
+  } else if (wrap.parentElement !== parent) {
+    parent.appendChild(wrap);
+  }
+  const input = wrap.querySelector("input");
+  const labelEl = wrap.querySelector(".lightdraw-switch-label");
+  input.checked = on;
+  labelEl.textContent = label;
+  wrap.style.cssText = absPosition(node, Math.max(label.length * 8 + 80, 160), 28);
+  ctx.applyA11y(node, wrap);
+  ctx.applyUiClasses(node, wrap);
+  ctx.seenIds.add(node.id);
+}
+function syncNativeSlider(node, parent, ctx) {
+  const state = getState4(node);
+  const width = Number(state.width ?? 200);
+  const min = Number(state.min ?? 0);
+  const max = Number(state.max ?? 100);
+  const value = Number(state.value ?? 50);
+  const label = String(state.label ?? "");
+  const pct = (value - min) / Math.max(max - min, 1) * 100;
+  let wrap = ctx.nodeElements.get(node.id);
+  if (!wrap) {
+    wrap = document.createElement("div");
+    wrap.id = node.id;
+    wrap.className = "lightdraw-field lightdraw-field--slider";
+    wrap.innerHTML = '<div class="lightdraw-field-header"><span class="lightdraw-field-label"></span><span class="lightdraw-field-value"></span></div><input type="range" class="lightdraw-range" />';
+    parent.appendChild(wrap);
+    const input2 = wrap.querySelector("input");
+    input2.addEventListener("input", () => {
+      const v = Number(input2.value);
+      node.metadata.componentState = { ...getState4(node), value: v };
+      node.ariaValueNow = v;
+      node.emit("input", syntheticEvent("input", node, { value: v }));
+      node.getApp()?.requestRender();
+    });
+    input2.addEventListener("change", () => {
+      node.emit("change", syntheticEvent("change", node, { value: Number(input2.value) }));
+    });
+    input2.addEventListener("focus", () => node.getApp()?.focusNode(node));
+    ctx.nodeElements.set(node.id, wrap);
+  } else if (wrap.parentElement !== parent) {
+    parent.appendChild(wrap);
+  }
+  const input = wrap.querySelector("input");
+  const labelEl = wrap.querySelector(".lightdraw-field-label");
+  const valueEl = wrap.querySelector(".lightdraw-field-value");
+  labelEl.textContent = label || "Value";
+  valueEl.textContent = String(Math.round(value));
+  input.min = String(min);
+  input.max = String(max);
+  input.value = String(value);
+  node.ariaValueNow = value;
+  node.ariaValueMin = min;
+  node.ariaValueMax = max;
+  wrap.style.cssText = `${absPosition(node, width, 52)}--ld-range-pct:${pct}%;`;
+  ctx.applyA11y(node, input);
+  ctx.applyUiClasses(node, wrap);
+  ctx.seenIds.add(node.id);
+}
+function syncNativeRadio(node, parent, ctx) {
+  const state = getState4(node);
+  const label = String(state.label ?? "");
+  const selected = Boolean(state.selected);
+  const group = String(state.group ?? "default");
+  let wrap = ctx.nodeElements.get(node.id);
+  if (!wrap) {
+    wrap = document.createElement("label");
+    wrap.id = node.id;
+    wrap.className = "lightdraw-radio";
+    wrap.innerHTML = '<input type="radio" class="lightdraw-radio-input" /><span class="lightdraw-radio-dot" aria-hidden="true"></span><span class="lightdraw-radio-label"></span>';
+    parent.appendChild(wrap);
+    const input2 = wrap.querySelector("input");
+    input2.addEventListener("change", () => {
+      node.metadata.componentState = { ...getState4(node), selected: true };
+      node.ariaChecked = true;
+      node.emit("change", syntheticEvent("change", node, { value: group, payload: group }));
+      node.getApp()?.requestRender();
+    });
+    input2.addEventListener("focus", () => node.getApp()?.focusNode(node));
+    ctx.nodeElements.set(node.id, wrap);
+  } else if (wrap.parentElement !== parent) {
+    parent.appendChild(wrap);
+  }
+  const input = wrap.querySelector("input");
+  const labelEl = wrap.querySelector(".lightdraw-radio-label");
+  input.name = group;
+  input.checked = selected;
+  labelEl.textContent = label;
+  wrap.style.cssText = positionStyle(node, Math.max(label.length * 8 + 32, 140), 22);
+  ctx.applyA11y(node, wrap);
+  ctx.applyUiClasses(node, wrap);
+  ctx.seenIds.add(node.id);
+}
+function syncNativeProgress(node, parent, ctx) {
+  const state = getState4(node);
+  const width = Number(state.width ?? 200);
+  const value = Number(state.value ?? 0);
+  const label = String(state.label ?? "");
+  const variant = String(state.variant ?? "default");
+  let el = ctx.nodeElements.get(node.id);
+  if (!el) {
+    el = document.createElement("div");
+    el.id = node.id;
+    el.className = "lightdraw-progress-wrap";
+    el.innerHTML = '<div class="lightdraw-progress-header"><span class="lightdraw-progress-label"></span><span class="lightdraw-progress-value"></span></div><div class="lightdraw-progress" role="progressbar"><div class="lightdraw-progress-bar"></div></div>';
+    parent.appendChild(el);
+    ctx.nodeElements.set(node.id, el);
+  } else if (el.parentElement !== parent) {
+    parent.appendChild(el);
+  }
+  const track = el.querySelector(".lightdraw-progress");
+  const bar = el.querySelector(".lightdraw-progress-bar");
+  const labelEl = el.querySelector(".lightdraw-progress-label");
+  const valueEl = el.querySelector(".lightdraw-progress-value");
+  const pct = Math.max(0, Math.min(100, value));
+  bar.style.width = `${pct}%`;
+  track.className = `lightdraw-progress${variant !== "default" ? ` lightdraw-progress--${variant}` : ""}`;
+  el.setAttribute("role", "progressbar");
+  el.setAttribute("aria-valuenow", String(pct));
+  el.setAttribute("aria-valuemin", "0");
+  el.setAttribute("aria-valuemax", "100");
+  const header = el.querySelector(".lightdraw-progress-header");
+  if (label) {
+    labelEl.textContent = label;
+    valueEl.textContent = `${Math.round(pct)}%`;
+    header.style.display = "flex";
+  } else {
+    header.style.display = "none";
+  }
+  const height = label ? 36 : 8;
+  el.style.cssText = positionStyle(node, width, height);
+  ctx.applyUiClasses(node, el);
+  ctx.seenIds.add(node.id);
+}
+function syncNativeCard(node, parent, ctx) {
+  const state = getState4(node);
+  const width = Number(state.width ?? 280);
+  const height = Number(state.height ?? 160);
+  const title = state.title;
+  let el = ctx.nodeElements.get(node.id);
+  if (!el) {
+    el = document.createElement("div");
+    el.id = node.id;
+    el.className = "lightdraw-card";
+    parent.appendChild(el);
+    ctx.nodeElements.set(node.id, el);
+  } else if (el.parentElement !== parent) {
+    parent.appendChild(el);
+  }
+  if (title) {
+    el.innerHTML = `<div class="lightdraw-card-header"><span class="lightdraw-card-title">${escHtml(title)}</span></div>`;
+  } else {
+    el.innerHTML = "";
+  }
+  el.style.cssText = positionStyle(node, width, height);
+  ctx.applyUiClasses(node, el);
+  ctx.seenIds.add(node.id);
+}
+function escHtml(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+function formatTableCell(cell) {
+  const lower = cell.toLowerCase();
+  if (lower === "active" || lower === "done" || lower === "success") {
+    return `<span class="lightdraw-badge lightdraw-badge--success">${escHtml(cell)}</span>`;
+  }
+  if (lower === "beta" || lower === "pending" || lower === "warning") {
+    return `<span class="lightdraw-badge lightdraw-badge--warning">${escHtml(cell)}</span>`;
+  }
+  if (lower === "error" || lower === "failed" || lower === "inactive") {
+    return `<span class="lightdraw-badge lightdraw-badge--danger">${escHtml(cell)}</span>`;
+  }
+  return escHtml(cell);
+}
+function absPosition(node, width, height) {
+  const w = width !== void 0 ? `width: ${typeof width === "number" ? `${width}px` : width};` : "";
+  const h = height !== void 0 ? `height: ${typeof height === "number" ? `${height}px` : height};` : "";
+  return `
+    position: absolute;
+    left: ${node.x}px;
+    top: ${node.y}px;
+    ${w}
+    ${h}
+    opacity: ${node.opacity};
+    pointer-events: ${node.listening ? "auto" : "none"};
+  `;
+}
+function bindDelegated(el, handler) {
+  if (el.dataset.ldDelegated === "1")
+    return;
+  el.dataset.ldDelegated = "1";
+  el.addEventListener("click", handler);
+}
+function syncNativeTabs(node, parent, ctx) {
+  const state = getState4(node);
+  const labels = state.tabs ?? ["Tab 1", "Tab 2"];
+  const activeTab = Number(state.activeTab ?? 0);
+  const width = Number(state.width ?? 300);
+  let el = ctx.nodeElements.get(node.id);
+  if (!el) {
+    el = document.createElement("div");
+    el.id = node.id;
+    el.className = "lightdraw-tabs";
+    el.setAttribute("role", "tablist");
+    parent.appendChild(el);
+    bindDelegated(el, (e) => {
+      const btn = e.target.closest(".lightdraw-tabs-tab");
+      if (!btn)
+        return;
+      const i = Number(btn.getAttribute("data-index"));
+      const tabs = getState4(node).tabs ?? [];
+      node.metadata.componentState = { ...getState4(node), activeTab: i };
+      node.emit("change", syntheticEvent("change", node, { value: i, tab: tabs[i] }));
+      node.getApp()?.requestRender();
+    });
+    ctx.nodeElements.set(node.id, el);
+  } else if (el.parentElement !== parent) {
+    parent.appendChild(el);
+  }
+  el.innerHTML = labels.map(
+    (label, i) => `<button type="button" class="lightdraw-tabs-tab${i === activeTab ? " lightdraw-tabs-tab--active" : ""}" role="tab" aria-selected="${i === activeTab}" data-index="${i}">${escHtml(label)}</button>`
+  ).join("");
+  el.style.cssText = absPosition(node, width, 40);
+  ctx.applyA11y(node, el);
+  ctx.applyUiClasses(node, el);
+  ctx.seenIds.add(node.id);
+}
+function syncNativeAccordion(node, parent, ctx) {
+  const state = getState4(node);
+  const sections = state.sections ?? [
+    { title: "Section 1", content: "Content 1" },
+    { title: "Section 2", content: "Content 2" }
+  ];
+  const expandedIndex = Number(state.expandedIndex ?? 0);
+  const width = Number(state.width ?? 280);
+  let el = ctx.nodeElements.get(node.id);
+  if (!el) {
+    el = document.createElement("div");
+    el.id = node.id;
+    el.className = "lightdraw-accordion";
+    parent.appendChild(el);
+    bindDelegated(el, (e) => {
+      const btn = e.target.closest(".lightdraw-accordion-trigger");
+      if (!btn)
+        return;
+      const i = Number(btn.getAttribute("data-index"));
+      const secs = getState4(node).sections ?? [];
+      node.metadata.componentState = { ...getState4(node), expandedIndex: i };
+      node.emit("change", syntheticEvent("change", node, { value: i, section: secs[i]?.title }));
+      node.getApp()?.requestRender();
+    });
+    ctx.nodeElements.set(node.id, el);
+  } else if (el.parentElement !== parent) {
+    parent.appendChild(el);
+  }
+  el.innerHTML = sections.map((sec, i) => {
+    const open = i === expandedIndex;
+    return `<div class="lightdraw-accordion-item${open ? " lightdraw-accordion-item--open" : ""}">
+        <button type="button" class="lightdraw-accordion-trigger" aria-expanded="${open}" data-index="${i}">
+          <span class="lightdraw-accordion-chevron" aria-hidden="true"></span>
+          <span>${escHtml(sec.title)}</span>
+        </button>
+        <div class="lightdraw-accordion-panel" ${open ? "" : "hidden"}>${escHtml(sec.content)}</div>
+      </div>`;
+  }).join("");
+  const estHeight = sections.length * 44 + (expandedIndex >= 0 ? 36 : 0);
+  el.style.cssText = absPosition(node, width, estHeight);
+  ctx.applyA11y(node, el);
+  ctx.applyUiClasses(node, el);
+  ctx.seenIds.add(node.id);
+}
+function syncNativeTable(node, parent, ctx) {
+  const state = getState4(node);
+  const columns = state.columns ?? ["Name", "Value"];
+  const rows = state.rows ?? [["A", "1"]];
+  const selectedRow = Number(state.selectedRow ?? -1);
+  const colW = Number(state.colWidth ?? 100);
+  const tableW = colW * columns.length;
+  let el = ctx.nodeElements.get(node.id);
+  if (!el) {
+    el = document.createElement("div");
+    el.id = node.id;
+    el.className = "lightdraw-table-wrap";
+    el.setAttribute("role", "grid");
+    parent.appendChild(el);
+    bindDelegated(el, (e) => {
+      const row = e.target.closest(".lightdraw-table-row");
+      if (!row)
+        return;
+      const ri = Number(row.getAttribute("data-index"));
+      const tableRows = getState4(node).rows ?? [];
+      node.metadata.componentState = { ...getState4(node), selectedRow: ri };
+      node.emit("select", syntheticEvent("select", node, { index: ri, row: tableRows[ri] }));
+      node.getApp()?.requestRender();
+    });
+    ctx.nodeElements.set(node.id, el);
+  } else if (el.parentElement !== parent) {
+    parent.appendChild(el);
+  }
+  const head = columns.map((c) => `<th scope="col">${escHtml(c)}</th>`).join("");
+  const body = rows.map(
+    (row, ri) => `<tr class="lightdraw-table-row${ri === selectedRow ? " lightdraw-table-row--selected" : ""}" data-index="${ri}">${row.map((cell) => `<td>${formatTableCell(cell)}</td>`).join("")}</tr>`
+  ).join("");
+  el.innerHTML = `<table class="lightdraw-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+  const tableH = 36 * (rows.length + 1);
+  el.style.cssText = absPosition(node, tableW, tableH);
+  ctx.applyA11y(node, el);
+  ctx.applyUiClasses(node, el);
+  ctx.seenIds.add(node.id);
+}
+function syncNativeTree(node, parent, ctx) {
+  const state = getState4(node);
+  const nodes = state.nodes ?? [
+    { label: "Root", children: [{ label: "Child A" }, { label: "Child B" }] }
+  ];
+  const expanded = new Set(state.expanded ?? [0]);
+  let el = ctx.nodeElements.get(node.id);
+  if (!el) {
+    el = document.createElement("ul");
+    el.id = node.id;
+    el.className = "lightdraw-tree";
+    el.setAttribute("role", "tree");
+    parent.appendChild(el);
+    bindDelegated(el, (e) => {
+      const btn = e.target.closest(".lightdraw-tree-toggle");
+      if (!btn)
+        return;
+      const i = Number(btn.getAttribute("data-index"));
+      const st = getState4(node);
+      const next = new Set(st.expanded ?? [0]);
+      if (next.has(i))
+        next.delete(i);
+      else
+        next.add(i);
+      node.metadata.componentState = { ...st, expanded: Array.from(next) };
+      node.emit("change", syntheticEvent("change", node, { value: i }));
+      node.getApp()?.requestRender();
+    });
+    ctx.nodeElements.set(node.id, el);
+  } else if (el.parentElement !== parent) {
+    parent.appendChild(el);
+  }
+  el.innerHTML = nodes.map((n, i) => {
+    const isOpen = expanded.has(i);
+    const kids = isOpen && n.children?.length ? `<ul class="lightdraw-tree-children" role="group">${n.children.map((c) => `<li class="lightdraw-tree-leaf" role="treeitem">${escHtml(c.label)}</li>`).join("")}</ul>` : "";
+    return `<li class="lightdraw-tree-node" role="treeitem" aria-expanded="${isOpen}">
+        <button type="button" class="lightdraw-tree-toggle" data-index="${i}" aria-label="Toggle ${escHtml(n.label)}">
+          <span class="lightdraw-tree-chevron${isOpen ? " lightdraw-tree-chevron--open" : ""}" aria-hidden="true"></span>
+          <span class="lightdraw-tree-label">${escHtml(n.label)}</span>
+        </button>${kids}</li>`;
+  }).join("");
+  let estHeight = 8;
+  nodes.forEach((n, i) => {
+    estHeight += 28;
+    if (expanded.has(i) && n.children)
+      estHeight += n.children.length * 26;
+  });
+  el.style.cssText = absPosition(node, 220, estHeight);
+  ctx.applyA11y(node, el);
+  ctx.applyUiClasses(node, el);
+  ctx.seenIds.add(node.id);
+}
+function syncNativeToolbar(node, parent, ctx) {
+  const state = getState4(node);
+  const buttons = state.buttons ?? ["New", "Open", "Save"];
+  let el = ctx.nodeElements.get(node.id);
+  if (!el) {
+    el = document.createElement("div");
+    el.id = node.id;
+    el.className = "lightdraw-toolbar";
+    el.setAttribute("role", "toolbar");
+    parent.appendChild(el);
+    bindDelegated(el, (e) => {
+      const btn = e.target.closest(".lightdraw-toolbar-btn");
+      if (!btn)
+        return;
+      const buttons2 = getState4(node).buttons ?? [];
+      const idx = Array.from(el.querySelectorAll(".lightdraw-toolbar-btn")).indexOf(btn);
+      if (idx >= 0) {
+        node.emit("select", syntheticEvent("select", node, { item: buttons2[idx] }));
+      }
+    });
+    ctx.nodeElements.set(node.id, el);
+  } else if (el.parentElement !== parent) {
+    parent.appendChild(el);
+  }
+  el.innerHTML = buttons.map((label) => `<button type="button" class="lightdraw-toolbar-btn">${escHtml(label)}</button>`).join("");
+  el.style.cssText = absPosition(node, "auto", 36);
+  ctx.applyA11y(node, el);
+  ctx.applyUiClasses(node, el);
+  ctx.seenIds.add(node.id);
+}
+function syncNativeToast(node, parent, ctx) {
+  const state = getState4(node);
+  const message = String(state.message ?? "Notification");
+  const variant = String(state.variant ?? "success");
+  const icons = {
+    success: "\u2713",
+    error: "\u2715",
+    warning: "!",
+    info: "i"
+  };
+  let el = ctx.nodeElements.get(node.id);
+  if (!el) {
+    el = document.createElement("div");
+    el.id = node.id;
+    el.className = "lightdraw-toast";
+    el.setAttribute("role", "status");
+    el.setAttribute("aria-live", "polite");
+    parent.appendChild(el);
+    ctx.nodeElements.set(node.id, el);
+  } else if (el.parentElement !== parent) {
+    parent.appendChild(el);
+  }
+  if (!node.visible) {
+    el.style.display = "none";
+  } else {
+    el.style.display = "flex";
+    el.className = `lightdraw-toast lightdraw-toast--${variant}`;
+    el.innerHTML = `<span class="lightdraw-toast-icon" aria-hidden="true">${icons[variant] ?? icons.success}</span><span class="lightdraw-toast-message">${escHtml(message)}</span>`;
+  }
+  const base = absPosition(node, "auto", 44);
+  el.style.cssText = base + (node.visible ? "display:flex;" : "display:none;");
+  ctx.applyUiClasses(node, el);
+  ctx.seenIds.add(node.id);
+}
+function syncNativeMenu(node, parent, ctx) {
+  const state = getState4(node);
+  const items = state.items ?? ["Item 1", "Item 2"];
+  const triggerLabel = String(state.triggerLabel ?? "Actions");
+  const open = Boolean(state.open) && node.visible;
+  const width = Number(state.width ?? 180);
+  let el = ctx.nodeElements.get(node.id);
+  if (!el) {
+    el = document.createElement("div");
+    el.id = node.id;
+    el.className = "lightdraw-menu";
+    el.setAttribute("role", "menu");
+    parent.appendChild(el);
+    bindDelegated(el, (e) => {
+      const st = getState4(node);
+      const menuItems = st.items ?? [];
+      const isOpen = Boolean(st.open) && node.visible;
+      const itemBtn = e.target.closest(".lightdraw-menu-item");
+      if (itemBtn) {
+        e.stopPropagation();
+        const i = Number(itemBtn.getAttribute("data-index"));
+        node.metadata.componentState = { ...st, open: false, selectedIndex: i };
+        node.visible = false;
+        node.emit("select", syntheticEvent("select", node, { index: i, item: menuItems[i] }));
+        node.getApp()?.requestRender();
+        return;
+      }
+      if (!isOpen && e.target.closest(".lightdraw-menu-trigger")) {
+        node.visible = true;
+        node.metadata.componentState = { ...st, open: true };
+        node.emit("open", syntheticEvent("open", node));
+        node.getApp()?.requestRender();
+      }
+    });
+    ctx.nodeElements.set(node.id, el);
+  } else if (el.parentElement !== parent) {
+    parent.appendChild(el);
+  }
+  if (open) {
+    el.innerHTML = items.map(
+      (item, i) => `<button type="button" class="lightdraw-menu-item${item.toLowerCase() === "delete" ? " lightdraw-menu-item--danger" : ""}" role="menuitem" data-index="${i}">${escHtml(item)}</button>`
+    ).join("");
+    el.classList.add("lightdraw-menu--open");
+  } else {
+    el.innerHTML = `<button type="button" class="lightdraw-menu-trigger">${escHtml(triggerLabel)} <span aria-hidden="true">\u25BE</span></button>`;
+    el.classList.remove("lightdraw-menu--open");
+  }
+  const height = open ? items.length * 36 + 8 : 36;
+  el.style.cssText = absPosition(node, width, height);
+  ctx.applyA11y(node, el);
+  ctx.applyUiClasses(node, el);
+  ctx.seenIds.add(node.id);
+}
+function syncNativeDialog(node, parent, ctx) {
+  const state = getState4(node);
+  const open = Boolean(state.open) && node.visible;
+  const title = String(state.title ?? "Dialog");
+  const message = String(state.message ?? "Are you sure you want to continue?");
+  const width = Number(state.width ?? 320);
+  const overlayW = Number(state.overlayWidth ?? 800);
+  const overlayH = Number(state.overlayHeight ?? 600);
+  let el = ctx.nodeElements.get(node.id);
+  if (!el) {
+    el = document.createElement("div");
+    el.id = node.id;
+    el.className = "lightdraw-dialog-host";
+    parent.appendChild(el);
+    bindDelegated(el, (e) => {
+      const st = getState4(node);
+      const isOpen = Boolean(st.open) && node.visible;
+      const close = () => {
+        node.metadata.componentState = { ...getState4(node), open: false };
+        node.visible = false;
+        node.emit("close", syntheticEvent("close", node));
+        node.getApp()?.requestRender();
+      };
+      if (isOpen) {
+        if (e.target.classList.contains("lightdraw-dialog-overlay")) {
+          close();
+        } else if (e.target.closest(".lightdraw-dialog-close, .lightdraw-dialog-cancel")) {
+          close();
+        } else if (e.target.closest(".lightdraw-dialog-confirm")) {
+          node.emit("change", syntheticEvent("change", node, { value: true }));
+          close();
+        }
+      } else if (e.target.closest(".lightdraw-dialog-open")) {
+        node.metadata.componentState = { ...getState4(node), open: true };
+        node.visible = true;
+        node.emit("open", syntheticEvent("open", node));
+        node.getApp()?.requestRender();
+      }
+    });
+    ctx.nodeElements.set(node.id, el);
+  } else if (el.parentElement !== parent) {
+    parent.appendChild(el);
+  }
+  if (open) {
+    el.innerHTML = `<div class="lightdraw-dialog-overlay" style="left:${-node.x}px;top:${-node.y}px;width:${overlayW}px;height:${overlayH}px" role="presentation"></div>
+      <div class="lightdraw-dialog" role="dialog" aria-modal="true" aria-labelledby="${node.id}-title">
+        <div class="lightdraw-dialog-header">
+          <h2 class="lightdraw-dialog-title" id="${node.id}-title">${escHtml(title)}</h2>
+          <button type="button" class="lightdraw-dialog-close" aria-label="Close">\xD7</button>
+        </div>
+        <p class="lightdraw-dialog-body">${escHtml(message)}</p>
+        <div class="lightdraw-dialog-footer">
+          <button type="button" class="lightdraw-btn lightdraw-btn--ghost lightdraw-dialog-cancel">Cancel</button>
+          <button type="button" class="lightdraw-btn lightdraw-btn--primary lightdraw-dialog-confirm">Confirm</button>
+        </div>
+      </div>`;
+  } else {
+    el.innerHTML = `<button type="button" class="lightdraw-btn lightdraw-btn--secondary lightdraw-dialog-open">Open dialog</button>`;
+  }
+  el.style.cssText = absPosition(node, open ? overlayW : width, open ? overlayH : 40);
+  ctx.applyA11y(node, el);
+  ctx.applyUiClasses(node, el);
+  ctx.seenIds.add(node.id);
+}
+function syncNativeTooltip(node, parent, ctx) {
+  const state = getState4(node);
+  const text = String(state.text ?? "Tooltip");
+  let el = ctx.nodeElements.get(node.id);
+  if (!el) {
+    el = document.createElement("div");
+    el.id = node.id;
+    el.className = "lightdraw-tooltip";
+    parent.appendChild(el);
+    el.addEventListener("mouseenter", () => {
+      node.visible = true;
+      node.emit("open", syntheticEvent("open", node));
+      node.getApp()?.requestRender();
+    });
+    el.addEventListener("mouseleave", () => {
+      node.visible = false;
+      node.emit("close", syntheticEvent("close", node));
+      node.getApp()?.requestRender();
+    });
+    ctx.nodeElements.set(node.id, el);
+  } else if (el.parentElement !== parent) {
+    parent.appendChild(el);
+  }
+  el.innerHTML = `<span class="lightdraw-tooltip-anchor">Hover me</span>`;
+  if (node.visible) {
+    el.innerHTML += `<span class="lightdraw-tooltip-bubble" role="tooltip">${escHtml(text)}</span>`;
+  }
+  el.style.cssText = absPosition(node, "auto", "auto");
+  ctx.applyA11y(node, el);
+  ctx.applyUiClasses(node, el);
+  ctx.seenIds.add(node.id);
+}
+function syncNativeStatusBar(node, parent, ctx) {
+  const state = getState4(node);
+  const segments = state.segments ?? ["Ready"];
+  const width = Number(state.width ?? 400);
+  let el = ctx.nodeElements.get(node.id);
+  if (!el) {
+    el = document.createElement("div");
+    el.id = node.id;
+    el.className = "lightdraw-statusbar";
+    el.setAttribute("role", "status");
+    parent.appendChild(el);
+    ctx.nodeElements.set(node.id, el);
+  } else if (el.parentElement !== parent) {
+    parent.appendChild(el);
+  }
+  el.innerHTML = segments.map(
+    (s, i) => `<span class="lightdraw-statusbar-segment${i === 0 ? " lightdraw-statusbar-segment--primary" : ""}">${escHtml(s)}</span>`
+  ).join("");
+  el.style.cssText = absPosition(node, width, 28);
+  ctx.applyA11y(node, el);
+  ctx.applyUiClasses(node, el);
+  ctx.seenIds.add(node.id);
+}
+var NATIVE_HTML_COMPONENTS = /* @__PURE__ */ new Set([
+  "button",
+  "checkbox",
+  "toggle",
+  "slider",
+  "radio",
+  "progressBar",
+  "card",
+  "tabs",
+  "accordion",
+  "table",
+  "tree",
+  "toolbar",
+  "toast",
+  "menu",
+  "dialog",
+  "tooltip",
+  "statusBar"
+]);
+
 // src/renderers/HTMLRenderer.ts
 var HTMLRenderer = class extends Renderer {
   constructor() {
@@ -4967,16 +6593,28 @@ var HTMLRenderer = class extends Renderer {
     this.nodeElements = /* @__PURE__ */ new Map();
     this.innerContainers = /* @__PURE__ */ new Map();
     this.seenIds = /* @__PURE__ */ new Set();
+    this.uiTheme = {};
   }
   init(container, options) {
     this.width = options.width;
     this.height = options.height;
     this.background = options.background;
     this.highContrast = options.highContrast ?? false;
+    this.uiTheme = options.uiTheme ?? {};
     this.root = document.createElement("div");
     this.root.className = "lightdraw-html-root";
     this.applyRootStyles();
     container.appendChild(this.root);
+  }
+  /** Merge programmatic theme tokens (re-applied after each layout pass). */
+  setUiTheme(tokens) {
+    this.uiTheme = { ...this.uiTheme, ...tokens };
+    this.applyThemeVars();
+  }
+  applyThemeVars() {
+    if (Object.keys(this.uiTheme).length > 0) {
+      applyUiTheme(this.root, this.uiTheme);
+    }
   }
   applyRootStyles() {
     this.root.style.cssText = `
@@ -4991,6 +6629,7 @@ var HTMLRenderer = class extends Renderer {
     } else {
       this.root.classList.remove("lightdraw-high-contrast");
     }
+    this.applyThemeVars();
   }
   resize(width, height) {
     this.width = width;
@@ -5085,59 +6724,89 @@ var HTMLRenderer = class extends Renderer {
       el.removeAttribute("aria-live");
     }
   }
-  syncNativeField(node, parent, kind) {
-    let el = this.nodeElements.get(node.id);
-    const state = node.metadata?.componentState ?? {};
-    const width = state.width ?? 200;
-    const height = state.height ?? (kind === "textarea" ? 80 : 32);
-    const value = state.value ?? "";
-    const placeholder = state.placeholder ?? "";
-    if (!el) {
-      el = kind === "textarea" ? document.createElement("textarea") : document.createElement("input");
-      el.id = node.id;
-      el.className = `lightdraw-native-${kind}`;
-      if (kind === "input")
-        el.type = "text";
-      parent.appendChild(el);
-      el.addEventListener("input", () => {
-        const v = el.value;
-        node.metadata.componentState = { ...state, value: v };
-        node.emit("input", syntheticEvent("input", node, { value: v }));
-        node.getApp()?.requestRender();
-      });
-      el.addEventListener("change", () => {
-        const v = el.value;
-        node.metadata.componentState = { ...state, value: v };
-        node.emit("change", syntheticEvent("change", node, { value: v }));
-      });
-      el.addEventListener("focus", () => node.getApp()?.focusNode(node));
-      this.nodeElements.set(node.id, el);
+  nativeCtx() {
+    return {
+      nodeElements: this.nodeElements,
+      seenIds: this.seenIds,
+      focusedNodeId: this.focusedNodeId,
+      applyA11y: (node, el) => this.applyA11y(node, el),
+      applyUiClasses: (node, el) => this.applyUiClasses(node, el)
+    };
+  }
+  syncNativeComponent(node, parent, type) {
+    const ctx = this.nativeCtx();
+    switch (type) {
+      case "button":
+        syncNativeButton(node, parent, ctx);
+        return true;
+      case "checkbox":
+        syncNativeCheckbox(node, parent, ctx);
+        return true;
+      case "toggle":
+        syncNativeToggle(node, parent, ctx);
+        return true;
+      case "slider":
+        syncNativeSlider(node, parent, ctx);
+        return true;
+      case "radio":
+        syncNativeRadio(node, parent, ctx);
+        return true;
+      case "progressBar":
+        syncNativeProgress(node, parent, ctx);
+        return true;
+      case "card":
+        syncNativeCard(node, parent, ctx);
+        return true;
+      case "tabs":
+        syncNativeTabs(node, parent, ctx);
+        return true;
+      case "accordion":
+        syncNativeAccordion(node, parent, ctx);
+        return true;
+      case "table":
+        syncNativeTable(node, parent, ctx);
+        return true;
+      case "tree":
+        syncNativeTree(node, parent, ctx);
+        return true;
+      case "toolbar":
+        syncNativeToolbar(node, parent, ctx);
+        return true;
+      case "toast":
+        syncNativeToast(node, parent, ctx);
+        return true;
+      case "menu":
+        syncNativeMenu(node, parent, ctx);
+        return true;
+      case "dialog":
+        syncNativeDialog(node, parent, ctx);
+        return true;
+      case "tooltip":
+        syncNativeTooltip(node, parent, ctx);
+        return true;
+      case "statusBar":
+        syncNativeStatusBar(node, parent, ctx);
+        return true;
+      default:
+        return false;
     }
-    this.applyA11y(node, el);
-    el.style.cssText = `
-      position: absolute;
-      left: ${node.x}px;
-      top: ${node.y}px;
-      width: ${width}px;
-      height: ${height}px;
-      opacity: ${node.opacity};
-      font: 14px system-ui, sans-serif;
-      padding: 6px 8px;
-      border: 1px solid #d1d5db;
-      border-radius: 4px;
-      pointer-events: ${node.listening ? "auto" : "none"};
-    `;
-    el.value = value;
-    el.placeholder = placeholder;
-    if (node.focusable) {
-      el.tabIndex = node.id === this.focusedNodeId ? 0 : -1;
-    }
-    this.seenIds.add(node.id);
   }
   syncNode(node, parent) {
     const componentType = node.metadata?.componentType;
-    if (componentType === "input" || componentType === "textarea") {
-      this.syncNativeField(node, parent, componentType);
+    if (componentType === "input") {
+      syncNativeInput(node, parent, this.nativeCtx());
+      return;
+    }
+    if (componentType === "textarea") {
+      syncNativeTextarea(node, parent, this.nativeCtx());
+      return;
+    }
+    if (componentType && NATIVE_HTML_COMPONENTS.has(componentType)) {
+      if (this.syncNativeComponent(node, parent, componentType))
+        return;
+    }
+    if (this.isVectorShape(node)) {
+      this.syncVectorShape(node, parent);
       return;
     }
     let el = this.nodeElements.get(node.id);
@@ -5150,6 +6819,7 @@ var HTMLRenderer = class extends Renderer {
       parent.appendChild(el);
     }
     this.applyA11y(node, el);
+    this.applyUiClasses(node, el);
     let extra = "";
     if (node.shadow)
       extra += `box-shadow: ${shadowToCss(node.shadow)};`;
@@ -5168,6 +6838,11 @@ var HTMLRenderer = class extends Renderer {
     this.applyShapeStyles(node, el);
     this.seenIds.add(node.id);
     if ("children" in node) {
+      const bounds = node.getBounds();
+      if (node.metadata?.componentType && bounds.width > 0) {
+        el.style.width = `${bounds.width}px`;
+        el.style.height = `${Math.max(bounds.height, 1)}px`;
+      }
       let inner = this.innerContainers.get(node.id);
       if (!inner) {
         inner = document.createElement("div");
@@ -5176,6 +6851,106 @@ var HTMLRenderer = class extends Renderer {
         this.innerContainers.set(node.id, inner);
       }
       this.syncGroup(node, inner);
+    }
+  }
+  applyUiClasses(node, el) {
+    const t = node.metadata?.componentType;
+    if (t) {
+      el.classList.add("lightdraw-ui", `lightdraw-ui--${t}`);
+    }
+    if (node.focusable || t === "button" || t === "checkbox" || t === "radio" || t === "toggle") {
+      el.classList.add("lightdraw-interactive");
+    }
+  }
+  isVectorShape(node) {
+    return node instanceof Line || node instanceof Polyline || node instanceof Arc || node instanceof Polygon || node instanceof Path;
+  }
+  syncVectorShape(node, parent) {
+    let svg = this.nodeElements.get(node.id);
+    if (!svg || svg.tagName !== "svg") {
+      svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.id = node.id;
+      parent.appendChild(svg);
+      this.nodeElements.set(node.id, svg);
+    } else if (svg.parentElement !== parent) {
+      parent.appendChild(svg);
+    }
+    this.seenIds.add(node.id);
+    const b = node.getBounds();
+    const pad = Math.max(Math.ceil(node.strokeWidth || 0), 2) + 1;
+    const w = Math.max(b.width + pad * 2, 1);
+    const h = Math.max(b.height + pad * 2, 1);
+    svg.setAttribute("aria-hidden", "true");
+    svg.style.cssText = `
+      position: absolute;
+      left: ${node.x + b.x - pad}px;
+      top: ${node.y + b.y - pad}px;
+      width: ${w}px;
+      height: ${h}px;
+      overflow: visible;
+      pointer-events: ${node.listening ? "auto" : "none"};
+      opacity: ${node.opacity};
+    `;
+    while (svg.firstChild)
+      svg.removeChild(svg.firstChild);
+    const ox = pad - b.x;
+    const oy = pad - b.y;
+    const strokeColor = node.stroke ? this.strokeToCss(node.stroke) : "#64748b";
+    const sw = String(node.strokeWidth || 2);
+    const fillColor = node.fill && node.fill !== null && node.fill !== "transparent" ? this.fillToCss(node.fill) : "none";
+    if (node instanceof Line) {
+      const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      line.setAttribute("x1", String(ox));
+      line.setAttribute("y1", String(oy));
+      line.setAttribute("x2", String(node.x2 + ox));
+      line.setAttribute("y2", String(node.y2 + oy));
+      line.setAttribute("stroke", strokeColor);
+      line.setAttribute("stroke-width", sw);
+      line.setAttribute("stroke-linecap", node.lineCap);
+      svg.appendChild(line);
+    } else if (node instanceof Polyline) {
+      const pts = node.points.map((v, i) => i % 2 === 0 ? v + ox : v + oy).join(" ");
+      const poly = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+      poly.setAttribute("points", pts);
+      poly.setAttribute("stroke", strokeColor);
+      poly.setAttribute("stroke-width", sw);
+      poly.setAttribute("fill", fillColor);
+      poly.setAttribute("stroke-linejoin", node.lineJoin);
+      poly.setAttribute("stroke-linecap", node.lineCap);
+      svg.appendChild(poly);
+    } else if (node instanceof Polygon) {
+      const pts = node.points.map((v, i) => i % 2 === 0 ? v + ox : v + oy).join(" ");
+      const poly = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+      poly.setAttribute("points", pts);
+      poly.setAttribute("stroke", strokeColor);
+      poly.setAttribute("stroke-width", sw);
+      poly.setAttribute("fill", fillColor);
+      svg.appendChild(poly);
+    } else if (node instanceof Arc) {
+      const cx = node.radius + ox;
+      const cy = node.radius + oy;
+      const r = node.radius;
+      const x1 = cx + r * Math.cos(node.startAngle);
+      const y1 = cy + r * Math.sin(node.startAngle);
+      const x2 = cx + r * Math.cos(node.endAngle);
+      const y2 = cy + r * Math.sin(node.endAngle);
+      const sweep = node.counterClockwise ? 0 : 1;
+      const large = Math.abs(node.endAngle - node.startAngle) > Math.PI ? 1 : 0;
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", `M ${x1} ${y1} A ${r} ${r} 0 ${large} ${sweep} ${x2} ${y2}`);
+      path.setAttribute("stroke", strokeColor);
+      path.setAttribute("stroke-width", sw);
+      path.setAttribute("fill", fillColor);
+      path.setAttribute("stroke-linecap", node.lineCap);
+      svg.appendChild(path);
+    } else if (node instanceof Path) {
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", node.d);
+      path.setAttribute("stroke", node.stroke ? strokeColor : "none");
+      path.setAttribute("stroke-width", sw);
+      path.setAttribute("fill", fillColor);
+      path.setAttribute("transform", `translate(${ox}, ${oy})`);
+      svg.appendChild(path);
     }
   }
   fillToCss(fill) {
@@ -5216,12 +6991,22 @@ var HTMLRenderer = class extends Renderer {
       el.style.font = `${node.fontWeight} ${node.fontSize}px ${node.fontFamily}`;
       el.style.color = this.fillToCss(node.fill);
       el.style.background = "transparent";
+      el.style.whiteSpace = "pre";
+      if (node.textAlign && node.textAlign !== "left") {
+        el.style.textAlign = node.textAlign;
+        const parent = node.parent;
+        if (parent && "getBounds" in parent) {
+          const pb = parent.getBounds();
+          if (pb.width > 0) {
+            el.style.width = `${pb.width}px`;
+          }
+        }
+      }
     } else if (node instanceof Path) {
       const b = node.getBounds();
       el.style.width = `${Math.max(b.width, 1)}px`;
       el.style.height = `${Math.max(b.height, 1)}px`;
-      el.style.background = this.fillToCss(node.fill);
-      el.style.border = node.stroke ? `${node.strokeWidth}px solid ${this.strokeToCss(node.stroke)}` : "none";
+      el.style.background = "transparent";
     }
   }
   pruneOrphans(parent) {
@@ -5356,6 +7141,46 @@ function trapFocusIn(group) {
   app?.focusNode(focusables[0]);
 }
 
+// src/components/theme.ts
+var UI = {
+  primary: "#2563eb",
+  primaryHover: "#1d4ed8",
+  primaryActive: "#1e40af",
+  primaryMuted: "#dbeafe",
+  secondary: "#64748b",
+  secondaryHover: "#475569",
+  success: "#059669",
+  successBg: "#ecfdf5",
+  warning: "#d97706",
+  danger: "#dc2626",
+  surface: "#ffffff",
+  surfaceMuted: "#f8fafc",
+  surfaceInset: "#f1f5f9",
+  overlay: "rgba(15, 23, 42, 0.45)",
+  border: "#e2e8f0",
+  borderStrong: "#cbd5e1",
+  borderFocus: "#2563eb",
+  text: "#0f172a",
+  textSecondary: "#475569",
+  textMuted: "#64748b",
+  textInverse: "#ffffff",
+  textPlaceholder: "#94a3b8",
+  radius: 8,
+  radiusSm: 6,
+  radiusLg: 12,
+  radiusFull: 999,
+  font: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+  fontSize: 14,
+  fontSizeSm: 12,
+  fontSizeLg: 16,
+  controlHeight: 40,
+  inputHeight: 40,
+  shadowSm: { color: "rgba(15, 23, 42, 0.05)", blur: 2, offsetX: 0, offsetY: 1 },
+  shadowMd: { color: "rgba(15, 23, 42, 0.08)", blur: 8, offsetX: 0, offsetY: 2 },
+  shadowLg: { color: "rgba(15, 23, 42, 0.12)", blur: 20, offsetX: 0, offsetY: 8 },
+  shadowPrimary: { color: "rgba(37, 99, 235, 0.28)", blur: 8, offsetX: 0, offsetY: 2 }
+};
+
 // src/components/definitions.ts
 function createGroup(app, type, props, extra = {}) {
   const group = app.group({
@@ -5372,31 +7197,49 @@ function createGroup(app, type, props, extra = {}) {
   return group;
 }
 registerComponent("button", (props, app) => {
-  const width = num(props, "width", 120);
-  const height = num(props, "height", 36);
+  const width = num(props, "width", 128);
+  const height = num(props, "height", UI.controlHeight);
   const label = str(props, "label", "Button");
   const disabled = bool(props, "disabled", false);
-  const fill = str(props, "fill", "#2563eb");
+  const variant = str(props, "variant", "primary");
+  const fill = str(props, "fill", "") || (variant === "secondary" ? UI.secondary : variant === "ghost" ? UI.surface : UI.primary);
   const group = createGroup(app, "button", props, {
     focusable: !disabled,
     role: "button",
-    metadata: { componentType: "button", label, componentState: { label, width, height, disabled, fill } }
+    metadata: { componentType: "button", label, componentState: { label, width, height, disabled, fill, variant } }
   });
-  setState(group, { label, width, height, disabled, fill });
-  const bg = app.roundedRect({ width, height, cornerRadius: 6, fill, stroke: null });
+  setState(group, { label, width, height, disabled, fill, variant });
+  const textColor = variant === "ghost" ? UI.textSecondary : UI.textInverse;
+  const bg = app.roundedRect({
+    width,
+    height,
+    cornerRadius: UI.radius,
+    fill,
+    stroke: variant === "ghost" ? UI.border : null,
+    strokeWidth: variant === "ghost" ? 1 : 0,
+    shadow: variant === "primary" ? UI.shadowPrimary : UI.shadowSm
+  });
   const text = app.text({
     text: label,
-    fontSize: 14,
-    fill: "#ffffff",
-    x: width / 2 - label.length * 3.5,
-    y: height / 2 - 7
+    fontSize: UI.fontSize,
+    fontWeight: "600",
+    fill: textColor,
+    x: 0,
+    y: (height - UI.fontSize) / 2,
+    textAlign: "center"
   });
   group.add(bg, text);
   setParts(group, { bg, text });
   wireButtonStates(group, ({ hover, active, disabled: dis }) => {
     const parts = getParts(group);
-    const base = dis ? "#9ca3af" : fill;
-    parts.bg.fill = dis ? "#9ca3af" : active ? "#1d4ed8" : hover ? "#1e40af" : base;
+    if (dis) {
+      parts.bg.fill = UI.borderStrong;
+      return group.getApp()?.requestRender();
+    }
+    const base = fill;
+    const hoverColor = variant === "secondary" ? UI.secondaryHover : variant === "ghost" ? UI.surfaceInset : UI.primaryHover;
+    const activeColor = variant === "secondary" ? UI.textSecondary : variant === "ghost" ? UI.surfaceMuted : UI.primaryActive;
+    parts.bg.fill = active ? activeColor : hover ? hoverColor : base;
     group.getApp()?.requestRender();
   });
   return group;
@@ -5404,12 +7247,13 @@ registerComponent("button", (props, app) => {
 registerComponent("label", (props, app) => {
   const node = app.text({
     text: str(props, "text", ""),
-    fontSize: num(props, "fontSize", 14),
-    fill: str(props, "color", "#333"),
+    fontSize: num(props, "fontSize", UI.fontSizeSm),
+    fontWeight: str(props, "fontWeight", "600"),
+    fill: str(props, "color", UI.textMuted),
     ...props
   });
   node.metadata.componentType = "label";
-  setState(node, { text: str(props, "text", ""), fontSize: num(props, "fontSize", 14) });
+  setState(node, { text: str(props, "text", ""), fontSize: num(props, "fontSize", UI.fontSizeSm) });
   return node;
 });
 registerComponent("card", (props, app) => {
@@ -5419,20 +7263,20 @@ registerComponent("card", (props, app) => {
   const bg = app.roundedRect({
     width,
     height,
-    cornerRadius: 8,
-    fill: "#ffffff",
-    stroke: "#e5e7eb",
+    cornerRadius: UI.radiusLg,
+    fill: UI.surface,
+    stroke: UI.border,
     strokeWidth: 1,
-    shadow: { color: "rgba(0,0,0,0.1)", blur: 8, offsetX: 0, offsetY: 2 }
+    shadow: UI.shadowMd
   });
   group.add(bg);
   if (props.title) {
     group.add(
       app.text({
         text: props.title,
-        fontSize: 16,
+        fontSize: UI.fontSizeLg,
         fontWeight: "bold",
-        fill: "#111",
+        fill: UI.text,
         x: 16,
         y: 16
       })
@@ -5451,16 +7295,17 @@ registerComponent("progressBar", (props, app) => {
     ariaValueMin: 0,
     ariaValueMax: 100
   });
-  const track = app.roundedRect({ width, height, cornerRadius: height / 2, fill: "#e5e7eb" });
+  const track = app.roundedRect({ width, height, cornerRadius: height / 2, fill: UI.surfaceInset, listening: false });
   const fillBar = app.roundedRect({
     width: width * value / 100,
     height,
     cornerRadius: height / 2,
-    fill: str(props, "fill", "#2563eb")
+    fill: str(props, "fill", UI.primary),
+    listening: false
   });
   group.add(track, fillBar);
   setParts(group, { track, fillBar });
-  setState(group, { width, height, value });
+  setState(group, { width, height, value, label: props.label, variant: props.variant });
   return group;
 });
 registerComponent("slider", (props, app) => {
@@ -5476,20 +7321,29 @@ registerComponent("slider", (props, app) => {
     ariaValueMax: max,
     metadata: { componentType: "slider", label: props.label ?? "Slider" }
   });
-  const track = app.rect({ width, height: 4, y: 8, fill: "#e5e7eb", listening: false });
-  const fill = app.rect({ width: 0, height: 4, y: 8, fill: "#2563eb", listening: false });
-  const thumb = app.circle({ x: 0, y: 0, radius: 8, fill: "#2563eb" });
+  const track = app.roundedRect({ width, height: 6, y: 12, cornerRadius: 3, fill: UI.surfaceInset, listening: false });
+  const fill = app.roundedRect({ width: 0, height: 6, y: 12, cornerRadius: 3, fill: UI.primary, listening: false });
+  const thumb = app.circle({
+    x: 0,
+    y: 12,
+    radius: 10,
+    fill: UI.surface,
+    stroke: UI.primary,
+    strokeWidth: 2,
+    shadow: UI.shadowMd,
+    listening: false
+  });
   group.add(track, fill, thumb);
   setParts(group, { track, fill, thumb });
   const updateVisual = (v) => {
     const pct = (v - min) / (max - min);
     fill.width = width * pct;
-    thumb.x = width * pct - 8;
+    thumb.x = width * pct - 10;
     group.ariaValueNow = v;
     group.getApp()?.requestRender();
   };
   updateVisual(value);
-  setState(group, { width, min, max, value });
+  setState(group, { width, min, max, value, label: props.label });
   const setValue = (worldX) => {
     const localX = clamp2(worldX - group.x, 0, width);
     const pct = localX / width;
@@ -5511,22 +7365,44 @@ registerComponent("checkbox", (props, app) => {
     metadata: { componentType: "checkbox", label: props.label ?? "Checkbox" }
   });
   const box = app.roundedRect({
-    width: 18,
-    height: 18,
-    cornerRadius: 3,
-    fill: checked ? "#2563eb" : "#fff",
-    stroke: "#9ca3af",
-    strokeWidth: 1,
+    width: 20,
+    height: 20,
+    cornerRadius: 5,
+    fill: checked ? UI.primary : UI.surface,
+    stroke: checked ? UI.primary : UI.borderStrong,
+    strokeWidth: 1.5,
+    shadow: checked ? UI.shadowSm : null,
     listening: false
   });
-  group.add(box);
+  const mark = app.text({
+    text: "\u2713",
+    x: 4,
+    y: 1,
+    fontSize: 14,
+    fontWeight: "bold",
+    fill: UI.textInverse,
+    visible: checked,
+    listening: false
+  });
+  group.add(box, mark);
   if (props.label) {
-    group.add(app.text({ text: props.label, x: 26, y: 1, fontSize: 14, fill: "#333", listening: false }));
+    group.add(
+      app.text({
+        text: props.label,
+        x: 30,
+        y: 2,
+        fontSize: UI.fontSize,
+        fill: UI.textSecondary,
+        listening: false
+      })
+    );
   }
-  setParts(group, { box });
+  setParts(group, { box, mark });
   setState(group, { checked, label: props.label });
   wireToggle(group, "checked", (v) => {
-    box.fill = v ? "#2563eb" : "#fff";
+    box.fill = v ? UI.primary : UI.surface;
+    box.stroke = v ? UI.primary : UI.borderStrong;
+    mark.visible = v;
     group.ariaChecked = v;
   });
   return group;
@@ -5539,21 +7415,34 @@ registerComponent("toggle", (props, app) => {
     ariaChecked: on,
     metadata: { componentType: "toggle", label: props.label ?? "Toggle" }
   });
-  const track = app.roundedRect({ width: 44, height: 24, cornerRadius: 12, fill: on ? "#2563eb" : "#d1d5db", listening: false });
-  const knob = app.circle({ x: on ? 22 : 2, y: 2, radius: 10, fill: "#fff", listening: false });
+  const track = app.roundedRect({
+    width: 48,
+    height: 26,
+    cornerRadius: 13,
+    fill: on ? UI.primary : UI.borderStrong,
+    listening: false
+  });
+  const knob = app.circle({
+    x: on ? 24 : 2,
+    y: 3,
+    radius: 10,
+    fill: UI.surface,
+    shadow: UI.shadowMd,
+    listening: false
+  });
   group.add(track, knob);
   setParts(group, { track, knob });
   setState(group, { value: on, label: props.label });
   wireToggle(group, "value", (v) => {
-    track.fill = v ? "#2563eb" : "#d1d5db";
-    knob.x = v ? 22 : 2;
+    track.fill = v ? UI.primary : UI.borderStrong;
+    knob.x = v ? 24 : 2;
     group.ariaChecked = v;
   });
   return group;
 });
 registerComponent("input", (props, app) => {
-  const width = num(props, "width", 200);
-  const height = num(props, "height", 32);
+  const width = num(props, "width", 240);
+  const height = num(props, "height", UI.inputHeight);
   const value = str(props, "value", "");
   const placeholder = str(props, "placeholder", "");
   const group = createGroup(app, "input", props, {
@@ -5561,27 +7450,59 @@ registerComponent("input", (props, app) => {
     role: "textbox",
     metadata: { componentType: "input", label: props.label ?? (placeholder || "Input") }
   });
-  const bg = app.roundedRect({ width, height, cornerRadius: 4, fill: "#fff", stroke: "#d1d5db", strokeWidth: 1, listening: false });
-  const text = app.text({ text: value || placeholder, fontSize: 14, fill: value ? "#111" : "#9ca3af", x: 8, y: 8, listening: false });
+  const bg = app.roundedRect({
+    width,
+    height,
+    cornerRadius: UI.radius,
+    fill: UI.surface,
+    stroke: UI.border,
+    strokeWidth: 1,
+    shadow: UI.shadowSm,
+    listening: false
+  });
+  const text = app.text({
+    text: value || placeholder,
+    fontSize: UI.fontSize,
+    fill: value ? UI.text : UI.textPlaceholder,
+    x: 12,
+    y: (height - UI.fontSize) / 2,
+    listening: false
+  });
   group.add(bg, text);
   setParts(group, { bg, text });
-  setState(group, { width, height, value, placeholder });
+  setState(group, { width, height, value, placeholder, label: props.label });
   return group;
 });
 registerComponent("textarea", (props, app) => {
-  const width = num(props, "width", 240);
-  const height = num(props, "height", 80);
+  const width = num(props, "width", 280);
+  const height = num(props, "height", 96);
   const value = str(props, "value", "");
   const group = createGroup(app, "textarea", props, {
     focusable: true,
     role: "textbox",
     metadata: { componentType: "textarea", multiline: true }
   });
-  const bg = app.roundedRect({ width, height, cornerRadius: 4, fill: "#fff", stroke: "#d1d5db", strokeWidth: 1, listening: false });
-  const text = app.text({ text: value || str(props, "placeholder", ""), fontSize: 14, fill: "#111", x: 8, y: 8, listening: false });
+  const bg = app.roundedRect({
+    width,
+    height,
+    cornerRadius: UI.radius,
+    fill: UI.surface,
+    stroke: UI.border,
+    strokeWidth: 1,
+    shadow: UI.shadowSm,
+    listening: false
+  });
+  const text = app.text({
+    text: value || str(props, "placeholder", ""),
+    fontSize: UI.fontSize,
+    fill: value ? UI.text : UI.textPlaceholder,
+    x: 12,
+    y: 12,
+    listening: false
+  });
   group.add(bg, text);
   setParts(group, { bg, text });
-  setState(group, { width, height, value, rows: num(props, "rows", 4) });
+  setState(group, { width, height, value, rows: num(props, "rows", 4), label: props.label, placeholder: props.placeholder });
   return group;
 });
 registerComponent("radio", (props, app) => {
@@ -5593,18 +7514,42 @@ registerComponent("radio", (props, app) => {
     ariaChecked: selected,
     metadata: { componentType: "radio", group: groupName, label: props.label }
   });
-  const outer = app.circle({ x: 9, y: 9, radius: 9, fill: "#fff", stroke: "#9ca3af", strokeWidth: 1, listening: false });
-  const inner = app.circle({ x: 9, y: 9, radius: 5, fill: selected ? "#2563eb" : "transparent", listening: false });
+  const outer = app.circle({
+    x: 10,
+    y: 10,
+    radius: 10,
+    fill: UI.surface,
+    stroke: selected ? UI.primary : UI.borderStrong,
+    strokeWidth: selected ? 2 : 1.5,
+    listening: false
+  });
+  const inner = app.circle({
+    x: 10,
+    y: 10,
+    radius: 5,
+    fill: selected ? UI.primary : "transparent",
+    listening: false
+  });
   group.add(outer, inner);
   if (props.label) {
-    group.add(app.text({ text: props.label, x: 26, y: 1, fontSize: 14, fill: "#333", listening: false }));
+    group.add(
+      app.text({
+        text: props.label,
+        x: 28,
+        y: 2,
+        fontSize: UI.fontSize,
+        fill: UI.textSecondary,
+        listening: false
+      })
+    );
   }
   setParts(group, { outer, inner });
   setState(group, { selected, group: groupName, label: props.label });
   group.on("click", () => {
     setState(group, { selected: true });
     group.ariaChecked = true;
-    inner.fill = "#2563eb";
+    inner.fill = UI.primary;
+    outer.stroke = UI.primary;
     group.emit("change", syntheticEvent("change", group, { value: groupName, payload: groupName }));
     group.getApp()?.requestRender();
   });
@@ -5613,10 +7558,17 @@ registerComponent("radio", (props, app) => {
 registerComponent("tooltip", (props, app) => {
   const text = str(props, "text", "Tooltip");
   const group = createGroup(app, "tooltip", props, { visible: bool(props, "visible", false), listening: true });
-  const pad = 8;
+  const pad = 10;
   const tw = text.length * 7 + pad * 2;
-  const bg = app.roundedRect({ width: tw, height: 28, cornerRadius: 4, fill: "#1f2937", listening: false });
-  const label = app.text({ text, fontSize: 12, fill: "#fff", x: pad, y: 6, listening: false });
+  const bg = app.roundedRect({
+    width: tw,
+    height: 32,
+    cornerRadius: UI.radiusSm,
+    fill: "#1e293b",
+    shadow: UI.shadowMd,
+    listening: false
+  });
+  const label = app.text({ text, fontSize: UI.fontSizeSm, fill: UI.textInverse, x: pad, y: 8, listening: false });
   group.add(bg, label);
   setState(group, { text, visible: group.visible });
   group.on("mouseenter", () => {
@@ -5634,21 +7586,39 @@ registerComponent("tooltip", (props, app) => {
 registerComponent("menu", (props, app) => {
   const items = props.items ?? ["Item 1", "Item 2", "Item 3"];
   const open = bool(props, "open", false);
-  const rowH = 28;
-  const width = num(props, "width", 160);
-  const height = items.length * rowH + 8;
+  const rowH = 32;
+  const width = num(props, "width", 180);
+  const height = items.length * rowH + 12;
   const group = createGroup(app, "menu", props, {
     focusable: true,
     role: "menu",
     visible: open,
     metadata: { componentType: "menu", label: props.label ?? "Menu" }
   });
-  const bg = app.roundedRect({ width, height, cornerRadius: 6, fill: "#fff", stroke: "#e5e7eb", strokeWidth: 1, listening: false });
+  const bg = app.roundedRect({
+    width,
+    height,
+    cornerRadius: UI.radius,
+    fill: UI.surface,
+    stroke: UI.border,
+    strokeWidth: 1,
+    shadow: UI.shadowLg,
+    listening: false
+  });
   group.add(bg);
   items.forEach((item, i) => {
-    group.add(app.text({ text: item, x: 12, y: 10 + i * rowH, fontSize: 14, fill: "#111", listening: false }));
+    group.add(
+      app.text({
+        text: item,
+        x: 14,
+        y: 10 + i * rowH,
+        fontSize: UI.fontSize,
+        fill: UI.text,
+        listening: false
+      })
+    );
   });
-  setState(group, { items, open, width, selectedIndex: -1 });
+  setState(group, { items, open, width, selectedIndex: -1, triggerLabel: props.triggerLabel });
   group.on("click", (e) => {
     if (!group.visible) {
       group.visible = true;
@@ -5676,10 +7646,50 @@ registerComponent("dialog", (props, app) => {
     visible: open,
     metadata: { componentType: "dialog", label: title }
   });
-  const overlay = app.rect({ width: num(props, "overlayWidth", 800), height: num(props, "overlayHeight", 600), fill: "rgba(0,0,0,0.4)", x: -num(props, "x", 0), y: -num(props, "y", 0), listening: true });
-  const panel = app.roundedRect({ width, height, cornerRadius: 8, fill: "#fff", stroke: "#e5e7eb", strokeWidth: 1, x: 0, y: 0 });
-  const titleText = app.text({ text: title, fontSize: 16, fontWeight: "bold", fill: "#111", x: 16, y: 16 });
-  group.add(overlay, panel, titleText);
+  const overlay = app.rect({
+    width: num(props, "overlayWidth", 800),
+    height: num(props, "overlayHeight", 600),
+    fill: UI.overlay,
+    x: -num(props, "x", 0),
+    y: -num(props, "y", 0),
+    listening: true
+  });
+  const panel = app.roundedRect({
+    width,
+    height,
+    cornerRadius: UI.radiusLg,
+    fill: UI.surface,
+    stroke: UI.border,
+    strokeWidth: 1,
+    shadow: UI.shadowLg,
+    x: 0,
+    y: 0
+  });
+  const titleText = app.text({
+    text: title,
+    fontSize: UI.fontSizeLg,
+    fontWeight: "bold",
+    fill: UI.text,
+    x: 20,
+    y: 18
+  });
+  const divider = app.rect({
+    width: width - 40,
+    height: 1,
+    fill: UI.border,
+    x: 20,
+    y: 48,
+    listening: false
+  });
+  const bodyText = app.text({
+    text: str(props, "message", "Are you sure you want to continue?"),
+    fontSize: UI.fontSize,
+    fill: UI.textSecondary,
+    x: 20,
+    y: 64,
+    listening: false
+  });
+  group.add(overlay, panel, titleText, divider, bodyText);
   setParts(group, { overlay, panel, titleText });
   setState(group, { open, title, width, height });
   if (open)
@@ -5708,11 +7718,42 @@ registerComponent("tabs", (props, app) => {
   const width = num(props, "width", 300);
   const tabW = width / labels.length;
   const group = createGroup(app, "tabs", props, { focusable: true, role: "tablist" });
+  const tabH = 36;
+  group.add(
+    app.roundedRect({
+      width,
+      height: tabH + 4,
+      cornerRadius: UI.radius,
+      fill: UI.surfaceInset,
+      stroke: UI.border,
+      strokeWidth: 1,
+      listening: false
+    })
+  );
   labels.forEach((label, i) => {
-    const tab = app.group({ x: i * tabW, y: 0, listening: true, focusable: true, metadata: { tabIndex: i } });
+    const tab = app.group({ x: i * tabW + 4, y: 2, listening: true, focusable: true, metadata: { tabIndex: i } });
+    const active = i === activeTab;
     tab.add(
-      app.rect({ width: tabW, height: 32, fill: i === activeTab ? "#2563eb" : "#e5e7eb", listening: false }),
-      app.text({ text: label, fontSize: 13, fill: i === activeTab ? "#fff" : "#333", x: 12, y: 8, listening: false })
+      app.roundedRect({
+        width: tabW - 8,
+        height: tabH,
+        cornerRadius: UI.radiusSm,
+        fill: active ? UI.surface : "transparent",
+        stroke: active ? UI.border : null,
+        strokeWidth: active ? 1 : 0,
+        shadow: active ? UI.shadowSm : null,
+        listening: false
+      }),
+      app.text({
+        text: label,
+        fontSize: UI.fontSize,
+        fontWeight: active ? "600" : "500",
+        fill: active ? UI.primary : UI.textMuted,
+        x: (tabW - 8) / 2,
+        y: 10,
+        textAlign: "center",
+        listening: false
+      })
     );
     tab.on("click", () => {
       setState(group, { activeTab: i });
@@ -5732,11 +7773,28 @@ registerComponent("accordion", (props, app) => {
   const expanded = num(props, "expandedIndex", 0);
   const group = createGroup(app, "accordion", props, { focusable: true });
   sections.forEach((sec, i) => {
-    const y = i * 40;
+    const y = i * 44;
     const header = app.group({ x: 0, y, listening: true, focusable: true });
+    const isOpen = i === expanded;
     header.add(
-      app.rect({ width: num(props, "width", 280), height: 36, fill: "#f3f4f6", stroke: "#e5e7eb", strokeWidth: 1, listening: false }),
-      app.text({ text: sec.title, fontSize: 14, fill: "#111", x: 12, y: 10, listening: false })
+      app.roundedRect({
+        width: num(props, "width", 280),
+        height: 40,
+        cornerRadius: UI.radiusSm,
+        fill: isOpen ? UI.primaryMuted : UI.surfaceMuted,
+        stroke: UI.border,
+        strokeWidth: 1,
+        listening: false
+      }),
+      app.text({
+        text: (isOpen ? "\u25BC  " : "\u25B6  ") + sec.title,
+        fontSize: UI.fontSize,
+        fontWeight: "600",
+        fill: UI.text,
+        x: 14,
+        y: 11,
+        listening: false
+      })
     );
     header.on("click", () => {
       setState(group, { expandedIndex: i });
@@ -5745,7 +7803,16 @@ registerComponent("accordion", (props, app) => {
     });
     group.add(header);
     if (i === expanded) {
-      group.add(app.text({ text: sec.content, x: 12, y: y + 40, fontSize: 13, fill: "#555", listening: false }));
+      group.add(
+        app.text({
+          text: sec.content,
+          x: 14,
+          y: y + 46,
+          fontSize: UI.fontSize,
+          fill: UI.textSecondary,
+          listening: false
+        })
+      );
     }
   });
   setState(group, { sections, expandedIndex: expanded });
@@ -5758,15 +7825,70 @@ registerComponent("table", (props, app) => {
     ["Row B", "2"]
   ];
   const colW = num(props, "colWidth", 100);
-  const rowH = 28;
+  const rowH = 36;
+  const tableW = colW * columns.length;
+  const tableH = rowH * (rows.length + 1);
   const group = createGroup(app, "table", props, { focusable: true, role: "grid" });
+  group.add(
+    app.roundedRect({
+      width: tableW,
+      height: tableH,
+      cornerRadius: UI.radius,
+      fill: UI.surface,
+      stroke: UI.border,
+      strokeWidth: 1,
+      shadow: UI.shadowSm,
+      listening: false
+    })
+  );
+  group.add(
+    app.rect({
+      width: tableW,
+      height: rowH,
+      fill: UI.surfaceMuted,
+      stroke: null,
+      listening: false
+    })
+  );
   columns.forEach((col, ci) => {
-    group.add(app.text({ text: col, x: ci * colW + 8, y: 4, fontSize: 13, fontWeight: "bold", fill: "#111", listening: false }));
+    group.add(
+      app.text({
+        text: col.toUpperCase(),
+        x: ci * colW + 14,
+        y: 10,
+        fontSize: UI.fontSizeSm,
+        fontWeight: "bold",
+        fill: UI.textMuted,
+        listening: false
+      })
+    );
   });
   rows.forEach((row, ri) => {
-    const rowGroup = app.group({ x: 0, y: (ri + 1) * rowH, listening: true, metadata: { rowIndex: ri } });
+    const rowY = (ri + 1) * rowH;
+    if (ri % 2 === 1) {
+      group.add(
+        app.rect({
+          width: tableW,
+          height: rowH,
+          y: rowY,
+          fill: UI.surfaceMuted,
+          opacity: 0.5,
+          listening: false
+        })
+      );
+    }
+    const rowGroup = app.group({ x: 0, y: rowY, listening: true, metadata: { rowIndex: ri } });
     row.forEach((cell, ci) => {
-      rowGroup.add(app.text({ text: cell, x: ci * colW + 8, y: 4, fontSize: 13, fill: "#333", listening: false }));
+      rowGroup.add(
+        app.text({
+          text: cell,
+          x: ci * colW + 14,
+          y: 10,
+          fontSize: UI.fontSize,
+          fill: UI.text,
+          listening: false
+        })
+      );
     });
     rowGroup.on("click", () => {
       setState(group, { selectedRow: ri });
@@ -5787,7 +7909,7 @@ registerComponent("tree", (props, app) => {
   let y = 0;
   nodes.forEach((node, i) => {
     const header = app.group({ x: 0, y, listening: true });
-    header.add(app.text({ text: (expanded.has(i) ? "\u25BC " : "\u25B6 ") + node.label, fontSize: 14, fill: "#111", listening: false }));
+    header.add(app.text({ text: (expanded.has(i) ? "\u25BC  " : "\u25B6  ") + node.label, fontSize: UI.fontSize, fontWeight: "600", fill: UI.text, listening: false }));
     header.on("click", () => {
       if (expanded.has(i))
         expanded.delete(i);
@@ -5801,7 +7923,16 @@ registerComponent("tree", (props, app) => {
     y += 24;
     if (expanded.has(i) && node.children) {
       node.children.forEach((child) => {
-        group.add(app.text({ text: "    " + child.label, x: 0, y, fontSize: 13, fill: "#555", listening: false }));
+        group.add(
+          app.text({
+            text: "    " + child.label,
+            x: 8,
+            y,
+            fontSize: UI.fontSize,
+            fill: UI.textSecondary,
+            listening: false
+          })
+        );
         y += 22;
       });
     }
@@ -5814,16 +7945,34 @@ registerComponent("toolbar", (props, app) => {
   const group = createGroup(app, "toolbar", props, { focusable: true, role: "toolbar" });
   let x = 0;
   buttons.forEach((label) => {
-    const btn = createGroup(app, "button", { label, width: 72, height: 28 }, { x, y: 0, focusable: true, role: "button" });
+    const btnW = Math.max(label.length * 8 + 24, 68);
+    const btn = createGroup(app, "button", { label, width: btnW, height: 32, variant: "ghost" }, { x, y: 0, focusable: true, role: "button" });
     btn.add(
-      app.roundedRect({ width: 72, height: 28, cornerRadius: 4, fill: "#f3f4f6", stroke: "#d1d5db", strokeWidth: 1, listening: false }),
-      app.text({ text: label, fontSize: 12, fill: "#111", x: 10, y: 7, listening: false })
+      app.roundedRect({
+        width: btnW,
+        height: 32,
+        cornerRadius: UI.radiusSm,
+        fill: UI.surface,
+        stroke: UI.border,
+        strokeWidth: 1,
+        shadow: UI.shadowSm,
+        listening: false
+      }),
+      app.text({
+        text: label,
+        fontSize: UI.fontSizeSm,
+        fontWeight: "600",
+        fill: UI.textSecondary,
+        x: 0,
+        y: 8,
+        textAlign: "center"
+      })
     );
     btn.on("click", () => {
       group.emit("select", syntheticEvent("select", group, { item: label }));
     });
     group.add(btn);
-    x += 76;
+    x += btnW + 6;
   });
   setState(group, { buttons });
   return group;
@@ -5836,12 +7985,19 @@ registerComponent("toast", (props, app) => {
     ariaLive: "polite",
     metadata: { componentType: "toast", ariaLive: "polite" }
   });
-  const tw = message.length * 7 + 24;
+  const tw = Math.max(message.length * 7 + 32, 160);
   group.add(
-    app.roundedRect({ width: tw, height: 36, cornerRadius: 6, fill: "#1f2937", listening: false }),
-    app.text({ text: message, fontSize: 13, fill: "#fff", x: 12, y: 10, listening: false })
+    app.roundedRect({
+      width: tw,
+      height: 40,
+      cornerRadius: UI.radius,
+      fill: "#1e293b",
+      shadow: UI.shadowLg,
+      listening: false
+    }),
+    app.text({ text: message, fontSize: UI.fontSize, fill: UI.textInverse, x: 16, y: 11, listening: false })
   );
-  setState(group, { message, duration });
+  setState(group, { message, duration, variant: props.variant ?? "success" });
   group.emit("open", syntheticEvent("open", group));
   scheduleAutoDismiss(group, duration, () => {
     group.visible = false;
@@ -5851,11 +8007,30 @@ registerComponent("toast", (props, app) => {
 registerComponent("statusBar", (props, app) => {
   const segments = props.segments ?? ["Ready", "Line 1", "UTF-8"];
   const width = num(props, "width", 400);
+  const height = 28;
   const group = createGroup(app, "statusBar", props, { role: "status" });
-  group.add(app.rect({ width, height: 24, fill: "#f3f4f6", stroke: "#e5e7eb", strokeWidth: 1, listening: false }));
+  group.add(
+    app.rect({
+      width,
+      height,
+      fill: "#1e293b",
+      stroke: "#334155",
+      strokeWidth: 1,
+      listening: false
+    })
+  );
   const segW = width / segments.length;
   segments.forEach((seg, i) => {
-    group.add(app.text({ text: seg, x: i * segW + 8, y: 5, fontSize: 12, fill: "#555", listening: false }));
+    group.add(
+      app.text({
+        text: seg,
+        x: i * segW + 12,
+        y: 6,
+        fontSize: UI.fontSizeSm,
+        fill: "#94a3b8",
+        listening: false
+      })
+    );
   });
   setState(group, { segments, width });
   return group;
@@ -5880,6 +8055,33 @@ function createDashboardFromJSON(type, props, app) {
   const factory = registry2[type];
   return factory ? factory(props, app) : null;
 }
+
+// src/dashboard/theme.ts
+var DASHBOARD = {
+  panel: "#151d2e",
+  panelStroke: "#2a3654",
+  text: "#e2e8f0",
+  textMuted: "#94a3b8",
+  textDim: "#64748b",
+  gaugeTrack: "#374151",
+  gaugeNeedle: "#3b82f6",
+  speedoNeedle: "#ef4444",
+  chartBg: "#111827",
+  chartGrid: "#334155",
+  chartAxis: "#64748b",
+  chartLine: "#3b82f6",
+  chartArea: "rgba(59, 130, 246, 0.35)",
+  chartPlot: "#0f172a",
+  chartTooltipBg: "#1e293b",
+  chartTooltipBorder: "#475569",
+  chartCrosshair: "rgba(148, 163, 184, 0.6)",
+  chartDot: "#60a5fa",
+  barFill: "#3b82f6",
+  compassFace: "#1c2740",
+  compassRing: "#475569",
+  thermometerTube: "#334155",
+  thermometerBorder: "#475569"
+};
 
 // src/dashboard/chartPrimitives.ts
 function computeTicks(min, max, count = 5) {
@@ -5938,9 +8140,9 @@ function addGridLines(app, group, layout, yTicks, bounds, xDivisions = 4) {
       app.line({
         x: layout.plotX,
         y,
-        x2: layout.plotX + layout.plotWidth,
-        y2: y,
-        stroke: "#374151",
+        x2: layout.plotWidth,
+        y2: 0,
+        stroke: DASHBOARD.chartGrid,
         strokeWidth: 1,
         dash: [4, 4],
         listening: false
@@ -5953,9 +8155,9 @@ function addGridLines(app, group, layout, yTicks, bounds, xDivisions = 4) {
       app.line({
         x,
         y: layout.plotY,
-        x2: x,
-        y2: layout.plotY + layout.plotHeight,
-        stroke: "#374151",
+        x2: 0,
+        y2: layout.plotHeight,
+        stroke: DASHBOARD.chartGrid,
         strokeWidth: 1,
         dash: [4, 4],
         listening: false
@@ -5968,9 +8170,9 @@ function addAxes(app, group, layout, bounds, yTicks, tickCount = 5) {
     app.line({
       x: layout.plotX,
       y: layout.plotY,
-      x2: layout.plotX,
-      y2: layout.plotY + layout.plotHeight,
-      stroke: "#9ca3af",
+      x2: 0,
+      y2: layout.plotHeight,
+      stroke: DASHBOARD.chartAxis,
       strokeWidth: 1,
       listening: false
     })
@@ -5979,9 +8181,9 @@ function addAxes(app, group, layout, bounds, yTicks, tickCount = 5) {
     app.line({
       x: layout.plotX,
       y: layout.plotY + layout.plotHeight,
-      x2: layout.plotX + layout.plotWidth,
-      y2: layout.plotY + layout.plotHeight,
-      stroke: "#9ca3af",
+      x2: layout.plotWidth,
+      y2: 0,
+      stroke: DASHBOARD.chartAxis,
       strokeWidth: 1,
       listening: false
     })
@@ -5996,7 +8198,7 @@ function addAxes(app, group, layout, bounds, yTicks, tickCount = 5) {
         x: 2,
         y: y - 6,
         fontSize: 10,
-        fill: "#9ca3af",
+        fill: DASHBOARD.textMuted,
         listening: false
       })
     );
@@ -6007,7 +8209,7 @@ function addLegend(app, group, items, x, y) {
     const ly = y + i * 18;
     group.add(
       app.rect({ x, y: ly, width: 12, height: 12, fill: item.color, listening: false }),
-      app.text({ text: item.label, x: x + 16, y: ly - 1, fontSize: 11, fill: "#d1d5db", listening: false })
+      app.text({ text: item.label, x: x + 16, y: ly - 1, fontSize: 11, fill: DASHBOARD.text, listening: false })
     );
   });
 }
@@ -6016,36 +8218,227 @@ function nearestDataIndex(data, layout, localX) {
   const idx = Math.round((localX - layout.plotX) / step);
   return Math.max(0, Math.min(data.length - 1, idx));
 }
-function wireChartInteraction(group, data, layout, tooltip, tooltipLabel) {
-  group.on("mousemove", (e) => {
-    const localX = e.worldX - group.x;
+function wireChartInteraction(group, data, layout, bounds, parts) {
+  const updateHover = (localX) => {
     const idx = nearestDataIndex(data, layout, localX);
-    const pts = seriesToPoints(data, layout, dataBounds(data));
+    const pts = seriesToPoints(data, layout, bounds);
     const px = pts[idx * 2];
     const py = pts[idx * 2 + 1];
-    tooltip.x = px - 20;
-    tooltip.y = py - 28;
-    tooltip.visible = true;
-    tooltipLabel.text = String(data[idx]);
-    group.emit("hover", syntheticEvent("hover", group, { index: idx, value: data[idx] }));
+    const val = data[idx];
+    const label = String(val);
+    parts.crosshair.x = px;
+    parts.crosshair.y = layout.plotY;
+    parts.crosshair.x2 = 0;
+    parts.crosshair.y2 = layout.plotHeight;
+    parts.crosshair.visible = true;
+    parts.dot.x = px - 4;
+    parts.dot.y = py - 4;
+    parts.dot.visible = true;
+    const tw = Math.max(44, label.length * 8 + 20);
+    parts.tooltip.x = px - tw / 2;
+    parts.tooltip.y = py - 36;
+    parts.tooltip.width = tw;
+    parts.tooltip.visible = true;
+    parts.tooltipLabel.text = label;
+    parts.tooltipLabel.x = px - tw / 2 + 10;
+    parts.tooltipLabel.y = py - 28;
+    parts.crosshair.markDirty();
+    parts.dot.markDirty();
+    parts.tooltip.markDirty();
+    parts.tooltipLabel.markDirty();
+    group.markDirty();
+    group.emit("hover", syntheticEvent("hover", group, { index: idx, value: val }));
     group.getApp()?.requestRender();
-  });
-  group.on("mouseleave", () => {
-    tooltip.visible = false;
+  };
+  const clearHover = () => {
+    parts.crosshair.visible = false;
+    parts.dot.visible = false;
+    parts.tooltip.visible = false;
+    parts.crosshair.markDirty();
+    parts.dot.markDirty();
+    parts.tooltip.markDirty();
+    group.markDirty();
     group.getApp()?.requestRender();
+  };
+  group.on("mousemove", (e) => {
+    updateHover(e.worldX - group.x);
   });
+  group.on("mouseleave", clearHover);
+  parts.hitArea.on("mousemove", (e) => {
+    updateHover(e.worldX - group.x);
+  });
+  parts.hitArea.on("mouseleave", clearHover);
   group.on("click", (e) => {
     const idx = nearestDataIndex(data, layout, e.worldX - group.x);
     group.emit("select", syntheticEvent("select", group, { index: idx, value: data[idx] }));
   });
 }
 
-// src/dashboard/definitions.ts
-function gaugeNeedleAngle(value, max) {
-  const startAngle = Math.PI * 0.75;
-  const sweep = Math.PI * 1.5;
-  return startAngle + value / max * sweep;
+// src/primitives/dialGauge.ts
+var DEFAULT_START = Math.PI * 0.75;
+var DEFAULT_SWEEP = Math.PI * 1.5;
+function buildDialGauge(app, group, style, opts) {
+  const size = opts.size;
+  const cx = size / 2;
+  const r = size / 2 - 14;
+  const startAngle = opts.startAngle ?? DEFAULT_START;
+  const sweep = opts.sweepAngle ?? DEFAULT_SWEEP;
+  const endAngle = startAngle + sweep;
+  const trackW = style.trackWidth ?? 10;
+  const tickColor = style.tickColor ?? style.bezelColor ?? style.trackColor;
+  const format = opts.formatValue ?? ((v) => String(Math.round(v)));
+  const tickCount = opts.tickCount ?? 8;
+  group.add(
+    app.circle({
+      x: cx - r - 6,
+      y: cx - r - 6,
+      radius: r + 6,
+      fill: style.faceColor ?? "#111827",
+      stroke: style.bezelColor ?? style.trackColor,
+      strokeWidth: 2,
+      shadow: { color: "rgba(0,0,0,0.45)", blur: 12, offsetX: 0, offsetY: 4 },
+      listening: false
+    })
+  );
+  if (opts.redlineFrom !== void 0 && opts.redlineFrom < 1) {
+    group.add(
+      new Arc({
+        x: cx - r,
+        y: cx - r,
+        radius: r,
+        startAngle: startAngle + sweep * opts.redlineFrom,
+        endAngle,
+        fill: null,
+        stroke: style.redlineColor ?? "#ef4444",
+        strokeWidth: trackW,
+        listening: false
+      })
+    );
+  }
+  group.add(
+    new Arc({
+      x: cx - r,
+      y: cx - r,
+      radius: r,
+      startAngle,
+      endAngle: opts.redlineFrom !== void 0 ? startAngle + sweep * opts.redlineFrom : endAngle,
+      fill: null,
+      stroke: style.trackColor,
+      strokeWidth: trackW,
+      listening: false
+    })
+  );
+  for (let i = 0; i <= tickCount; i++) {
+    const t = i / tickCount;
+    const a = startAngle + sweep * t;
+    const cos = Math.cos(a);
+    const sin = Math.sin(a);
+    const major = i % 2 === 0;
+    const inner = r - (major ? 16 : 12);
+    const outer = r - 4;
+    group.add(
+      app.line({
+        x: cx + inner * cos,
+        y: cx + inner * sin,
+        x2: (outer - inner) * cos,
+        y2: (outer - inner) * sin,
+        stroke: tickColor,
+        strokeWidth: major ? 2 : 1,
+        lineCap: "round",
+        listening: false
+      })
+    );
+    if (opts.showTickLabels && major) {
+      const labelVal = Math.round(opts.max * t);
+      const lr = r - 28;
+      group.add(
+        app.text({
+          text: String(labelVal),
+          x: cx + lr * cos,
+          y: cx + lr * sin,
+          fontSize: 9,
+          fontWeight: "500",
+          fill: style.tickLabelColor ?? style.textMuted ?? style.textColor,
+          textAlign: "center",
+          textBaseline: "middle",
+          listening: false
+        })
+      );
+    }
+  }
+  const angle = startAngle + opts.value / Math.max(opts.max, 1) * sweep;
+  const needleLen = r * 0.78;
+  const needle = app.line({
+    x: cx,
+    y: cx,
+    x2: needleLen * Math.cos(angle),
+    y2: needleLen * Math.sin(angle),
+    stroke: style.needleColor,
+    strokeWidth: 3,
+    lineCap: "round",
+    shadow: { color: "rgba(0,0,0,0.35)", blur: 4, offsetX: 1, offsetY: 2 },
+    listening: false
+  });
+  group.add(
+    app.circle({
+      x: cx - 8,
+      y: cx - 8,
+      radius: 8,
+      fill: style.bezelColor ?? "#374151",
+      stroke: style.trackColor,
+      strokeWidth: 1,
+      listening: false
+    }),
+    app.circle({
+      x: cx - 4,
+      y: cx - 4,
+      radius: 4,
+      fill: style.needleColor,
+      listening: false
+    }),
+    needle
+  );
+  const valueText = app.text({
+    text: format(opts.value),
+    x: cx,
+    y: cx + r * 0.38,
+    fontSize: Math.max(16, size * 0.11),
+    fontWeight: "bold",
+    fill: style.textColor,
+    textAlign: "center",
+    textBaseline: "middle",
+    ...opts.ariaLive ? { ariaLive: opts.ariaLive } : {},
+    listening: false
+  });
+  group.add(valueText);
+  let unitText;
+  if (opts.unit) {
+    unitText = app.text({
+      text: opts.unit,
+      x: cx,
+      y: cx + r * 0.55,
+      fontSize: 10,
+      fontWeight: "500",
+      fill: style.textMuted ?? style.textColor,
+      textAlign: "center",
+      textBaseline: "middle",
+      listening: false
+    });
+    group.add(unitText);
+  }
+  return { needle, valueText, unitText };
 }
+function dialNeedleAngle(value, max, start = DEFAULT_START, sweep = DEFAULT_SWEEP) {
+  return start + value / Math.max(max, 1) * sweep;
+}
+function updateDialNeedle(needle, _cx, value, max, r, start = DEFAULT_START, sweep = DEFAULT_SWEEP) {
+  const angle = dialNeedleAngle(value, max, start, sweep);
+  const len = r * 0.78;
+  needle.x2 = len * Math.cos(angle);
+  needle.y2 = len * Math.sin(angle);
+}
+
+// src/dashboard/definitions.ts
 function buildDataChart(group, app, props, filled) {
   const width = num2(props, "width", 300);
   const height = num2(props, "height", 150);
@@ -6060,7 +8453,18 @@ function buildDataChart(group, app, props, filled) {
   );
   const yTicks = computeTicks(bounds.min, bounds.max, num2(props, "tickCount", 5));
   group.add(
-    app.rect({ width, height, fill: "#1f2937", stroke: "#374151", strokeWidth: 1, listening: true })
+    app.rect({ width, height, fill: DASHBOARD.chartBg, stroke: DASHBOARD.chartGrid, strokeWidth: 1, listening: true })
+  );
+  group.add(
+    app.rect({
+      x: layout.plotX,
+      y: layout.plotY,
+      width: layout.plotWidth,
+      height: layout.plotHeight,
+      fill: DASHBOARD.chartPlot,
+      stroke: null,
+      listening: false
+    })
   );
   addGridLines(app, group, layout, yTicks, bounds);
   addAxes(app, group, layout, bounds, yTicks);
@@ -6070,37 +8474,108 @@ function buildDataChart(group, app, props, filled) {
     group.add(
       app.path({
         d: areaPathFromPoints(points, baselineY),
-        fill: "rgba(59, 130, 246, 0.35)",
+        fill: DASHBOARD.chartArea,
         stroke: null,
         listening: false
       })
     );
   }
   group.add(
-    app.polyline({ points, fill: null, stroke: "#3b82f6", strokeWidth: 2, listening: false })
+    app.polyline({
+      points,
+      fill: null,
+      stroke: DASHBOARD.chartLine,
+      strokeWidth: 2.5,
+      lineCap: "round",
+      lineJoin: "round",
+      listening: false
+    })
   );
+  data.forEach((_, i) => {
+    if (i % Math.max(1, Math.floor(data.length / 6)) === 0 || data.length <= 8) {
+      const px = points[i * 2];
+      const py = points[i * 2 + 1];
+      group.add(
+        app.circle({
+          x: px - 3,
+          y: py - 3,
+          radius: 3,
+          fill: DASHBOARD.chartBg,
+          stroke: DASHBOARD.chartLine,
+          strokeWidth: 2,
+          listening: false
+        })
+      );
+    }
+  });
   if (props.showLegend !== false) {
     addLegend(
       app,
       group,
-      [{ label: str2(props, "seriesLabel", "Series"), color: "#3b82f6" }],
+      [{ label: str2(props, "seriesLabel", "Series"), color: DASHBOARD.chartLine }],
       width - 90,
       8
     );
   }
-  const tooltip = app.roundedRect({
-    width: 40,
-    height: 22,
-    cornerRadius: 4,
-    fill: "#111827",
+  const crosshair = app.line({
+    x: layout.plotX,
+    y: layout.plotY,
+    x2: 0,
+    y2: layout.plotHeight,
+    stroke: DASHBOARD.chartCrosshair,
+    strokeWidth: 1,
+    dash: [4, 4],
     visible: false,
     listening: false
   });
-  const tooltipLabel = app.text({ text: "", fontSize: 11, fill: "#fff", x: 8, y: 4, listening: false });
-  group.add(tooltip, tooltipLabel);
+  const dot = app.circle({
+    x: 0,
+    y: 0,
+    radius: 5,
+    fill: DASHBOARD.chartDot,
+    stroke: DASHBOARD.chartLine,
+    strokeWidth: 2,
+    visible: false,
+    listening: false
+  });
+  const tooltip = app.roundedRect({
+    width: 52,
+    height: 24,
+    cornerRadius: 6,
+    fill: DASHBOARD.chartTooltipBg,
+    stroke: DASHBOARD.chartTooltipBorder,
+    strokeWidth: 1,
+    visible: false,
+    listening: false
+  });
+  const tooltipLabel = app.text({
+    text: "",
+    fontSize: 11,
+    fontWeight: "bold",
+    fill: DASHBOARD.text,
+    x: 8,
+    y: 5,
+    listening: false
+  });
+  const hitArea = app.rect({
+    x: layout.plotX,
+    y: layout.plotY,
+    width: layout.plotWidth,
+    height: layout.plotHeight,
+    fill: "rgba(0,0,0,0.001)",
+    listening: true
+  });
+  group.add(crosshair, dot, tooltip, tooltipLabel, hitArea);
   if (props.interactive !== false) {
-    wireChartInteraction(group, data, layout, tooltip, tooltipLabel);
+    wireChartInteraction(group, data, layout, bounds, {
+      tooltip,
+      tooltipLabel,
+      crosshair,
+      dot,
+      hitArea
+    });
   }
+  setParts2(group, { crosshair, dot, tooltip, tooltipLabel, hitArea });
   setState2(group, { width, height, data, filled, tickCount: num2(props, "tickCount", 5) });
 }
 registerDashboard("gauge", (props, app) => {
@@ -6108,50 +8583,25 @@ registerDashboard("gauge", (props, app) => {
   const max = num2(props, "max", 100);
   const value = clamp3(num2(props, "value", 0), 0, max);
   const group = createWidgetGroup(app, "gauge", props, { width: size, height: size });
+  const r = size / 2 - 14;
   const cx = size / 2;
-  const r = size / 2 - 10;
-  const startAngle = Math.PI * 0.75;
-  const endAngle = Math.PI * 2.25;
-  group.add(
-    new Arc({
-      x: 0,
-      y: 0,
-      radius: r,
-      startAngle,
-      endAngle,
-      fill: null,
-      stroke: "#e5e7eb",
-      strokeWidth: 8,
-      listening: false
-    })
+  const parts = buildDialGauge(
+    app,
+    group,
+    {
+      trackColor: DASHBOARD.gaugeTrack,
+      needleColor: DASHBOARD.gaugeNeedle,
+      textColor: DASHBOARD.text,
+      textMuted: DASHBOARD.textMuted,
+      faceColor: "#0f172a",
+      bezelColor: DASHBOARD.panelStroke
+    },
+    { size, value, max, tickCount: 6, ariaLive: "polite" }
   );
-  const angle = gaugeNeedleAngle(value, max);
-  const needle = app.line({
-    x: cx,
-    y: cx,
-    x2: cx + r * 0.8 * Math.cos(angle),
-    y2: cx + r * 0.8 * Math.sin(angle),
-    stroke: "#2563eb",
-    strokeWidth: 3,
-    listening: false
-  });
-  const valueText = app.text({
-    text: String(Math.round(value)),
-    x: cx - 15,
-    y: cx + 10,
-    fontSize: 18,
-    fontWeight: "bold",
-    fill: "#111",
-    ariaLive: "polite",
-    listening: false
-  });
-  group.add(needle, app.circle({ x: cx - 5, y: cx - 5, radius: 5, fill: "#2563eb", listening: false }), valueText);
-  setParts2(group, { needle, valueText });
+  setParts2(group, { needle: parts.needle, valueText: parts.valueText });
   setRefresh(group, (v) => {
-    const a = gaugeNeedleAngle(v, max);
-    needle.x2 = cx + r * 0.8 * Math.cos(a);
-    needle.y2 = cx + r * 0.8 * Math.sin(a);
-    valueText.text = String(Math.round(v));
+    updateDialNeedle(parts.needle, cx, v, max, r);
+    parts.valueText.text = String(Math.round(v));
   });
   setState2(group, { size, value, max });
   return group;
@@ -6161,51 +8611,34 @@ registerDashboard("speedometer", (props, app) => {
   const value = num2(props, "value", 0);
   const max = num2(props, "max", 180);
   const group = createWidgetGroup(app, "speedometer", props);
+  const r = size / 2 - 14;
   const cx = size / 2;
-  const r = size / 2 - 15;
-  group.add(
-    new Arc({
-      x: cx - r,
-      y: cx - r,
-      radius: r,
-      startAngle: Math.PI * 0.75,
-      endAngle: Math.PI * 2.25,
-      fill: null,
-      stroke: "#374151",
-      strokeWidth: 12,
-      listening: false
-    })
+  const parts = buildDialGauge(
+    app,
+    group,
+    {
+      trackColor: DASHBOARD.gaugeTrack,
+      needleColor: DASHBOARD.speedoNeedle,
+      textColor: DASHBOARD.text,
+      textMuted: DASHBOARD.textMuted,
+      faceColor: "#0f172a",
+      bezelColor: DASHBOARD.panelStroke,
+      redlineColor: "#dc2626"
+    },
+    {
+      size,
+      value,
+      max,
+      unit: str2(props, "unit", "km/h"),
+      tickCount: 9,
+      showTickLabels: true,
+      redlineFrom: 0.78
+    }
   );
-  const angle = gaugeNeedleAngle(value, max);
-  const needle = app.line({
-    x: cx,
-    y: cx,
-    x2: cx + r * 0.85 * Math.cos(angle),
-    y2: cx + r * 0.85 * Math.sin(angle),
-    stroke: "#ef4444",
-    strokeWidth: 4,
-    listening: false
-  });
-  const speedText = app.text({
-    text: `${Math.round(value)}`,
-    x: cx - 20,
-    y: cx + 20,
-    fontSize: 24,
-    fontWeight: "bold",
-    fill: "#fff",
-    listening: false
-  });
-  group.add(
-    needle,
-    app.circle({ x: cx - 6, y: cx - 6, radius: 6, fill: "#ef4444", listening: false }),
-    speedText,
-    app.text({ text: "km/h", x: cx - 15, y: cx + 45, fontSize: 12, fill: "#9ca3af", listening: false })
-  );
+  setParts2(group, { needle: parts.needle, valueText: parts.valueText });
   setRefresh(group, (v) => {
-    const a = gaugeNeedleAngle(v, max);
-    needle.x2 = cx + r * 0.85 * Math.cos(a);
-    needle.y2 = cx + r * 0.85 * Math.sin(a);
-    speedText.text = `${Math.round(v)}`;
+    updateDialNeedle(parts.needle, cx, v, max, r);
+    parts.valueText.text = `${Math.round(v)}`;
   });
   setState2(group, { size, value, max });
   return group;
@@ -6238,7 +8671,7 @@ registerDashboard("barChart", (props, app) => {
   const layout = defaultLayout(width, height);
   const bounds = dataBounds(data);
   const yTicks = computeTicks(bounds.min, bounds.max, 5);
-  group.add(app.rect({ width, height, fill: "#1f2937", listening: true }));
+  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
   addGridLines(app, group, layout, yTicks, bounds);
   addAxes(app, group, layout, bounds, yTicks);
   const barWidth = layout.plotWidth / data.length - 8;
@@ -6250,7 +8683,7 @@ registerDashboard("barChart", (props, app) => {
         y: layout.plotY + layout.plotHeight - barHeight,
         width: barWidth,
         height: barHeight,
-        fill: "#3b82f6",
+        fill: DASHBOARD.barFill,
         listening: false
       })
     );
@@ -6297,8 +8730,8 @@ registerDashboard("thermometer", (props, app) => {
       width,
       height: tubeH,
       cornerRadius: width / 2,
-      fill: "#e5e7eb",
-      stroke: "#9ca3af",
+      fill: DASHBOARD.thermometerTube,
+      stroke: DASHBOARD.thermometerBorder,
       strokeWidth: 1,
       listening: false
     })
@@ -6316,7 +8749,7 @@ registerDashboard("thermometer", (props, app) => {
   group.add(
     fill,
     app.circle({ x: width / 2 - 8, y: tubeH + 2, radius: 12, fill: "#ef4444", listening: false }),
-    app.text({ text: `${Math.round(value)}\xB0`, x: width + 8, y: tubeH / 2 - 8, fontSize: 12, fill: "#111", listening: false })
+    app.text({ text: `${Math.round(value)}\xB0`, x: width + 8, y: tubeH / 2 - 8, fontSize: 12, fill: DASHBOARD.text, listening: false })
   );
   setParts2(group, { fill });
   setRefresh(group, (v) => {
@@ -6334,29 +8767,29 @@ registerDashboard("compass", (props, app) => {
   const cx = size / 2;
   const r = size / 2 - 5;
   group.add(
-    app.circle({ x: 0, y: 0, radius: r, fill: "#f8fafc", stroke: "#64748b", strokeWidth: 2, listening: false }),
-    app.text({ text: "N", x: cx - 4, y: 4, fontSize: 10, fill: "#64748b", listening: false })
+    app.circle({ x: 0, y: 0, radius: r, fill: DASHBOARD.compassFace, stroke: DASHBOARD.compassRing, strokeWidth: 2, listening: false }),
+    app.text({ text: "N", x: cx - 4, y: 4, fontSize: 10, fill: DASHBOARD.textMuted, listening: false })
   );
   const rad = (heading - 90) * Math.PI / 180;
   const needle = app.line({
     x: cx,
     y: cx,
-    x2: cx + (r - 10) * Math.cos(rad),
-    y2: cx + (r - 10) * Math.sin(rad),
-    stroke: "#ef4444",
+    x2: (r - 10) * Math.cos(rad),
+    y2: (r - 10) * Math.sin(rad),
+    stroke: DASHBOARD.speedoNeedle,
     strokeWidth: 3,
     listening: false
   });
   group.add(
     needle,
     app.circle({ x: cx - 4, y: cx - 4, radius: 4, fill: "#334155", listening: false }),
-    app.text({ text: `${Math.round(heading)}\xB0`, x: cx - 12, y: size - 18, fontSize: 11, fill: "#111", listening: false })
+    app.text({ text: `${Math.round(heading)}\xB0`, x: cx - 12, y: size - 18, fontSize: 11, fill: DASHBOARD.text, listening: false })
   );
   setParts2(group, { needle });
   setRefresh(group, (v) => {
     const h = (v - 90) * Math.PI / 180;
-    needle.x2 = cx + (r - 10) * Math.cos(h);
-    needle.y2 = cx + (r - 10) * Math.sin(h);
+    needle.x2 = (r - 10) * Math.cos(h);
+    needle.y2 = (r - 10) * Math.sin(h);
   });
   setState2(group, { size, heading });
   return group;
@@ -6377,7 +8810,7 @@ registerDashboard("calendar", (props, app) => {
       y: 4,
       fontSize: 13,
       fontWeight: "bold",
-      fill: "#111",
+      fill: DASHBOARD.text,
       listening: false
     })
   );
@@ -6394,7 +8827,7 @@ registerDashboard("calendar", (props, app) => {
         x: col * cell + 6,
         y: 40 + row * cell,
         fontSize: 11,
-        fill: day === num2(props, "highlightDay", -1) ? "#2563eb" : "#111",
+        fill: day === num2(props, "highlightDay", -1) ? "#3b82f6" : DASHBOARD.text,
         listening: false
       })
     );
@@ -6411,13 +8844,13 @@ registerDashboard("timeline", (props, app) => {
   ];
   const group = createWidgetGroup(app, "timeline", props);
   const step = height / Math.max(events.length, 1);
-  group.add(app.line({ x: 12, y: 0, x2: 12, y2: height, stroke: "#cbd5e1", strokeWidth: 2, listening: false }));
+  group.add(app.line({ x: 12, y: 0, x2: 0, y2: height, stroke: "#475569", strokeWidth: 2, listening: false }));
   events.forEach((ev, i) => {
     const y = i * step + 10;
     group.add(
       app.circle({ x: 8, y, radius: 6, fill: "#2563eb", listening: false }),
       app.text({ text: ev.time ?? "", x: 24, y: y - 6, fontSize: 10, fill: "#64748b", listening: false }),
-      app.text({ text: ev.label, x: 24, y: y + 8, fontSize: 12, fill: "#111", listening: false })
+      app.text({ text: ev.label, x: 24, y: y + 8, fontSize: 12, fill: DASHBOARD.text, listening: false })
     );
   });
   setState2(group, { height, events });
@@ -6464,8 +8897,8 @@ registerDashboard("knob", (props, app) => {
   const indicator = app.line({
     x: cx,
     y: cx,
-    x2: cx + (r - 12) * Math.cos(angle),
-    y2: cx + (r - 12) * Math.sin(angle),
+    x2: (r - 12) * Math.cos(angle),
+    y2: (r - 12) * Math.sin(angle),
     stroke: "#f59e0b",
     strokeWidth: 3,
     listening: false
@@ -6475,15 +8908,15 @@ registerDashboard("knob", (props, app) => {
     x: cx - 10,
     y: cx + r - 10,
     fontSize: 12,
-    fill: "#fff",
+    fill: DASHBOARD.text,
     listening: false
   });
   group.add(indicator, valueLabel);
   setParts2(group, { indicator, valueLabel });
   setRefresh(group, (v) => {
     const a = Math.PI * 0.75 + clamp3(v, 0, 100) / 100 * Math.PI * 1.5;
-    indicator.x2 = cx + (r - 12) * Math.cos(a);
-    indicator.y2 = cx + (r - 12) * Math.sin(a);
+    indicator.x2 = (r - 12) * Math.cos(a);
+    indicator.y2 = (r - 12) * Math.sin(a);
     valueLabel.text = String(Math.round(v));
   });
   group.on("click", () => {
@@ -6571,9 +9004,9 @@ registerDashboard("clock", (props, app) => {
   const minAngle = (minutes + seconds / 60) / 60 * Math.PI * 2 - Math.PI / 2;
   const secAngle = seconds / 60 * Math.PI * 2 - Math.PI / 2;
   group.add(
-    app.line({ x: cx, y: cx, x2: cx + 30 * Math.cos(hourAngle), y2: cx + 30 * Math.sin(hourAngle), stroke: "#fff", strokeWidth: 3, listening: false }),
-    app.line({ x: cx, y: cx, x2: cx + 40 * Math.cos(minAngle), y2: cx + 40 * Math.sin(minAngle), stroke: "#fff", strokeWidth: 2, listening: false }),
-    app.line({ x: cx, y: cx, x2: cx + 45 * Math.cos(secAngle), y2: cx + 45 * Math.sin(secAngle), stroke: "#ef4444", strokeWidth: 1, listening: false })
+    app.line({ x: cx, y: cx, x2: 30 * Math.cos(hourAngle), y2: 30 * Math.sin(hourAngle), stroke: "#fff", strokeWidth: 3, listening: false }),
+    app.line({ x: cx, y: cx, x2: 40 * Math.cos(minAngle), y2: 40 * Math.sin(minAngle), stroke: "#fff", strokeWidth: 2, listening: false }),
+    app.line({ x: cx, y: cx, x2: 45 * Math.cos(secAngle), y2: 45 * Math.sin(secAngle), stroke: "#ef4444", strokeWidth: 1, listening: false })
   );
   setState2(group, { size });
   return group;
@@ -6646,63 +9079,57 @@ function getTheme(name) {
 }
 
 // src/automotive/definitions.ts
-function dialGauge(app, props, autoPart, max, needleColor, format) {
+function dialGauge(app, props, autoPart, max, needleColor, format, options = {}) {
   const size = num3(props, "size", 200);
   const value = num3(props, "value", 0);
+  const needle = str3(props, "needleColor", needleColor);
+  const dialStroke = str3(props, "dialStroke", "#333");
+  const textColor = str3(props, "textColor", "#fff");
   const group = createAutoGroup(app, autoPart, props, autoPart);
   const cx = size / 2;
-  const r = size / 2 - 15;
-  const track = new Arc({
-    x: 0,
-    y: 0,
-    radius: r,
-    startAngle: Math.PI * 0.75,
-    endAngle: Math.PI * 2.25,
-    fill: null,
-    stroke: str3(props, "dialStroke", "#333"),
-    strokeWidth: 14,
-    listening: false
-  });
-  const angle = needleAngle(value, max);
-  const needle = app.line({
-    x: cx,
-    y: cx,
-    x2: cx + r * 0.82 * Math.cos(angle),
-    y2: cx + r * 0.82 * Math.sin(angle),
-    stroke: needleColor,
-    strokeWidth: 4,
-    listening: false
-  });
-  const label = app.text({
-    text: format(value),
-    x: cx - 25,
-    y: cx + 15,
-    fontSize: 24,
-    fontWeight: "bold",
-    fill: str3(props, "textColor", "#fff"),
-    listening: false
-  });
-  group.add(track, needle, app.circle({ x: cx - 6, y: cx - 6, radius: 6, fill: needleColor, listening: false }), label);
-  setParts3(group, { needle, label });
+  const r = size / 2 - 14;
+  const parts = buildDialGauge(
+    app,
+    group,
+    {
+      trackColor: dialStroke,
+      needleColor: needle,
+      textColor,
+      textMuted: "#9ca3af",
+      faceColor: "#0a0a0a",
+      bezelColor: dialStroke,
+      redlineColor: "#ef4444"
+    },
+    {
+      size,
+      value,
+      max,
+      formatValue: format,
+      tickCount: options.tickCount ?? 10,
+      showTickLabels: options.showTickLabels ?? true,
+      redlineFrom: options.redlineFrom
+    }
+  );
+  setParts3(group, { needle: parts.needle, label: parts.valueText });
   setRefresh2(group, (v) => {
-    const a = needleAngle(v, max);
-    needle.x2 = cx + r * 0.82 * Math.cos(a);
-    needle.y2 = cx + r * 0.82 * Math.sin(a);
-    label.text = format(v);
+    updateDialNeedle(parts.needle, cx, v, max, r);
+    parts.valueText.text = format(v);
   });
-  setState3(group, { size, value, max });
+  setState3(group, { size, value, max, needleColor: needle });
   return group;
 }
 function indicatorLamp(app, type, autoPart, props, symbol) {
   const active = bool3(props, "active", false);
+  const theme = getTheme(str3(props, "theme", "classic"));
   const group = createAutoGroup(app, type, props, autoPart);
   const lamp = app.circle({
     radius: 12,
     x: 0,
     y: 0,
-    fill: active ? "#fbbf24" : "#333",
+    fill: active ? theme.lampOn : theme.lampOff,
     stroke: active ? "#fde047" : "#555",
     strokeWidth: 1,
+    shadow: active ? { color: "rgba(251,191,36,0.5)", blur: 8, offsetX: 0, offsetY: 0 } : void 0,
     listening: false
   });
   const sym = app.text({
@@ -6716,40 +9143,71 @@ function indicatorLamp(app, type, autoPart, props, symbol) {
   group.add(lamp, sym);
   setParts3(group, { lamp, sym });
   setBoolRefresh(group, (on) => {
-    lamp.fill = on ? "#fbbf24" : "#333";
+    lamp.fill = on ? theme.lampOn : theme.lampOff;
     lamp.stroke = on ? "#fde047" : "#555";
     sym.fill = on ? "#111" : "#666";
   });
   setState3(group, { active });
   return group;
 }
-registerAutomotive(
-  "speedometer",
-  (props, app) => dialGauge(app, props, "speedometer", num3(props, "max", 240), "#ef4444", (v) => String(Math.round(v)))
-);
-registerAutomotive(
-  "tachometer",
-  (props, app) => dialGauge(app, props, "tachometer", num3(props, "max", 8e3), "#22c55e", (v) => `${Math.round(v / 1e3)}k`)
-);
+registerAutomotive("speedometer", (props, app) => {
+  const theme = getTheme(str3(props, "theme", "classic"));
+  return dialGauge(
+    app,
+    { ...props, needleColor: props.needleColor ?? theme.needleSpeed, dialStroke: props.dialStroke ?? theme.dialStroke, textColor: props.textColor ?? theme.text },
+    "speedometer",
+    num3(props, "max", 240),
+    theme.needleSpeed,
+    (v) => String(Math.round(v)),
+    { showTickLabels: true, redlineFrom: 0.82, tickCount: 12 }
+  );
+});
+registerAutomotive("tachometer", (props, app) => {
+  const theme = getTheme(str3(props, "theme", "classic"));
+  return dialGauge(
+    app,
+    { ...props, needleColor: props.needleColor ?? theme.needleTach, dialStroke: props.dialStroke ?? theme.dialStroke, textColor: props.textColor ?? theme.text },
+    "tachometer",
+    num3(props, "max", 8e3),
+    theme.needleTach,
+    (v) => `${Math.round(v / 1e3)}k`,
+    { showTickLabels: true, redlineFrom: 0.75, tickCount: 8 }
+  );
+});
 registerAutomotive("engineTemp", (props, app) => {
+  const theme = getTheme(str3(props, "theme", "classic"));
   const size = num3(props, "size", 140);
   const value = num3(props, "value", 90);
   const max = num3(props, "max", 130);
   const group = createAutoGroup(app, "engineTemp", props, "engineTemp");
   const cx = size / 2;
-  const r = size / 2 - 12;
-  const zones = [
-    { start: 0, end: 0.4, color: "#3b82f6" },
-    { start: 0.4, end: 0.75, color: "#22c55e" },
-    { start: 0.75, end: 1, color: "#ef4444" }
-  ];
+  const r = size / 2 - 14;
   const sweep = Math.PI * 1.5;
   const base = Math.PI * 0.75;
+  group.add(
+    app.circle({
+      x: cx - r - 4,
+      y: cx - r - 4,
+      radius: r + 4,
+      fill: "#0a0a0a",
+      stroke: theme.dialStroke,
+      strokeWidth: 2,
+      listening: false
+    })
+  );
+  group.add(
+    app.text({ text: "TEMP", x: cx - 16, y: 8, fontSize: 9, fontWeight: "bold", fill: theme.textMuted, listening: false })
+  );
+  const zones = [
+    { start: 0, end: 0.4, color: "#3b82f6" },
+    { start: 0.4, end: 0.75, color: theme.ok },
+    { start: 0.75, end: 1, color: theme.warning }
+  ];
   zones.forEach((z) => {
     group.add(
       new Arc({
-        x: 0,
-        y: 0,
+        x: cx - r,
+        y: cx - r,
         radius: r,
         startAngle: base + z.start * sweep,
         endAngle: base + z.end * sweep,
@@ -6760,24 +9218,43 @@ registerAutomotive("engineTemp", (props, app) => {
       })
     );
   });
+  group.add(
+    app.text({ text: "C", x: cx - r + 6, y: cx + r - 18, fontSize: 9, fontWeight: "600", fill: theme.textMuted, listening: false }),
+    app.text({ text: "H", x: cx + r - 14, y: cx + r - 18, fontSize: 9, fontWeight: "600", fill: theme.textMuted, listening: false })
+  );
   const angle = needleAngle(value, max);
   const needle = app.line({
     x: cx,
     y: cx,
-    x2: cx + r * 0.75 * Math.cos(angle),
-    y2: cx + r * 0.75 * Math.sin(angle),
-    stroke: "#fff",
-    strokeWidth: 3,
+    x2: r * 0.72 * Math.cos(angle),
+    y2: r * 0.72 * Math.sin(angle),
+    stroke: theme.text,
+    strokeWidth: 2.5,
+    lineCap: "round",
     listening: false
   });
-  const label = app.text({ text: `${Math.round(value)}\xB0C`, x: cx - 18, y: cx + 10, fontSize: 12, fill: "#fff", listening: false });
-  group.add(needle, label);
+  const label = app.text({
+    text: `${Math.round(value)}\xB0`,
+    x: cx,
+    y: cx + r * 0.42,
+    fontSize: 14,
+    fontWeight: "bold",
+    fill: theme.text,
+    textAlign: "center",
+    listening: false
+  });
+  group.add(
+    needle,
+    app.circle({ x: cx - 5, y: cx - 5, radius: 5, fill: theme.dialStroke, listening: false }),
+    app.circle({ x: cx - 2, y: cx - 2, radius: 2, fill: theme.text, listening: false }),
+    label
+  );
   setParts3(group, { needle, label });
   setRefresh2(group, (v) => {
     const a = needleAngle(v, max);
-    needle.x2 = cx + r * 0.75 * Math.cos(a);
-    needle.y2 = cx + r * 0.75 * Math.sin(a);
-    label.text = `${Math.round(v)}\xB0C`;
+    needle.x2 = r * 0.72 * Math.cos(a);
+    needle.y2 = r * 0.72 * Math.sin(a);
+    label.text = `${Math.round(v)}\xB0`;
   });
   setState3(group, { size, value, max });
   return group;
@@ -6807,25 +9284,80 @@ registerAutomotive("batteryVoltage", (props, app) => {
   return group;
 });
 registerAutomotive("tpms", (props, app) => {
+  const theme = getTheme(str3(props, "theme", "classic"));
   const pressures = props.pressures ?? [32, 32, 32, 32];
   const lowThreshold = num3(props, "lowThreshold", 25);
   const group = createAutoGroup(app, "tpms", props, "tpms");
+  const panelW = 148;
+  const panelH = 92;
+  group.add(
+    app.roundedRect({
+      width: panelW,
+      height: panelH,
+      cornerRadius: 8,
+      fill: "#111827",
+      stroke: theme.dialStroke,
+      strokeWidth: 1.5,
+      shadow: { color: "rgba(0,0,0,0.35)", blur: 6, offsetX: 0, offsetY: 2 },
+      listening: false
+    }),
+    app.text({
+      text: "TIRE PRESSURE",
+      x: 10,
+      y: 6,
+      fontSize: 8,
+      fontWeight: "bold",
+      letterSpacing: 0.06,
+      fill: theme.textMuted,
+      listening: false
+    }),
+    app.text({ text: "PSI", x: panelW - 30, y: 6, fontSize: 8, fill: theme.textMuted, listening: false })
+  );
   const positions = [
-    { x: 0, y: 0, label: "FL" },
-    { x: 60, y: 0, label: "FR" },
-    { x: 0, y: 40, label: "RL" },
-    { x: 60, y: 40, label: "RR" }
+    { x: 10, y: 24, label: "FL" },
+    { x: panelW / 2 + 2, y: 24, label: "FR" },
+    { x: 10, y: 54, label: "RL" },
+    { x: panelW / 2 + 2, y: 54, label: "RR" }
   ];
   const texts = [];
+  const cells = [];
   positions.forEach((pos, i) => {
     const psi = pressures[i] ?? 32;
     const low = psi < lowThreshold;
+    const cell = app.roundedRect({
+      x: pos.x,
+      y: pos.y,
+      width: panelW / 2 - 16,
+      height: 26,
+      cornerRadius: 6,
+      fill: low ? "#450a0a" : "#1f2937",
+      stroke: low ? theme.warning : theme.dialStroke,
+      strokeWidth: 1,
+      listening: false
+    });
     group.add(
-      app.circle({ x: pos.x + 10, y: pos.y + 10, radius: 14, fill: low ? "#450a0a" : "#1f2937", stroke: low ? "#ef4444" : "#64748b", strokeWidth: 1, listening: false }),
-      app.text({ text: pos.label, x: pos.x + 4, y: pos.y + 4, fontSize: 9, fill: "#9ca3af", listening: false })
+      cell,
+      app.text({
+        text: pos.label,
+        x: pos.x + 6,
+        y: pos.y + 4,
+        fontSize: 9,
+        fontWeight: "bold",
+        fill: theme.textMuted,
+        listening: false
+      })
     );
-    const t = app.text({ text: `${psi}`, x: pos.x + 2, y: pos.y + 22, fontSize: 11, fill: low ? "#ef4444" : "#fff", listening: false });
+    const t = app.text({
+      text: `${psi}`,
+      x: pos.x + 6,
+      y: pos.y + 14,
+      fontSize: 13,
+      fontWeight: "bold",
+      fill: low ? theme.warning : theme.text,
+      listening: false
+    });
     texts.push(t);
+    cells.push(cell);
     group.add(t);
   });
   group.metadata.refresh = (next) => {
@@ -6833,7 +9365,11 @@ registerAutomotive("tpms", (props, app) => {
       const low = psi < lowThreshold;
       if (texts[i]) {
         texts[i].text = `${psi}`;
-        texts[i].fill = low ? "#ef4444" : "#fff";
+        texts[i].fill = low ? theme.warning : theme.text;
+      }
+      if (cells[i]) {
+        cells[i].fill = low ? "#450a0a" : "#1f2937";
+        cells[i].stroke = low ? theme.warning : theme.dialStroke;
       }
     });
   };
@@ -6846,7 +9382,7 @@ registerAutomotive(
 );
 registerAutomotive(
   "headlights",
-  (props, app) => indicatorLamp(app, "headlights", "headlights", props, "\u{1F4A1}")
+  (props, app) => indicatorLamp(app, "headlights", "headlights", props, "HL")
 );
 registerAutomotive("cruiseControl", (props, app) => {
   const speed = num3(props, "speed", 0);
@@ -6905,16 +9441,48 @@ registerAutomotive("canViewer", (props, app) => {
 });
 registerAutomotive("fuelGauge", (props, app) => {
   const value = clamp4(num3(props, "value", 50), 0, 100);
+  const theme = getTheme(str3(props, "theme", "classic"));
   const group = createAutoGroup(app, "fuelGauge", props, "fuelGauge");
-  group.add(app.text({ text: "FUEL", fontSize: 10, fill: "#9ca3af", x: 0, y: 0, listening: false }));
-  const track = app.rect({ y: 14, width: 100, height: 8, fill: "#333", cornerRadius: 4, listening: false });
-  const fill = app.rect({ y: 14, width: value, height: 8, fill: value < 15 ? "#ef4444" : "#22c55e", cornerRadius: 4, listening: false });
-  const label = app.text({ text: `${value}%`, x: 40, y: 28, fontSize: 12, fill: "#fff", listening: false });
+  const w = 110;
+  const h = 52;
+  group.add(
+    app.roundedRect({
+      width: w,
+      height: h,
+      cornerRadius: 8,
+      fill: "#111827",
+      stroke: theme.dialStroke,
+      strokeWidth: 1,
+      listening: false
+    }),
+    app.text({ text: "FUEL", fontSize: 9, fontWeight: "600", fill: theme.textMuted, x: 8, y: 6, listening: false }),
+    app.text({ text: "E", fontSize: 9, fill: theme.textMuted, x: 8, y: 34, listening: false }),
+    app.text({ text: "F", fontSize: 9, fill: theme.textMuted, x: w - 14, y: 34, listening: false })
+  );
+  const track = app.roundedRect({ x: 18, y: 32, width: w - 36, height: 8, fill: theme.lampOff, cornerRadius: 4, listening: false });
+  const fill = app.roundedRect({
+    x: 18,
+    y: 32,
+    width: (w - 36) * value / 100,
+    height: 8,
+    fill: value < 15 ? theme.warning : theme.ok,
+    cornerRadius: 4,
+    listening: false
+  });
+  const label = app.text({
+    text: `${value}%`,
+    x: w / 2 - 12,
+    y: 16,
+    fontSize: 14,
+    fontWeight: "bold",
+    fill: theme.text,
+    listening: false
+  });
   group.add(track, fill, label);
   setParts3(group, { fill, label });
   setRefresh2(group, (v) => {
     const lv = clamp4(v, 0, 100);
-    fill.width = lv;
+    fill.width = (w - 36) * lv / 100;
     fill.fill = lv < 15 ? "#ef4444" : "#22c55e";
     label.text = `${Math.round(lv)}%`;
   });
@@ -6923,8 +9491,31 @@ registerAutomotive("fuelGauge", (props, app) => {
 });
 registerAutomotive("gearIndicator", (props, app) => {
   const gear = str3(props, "gear", "P");
+  const theme = getTheme(str3(props, "theme", "classic"));
   const group = createAutoGroup(app, "gearIndicator", props, "gearIndicator");
-  const label = app.text({ text: gear, fontSize: 48, fontWeight: "bold", fill: "#fff", listening: false });
+  group.add(
+    app.roundedRect({
+      width: 52,
+      height: 56,
+      cornerRadius: 8,
+      fill: "#111827",
+      stroke: theme.dialStroke,
+      strokeWidth: 2,
+      shadow: { color: "rgba(0,0,0,0.4)", blur: 6, offsetX: 0, offsetY: 2 },
+      listening: false
+    })
+  );
+  const label = app.text({
+    text: gear,
+    x: 26,
+    y: 28,
+    fontSize: 36,
+    fontWeight: "bold",
+    fill: theme.text,
+    textAlign: "center",
+    textBaseline: "middle",
+    listening: false
+  });
   group.add(label);
   setParts3(group, { label });
   setState3(group, { gear });
@@ -6934,12 +9525,34 @@ registerAutomotive("turnIndicators", (props, app) => {
   const left = bool3(props, "left", false);
   const right = bool3(props, "right", false);
   const group = createAutoGroup(app, "turnIndicators", props, "turnIndicators");
-  const leftText = app.text({ text: "\u25C0", fontSize: 24, fill: left ? "#22c55e" : "#333", listening: false });
-  const rightText = app.text({ text: "\u25B6", fontSize: 24, fill: right ? "#22c55e" : "#333", x: 40, listening: false });
-  group.add(leftText, rightText);
+  const onColor = "#f59e0b";
+  const offColor = "#1f2937";
+  const arrow = (x, on) => app.polygon({
+    points: on ? [x + 14, 10, x, 4, x, 16] : [x + 12, 10, x + 2, 5, x + 2, 15],
+    fill: on ? onColor : offColor,
+    stroke: on ? "#fbbf24" : "#374151",
+    strokeWidth: 1,
+    listening: false
+  });
+  const rightArrow = (x, on) => app.polygon({
+    points: on ? [x, 10, x + 14, 4, x + 14, 16] : [x + 2, 10, x + 12, 5, x + 12, 15],
+    fill: on ? onColor : offColor,
+    stroke: on ? "#fbbf24" : "#374151",
+    strokeWidth: 1,
+    listening: false
+  });
+  const leftShape = arrow(0, left);
+  const rightShape = rightArrow(28, right);
+  group.add(leftShape, rightShape);
   group.metadata.refresh = (l, r) => {
-    leftText.fill = l ? "#22c55e" : "#333";
-    rightText.fill = r ? "#22c55e" : "#333";
+    const update = (shape, x, on, flip) => {
+      const pts = on ? flip ? [x, 10, x + 14, 4, x + 14, 16] : [x + 14, 10, x, 4, x, 16] : flip ? [x + 2, 10, x + 12, 5, x + 12, 15] : [x + 12, 10, x + 2, 5, x + 2, 15];
+      shape.points = pts;
+      shape.fill = on ? onColor : offColor;
+      shape.stroke = on ? "#fbbf24" : "#374151";
+    };
+    update(leftShape, 0, l, false);
+    update(rightShape, 28, r, true);
   };
   setState3(group, { left, right });
   return group;
@@ -6971,22 +9584,31 @@ registerAutomotive("instrumentCluster", (props, app) => {
   const w = num3(props, "width", 800);
   const h = num3(props, "height", 400);
   const group = createAutoGroup(app, "instrumentCluster", props, "instrumentCluster", { width: w, height: h });
-  group.add(app.rect({ width: w, height: h, fill: theme.background, listening: false }));
+  group.add(app.rect({
+    width: w,
+    height: h,
+    fill: theme.background,
+    cornerRadius: 16,
+    stroke: theme.dialStroke,
+    strokeWidth: 2,
+    shadow: { color: "rgba(0,0,0,0.5)", blur: 16, offsetX: 0, offsetY: 4 },
+    listening: false
+  }));
+  const themeName = str3(props, "theme", "classic");
   const widgets = [
-    ["speedometer", { value: props.speed ?? 0, size: 220, x: 60, y: 50, dialStroke: theme.dialStroke, textColor: theme.text }],
-    ["tachometer", { value: props.rpm ?? 0, size: 220, x: 480, y: 50, dialStroke: theme.dialStroke, textColor: theme.text }],
-    ["engineTemp", { value: props.engineTemp ?? 90, size: 120, x: 320, y: 60 }],
-    ["fuelGauge", { value: props.fuel ?? 75, x: 60, y: 320 }],
-    ["batteryVoltage", { value: props.batteryVoltage ?? 12.4, x: 180, y: 320 }],
-    ["tpms", { pressures: props.tpms ?? [32, 32, 32, 32], x: 300, y: 300 }],
-    ["gearIndicator", { gear: props.gear ?? "D", x: 380, y: 280 }],
-    ["turnIndicators", { left: props.turnLeft ?? false, right: props.turnRight ?? false, x: 340, y: 240 }],
-    ["parkingBrake", { active: props.parkingBrake ?? false, x: 520, y: 320 }],
-    ["headlights", { active: props.headlights ?? false, x: 560, y: 320 }],
-    ["cruiseControl", { speed: props.cruiseSpeed ?? 0, x: 620, y: 320 }],
-    ["canViewer", { signals: props.signals ?? { "engine.rpm": 0, "vehicle.speed": 0 }, width: 200, x: 580, y: 50, maxRows: 8 }],
-    ["warningLamp", { label: "ABS", active: props.absWarning ?? false, x: 480, y: 320 }],
-    ["adasStatus", { status: props.adasStatus ?? "off", x: 680, y: 320 }]
+    ["speedometer", { value: props.speed ?? 0, size: 200, x: 28, y: 28, theme: themeName, dialStroke: theme.dialStroke, textColor: theme.text, needleColor: theme.needleSpeed }],
+    ["tachometer", { value: props.rpm ?? 0, size: 200, x: w - 228, y: 28, theme: themeName, dialStroke: theme.dialStroke, textColor: theme.text, needleColor: theme.needleTach }],
+    ["gearIndicator", { gear: props.gear ?? "P", x: w / 2 - 26, y: h / 2 - 36, theme: themeName }],
+    ["engineTemp", { value: props.engineTemp ?? 90, size: 96, x: w / 2 - 48, y: 36 }],
+    ["turnIndicators", { left: props.turnLeft ?? false, right: props.turnRight ?? false, x: w / 2 - 30, y: h / 2 + 40 }],
+    ["fuelGauge", { value: props.fuel ?? 75, x: 28, y: h - 68, theme: themeName }],
+    ["batteryVoltage", { value: props.batteryVoltage ?? 12.4, x: 148, y: h - 64 }],
+    ["tpms", { pressures: props.tpms ?? [32, 32, 32, 32], x: w / 2 - 74, y: h - 100, theme: themeName }],
+    ["parkingBrake", { active: props.parkingBrake ?? false, x: w - 310, y: h - 64, theme: themeName }],
+    ["headlights", { active: props.headlights ?? false, x: w - 258, y: h - 64, theme: themeName }],
+    ["cruiseControl", { speed: props.cruiseSpeed ?? 0, x: w - 188, y: h - 64 }],
+    ["warningLamp", { label: "ABS", active: props.absWarning ?? false, x: w - 118, y: h - 64 }],
+    ["adasStatus", { status: props.adasStatus ?? "off", x: w - 118, y: h - 34 }]
   ];
   for (const [type, wprops] of widgets) {
     const node = createAutomotiveFromJSON(type, wprops, app);
@@ -7295,15 +9917,37 @@ function collectObstacles(nodes, exclude) {
   }
   return result;
 }
-function routeConnector(app, x1, y1, x2, y2, style = "orthogonal", obstacles = []) {
+function computeRoutePoints(x1, y1, x2, y2, style = "orthogonal", obstacles = []) {
   if (style === "straight") {
-    return app.line({ x: x1, y: y1, x2: x2 - x1, y2: y2 - y1, stroke: "#64748b", strokeWidth: 2 });
+    return [x1, y1, x2, y2];
   }
-  const points = style === "smart" ? smartOrthogonalRoute(x1, y1, x2, y2, obstacles) : (() => {
-    const midY = (y1 + y2) / 2;
-    return [x1, y1, x1, midY, x2, midY, x2, y2];
-  })();
-  return app.polyline({ points, fill: null, stroke: "#64748b", strokeWidth: 2 });
+  if (style === "smart") {
+    return smartOrthogonalRoute(x1, y1, x2, y2, obstacles);
+  }
+  const midY = (y1 + y2) / 2;
+  return [x1, y1, x1, midY, x2, midY, x2, y2];
+}
+function routeConnector(app, x1, y1, x2, y2, style = "orthogonal", obstacles = [], stroke = DIAGRAM.edge) {
+  const points = computeRoutePoints(x1, y1, x2, y2, style, obstacles);
+  if (style === "straight" && points.length === 4) {
+    return app.line({
+      x: x1,
+      y: y1,
+      x2: x2 - x1,
+      y2: y2 - y1,
+      stroke,
+      strokeWidth: 2,
+      lineCap: "round"
+    });
+  }
+  return app.polyline({
+    points,
+    fill: null,
+    stroke,
+    strokeWidth: 2,
+    lineJoin: "round",
+    lineCap: "round"
+  });
 }
 function getAnchor(node, targetX, targetY) {
   const b = node.getBounds();
@@ -7311,63 +9955,395 @@ function getAnchor(node, targetX, targetY) {
   const cy = b.y + b.height / 2;
   const dx = targetX - cx;
   const dy = targetY - cy;
-  if (Math.abs(dx) > Math.abs(dy)) {
-    return { x: dx > 0 ? b.x + b.width : b.x, y: cy };
+  if (dx === 0 && dy === 0)
+    return { x: cx, y: b.y };
+  const hw = Math.max(b.width / 2, 1);
+  const hh = Math.max(b.height / 2, 1);
+  const scale = Math.max(Math.abs(dx) / hw, Math.abs(dy) / hh);
+  return { x: cx + dx / scale, y: cy + dy / scale };
+}
+
+// src/diagram/coords.ts
+function worldToParentLocal(parent, wx, wy) {
+  const wm = parent.getWorldMatrix();
+  const inv = matrixPool.acquire();
+  if (!wm.invertInto(inv)) {
+    matrixPool.release(inv);
+    return { x: wx, y: wy };
   }
-  return { x: cx, y: dy > 0 ? b.y + b.height : b.y };
+  const local = inv.transformPoint(wx, wy);
+  matrixPool.release(inv);
+  return local;
+}
+function obstacleToParentLocal(parent, obs) {
+  const tl = worldToParentLocal(parent, obs.x, obs.y);
+  const br = worldToParentLocal(parent, obs.x + obs.width, obs.y + obs.height);
+  return {
+    x: Math.min(tl.x, br.x),
+    y: Math.min(tl.y, br.y),
+    width: Math.abs(br.x - tl.x),
+    height: Math.abs(br.y - tl.y)
+  };
+}
+function getConnectorAnchors(from, to, parent) {
+  const toB = to.getBounds();
+  const anchorWorld = getAnchor(from, toB.x + toB.width / 2, toB.y + toB.height / 2);
+  const toAnchorWorld = getAnchor(to, anchorWorld.x, anchorWorld.y);
+  const a = worldToParentLocal(parent, anchorWorld.x, anchorWorld.y);
+  const b = worldToParentLocal(parent, toAnchorWorld.x, toAnchorWorld.y);
+  return { x1: a.x, y1: a.y, x2: b.x, y2: b.y };
+}
+
+// src/diagram/connectors.ts
+function segmentAngle(x1, y1, x2, y2) {
+  return Math.atan2(y2 - y1, x2 - x1);
+}
+function arrowHeadPoints(tipX, tipY, angle, size = 10) {
+  const half = size * 0.42;
+  const back = size * 0.95;
+  const bx = tipX - back * Math.cos(angle);
+  const by = tipY - back * Math.sin(angle);
+  const lx = bx + half * Math.sin(angle);
+  const ly = by - half * Math.cos(angle);
+  const rx = bx - half * Math.sin(angle);
+  const ry = by + half * Math.cos(angle);
+  return [tipX, tipY, lx, ly, rx, ry];
+}
+function openArrowPoints(tipX, tipY, angle, size = 10) {
+  const half = size * 0.4;
+  const back = size * 0.85;
+  const bx = tipX - back * Math.cos(angle);
+  const by = tipY - back * Math.sin(angle);
+  return [
+    bx + half * Math.sin(angle),
+    by - half * Math.cos(angle),
+    tipX,
+    tipY,
+    bx - half * Math.sin(angle),
+    by + half * Math.cos(angle)
+  ];
+}
+function shortenPathEnd(points, trim) {
+  if (points.length < 4 || trim <= 0)
+    return points.slice();
+  const copy = points.slice();
+  const n = copy.length;
+  const x2 = copy[n - 2];
+  const y2 = copy[n - 1];
+  const x1 = copy[n - 4];
+  const y1 = copy[n - 3];
+  const len = Math.hypot(x2 - x1, y2 - y1);
+  const t = Math.min(trim / Math.max(len, 1), 0.45);
+  copy[n - 2] = x2 - (x2 - x1) * t;
+  copy[n - 1] = y2 - (y2 - y1) * t;
+  return copy;
+}
+function pathMidpoint(points) {
+  if (points.length < 4)
+    return { x: points[0] ?? 0, y: points[1] ?? 0 };
+  let total = 0;
+  const segs = [];
+  for (let i = 0; i < points.length - 2; i += 2) {
+    const x1 = points[i];
+    const y1 = points[i + 1];
+    const x2 = points[i + 2];
+    const y2 = points[i + 3];
+    const len = Math.hypot(x2 - x1, y2 - y1);
+    segs.push({ len, x1, y1, x2, y2 });
+    total += len;
+  }
+  let half = total / 2;
+  for (const s of segs) {
+    if (half <= s.len) {
+      const t = s.len > 0 ? half / s.len : 0;
+      return { x: s.x1 + (s.x2 - s.x1) * t, y: s.y1 + (s.y2 - s.y1) * t };
+    }
+    half -= s.len;
+  }
+  const last = segs[segs.length - 1];
+  return { x: last.x2, y: last.y2 };
+}
+function createConnector(app, x1, y1, x2, y2, options = {}) {
+  const stroke = options.stroke ?? DIAGRAM.edge;
+  const strokeWidth = options.strokeWidth ?? 2;
+  const arrowEnd = options.arrowEnd ?? "filled";
+  const arrowStart = options.arrowStart ?? "none";
+  const arrowSize = 10;
+  const style = options.style ?? "smart";
+  const obstacles = options.obstacles ?? [];
+  const points = computeRoutePoints(x1, y1, x2, y2, style, obstacles);
+  const group = app.group({ listening: false });
+  const trimEnd = arrowEnd !== "none" ? arrowSize * 0.7 : 0;
+  const trimStart = arrowStart !== "none" ? arrowSize * 0.7 : 0;
+  let display = points;
+  if (trimEnd > 0)
+    display = shortenPathEnd(display, trimEnd);
+  if (trimStart > 0 && display.length >= 4) {
+    const x0 = display[0];
+    const y0 = display[1];
+    const x1s = display[2];
+    const y1s = display[3];
+    const len = Math.hypot(x1s - x0, y1s - y0);
+    const t = Math.min(trimStart / Math.max(len, 1), 0.45);
+    display[0] = x0 + (x1s - x0) * t;
+    display[1] = y0 + (y1s - y0) * t;
+  }
+  group.add(
+    app.polyline({
+      points: display,
+      fill: null,
+      stroke,
+      strokeWidth,
+      lineJoin: "round",
+      lineCap: "round",
+      ...options.dash ? { dash: options.dash } : {},
+      listening: false
+    })
+  );
+  const endAngle = segmentAngle(
+    points[points.length - 4],
+    points[points.length - 3],
+    points[points.length - 2],
+    points[points.length - 1]
+  );
+  const startAngle = segmentAngle(points[0], points[1], points[2], points[3]);
+  if (arrowEnd === "filled") {
+    group.add(
+      app.polygon({
+        points: arrowHeadPoints(x2, y2, endAngle, arrowSize),
+        fill: stroke,
+        stroke,
+        strokeWidth: 1,
+        listening: false
+      })
+    );
+  } else if (arrowEnd === "open") {
+    group.add(
+      app.polyline({
+        points: openArrowPoints(x2, y2, endAngle, arrowSize),
+        fill: null,
+        stroke,
+        strokeWidth,
+        lineCap: "round",
+        lineJoin: "round",
+        listening: false
+      })
+    );
+  } else if (arrowEnd === "hollow") {
+    group.add(
+      app.polygon({
+        points: arrowHeadPoints(x2, y2, endAngle, arrowSize + 2),
+        fill: DIAGRAM.classFill,
+        stroke,
+        strokeWidth: 1.5,
+        listening: false
+      })
+    );
+  }
+  if (arrowStart === "filled") {
+    group.add(
+      app.polygon({
+        points: arrowHeadPoints(x1, y1, startAngle + Math.PI, arrowSize),
+        fill: stroke,
+        stroke,
+        strokeWidth: 1,
+        listening: false
+      })
+    );
+  }
+  if (options.label) {
+    const mid = pathMidpoint(points);
+    group.add(createEdgeLabel(app, options.label, mid.x, mid.y - 6));
+  }
+  return group;
+}
+function connectNodes(app, from, to, obstacles, options = {}) {
+  const parent = options.parent;
+  let x1;
+  let y1;
+  let x2;
+  let y2;
+  let routeObstacles = obstacles;
+  if (parent) {
+    const anchors = getConnectorAnchors(from, to, parent);
+    x1 = anchors.x1;
+    y1 = anchors.y1;
+    x2 = anchors.x2;
+    y2 = anchors.y2;
+    routeObstacles = obstacles.map((o) => obstacleToParentLocal(parent, o));
+  } else {
+    const toB = to.getBounds();
+    const anchor = getAnchor(from, toB.x + toB.width / 2, toB.y + toB.height / 2);
+    const toAnchor = getAnchor(to, anchor.x, anchor.y);
+    x1 = anchor.x;
+    y1 = anchor.y;
+    x2 = toAnchor.x;
+    y2 = toAnchor.y;
+  }
+  return createConnector(app, x1, y1, x2, y2, { style: "smart", ...options, obstacles: routeObstacles });
+}
+function wireOrgChartConnectors(app, root) {
+  const edges = app.group({ listening: false, zIndex: -10 });
+  walkOrgEdges(app, root, root, edges);
+  root.add(edges);
+}
+function wireMindMapConnectors(app, group) {
+  if (group.children.length < 2)
+    return;
+  const center = group.children[0];
+  const edges = app.group({ listening: false, zIndex: -10 });
+  const cB = center.getBounds();
+  const cx = worldToParentLocal(group, cB.x + cB.width / 2, cB.y + cB.height / 2).x;
+  const cy = worldToParentLocal(group, cB.x + cB.width / 2, cB.y + cB.height / 2).y;
+  for (let i = 1; i < group.children.length; i++) {
+    const branch = group.children[i];
+    const bB = branch.getBounds();
+    const bx = worldToParentLocal(group, bB.x + bB.width / 2, bB.y + bB.height / 2).x;
+    const by = worldToParentLocal(group, bB.x + bB.width / 2, bB.y + bB.height / 2).y;
+    edges.add(
+      createConnector(app, cx, cy, bx, by, {
+        style: "straight",
+        stroke: DIAGRAM.edge,
+        strokeWidth: 2,
+        arrowEnd: "none"
+      })
+    );
+    const branchGroup = branch;
+    for (const leaf of branchGroup.children) {
+      const lB = leaf.getBounds();
+      const lx = worldToParentLocal(group, lB.x + lB.width / 2, lB.y).x;
+      const ly = worldToParentLocal(group, lB.x + lB.width / 2, lB.y).y;
+      const branchBottom = worldToParentLocal(group, bB.x + bB.width / 2, bB.y + bB.height).y;
+      edges.add(
+        createConnector(app, bx, branchBottom, lx, ly, {
+          style: "orthogonal",
+          stroke: DIAGRAM.edgeMuted,
+          strokeWidth: 1.5,
+          arrowEnd: "filled"
+        })
+      );
+    }
+  }
+  group.add(edges);
+}
+function walkOrgEdges(app, parent, node, edges) {
+  const children = node.children.filter((c) => c.metadata?.orgNode && c !== node.metadata?.collapseIndicator);
+  for (const child of children) {
+    if (!child.visible)
+      continue;
+    const pb = node.getBounds();
+    const cb = child.getBounds();
+    const from = worldToParentLocal(parent, pb.x + pb.width / 2, pb.y + pb.height);
+    const to = worldToParentLocal(parent, cb.x + cb.width / 2, cb.y);
+    const midY = (from.y + to.y) / 2;
+    const points = [from.x, from.y, from.x, midY, to.x, midY, to.x, to.y];
+    const trim = 8;
+    const display = shortenPathEnd(points, trim);
+    edges.add(
+      app.polyline({
+        points: display,
+        fill: null,
+        stroke: DIAGRAM.edge,
+        strokeWidth: 2,
+        lineJoin: "round",
+        lineCap: "round",
+        listening: false
+      })
+    );
+    edges.add(
+      app.polygon({
+        points: arrowHeadPoints(to.x, to.y, Math.PI / 2, 8),
+        fill: DIAGRAM.edge,
+        stroke: DIAGRAM.edge,
+        strokeWidth: 1,
+        listening: false
+      })
+    );
+    walkOrgEdges(app, parent, child, edges);
+  }
 }
 
 // src/diagram/symbols.ts
-var SYMBOL_SIZE = 40;
+var SYMBOL_SIZE = 44;
+var STROKE = DIAGRAM.schematicStroke;
+function symbolPad(app, w, h) {
+  const g = app.group();
+  g.add(
+    app.roundedRect({
+      width: w,
+      height: h,
+      cornerRadius: DIAGRAM.radii.sm,
+      fill: DIAGRAM.schematicFill,
+      stroke: DIAGRAM.labelPillStroke,
+      strokeWidth: 1,
+      shadow: DIAGRAM.shadowSoft,
+      listening: false
+    })
+  );
+  return g;
+}
 function resistor(app, x, y) {
-  const g = app.group({ x, y });
-  const pts = [0, 20, 8, 5, 16, 35, 24, 5, 32, 35, 40, 20];
-  g.add(app.polyline({ points: pts, fill: null, stroke: "#334155", strokeWidth: 2 }));
+  const g = symbolPad(app, SYMBOL_SIZE, SYMBOL_SIZE);
+  g.x = x;
+  g.y = y;
+  const pts = [4, 22, 12, 8, 20, 36, 28, 8, 36, 36, 40, 22];
+  g.add(app.polyline({ points: pts, fill: null, stroke: STROKE, strokeWidth: 2, lineCap: "round", listening: false }));
   return g;
 }
 function capacitor(app, x, y) {
-  const g = app.group({ x, y });
-  g.add(app.line({ x: 0, y: 10, x2: 15, y2: 0, stroke: "#334155", strokeWidth: 2 }));
-  g.add(app.line({ x: 18, y: 0, y2: 20, stroke: "#334155", strokeWidth: 2 }));
-  g.add(app.line({ x: 22, y: 0, y2: 20, stroke: "#334155", strokeWidth: 2 }));
-  g.add(app.line({ x: 25, y: 10, x2: 40, y2: 0, stroke: "#334155", strokeWidth: 2 }));
+  const g = symbolPad(app, SYMBOL_SIZE, SYMBOL_SIZE);
+  g.x = x;
+  g.y = y;
+  g.add(app.line({ x: 4, y: 22, x2: 16, y2: 0, stroke: STROKE, strokeWidth: 2, lineCap: "round", listening: false }));
+  g.add(app.line({ x: 18, y: 10, x2: 0, y2: 24, stroke: STROKE, strokeWidth: 2.5, listening: false }));
+  g.add(app.line({ x: 24, y: 10, x2: 0, y2: 24, stroke: STROKE, strokeWidth: 2.5, listening: false }));
+  g.add(app.line({ x: 26, y: 22, x2: 16, y2: 0, stroke: STROKE, strokeWidth: 2, lineCap: "round", listening: false }));
   return g;
 }
 function ground(app, x, y) {
-  const g = app.group({ x, y });
-  g.add(app.line({ x: 20, y: 0, x2: 0, y2: 10, stroke: "#334155", strokeWidth: 2 }));
-  g.add(app.line({ x: 4, y: 14, x2: 32, y2: 0, stroke: "#334155", strokeWidth: 2 }));
-  g.add(app.line({ x: 10, y: 18, x2: 26, y2: 0, stroke: "#334155", strokeWidth: 2 }));
-  g.add(app.line({ x: 16, y: 22, x2: 20, y2: 0, stroke: "#334155", strokeWidth: 2 }));
+  const g = symbolPad(app, SYMBOL_SIZE, SYMBOL_SIZE);
+  g.x = x;
+  g.y = y;
+  g.add(app.line({ x: 22, y: 8, x2: 0, y2: 12, stroke: STROKE, strokeWidth: 2, lineCap: "round", listening: false }));
+  g.add(app.line({ x: 8, y: 24, x2: 28, y2: 0, stroke: STROKE, strokeWidth: 2, lineCap: "round", listening: false }));
+  g.add(app.line({ x: 14, y: 30, x2: 20, y2: 0, stroke: STROKE, strokeWidth: 2, lineCap: "round", listening: false }));
+  g.add(app.line({ x: 18, y: 36, x2: 4, y2: 0, stroke: STROKE, strokeWidth: 2, lineCap: "round", listening: false }));
   return g;
 }
 function battery(app, x, y) {
-  const g = app.group({ x, y });
-  g.add(app.line({ x: 12, y: 4, x2: 0, y2: 32, stroke: "#334155", strokeWidth: 2 }));
-  g.add(app.line({ x: 18, y: 0, x2: 0, y2: 24, stroke: "#334155", strokeWidth: 3 }));
-  g.add(app.line({ x: 24, y: 4, x2: 0, y2: 32, stroke: "#334155", strokeWidth: 2 }));
+  const g = symbolPad(app, SYMBOL_SIZE, SYMBOL_SIZE);
+  g.x = x;
+  g.y = y;
+  g.add(app.line({ x: 14, y: 10, x2: 0, y2: 28, stroke: STROKE, strokeWidth: 2, lineCap: "round", listening: false }));
+  g.add(app.line({ x: 22, y: 6, x2: 0, y2: 32, stroke: STROKE, strokeWidth: 3, lineCap: "round", listening: false }));
+  g.add(app.line({ x: 30, y: 10, x2: 0, y2: 28, stroke: STROKE, strokeWidth: 2, lineCap: "round", listening: false }));
   return g;
 }
 function switchSymbol(app, x, y) {
-  const g = app.group({ x, y });
-  g.add(app.line({ x: 0, y: 10, x2: 12, y2: 0, stroke: "#334155", strokeWidth: 2 }));
-  g.add(app.line({ x: 12, y: 0, x2: 8, y2: -8, stroke: "#334155", strokeWidth: 2 }));
-  g.add(app.circle({ x: 12, y: 8, radius: 2, fill: "#334155" }));
-  g.add(app.line({ x: 28, y: 10, x2: -16, y2: 0, stroke: "#334155", strokeWidth: 2 }));
+  const g = symbolPad(app, SYMBOL_SIZE, SYMBOL_SIZE);
+  g.x = x;
+  g.y = y;
+  g.add(app.line({ x: 4, y: 22, x2: 14, y2: 0, stroke: STROKE, strokeWidth: 2, lineCap: "round", listening: false }));
+  g.add(app.line({ x: 14, y: 22, x2: 4, y2: -10, stroke: STROKE, strokeWidth: 2, lineCap: "round", listening: false }));
+  g.add(app.circle({ x: 14, y: 22, radius: 2.5, fill: STROKE, listening: false }));
+  g.add(app.line({ x: 30, y: 22, x2: -12, y2: 0, stroke: STROKE, strokeWidth: 2, lineCap: "round", listening: false }));
   return g;
 }
 function led(app, x, y) {
-  const g = app.group({ x, y });
-  g.add(app.line({ x: 0, y: 10, x2: 10, y2: 0, stroke: "#334155", strokeWidth: 2 }));
+  const g = symbolPad(app, SYMBOL_SIZE, SYMBOL_SIZE);
+  g.x = x;
+  g.y = y;
+  g.add(app.line({ x: 4, y: 22, x2: 12, y2: 0, stroke: STROKE, strokeWidth: 2, lineCap: "round", listening: false }));
   g.add(
     app.polygon({
-      points: [10, 0, 30, 10, 10, 20],
-      fill: "#fef08a",
-      stroke: "#ca8a04",
-      strokeWidth: 1
+      points: [12, 14, 32, 22, 12, 30],
+      fill: DIAGRAM.schematicLedFill,
+      stroke: DIAGRAM.schematicLedStroke,
+      strokeWidth: 1.5,
+      listening: false
     })
   );
-  g.add(app.line({ x: 30, y: 10, x2: -20, y2: 0, stroke: "#334155", strokeWidth: 2 }));
+  g.add(app.line({ x: 32, y: 22, x2: -8, y2: 0, stroke: STROKE, strokeWidth: 2, lineCap: "round", listening: false }));
   return g;
 }
 var SYMBOL_FACTORIES = {
@@ -7379,7 +10355,18 @@ var SYMBOL_FACTORIES = {
   led,
   wire: (app, x, y) => {
     const g = app.group({ x, y });
-    g.add(app.line({ x: 0, y: 0, x2: 40, y2: 0, stroke: "#334155", strokeWidth: 2 }));
+    g.add(
+      app.line({
+        x: 0,
+        y: 0,
+        x2: 48,
+        y2: 0,
+        stroke: STROKE,
+        strokeWidth: 2.5,
+        lineCap: "round",
+        listening: false
+      })
+    );
     return g;
   }
 };
@@ -7388,7 +10375,17 @@ function createSymbol(app, type, x, y, label) {
   const g = factory(app, x, y);
   g.metadata = { symbolType: type };
   if (label) {
-    g.add(app.text({ text: label, x: 0, y: SYMBOL_SIZE + 4, fontSize: 10, fill: "#64748b" }));
+    g.add(
+      app.text({
+        text: label,
+        x: 0,
+        y: SYMBOL_SIZE + 6,
+        fontSize: DIAGRAM.fontSize.sm,
+        fontFamily: DIAGRAM.fontFamily,
+        fill: DIAGRAM.schematicLabel,
+        listening: false
+      })
+    );
   }
   return g;
 }
@@ -7408,349 +10405,203 @@ function buildSchematic(app, components) {
 function createFlowchart(app, data, options = {}) {
   const group = createDiagramGroup(app, "flowchart", { ...options, data }, { name: "flowchart" });
   const { nodes, edges } = normalizeDiagramData(data);
+  autoLayoutNodes(nodes, 3, 160, 88, 32, 28);
   const nodeMap = /* @__PURE__ */ new Map();
   for (const n of nodes) {
-    const width = 120;
-    const height = 40;
-    const nodeGroup = app.group({ x: n.x ?? 0, y: n.y ?? 0 });
-    const shape = n.type === "decision" ? app.polygon({
-      points: [60, 0, 120, 20, 60, 40, 0, 20],
-      fill: "#dbeafe",
-      stroke: "#2563eb",
-      strokeWidth: 1
-    }) : app.roundedRect({
-      width,
-      height,
-      cornerRadius: n.type === "start" || n.type === "end" ? 20 : 4,
-      fill: "#dbeafe",
-      stroke: "#2563eb",
-      strokeWidth: 1
-    });
-    nodeGroup.add(shape);
-    nodeGroup.add(
-      app.text({
-        text: n.label,
-        x: width / 2 - n.label.length * 3,
-        y: height / 2 - 7,
-        fontSize: 12,
-        fill: "#1e40af"
-      })
-    );
+    const nodeGroup = createFlowchartNode(app, n.label, n.type ?? "process");
+    nodeGroup.x = n.x ?? 0;
+    nodeGroup.y = n.y ?? 0;
     nodeGroup.metadata = { diagramId: n.id };
     nodeMap.set(n.id, nodeGroup);
-    group.add(nodeGroup);
   }
+  const edgeLayer = app.group({ zIndex: -10, listening: false });
   const obstacles = collectObstacles([...nodeMap.values()]);
   for (const edge of edges) {
     const fromNode = nodeMap.get(edge.from);
     const toNode = nodeMap.get(edge.to);
     if (!fromNode || !toNode)
       continue;
-    const toB = toNode.getBounds();
-    const anchor = getAnchor(fromNode, toB.x + toB.width / 2, toB.y + toB.height / 2);
-    const toAnchor = getAnchor(toNode, anchor.x, anchor.y);
-    group.add(
-      routeConnector(app, anchor.x, anchor.y, toAnchor.x, toAnchor.y, "smart", obstacles)
+    edgeLayer.add(
+      connectNodes(app, fromNode, toNode, obstacles, {
+        parent: group,
+        stroke: DIAGRAM.edge,
+        strokeWidth: 2,
+        label: edge.label
+      })
     );
-    if (edge.label) {
-      group.add(
-        app.text({
-          text: edge.label,
-          x: (anchor.x + toAnchor.x) / 2,
-          y: (anchor.y + toAnchor.y) / 2 - 10,
-          fontSize: 10,
-          fill: "#64748b"
-        })
-      );
-    }
+  }
+  group.add(edgeLayer);
+  for (const nodeGroup of nodeMap.values()) {
+    group.add(nodeGroup);
   }
   return group;
 }
 function createStateMachine(app, data, options = {}) {
   const group = createDiagramGroup(app, "stateMachine", { ...options, data }, { name: "stateMachine" });
   const nodeMap = /* @__PURE__ */ new Map();
-  const radius = 30;
-  for (const s of data.states) {
-    const isFinal = s.type === "final";
-    const isInitial = s.type === "initial";
-    const nodeGroup = app.group({ x: s.x ?? 0, y: s.y ?? 0 });
-    if (isFinal) {
-      nodeGroup.add(
-        app.circle({
-          x: radius - 6,
-          y: radius - 6,
-          radius: radius - 4,
-          fill: "#dcfce7",
-          stroke: "#16a34a",
-          strokeWidth: 2
-        })
-      );
-      nodeGroup.add(
-        app.circle({
-          x: radius - 6,
-          y: radius - 6,
-          radius: radius - 10,
-          fill: null,
-          stroke: "#16a34a",
-          strokeWidth: 2
-        })
-      );
-    } else {
-      nodeGroup.add(
-        app.roundedRect({
-          width: radius * 2,
-          height: radius * 2,
-          cornerRadius: isInitial ? radius : 8,
-          fill: isInitial ? "#fef9c3" : "#e0e7ff",
-          stroke: isInitial ? "#ca8a04" : "#4f46e5",
-          strokeWidth: 2
-        })
-      );
-    }
-    nodeGroup.add(
-      app.text({
-        text: s.label,
-        x: radius - s.label.length * 3,
-        y: radius - 6,
-        fontSize: 11,
-        fill: "#1e293b"
-      })
-    );
+  const states = data.states.map((s, i) => ({
+    ...s,
+    x: s.x ?? 48 + i % 4 * 110,
+    y: s.y ?? 48 + Math.floor(i / 4) * 100
+  }));
+  for (const s of states) {
+    const nodeGroup = createStateNode(app, s.label, s.type ?? "normal");
+    nodeGroup.x = s.x ?? 0;
+    nodeGroup.y = s.y ?? 0;
     nodeGroup.metadata = { diagramId: s.id };
     nodeMap.set(s.id, nodeGroup);
-    group.add(nodeGroup);
   }
+  const edgeLayer = app.group({ zIndex: -10, listening: false });
   const obstacles = collectObstacles([...nodeMap.values()]);
   for (const t of data.transitions) {
     const from = nodeMap.get(t.from);
     const to = nodeMap.get(t.to);
     if (!from || !to)
       continue;
-    const toB = to.getBounds();
-    const anchor = getAnchor(from, toB.x + toB.width / 2, toB.y + toB.height / 2);
-    const toAnchor = getAnchor(to, anchor.x, anchor.y);
-    group.add(routeConnector(app, anchor.x, anchor.y, toAnchor.x, toAnchor.y, "smart", obstacles));
-    if (t.label) {
-      group.add(
-        app.text({
-          text: t.label,
-          x: (anchor.x + toAnchor.x) / 2,
-          y: (anchor.y + toAnchor.y) / 2 - 8,
-          fontSize: 10,
-          fill: "#64748b"
-        })
-      );
-    }
+    edgeLayer.add(
+      connectNodes(app, from, to, obstacles, {
+        parent: group,
+        stroke: DIAGRAM.edge,
+        label: t.label
+      })
+    );
+  }
+  group.add(edgeLayer);
+  for (const node of nodeMap.values()) {
+    group.add(node);
   }
   return group;
 }
 function createClassDiagram(app, data, options = {}) {
   const group = createDiagramGroup(app, "classDiagram", { ...options, data }, { name: "classDiagram" });
   const nodeMap = /* @__PURE__ */ new Map();
-  const width = 160;
   for (const cls of data.classes) {
-    const attrs = cls.attributes ?? [];
-    const methods = cls.methods ?? [];
-    const bodyLines = attrs.length + methods.length;
-    const height = 40 + bodyLines * 16;
-    const nodeGroup = app.group({ x: cls.x ?? 0, y: cls.y ?? 0 });
-    nodeGroup.add(
-      app.roundedRect({
-        width,
-        height,
-        cornerRadius: 2,
-        fill: "#f8fafc",
-        stroke: "#334155",
-        strokeWidth: 1
-      })
-    );
-    nodeGroup.add(
-      app.text({
-        text: cls.name,
-        x: 8,
-        y: 8,
-        fontSize: 13,
-        fontWeight: "bold",
-        fill: "#0f172a"
-      })
-    );
-    nodeGroup.add(
-      app.line({ x: 0, y: 28, x2: width, y2: 0, stroke: "#cbd5e1", strokeWidth: 1 })
-    );
-    let y = 34;
-    for (const attr of attrs) {
-      nodeGroup.add(app.text({ text: attr, x: 8, y, fontSize: 11, fill: "#475569" }));
-      y += 16;
-    }
-    if (methods.length > 0 && attrs.length > 0) {
-      nodeGroup.add(
-        app.line({ x: 0, y: y - 4, x2: width, y2: 0, stroke: "#cbd5e1", strokeWidth: 1 })
-      );
-    }
-    for (const method of methods) {
-      nodeGroup.add(app.text({ text: method, x: 8, y, fontSize: 11, fill: "#475569" }));
-      y += 16;
-    }
+    const nodeGroup = createClassNode(app, cls.name, cls.attributes ?? [], cls.methods ?? []);
+    nodeGroup.x = cls.x ?? 0;
+    nodeGroup.y = cls.y ?? 0;
     nodeGroup.metadata = { diagramId: cls.id };
     nodeMap.set(cls.id, nodeGroup);
     group.add(nodeGroup);
   }
+  const edgeLayer = app.group({ zIndex: -10, listening: false });
   for (const rel of data.relations) {
     const from = nodeMap.get(rel.from);
     const to = nodeMap.get(rel.to);
     if (!from || !to)
       continue;
-    const toB = to.getBounds();
-    const anchor = getAnchor(from, toB.x + toB.width / 2, toB.y);
-    const toAnchor = getAnchor(to, anchor.x, anchor.y);
     if (rel.type === "inheritance") {
-      const midX = (anchor.x + toAnchor.x) / 2;
-      group.add(
-        app.polyline({
-          points: [anchor.x, anchor.y, midX, anchor.y, midX, toAnchor.y, toAnchor.x, toAnchor.y],
-          fill: null,
-          stroke: "#334155",
-          strokeWidth: 1.5
+      edgeLayer.add(
+        connectNodes(app, from, to, [], {
+          parent: group,
+          style: "orthogonal",
+          stroke: DIAGRAM.classStroke,
+          arrowEnd: "hollow"
         })
       );
-      group.add(
-        app.polygon({
-          points: [toAnchor.x, toAnchor.y, toAnchor.x - 8, toAnchor.y + 12, toAnchor.x + 8, toAnchor.y + 12],
-          fill: "#f8fafc",
-          stroke: "#334155",
-          strokeWidth: 1.5
+    } else if (rel.type === "association") {
+      edgeLayer.add(
+        connectNodes(app, from, to, [], {
+          parent: group,
+          style: "orthogonal",
+          stroke: DIAGRAM.edge,
+          arrowEnd: "open"
         })
       );
     } else {
-      group.add(routeConnector(app, anchor.x, anchor.y, toAnchor.x, toAnchor.y, "orthogonal"));
+      edgeLayer.add(
+        connectNodes(app, from, to, [], {
+          parent: group,
+          style: "orthogonal",
+          stroke: DIAGRAM.edge,
+          dash: rel.type === "implements" ? [6, 4] : void 0
+        })
+      );
     }
   }
+  group.add(edgeLayer);
   return group;
 }
 function createMindMap(app, center, branches, options = {}) {
   const group = createDiagramGroup(app, "mindMap", { ...options, center, branches }, { name: "mindMap" });
-  const centerNode = createNodeBox(app, center, 100, 50, {
-    fill: "#fef08a",
-    stroke: "#ca8a04",
-    cornerRadius: 25
+  const centerNode = createNodeBox(app, center, 108, 52, {
+    fill: DIAGRAM.mindCenter.fill,
+    stroke: DIAGRAM.mindCenter.stroke,
+    cornerRadius: 26
   });
   group.add(centerNode);
   for (const branch of branches) {
-    const branchNode = createNodeBox(app, branch.label, 90, 36, {
-      fill: "#e0f2fe",
-      stroke: "#0284c7"
+    const branchNode = createNodeBox(app, branch.label, 96, 38, {
+      fill: DIAGRAM.mindBranch.fill,
+      stroke: DIAGRAM.mindBranch.stroke
     });
     group.add(branchNode);
     if (branch.children) {
-      for (const child of branch.children) {
-        const childNode = createNodeBox(app, child, 80, 30, {
-          fill: "#f1f5f9",
-          stroke: "#94a3b8"
+      branch.children.forEach((child, ci) => {
+        const childNode = createNodeBox(app, child, 84, 32, {
+          fill: DIAGRAM.mindLeaf.fill,
+          stroke: DIAGRAM.mindLeaf.stroke
         });
+        childNode.x = -12 + ci * 92;
+        childNode.y = 50;
         branchNode.add(childNode);
-      }
+      });
     }
   }
-  radialLayout(group, 200, 150, 120, 180);
+  radialLayout(group, 220, 160, 130, 190);
+  wireMindMapConnectors(app, group);
   return group;
 }
 function createNetworkDiagram(app, data, options = {}) {
   const group = createDiagramGroup(app, "networkTopology", { ...options, data }, { name: "network" });
   const { nodes, edges } = normalizeDiagramData(data);
+  autoLayoutNodes(nodes, 4, 130, 100, 28, 24);
   const nodeMap = /* @__PURE__ */ new Map();
-  const colors = {
-    router: { fill: "#dbeafe", stroke: "#2563eb" },
-    server: { fill: "#dcfce7", stroke: "#16a34a" },
-    switch: { fill: "#fef9c3", stroke: "#ca8a04" },
-    client: { fill: "#f3e8ff", stroke: "#9333ea" },
-    default: { fill: "#f1f5f9", stroke: "#64748b" }
-  };
   for (const n of nodes) {
-    const style = colors[n.type ?? "default"] ?? colors.default;
-    const size = n.type === "router" ? 50 : 40;
-    const nodeGroup = app.group({ x: n.x ?? 0, y: n.y ?? 0 });
-    nodeGroup.add(
-      app.roundedRect({
-        width: size,
-        height: size,
-        cornerRadius: n.type === "server" ? 4 : size / 2,
-        fill: style.fill,
-        stroke: style.stroke,
-        strokeWidth: 2
-      })
-    );
-    nodeGroup.add(
-      app.text({
-        text: n.label,
-        x: -10,
-        y: size + 4,
-        fontSize: 10,
-        fill: "#334155"
-      })
-    );
+    const nodeGroup = createNetworkNode(app, n.label, n.type ?? "default");
+    nodeGroup.x = n.x ?? 0;
+    nodeGroup.y = n.y ?? 0;
     nodeGroup.metadata = { diagramId: n.id };
     nodeMap.set(n.id, nodeGroup);
     group.add(nodeGroup);
   }
   const obstacles = collectObstacles([...nodeMap.values()]);
+  const edgeLayer = app.group({ zIndex: -10, listening: false });
   for (const edge of edges) {
     const from = nodeMap.get(edge.from);
     const to = nodeMap.get(edge.to);
     if (!from || !to)
       continue;
-    const toB = to.getBounds();
-    const anchor = getAnchor(from, toB.x + toB.width / 2, toB.y + toB.height / 2);
-    const toAnchor = getAnchor(to, anchor.x, anchor.y);
-    group.add(routeConnector(app, anchor.x, anchor.y, toAnchor.x, toAnchor.y, "smart", obstacles));
-    if (edge.label) {
-      group.add(
-        app.text({
-          text: edge.label,
-          x: (anchor.x + toAnchor.x) / 2 - 10,
-          y: (anchor.y + toAnchor.y) / 2,
-          fontSize: 9,
-          fill: "#64748b"
-        })
-      );
-    }
+    edgeLayer.add(
+      connectNodes(app, from, to, obstacles, {
+        parent: group,
+        stroke: DIAGRAM.edge,
+        label: edge.label
+      })
+    );
   }
+  group.add(edgeLayer);
   return group;
 }
 function createOrgChart(app, root, options = {}) {
   const group = createDiagramGroup(app, "orgChart", { ...options, root }, { name: "orgChart" });
   buildOrgNode(app, group, root, 0, 0);
-  layoutDiagram(group, 100, 80);
+  layoutDiagram(group, 110, 72);
+  wireOrgChartConnectors(app, group);
   return group;
 }
 function buildOrgNode(app, parent, data, x, y) {
-  const node = app.group({ x, y });
-  node.add(
-    app.roundedRect({
-      width: 140,
-      height: 50,
-      cornerRadius: 4,
-      fill: "#f1f5f9",
-      stroke: "#94a3b8",
-      strokeWidth: 1
-    })
-  );
-  node.add(app.text({ text: data.name, x: 20, y: 16, fontSize: 13, fill: "#334155" }));
+  const childCount = data.children?.length ?? 0;
   const collapsed = data.collapsed ?? false;
-  node.metadata = { orgNode: true, collapsed, childCount: data.children?.length ?? 0 };
-  if (data.children && data.children.length > 0) {
-    const indicator = app.text({
-      text: collapsed ? `+${data.children.length}` : "\u2212",
-      x: 120,
-      y: 16,
-      fontSize: 14,
-      fill: "#64748b"
-    });
-    node.add(indicator);
+  const { node, indicator } = createOrgNode(app, data.name, void 0, childCount, collapsed);
+  node.x = x;
+  node.y = y;
+  node.metadata = { orgNode: true, collapsed, childCount };
+  if (indicator) {
     node.metadata.collapseIndicator = indicator;
-    if (!collapsed) {
-      for (const child of data.children) {
-        buildOrgNode(app, node, child, 0, 0);
-      }
+  }
+  if (data.children && data.children.length > 0 && !collapsed) {
+    for (const child of data.children) {
+      buildOrgNode(app, node, child, 0, 0);
     }
   }
   parent.add(node);
@@ -7785,53 +10636,120 @@ function createSchematic(app, components, options = {}) {
 }
 function createCanNetwork(app, data, options = {}) {
   const group = createDiagramGroup(app, "canNetwork", { ...options, data }, { name: "canNetwork" });
-  const busY = 80;
-  const busWidth = Math.max(400, data.ecus.length * 100);
+  const busY = 72;
+  const busWidth = Math.max(440, data.ecus.length * 110);
+  const busLabel = data.busLabel ?? "CAN Bus";
   group.add(
-    app.line({
-      x: 20,
-      y: busY,
-      x2: busWidth,
-      y2: 0,
-      stroke: "#dc2626",
-      strokeWidth: 4
+    app.roundedRect({
+      x: 16,
+      y: busY - 3,
+      width: busWidth,
+      height: 6,
+      cornerRadius: 3,
+      fill: DIAGRAM.canBus,
+      stroke: null,
+      shadow: DIAGRAM.shadowSoft,
+      listening: false
     })
   );
   group.add(
+    app.circle({
+      x: 16,
+      y: busY,
+      radius: 5,
+      fill: DIAGRAM.canTermination,
+      stroke: DIAGRAM.surface,
+      strokeWidth: 2,
+      listening: false
+    })
+  );
+  group.add(
+    app.circle({
+      x: 16 + busWidth,
+      y: busY,
+      radius: 5,
+      fill: DIAGRAM.canTermination,
+      stroke: DIAGRAM.surface,
+      strokeWidth: 2,
+      listening: false
+    })
+  );
+  const labelW = measureTextWidth(busLabel, DIAGRAM.fontSize.base, "bold");
+  group.add(
     app.text({
-      text: data.busLabel ?? "CAN Bus",
-      x: busWidth / 2 - 30,
-      y: busY - 20,
-      fontSize: 12,
-      fill: "#dc2626",
-      fontWeight: "bold"
+      text: busLabel,
+      x: busWidth / 2 - labelW / 2 + 16,
+      y: busY - 24,
+      fontSize: DIAGRAM.fontSize.base,
+      fill: DIAGRAM.edge,
+      fontWeight: "bold",
+      fontFamily: DIAGRAM.fontFamily,
+      listening: false
     })
   );
   const spacing = busWidth / (data.ecus.length + 1);
   for (let i = 0; i < data.ecus.length; i++) {
     const ecu = data.ecus[i];
-    const x = 20 + spacing * (i + 1) - 40;
-    const ecuGroup = app.group({ x, y: busY + 10 });
+    const x = 16 + spacing * (i + 1) - 44;
+    const ecuGroup = app.group({ x, y: busY + 14 });
     ecuGroup.add(
       app.roundedRect({
-        width: 80,
-        height: 50,
-        cornerRadius: 4,
-        fill: "#1e293b",
-        stroke: "#475569",
-        strokeWidth: 1
+        width: 88,
+        height: 54,
+        cornerRadius: DIAGRAM.radii.md,
+        fill: DIAGRAM.nodeFill,
+        stroke: DIAGRAM.nodeStroke,
+        strokeWidth: 1.5,
+        shadow: DIAGRAM.shadowSoft,
+        listening: false
       })
     );
     ecuGroup.add(
-      app.text({ text: ecu.label, x: 8, y: 10, fontSize: 11, fill: "#e2e8f0", fontWeight: "bold" })
+      app.rect({
+        x: 0,
+        y: 0,
+        width: 88,
+        height: 4,
+        fill: DIAGRAM.nodeStroke,
+        listening: false
+      })
+    );
+    ecuGroup.add(
+      app.text({
+        text: ecu.label,
+        x: DIAGRAM.spacing.sm,
+        y: 12,
+        fontSize: DIAGRAM.fontSize.md,
+        fill: DIAGRAM.nodeText,
+        fontWeight: "bold",
+        fontFamily: DIAGRAM.fontFamily,
+        listening: false
+      })
     );
     if (ecu.address) {
       ecuGroup.add(
-        app.text({ text: ecu.address, x: 8, y: 28, fontSize: 9, fill: "#94a3b8" })
+        app.text({
+          text: ecu.address,
+          x: DIAGRAM.spacing.sm,
+          y: 30,
+          fontSize: DIAGRAM.fontSize.xs,
+          fontFamily: DIAGRAM.fontMono,
+          fill: DIAGRAM.edgeLabel,
+          listening: false
+        })
       );
     }
     ecuGroup.add(
-      app.line({ x: 40, y: 0, x2: 0, y2: -10, stroke: "#dc2626", strokeWidth: 2 })
+      app.line({
+        x: 44,
+        y: 0,
+        x2: 0,
+        y2: -14,
+        stroke: DIAGRAM.canBus,
+        strokeWidth: 2.5,
+        lineCap: "round",
+        listening: false
+      })
     );
     ecuGroup.metadata = { diagramId: ecu.id };
     group.add(ecuGroup);
@@ -7840,37 +10758,26 @@ function createCanNetwork(app, data, options = {}) {
 }
 function createPipeline(app, stages, options = {}) {
   const group = createDiagramGroup(app, "processPipeline", { ...options, stages }, { name: "pipeline" });
-  const statusColors = {
-    pending: { fill: "#f1f5f9", stroke: "#94a3b8" },
-    active: { fill: "#dbeafe", stroke: "#2563eb" },
-    done: { fill: "#dcfce7", stroke: "#16a34a" },
-    error: { fill: "#fee2e2", stroke: "#dc2626" }
-  };
   const stageNodes = [];
   for (const stage of stages) {
-    const colors = statusColors[stage.status ?? "pending"];
-    const node = createNodeBox(app, stage.label, 100, 44, colors);
+    const node = createPipelineStage(app, stage.label, stage.status ?? "pending");
     node.metadata = { diagramId: stage.id, pipelineStatus: stage.status };
     group.add(node);
     stageNodes.push(node);
   }
-  pipelineLayout(group, 50, 10);
+  pipelineLayout(group, 56, 12);
+  const edgeLayer = app.group({ zIndex: -10, listening: false });
   for (let i = 0; i < stageNodes.length - 1; i++) {
-    const from = stageNodes[i];
-    const to = stageNodes[i + 1];
-    const fb = from.getBounds();
-    const tb = to.getBounds();
-    group.add(
-      routeConnector(
-        app,
-        fb.x + fb.width,
-        fb.y + fb.height / 2,
-        tb.x,
-        tb.y + tb.height / 2,
-        "straight"
-      )
+    edgeLayer.add(
+      connectNodes(app, stageNodes[i], stageNodes[i + 1], [], {
+        parent: group,
+        style: "straight",
+        stroke: DIAGRAM.edge,
+        arrowEnd: "filled"
+      })
     );
   }
+  group.add(edgeLayer);
   return group;
 }
 function createDiagramFromProps(type, props, app) {
@@ -7965,7 +10872,9 @@ var LightDrawFull = Object.assign(LightDraw, {
   sampleDriveFrames,
   animateAutoValue,
   setAutoValue,
-  Diagram
+  Diagram,
+  applyUiTheme,
+  UI_PRESETS
 });
 var src_default = LightDrawFull;
 if (typeof window !== "undefined") {
@@ -8003,11 +10912,13 @@ export {
   Star,
   TextNode,
   Timeline,
+  UI_PRESETS,
   VERSION,
   animate,
   animateAutoValue,
   animateLiveValue,
   applyDriveState,
+  applyUiTheme,
   automotivePlugin,
   createApp,
   createPluginContext,

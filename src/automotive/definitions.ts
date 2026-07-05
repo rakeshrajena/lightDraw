@@ -1,5 +1,6 @@
 import { Arc } from '../shapes/index';
 import { TextNode } from '../shapes/index';
+import type { Node } from '../Node';
 import { registerAutomotive, createAutomotiveFromJSON } from './registryCore';
 import {
   bool,
@@ -14,6 +15,10 @@ import {
   str,
 } from './helpers';
 import { getTheme } from './themes';
+import {
+  buildDialGauge,
+  updateDialNeedle,
+} from '../primitives/dialGauge';
 
 function dialGauge(
   app: import('../App').App,
@@ -21,53 +26,47 @@ function dialGauge(
   autoPart: string,
   max: number,
   needleColor: string,
-  format: (v: number) => string
+  format: (v: number) => string,
+  options: { showTickLabels?: boolean; redlineFrom?: number; tickCount?: number } = {}
 ) {
   const size = num(props, 'size', 200);
   const value = num(props, 'value', 0);
+  const needle = str(props, 'needleColor', needleColor);
+  const dialStroke = str(props, 'dialStroke', '#333');
+  const textColor = str(props, 'textColor', '#fff');
   const group = createAutoGroup(app, autoPart, props, autoPart);
   const cx = size / 2;
-  const r = size / 2 - 15;
+  const r = size / 2 - 14;
 
-  const track = new Arc({
-    x: 0,
-    y: 0,
-    radius: r,
-    startAngle: Math.PI * 0.75,
-    endAngle: Math.PI * 2.25,
-    fill: null,
-    stroke: str(props, 'dialStroke', '#333'),
-    strokeWidth: 14,
-    listening: false,
-  });
-  const angle = needleAngle(value, max);
-  const needle = app.line({
-    x: cx,
-    y: cx,
-    x2: cx + r * 0.82 * Math.cos(angle),
-    y2: cx + r * 0.82 * Math.sin(angle),
-    stroke: needleColor,
-    strokeWidth: 4,
-    listening: false,
-  });
-  const label = app.text({
-    text: format(value),
-    x: cx - 25,
-    y: cx + 15,
-    fontSize: 24,
-    fontWeight: 'bold',
-    fill: str(props, 'textColor', '#fff'),
-    listening: false,
-  });
-  group.add(track, needle, app.circle({ x: cx - 6, y: cx - 6, radius: 6, fill: needleColor, listening: false }), label);
-  setParts(group, { needle, label });
+  const parts = buildDialGauge(
+    app,
+    group,
+    {
+      trackColor: dialStroke,
+      needleColor: needle,
+      textColor,
+      textMuted: '#9ca3af',
+      faceColor: '#0a0a0a',
+      bezelColor: dialStroke,
+      redlineColor: '#ef4444',
+    },
+    {
+      size,
+      value,
+      max,
+      formatValue: format,
+      tickCount: options.tickCount ?? 10,
+      showTickLabels: options.showTickLabels ?? true,
+      redlineFrom: options.redlineFrom,
+    }
+  );
+
+  setParts(group, { needle: parts.needle, label: parts.valueText });
   setRefresh(group, (v) => {
-    const a = needleAngle(v, max);
-    (needle as { x2: number; y2: number }).x2 = cx + r * 0.82 * Math.cos(a);
-    (needle as { y2: number }).y2 = cx + r * 0.82 * Math.sin(a);
-    (label as TextNode).text = format(v);
+    updateDialNeedle(parts.needle, cx, v, max, r);
+    parts.valueText.text = format(v);
   });
-  setState(group, { size, value, max });
+  setState(group, { size, value, max, needleColor: needle });
   return group;
 }
 
@@ -79,14 +78,16 @@ function indicatorLamp(
   symbol: string
 ) {
   const active = bool(props, 'active', false);
+  const theme = getTheme(str(props, 'theme', 'classic'));
   const group = createAutoGroup(app, type, props, autoPart);
   const lamp = app.circle({
     radius: 12,
     x: 0,
     y: 0,
-    fill: active ? '#fbbf24' : '#333',
+    fill: active ? theme.lampOn : theme.lampOff,
     stroke: active ? '#fde047' : '#555',
     strokeWidth: 1,
+    shadow: active ? { color: 'rgba(251,191,36,0.5)', blur: 8, offsetX: 0, offsetY: 0 } : undefined,
     listening: false,
   });
   const sym = app.text({
@@ -100,7 +101,7 @@ function indicatorLamp(
   group.add(lamp, sym);
   setParts(group, { lamp, sym });
   setBoolRefresh(group, (on) => {
-    (lamp as { fill: string; stroke: string }).fill = on ? '#fbbf24' : '#333';
+    (lamp as { fill: string; stroke: string }).fill = on ? theme.lampOn : theme.lampOff;
     (lamp as { stroke: string }).stroke = on ? '#fde047' : '#555';
     (sym as TextNode).fill = on ? '#111' : '#666';
   });
@@ -108,34 +109,68 @@ function indicatorLamp(
   return group;
 }
 
-registerAutomotive('speedometer', (props, app) =>
-  dialGauge(app, props, 'speedometer', num(props, 'max', 240), '#ef4444', (v) => String(Math.round(v)))
-);
+registerAutomotive('speedometer', (props, app) => {
+  const theme = getTheme(str(props, 'theme', 'classic'));
+  return dialGauge(
+    app,
+    { ...props, needleColor: props.needleColor ?? theme.needleSpeed, dialStroke: props.dialStroke ?? theme.dialStroke, textColor: props.textColor ?? theme.text },
+    'speedometer',
+    num(props, 'max', 240),
+    theme.needleSpeed,
+    (v) => String(Math.round(v)),
+    { showTickLabels: true, redlineFrom: 0.82, tickCount: 12 }
+  );
+});
 
-registerAutomotive('tachometer', (props, app) =>
-  dialGauge(app, props, 'tachometer', num(props, 'max', 8000), '#22c55e', (v) => `${Math.round(v / 1000)}k`)
-);
+registerAutomotive('tachometer', (props, app) => {
+  const theme = getTheme(str(props, 'theme', 'classic'));
+  return dialGauge(
+    app,
+    { ...props, needleColor: props.needleColor ?? theme.needleTach, dialStroke: props.dialStroke ?? theme.dialStroke, textColor: props.textColor ?? theme.text },
+    'tachometer',
+    num(props, 'max', 8000),
+    theme.needleTach,
+    (v) => `${Math.round(v / 1000)}k`,
+    { showTickLabels: true, redlineFrom: 0.75, tickCount: 8 }
+  );
+});
 
 registerAutomotive('engineTemp', (props, app) => {
+  const theme = getTheme(str(props, 'theme', 'classic'));
   const size = num(props, 'size', 140);
   const value = num(props, 'value', 90);
   const max = num(props, 'max', 130);
   const group = createAutoGroup(app, 'engineTemp', props, 'engineTemp');
   const cx = size / 2;
-  const r = size / 2 - 12;
+  const r = size / 2 - 14;
+  const sweep = Math.PI * 1.5;
+  const base = Math.PI * 0.75;
+
+  group.add(
+    app.circle({
+      x: cx - r - 4,
+      y: cx - r - 4,
+      radius: r + 4,
+      fill: '#0a0a0a',
+      stroke: theme.dialStroke,
+      strokeWidth: 2,
+      listening: false,
+    })
+  );
+  group.add(
+    app.text({ text: 'TEMP', x: cx - 16, y: 8, fontSize: 9, fontWeight: 'bold', fill: theme.textMuted, listening: false })
+  );
 
   const zones = [
     { start: 0, end: 0.4, color: '#3b82f6' },
-    { start: 0.4, end: 0.75, color: '#22c55e' },
-    { start: 0.75, end: 1, color: '#ef4444' },
+    { start: 0.4, end: 0.75, color: theme.ok },
+    { start: 0.75, end: 1, color: theme.warning },
   ];
-  const sweep = Math.PI * 1.5;
-  const base = Math.PI * 0.75;
   zones.forEach((z) => {
     group.add(
       new Arc({
-        x: 0,
-        y: 0,
+        x: cx - r,
+        y: cx - r,
         radius: r,
         startAngle: base + z.start * sweep,
         endAngle: base + z.end * sweep,
@@ -147,24 +182,44 @@ registerAutomotive('engineTemp', (props, app) => {
     );
   });
 
+  group.add(
+    app.text({ text: 'C', x: cx - r + 6, y: cx + r - 18, fontSize: 9, fontWeight: '600', fill: theme.textMuted, listening: false }),
+    app.text({ text: 'H', x: cx + r - 14, y: cx + r - 18, fontSize: 9, fontWeight: '600', fill: theme.textMuted, listening: false })
+  );
+
   const angle = needleAngle(value, max);
   const needle = app.line({
     x: cx,
     y: cx,
-    x2: cx + r * 0.75 * Math.cos(angle),
-    y2: cx + r * 0.75 * Math.sin(angle),
-    stroke: '#fff',
-    strokeWidth: 3,
+    x2: r * 0.72 * Math.cos(angle),
+    y2: r * 0.72 * Math.sin(angle),
+    stroke: theme.text,
+    strokeWidth: 2.5,
+    lineCap: 'round',
     listening: false,
   });
-  const label = app.text({ text: `${Math.round(value)}°C`, x: cx - 18, y: cx + 10, fontSize: 12, fill: '#fff', listening: false });
-  group.add(needle, label);
+  const label = app.text({
+    text: `${Math.round(value)}°`,
+    x: cx,
+    y: cx + r * 0.42,
+    fontSize: 14,
+    fontWeight: 'bold',
+    fill: theme.text,
+    textAlign: 'center',
+    listening: false,
+  });
+  group.add(
+    needle,
+    app.circle({ x: cx - 5, y: cx - 5, radius: 5, fill: theme.dialStroke, listening: false }),
+    app.circle({ x: cx - 2, y: cx - 2, radius: 2, fill: theme.text, listening: false }),
+    label
+  );
   setParts(group, { needle, label });
   setRefresh(group, (v) => {
     const a = needleAngle(v, max);
-    (needle as { x2: number; y2: number }).x2 = cx + r * 0.75 * Math.cos(a);
-    (needle as { y2: number }).y2 = cx + r * 0.75 * Math.sin(a);
-    (label as TextNode).text = `${Math.round(v)}°C`;
+    (needle as { x2: number; y2: number }).x2 = r * 0.72 * Math.cos(a);
+    (needle as { y2: number }).y2 = r * 0.72 * Math.sin(a);
+    (label as TextNode).text = `${Math.round(v)}°`;
   });
   setState(group, { size, value, max });
   return group;
@@ -196,33 +251,96 @@ registerAutomotive('batteryVoltage', (props, app) => {
 });
 
 registerAutomotive('tpms', (props, app) => {
+  const theme = getTheme(str(props, 'theme', 'classic'));
   const pressures = (props.pressures as number[]) ?? [32, 32, 32, 32];
   const lowThreshold = num(props, 'lowThreshold', 25);
   const group = createAutoGroup(app, 'tpms', props, 'tpms');
+  const panelW = 148;
+  const panelH = 92;
+
+  group.add(
+    app.roundedRect({
+      width: panelW,
+      height: panelH,
+      cornerRadius: 8,
+      fill: '#111827',
+      stroke: theme.dialStroke,
+      strokeWidth: 1.5,
+      shadow: { color: 'rgba(0,0,0,0.35)', blur: 6, offsetX: 0, offsetY: 2 },
+      listening: false,
+    }),
+    app.text({
+      text: 'TIRE PRESSURE',
+      x: 10,
+      y: 6,
+      fontSize: 8,
+      fontWeight: 'bold',
+      letterSpacing: 0.06,
+      fill: theme.textMuted,
+      listening: false,
+    }),
+    app.text({ text: 'PSI', x: panelW - 30, y: 6, fontSize: 8, fill: theme.textMuted, listening: false })
+  );
+
   const positions = [
-    { x: 0, y: 0, label: 'FL' },
-    { x: 60, y: 0, label: 'FR' },
-    { x: 0, y: 40, label: 'RL' },
-    { x: 60, y: 40, label: 'RR' },
+    { x: 10, y: 24, label: 'FL' },
+    { x: panelW / 2 + 2, y: 24, label: 'FR' },
+    { x: 10, y: 54, label: 'RL' },
+    { x: panelW / 2 + 2, y: 54, label: 'RR' },
   ];
   const texts: TextNode[] = [];
+  const cells: Node[] = [];
+
   positions.forEach((pos, i) => {
     const psi = pressures[i] ?? 32;
     const low = psi < lowThreshold;
+    const cell = app.roundedRect({
+      x: pos.x,
+      y: pos.y,
+      width: panelW / 2 - 16,
+      height: 26,
+      cornerRadius: 6,
+      fill: low ? '#450a0a' : '#1f2937',
+      stroke: low ? theme.warning : theme.dialStroke,
+      strokeWidth: 1,
+      listening: false,
+    });
     group.add(
-      app.circle({ x: pos.x + 10, y: pos.y + 10, radius: 14, fill: low ? '#450a0a' : '#1f2937', stroke: low ? '#ef4444' : '#64748b', strokeWidth: 1, listening: false }),
-      app.text({ text: pos.label, x: pos.x + 4, y: pos.y + 4, fontSize: 9, fill: '#9ca3af', listening: false })
+      cell,
+      app.text({
+        text: pos.label,
+        x: pos.x + 6,
+        y: pos.y + 4,
+        fontSize: 9,
+        fontWeight: 'bold',
+        fill: theme.textMuted,
+        listening: false,
+      })
     );
-    const t = app.text({ text: `${psi}`, x: pos.x + 2, y: pos.y + 22, fontSize: 11, fill: low ? '#ef4444' : '#fff', listening: false });
+    const t = app.text({
+      text: `${psi}`,
+      x: pos.x + 6,
+      y: pos.y + 14,
+      fontSize: 13,
+      fontWeight: 'bold',
+      fill: low ? theme.warning : theme.text,
+      listening: false,
+    });
     texts.push(t);
+    cells.push(cell);
     group.add(t);
   });
+
   group.metadata.refresh = (next: number[]) => {
     next.forEach((psi, i) => {
       const low = psi < lowThreshold;
       if (texts[i]) {
         texts[i].text = `${psi}`;
-        texts[i].fill = low ? '#ef4444' : '#fff';
+        texts[i].fill = low ? theme.warning : theme.text;
+      }
+      if (cells[i]) {
+        (cells[i] as { fill: string; stroke: string }).fill = low ? '#450a0a' : '#1f2937';
+        (cells[i] as { stroke: string }).stroke = low ? theme.warning : theme.dialStroke;
       }
     });
   };
@@ -235,7 +353,7 @@ registerAutomotive('parkingBrake', (props, app) =>
 );
 
 registerAutomotive('headlights', (props, app) =>
-  indicatorLamp(app, 'headlights', 'headlights', props, '💡')
+  indicatorLamp(app, 'headlights', 'headlights', props, 'HL')
 );
 
 registerAutomotive('cruiseControl', (props, app) => {
@@ -298,16 +416,48 @@ registerAutomotive('canViewer', (props, app) => {
 
 registerAutomotive('fuelGauge', (props, app) => {
   const value = clamp(num(props, 'value', 50), 0, 100);
+  const theme = getTheme(str(props, 'theme', 'classic'));
   const group = createAutoGroup(app, 'fuelGauge', props, 'fuelGauge');
-  group.add(app.text({ text: 'FUEL', fontSize: 10, fill: '#9ca3af', x: 0, y: 0, listening: false }));
-  const track = app.rect({ y: 14, width: 100, height: 8, fill: '#333', cornerRadius: 4, listening: false });
-  const fill = app.rect({ y: 14, width: value, height: 8, fill: value < 15 ? '#ef4444' : '#22c55e', cornerRadius: 4, listening: false });
-  const label = app.text({ text: `${value}%`, x: 40, y: 28, fontSize: 12, fill: '#fff', listening: false });
+  const w = 110;
+  const h = 52;
+  group.add(
+    app.roundedRect({
+      width: w,
+      height: h,
+      cornerRadius: 8,
+      fill: '#111827',
+      stroke: theme.dialStroke,
+      strokeWidth: 1,
+      listening: false,
+    }),
+    app.text({ text: 'FUEL', fontSize: 9, fontWeight: '600', fill: theme.textMuted, x: 8, y: 6, listening: false }),
+    app.text({ text: 'E', fontSize: 9, fill: theme.textMuted, x: 8, y: 34, listening: false }),
+    app.text({ text: 'F', fontSize: 9, fill: theme.textMuted, x: w - 14, y: 34, listening: false })
+  );
+  const track = app.roundedRect({ x: 18, y: 32, width: w - 36, height: 8, fill: theme.lampOff, cornerRadius: 4, listening: false });
+  const fill = app.roundedRect({
+    x: 18,
+    y: 32,
+    width: ((w - 36) * value) / 100,
+    height: 8,
+    fill: value < 15 ? theme.warning : theme.ok,
+    cornerRadius: 4,
+    listening: false,
+  });
+  const label = app.text({
+    text: `${value}%`,
+    x: w / 2 - 12,
+    y: 16,
+    fontSize: 14,
+    fontWeight: 'bold',
+    fill: theme.text,
+    listening: false,
+  });
   group.add(track, fill, label);
   setParts(group, { fill, label });
   setRefresh(group, (v) => {
     const lv = clamp(v, 0, 100);
-    (fill as { width: number; fill: string }).width = lv;
+    (fill as { width: number; fill: string }).width = ((w - 36) * lv) / 100;
     (fill as { fill: string }).fill = lv < 15 ? '#ef4444' : '#22c55e';
     (label as TextNode).text = `${Math.round(lv)}%`;
   });
@@ -317,8 +467,31 @@ registerAutomotive('fuelGauge', (props, app) => {
 
 registerAutomotive('gearIndicator', (props, app) => {
   const gear = str(props, 'gear', 'P');
+  const theme = getTheme(str(props, 'theme', 'classic'));
   const group = createAutoGroup(app, 'gearIndicator', props, 'gearIndicator');
-  const label = app.text({ text: gear, fontSize: 48, fontWeight: 'bold', fill: '#fff', listening: false });
+  group.add(
+    app.roundedRect({
+      width: 52,
+      height: 56,
+      cornerRadius: 8,
+      fill: '#111827',
+      stroke: theme.dialStroke,
+      strokeWidth: 2,
+      shadow: { color: 'rgba(0,0,0,0.4)', blur: 6, offsetX: 0, offsetY: 2 },
+      listening: false,
+    })
+  );
+  const label = app.text({
+    text: gear,
+    x: 26,
+    y: 28,
+    fontSize: 36,
+    fontWeight: 'bold',
+    fill: theme.text,
+    textAlign: 'center',
+    textBaseline: 'middle',
+    listening: false,
+  });
   group.add(label);
   setParts(group, { label });
   setState(group, { gear });
@@ -329,12 +502,42 @@ registerAutomotive('turnIndicators', (props, app) => {
   const left = bool(props, 'left', false);
   const right = bool(props, 'right', false);
   const group = createAutoGroup(app, 'turnIndicators', props, 'turnIndicators');
-  const leftText = app.text({ text: '◀', fontSize: 24, fill: left ? '#22c55e' : '#333', listening: false });
-  const rightText = app.text({ text: '▶', fontSize: 24, fill: right ? '#22c55e' : '#333', x: 40, listening: false });
-  group.add(leftText, rightText);
+  const onColor = '#f59e0b';
+  const offColor = '#1f2937';
+  const arrow = (x: number, on: boolean) =>
+    app.polygon({
+      points: on ? [x + 14, 10, x, 4, x, 16] : [x + 12, 10, x + 2, 5, x + 2, 15],
+      fill: on ? onColor : offColor,
+      stroke: on ? '#fbbf24' : '#374151',
+      strokeWidth: 1,
+      listening: false,
+    });
+  const rightArrow = (x: number, on: boolean) =>
+    app.polygon({
+      points: on ? [x, 10, x + 14, 4, x + 14, 16] : [x + 2, 10, x + 12, 5, x + 12, 15],
+      fill: on ? onColor : offColor,
+      stroke: on ? '#fbbf24' : '#374151',
+      strokeWidth: 1,
+      listening: false,
+    });
+  const leftShape = arrow(0, left);
+  const rightShape = rightArrow(28, right);
+  group.add(leftShape, rightShape);
   group.metadata.refresh = (l: boolean, r: boolean) => {
-    leftText.fill = l ? '#22c55e' : '#333';
-    rightText.fill = r ? '#22c55e' : '#333';
+    const update = (shape: ReturnType<typeof arrow>, x: number, on: boolean, flip: boolean) => {
+      const pts = on
+        ? flip
+          ? [x, 10, x + 14, 4, x + 14, 16]
+          : [x + 14, 10, x, 4, x, 16]
+        : flip
+          ? [x + 2, 10, x + 12, 5, x + 12, 15]
+          : [x + 12, 10, x + 2, 5, x + 2, 15];
+      (shape as { points: number[]; fill: string; stroke: string }).points = pts;
+      (shape as { fill: string }).fill = on ? onColor : offColor;
+      (shape as { stroke: string }).stroke = on ? '#fbbf24' : '#374151';
+    };
+    update(leftShape, 0, l, false);
+    update(rightShape, 28, r, true);
   };
   setState(group, { left, right });
   return group;
@@ -370,23 +573,32 @@ registerAutomotive('instrumentCluster', (props, app) => {
   const h = num(props, 'height', 400);
   const group = createAutoGroup(app, 'instrumentCluster', props, 'instrumentCluster', { width: w, height: h });
 
-  group.add(app.rect({ width: w, height: h, fill: theme.background, listening: false }));
+  group.add(app.rect({
+    width: w,
+    height: h,
+    fill: theme.background,
+    cornerRadius: 16,
+    stroke: theme.dialStroke,
+    strokeWidth: 2,
+    shadow: { color: 'rgba(0,0,0,0.5)', blur: 16, offsetX: 0, offsetY: 4 },
+    listening: false,
+  }));
 
+  const themeName = str(props, 'theme', 'classic');
   const widgets: [string, Record<string, unknown>][] = [
-    ['speedometer', { value: props.speed ?? 0, size: 220, x: 60, y: 50, dialStroke: theme.dialStroke, textColor: theme.text }],
-    ['tachometer', { value: props.rpm ?? 0, size: 220, x: 480, y: 50, dialStroke: theme.dialStroke, textColor: theme.text }],
-    ['engineTemp', { value: props.engineTemp ?? 90, size: 120, x: 320, y: 60 }],
-    ['fuelGauge', { value: props.fuel ?? 75, x: 60, y: 320 }],
-    ['batteryVoltage', { value: props.batteryVoltage ?? 12.4, x: 180, y: 320 }],
-    ['tpms', { pressures: props.tpms ?? [32, 32, 32, 32], x: 300, y: 300 }],
-    ['gearIndicator', { gear: props.gear ?? 'D', x: 380, y: 280 }],
-    ['turnIndicators', { left: props.turnLeft ?? false, right: props.turnRight ?? false, x: 340, y: 240 }],
-    ['parkingBrake', { active: props.parkingBrake ?? false, x: 520, y: 320 }],
-    ['headlights', { active: props.headlights ?? false, x: 560, y: 320 }],
-    ['cruiseControl', { speed: props.cruiseSpeed ?? 0, x: 620, y: 320 }],
-    ['canViewer', { signals: props.signals ?? { 'engine.rpm': 0, 'vehicle.speed': 0 }, width: 200, x: 580, y: 50, maxRows: 8 }],
-    ['warningLamp', { label: 'ABS', active: props.absWarning ?? false, x: 480, y: 320 }],
-    ['adasStatus', { status: props.adasStatus ?? 'off', x: 680, y: 320 }],
+    ['speedometer', { value: props.speed ?? 0, size: 200, x: 28, y: 28, theme: themeName, dialStroke: theme.dialStroke, textColor: theme.text, needleColor: theme.needleSpeed }],
+    ['tachometer', { value: props.rpm ?? 0, size: 200, x: w - 228, y: 28, theme: themeName, dialStroke: theme.dialStroke, textColor: theme.text, needleColor: theme.needleTach }],
+    ['gearIndicator', { gear: props.gear ?? 'P', x: w / 2 - 26, y: h / 2 - 36, theme: themeName }],
+    ['engineTemp', { value: props.engineTemp ?? 90, size: 96, x: w / 2 - 48, y: 36 }],
+    ['turnIndicators', { left: props.turnLeft ?? false, right: props.turnRight ?? false, x: w / 2 - 30, y: h / 2 + 40 }],
+    ['fuelGauge', { value: props.fuel ?? 75, x: 28, y: h - 68, theme: themeName }],
+    ['batteryVoltage', { value: props.batteryVoltage ?? 12.4, x: 148, y: h - 64 }],
+    ['tpms', { pressures: props.tpms ?? [32, 32, 32, 32], x: w / 2 - 74, y: h - 100, theme: themeName }],
+    ['parkingBrake', { active: props.parkingBrake ?? false, x: w - 310, y: h - 64, theme: themeName }],
+    ['headlights', { active: props.headlights ?? false, x: w - 258, y: h - 64, theme: themeName }],
+    ['cruiseControl', { speed: props.cruiseSpeed ?? 0, x: w - 188, y: h - 64 }],
+    ['warningLamp', { label: 'ABS', active: props.absWarning ?? false, x: w - 118, y: h - 64 }],
+    ['adasStatus', { status: props.adasStatus ?? 'off', x: w - 118, y: h - 34 }],
   ];
 
   for (const [type, wprops] of widgets) {

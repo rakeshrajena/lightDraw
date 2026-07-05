@@ -6,7 +6,7 @@ import {
 import { syntheticEvent, getParts as getComponentParts } from '../src/components/helpers';
 import { toJSON } from '../src/io/json';
 import type { Group } from '../src/shapes/Group';
-import { createTestApp, createTestContainer, measureAverageMs } from './helpers';
+import { createTestApp, createTestContainer, measureAverageMs, getNativeControl } from './helpers';
 
 const COMPONENT_TYPES = [
   'button',
@@ -118,7 +118,7 @@ describe('Phase 6 — UI Components', () => {
       tabIndex = e.value;
     });
 
-    const tabChild = (tabs as Group).children[1];
+    const tabChild = (tabs as Group).children.find((c) => c.metadata?.tabIndex === 1)!;
     tabChild.emit('click', syntheticEvent('click', tabChild));
     expect(tabIndex).toBe(1);
     app.destroy();
@@ -178,7 +178,7 @@ describe('Phase 6 — UI Components', () => {
     const input = createComponentFromJSON('input', { value: 'hello', x: 10, y: 10 }, app)!;
     app.add(input);
     app.render();
-    const el = document.getElementById(input.id);
+    const el = getNativeControl<HTMLInputElement>(input.id);
     expect(el?.tagName).toBe('INPUT');
     expect((el as HTMLInputElement).value).toBe('hello');
     app.destroy();
@@ -311,7 +311,8 @@ describe('Phase 6 — UI Components', () => {
     const ta = createComponentFromJSON('textarea', { value: 'multiline', x: 10, y: 10 }, app)!;
     app.add(ta);
     app.render();
-    expect(document.getElementById(ta.id)?.tagName).toBe('TEXTAREA');
+    const el = getNativeControl<HTMLTextAreaElement>(ta.id);
+    expect(el?.tagName).toBe('TEXTAREA');
     app.destroy();
   });
 

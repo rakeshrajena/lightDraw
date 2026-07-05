@@ -3,40 +3,36 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LightDraw — Animation Demo (Phase 3)</title>
+  <title>LightDraw — Animation Demo</title>
+  <script src="demo-embed.js"></script>
+  <link rel="stylesheet" href="demo-common.css">
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: system-ui, sans-serif; background: #0f172a; color: #e2e8f0; }
-    header { padding: 1rem 2rem; border-bottom: 1px solid #334155; }
-    header h1 { font-size: 1.25rem; }
-    header p { color: #94a3b8; margin-top: 0.25rem; font-size: 0.875rem; }
-    main { display: grid; grid-template-columns: 1fr 280px; gap: 1rem; padding: 1rem 2rem; }
-    #app { background: #1e293b; border-radius: 8px; border: 1px solid #334155; min-height: 500px; }
-    aside { background: #1e293b; border-radius: 8px; border: 1px solid #334155; padding: 1rem; }
-    aside h2 { font-size: 0.875rem; margin-bottom: 0.75rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
-    aside button { display: block; width: 100%; padding: 0.5rem; margin-bottom: 0.5rem; background: #2563eb; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 0.875rem; }
-    aside button:hover { background: #1d4ed8; }
-    aside button.secondary { background: #334155; }
-    aside button.secondary:hover { background: #475569; }
+    .demo-layout-split { grid-template-columns: 1fr 240px; }
+    .demo-sidebar button { width: 100%; text-align: left; }
   </style>
 </head>
 <body>
-  <header>
-    <h1>LightDraw.js — Phase 3 Animation</h1>
-    <p>Path motion · dash offset · morph · sprite · stagger</p>
-  </header>
-  <main>
-    <div id="app"></div>
-    <aside>
-      <h2>Demos</h2>
-      <button onclick="demoMotionPath()">Motion Path</button>
-      <button onclick="demoDash()">Stroke Dash</button>
-      <button onclick="demoMorph()">Path Morph</button>
-      <button onclick="demoStagger()">Stagger</button>
-      <button onclick="demoGroup()">Multi-Prop Group</button>
-      <button class="secondary" onclick="stopAll()">Stop All</button>
-    </aside>
-  </main>
+  <div class="demo-shell">
+    <header class="demo-header">
+      <span class="demo-badge">Animation Engine</span>
+      <h1>Motion &amp; Timeline</h1>
+      <p>Path motion, stroke dash, morphing, stagger, and multi-property group animations.</p>
+    </header>
+    <main class="demo-main demo-layout-split">
+      <div class="demo-canvas-wrap">
+        <div id="app"></div>
+      </div>
+      <aside class="demo-sidebar">
+        <h2>Demos</h2>
+        <button class="demo-btn secondary" onclick="demoMotionPath()">Motion Path</button>
+        <button class="demo-btn secondary" onclick="demoDash()">Stroke Dash</button>
+        <button class="demo-btn secondary" onclick="demoMorph()">Path Morph</button>
+        <button class="demo-btn secondary" onclick="demoStagger()">Stagger</button>
+        <button class="demo-btn secondary" onclick="demoGroup()">Multi-Prop Group</button>
+        <button class="demo-btn" onclick="stopAll()">Stop All</button>
+      </aside>
+    </main>
+  </div>
   <script src="../lightdraw.min.js"></script>
   <script>
     let app = LightDraw.createApp('#app', { width: 800, height: 500, background: '#1e293b' });

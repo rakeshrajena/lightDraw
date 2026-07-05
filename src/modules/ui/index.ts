@@ -16,4 +16,6 @@ export const uiPlugin: Plugin = {
 };
 
 export { registerComponent, createComponentFromJSON };
+export { applyUiTheme, UI_PRESETS } from '../../components/uiTheme';
+export type { UiThemeTokens } from '../../components/uiTheme';
 export default uiPlugin;

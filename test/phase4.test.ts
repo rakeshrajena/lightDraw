@@ -3,7 +3,7 @@ import { createDashboardFromJSON } from '../src/dashboard/registry';
 import { createComponentFromJSON } from '../src/components/registry';
 import { contrastRatio, meetsWcagAA, toHighContrastColor } from '../src/utils/a11y';
 import { collectFocusable } from '../src/utils/focusOrder';
-import { createTestApp, createTestContainer } from './helpers';
+import { createTestApp, createTestContainer, getNativeControl } from './helpers';
 
 function dispatchPointer(
   el: HTMLElement,
@@ -223,7 +223,7 @@ describe('Phase 4 — ARIA', () => {
     app.add(slider);
     app.render();
 
-    const el = document.getElementById(slider.id);
+    const el = getNativeControl(slider.id);
     expect(el?.getAttribute('role')).toBe('slider');
     expect(el?.getAttribute('aria-valuenow')).toBe('72');
     app.destroy();

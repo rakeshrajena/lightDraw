@@ -3,50 +3,67 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LightDraw — Export Demo (Phase 10)</title>
+  <title>LightDraw — Export</title>
+  <script src="demo-embed.js"></script>
+  <link rel="stylesheet" href="demo-common.css">
   <link rel="stylesheet" href="../lightdraw.min.css">
   <style>
-    body { font-family: system-ui, sans-serif; background: #0f172a; color: #e2e8f0; margin: 0; }
-    header { padding: 1rem 2rem; border-bottom: 1px solid #334155; }
-    main { padding: 1rem 2rem; display: grid; grid-template-columns: 1fr 280px; gap: 1rem; }
-    #app { border: 1px solid #334155; border-radius: 8px; min-height: 400px; background: #111827; }
-    .panel { background: #1e293b; border-radius: 8px; padding: 1rem; }
-    .panel button { display: block; width: 100%; margin-bottom: 0.5rem; padding: 0.5rem; background: #2563eb; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
-    .panel button:hover { background: #1d4ed8; }
-    .panel label { font-size: 0.85rem; color: #94a3b8; display: block; margin: 0.5rem 0 0.25rem; }
-    .panel input, .panel select { width: 100%; padding: 0.35rem; border-radius: 4px; border: 1px solid #475569; background: #0f172a; color: #e2e8f0; }
-    #status { margin-top: 1rem; font-size: 0.85rem; color: #94a3b8; }
+    .export-layout { display: grid; grid-template-columns: 1fr 240px; gap: 1rem; flex: 1; min-height: 0; }
+    .export-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; align-self: start; }
+    .export-panel h3 { font-size: 0.8125rem; margin-bottom: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
+    .export-panel .demo-btn { display: block; width: 100%; margin-bottom: 0.4rem; }
+    .export-panel label { font-size: 0.8125rem; color: var(--text-muted); display: block; margin: 0.5rem 0 0.25rem; }
+    .export-panel input[type="range"], .export-panel input[type="number"] { width: 100%; }
+    #status { margin-top: 0.75rem; font-size: 0.8125rem; color: var(--text-muted); }
+    html.demo-embed .export-layout { grid-template-columns: 1fr 220px; gap: 0.5rem; }
   </style>
 </head>
 <body>
-  <header>
-    <h1>LightDraw.js — Phase 10 Export Pipeline</h1>
-    <p>PNG · JPEG · SVG · PDF · JSON · HTML — unified <code>app.export()</code></p>
-  </header>
-  <main>
-    <div id="app"></div>
-    <div class="panel">
-      <h3>Download</h3>
-      <button onclick="doExport('png')">PNG (Hi-DPI)</button>
-      <button onclick="doExport('jpeg')">JPEG</button>
-      <button onclick="doExport('svg')">SVG file</button>
-      <button onclick="doExport('pdf')">PDF</button>
-      <button onclick="doExport('json')">JSON</button>
-      <button onclick="doExport('html')">HTML (offline scene)</button>
-      <label>JPEG quality <input type="range" id="quality" min="0.1" max="1" step="0.05" value="0.92"></label>
-      <label>Pixel ratio <input type="number" id="pixelRatio" min="1" max="3" value="2"></label>
-      <label><input type="checkbox" id="cropRegion"> Crop to blue rect</label>
-      <label><input type="checkbox" id="validateJson" checked> Validate JSON</label>
-      <p id="status">Ready</p>
-    </div>
-  </main>
+  <div class="demo-shell">
+    <header class="demo-header">
+      <span class="demo-badge">Export Pipeline</span>
+      <h1>Scene Export</h1>
+      <p>PNG, JPEG, SVG, PDF, JSON, and offline HTML via unified <code>app.export()</code>.</p>
+    </header>
+    <main class="demo-main export-layout">
+      <div class="demo-canvas-wrap">
+        <div id="app"></div>
+      </div>
+      <div class="export-panel">
+        <h3>Download</h3>
+        <button class="demo-btn" onclick="doExport('png')">PNG (Hi-DPI)</button>
+        <button class="demo-btn secondary" onclick="doExport('jpeg')">JPEG</button>
+        <button class="demo-btn secondary" onclick="doExport('svg')">SVG</button>
+        <button class="demo-btn secondary" onclick="doExport('pdf')">PDF</button>
+        <button class="demo-btn secondary" onclick="doExport('json')">JSON</button>
+        <button class="demo-btn secondary" onclick="doExport('html')">HTML</button>
+        <label>JPEG quality <input type="range" id="quality" min="0.1" max="1" step="0.05" value="0.92"></label>
+        <label>Pixel ratio <input type="number" id="pixelRatio" min="1" max="3" value="2"></label>
+        <label><input type="checkbox" id="cropRegion"> Crop to blue rect</label>
+        <label><input type="checkbox" id="validateJson" checked> Validate JSON</label>
+        <p id="status">Ready</p>
+      </div>
+    </main>
+  </div>
   <script src="../lightdraw.min.js"></script>
   <script>
     const app = LightDraw.createApp('#app', {
-      width: 700, height: 400, background: '#111827', renderer: 'canvas', pixelRatio: 2,
+      width: 680,
+      height: 400,
+      background: '#0d1322',
+      renderer: 'canvas',
+      pixelRatio: 2,
     });
 
-    const target = app.rect({ x: 120, y: 80, width: 200, height: 120, fill: '#2563eb', stroke: '#93c5fd', strokeWidth: 2 });
+    const target = app.rect({
+      x: 120,
+      y: 80,
+      width: 200,
+      height: 120,
+      fill: '#2563eb',
+      stroke: '#93c5fd',
+      strokeWidth: 2,
+    });
     app.add(
       app.roundedRect({ x: 40, y: 40, width: 100, height: 60, cornerRadius: 8, fill: '#dc2626' }),
       target,
@@ -55,7 +72,9 @@
     );
     app.render();
 
-    function setStatus(msg) { document.getElementById('status').textContent = msg; }
+    function setStatus(msg) {
+      document.getElementById('status').textContent = msg;
+    }
 
     function doExport(format) {
       try {
@@ -68,8 +87,7 @@
           pages: format === 'pdf' ? 1 : undefined,
         };
         const result = app.export(options);
-        const ext = format;
-        const name = 'lightdraw-export.' + ext;
+        const name = 'lightdraw-export.' + format;
 
         let blob;
         if (typeof result.data === 'string') {

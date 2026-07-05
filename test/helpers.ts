@@ -84,3 +84,11 @@ export function expectHeapGrowth(growth: number, maxBytes: number): void {
 }
 
 export { forceGc, heapUsed };
+
+/** Interactive native control for a component node (unwraps field wrappers). */
+export function getNativeControl<T extends HTMLElement = HTMLElement>(nodeId: string): T | null {
+  const root = document.getElementById(nodeId);
+  if (!root) return null;
+  if (root.matches('input, textarea, button, select')) return root as T;
+  return root.querySelector('input, textarea, button') as T | null;
+}

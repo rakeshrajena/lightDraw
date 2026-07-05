@@ -1,11 +1,34 @@
 import { Renderer, type RenderContext } from './Renderer';
 import type { Group } from '../shapes/Group';
 import type { Node } from '../Node';
-import { Rect, Circle, Ellipse, TextNode, Path } from '../shapes/index';
+import { Rect, Circle, Ellipse, TextNode, Path, Line, Polyline, Arc, Polygon } from '../shapes/index';
 import { Matrix2D } from '../utils';
 import { isGradient, gradientToCss, shadowToCss } from './styles';
 import { toHighContrastColor } from '../utils/a11y';
-import { syntheticEvent } from '../components/helpers';
+import { applyUiTheme, type UiThemeTokens } from '../components/uiTheme';
+import {
+  NATIVE_HTML_COMPONENTS,
+  syncNativeAccordion,
+  syncNativeButton,
+  syncNativeCard,
+  syncNativeCheckbox,
+  syncNativeDialog,
+  syncNativeInput,
+  syncNativeMenu,
+  syncNativeProgress,
+  syncNativeRadio,
+  syncNativeSlider,
+  syncNativeStatusBar,
+  syncNativeTable,
+  syncNativeTabs,
+  syncNativeTextarea,
+  syncNativeToast,
+  syncNativeToggle,
+  syncNativeToolbar,
+  syncNativeTooltip,
+  syncNativeTree,
+  type NativeSyncContext,
+} from './htmlComponents';
 
 /** HTML/CSS fallback renderer with incremental DOM updates. */
 export class HTMLRenderer extends Renderer {
@@ -13,17 +36,31 @@ export class HTMLRenderer extends Renderer {
   private nodeElements = new Map<string, HTMLElement>();
   private innerContainers = new Map<string, HTMLElement>();
   private seenIds = new Set<string>();
+  private uiTheme: UiThemeTokens = {};
 
   init(container: HTMLElement, options: RenderContext): void {
     this.width = options.width;
     this.height = options.height;
     this.background = options.background;
     this.highContrast = options.highContrast ?? false;
+    this.uiTheme = options.uiTheme ?? {};
 
     this.root = document.createElement('div');
     this.root.className = 'lightdraw-html-root';
     this.applyRootStyles();
     container.appendChild(this.root);
+  }
+
+  /** Merge programmatic theme tokens (re-applied after each layout pass). */
+  setUiTheme(tokens: UiThemeTokens): void {
+    this.uiTheme = { ...this.uiTheme, ...tokens };
+    this.applyThemeVars();
+  }
+
+  private applyThemeVars(): void {
+    if (Object.keys(this.uiTheme).length > 0) {
+      applyUiTheme(this.root, this.uiTheme);
+    }
   }
 
   private applyRootStyles(): void {
@@ -39,6 +76,7 @@ export class HTMLRenderer extends Renderer {
     } else {
       this.root.classList.remove('lightdraw-high-contrast');
     }
+    this.applyThemeVars();
   }
 
   resize(width: number, height: number): void {
@@ -144,62 +182,92 @@ export class HTMLRenderer extends Renderer {
     }
   }
 
-  private syncNativeField(node: Node, parent: HTMLElement, kind: 'input' | 'textarea'): void {
-    let el = this.nodeElements.get(node.id) as HTMLInputElement | HTMLTextAreaElement | undefined;
-    const state = (node.metadata?.componentState ?? {}) as Record<string, unknown>;
-    const width = (state.width as number) ?? 200;
-    const height = (state.height as number) ?? (kind === 'textarea' ? 80 : 32);
-    const value = (state.value as string) ?? '';
-    const placeholder = (state.placeholder as string) ?? '';
+  private nativeCtx(): NativeSyncContext {
+    return {
+      nodeElements: this.nodeElements,
+      seenIds: this.seenIds,
+      focusedNodeId: this.focusedNodeId,
+      applyA11y: (node, el) => this.applyA11y(node, el),
+      applyUiClasses: (node, el) => this.applyUiClasses(node, el),
+    };
+  }
 
-    if (!el) {
-      el = kind === 'textarea' ? document.createElement('textarea') : document.createElement('input');
-      el.id = node.id;
-      el.className = `lightdraw-native-${kind}`;
-      if (kind === 'input') (el as HTMLInputElement).type = 'text';
-      parent.appendChild(el);
-
-      el.addEventListener('input', () => {
-        const v = el!.value;
-        node.metadata.componentState = { ...state, value: v };
-        node.emit('input', syntheticEvent('input', node, { value: v }));
-        node.getApp()?.requestRender();
-      });
-      el.addEventListener('change', () => {
-        const v = el!.value;
-        node.metadata.componentState = { ...state, value: v };
-        node.emit('change', syntheticEvent('change', node, { value: v }));
-      });
-      el.addEventListener('focus', () => node.getApp()?.focusNode(node));
-      this.nodeElements.set(node.id, el as HTMLElement);
+  private syncNativeComponent(node: Node, parent: HTMLElement, type: string): boolean {
+    const ctx = this.nativeCtx();
+    switch (type) {
+      case 'button':
+        syncNativeButton(node, parent, ctx);
+        return true;
+      case 'checkbox':
+        syncNativeCheckbox(node, parent, ctx);
+        return true;
+      case 'toggle':
+        syncNativeToggle(node, parent, ctx);
+        return true;
+      case 'slider':
+        syncNativeSlider(node, parent, ctx);
+        return true;
+      case 'radio':
+        syncNativeRadio(node, parent, ctx);
+        return true;
+      case 'progressBar':
+        syncNativeProgress(node, parent, ctx);
+        return true;
+      case 'card':
+        syncNativeCard(node, parent, ctx);
+        return true;
+      case 'tabs':
+        syncNativeTabs(node, parent, ctx);
+        return true;
+      case 'accordion':
+        syncNativeAccordion(node, parent, ctx);
+        return true;
+      case 'table':
+        syncNativeTable(node, parent, ctx);
+        return true;
+      case 'tree':
+        syncNativeTree(node, parent, ctx);
+        return true;
+      case 'toolbar':
+        syncNativeToolbar(node, parent, ctx);
+        return true;
+      case 'toast':
+        syncNativeToast(node, parent, ctx);
+        return true;
+      case 'menu':
+        syncNativeMenu(node, parent, ctx);
+        return true;
+      case 'dialog':
+        syncNativeDialog(node, parent, ctx);
+        return true;
+      case 'tooltip':
+        syncNativeTooltip(node, parent, ctx);
+        return true;
+      case 'statusBar':
+        syncNativeStatusBar(node, parent, ctx);
+        return true;
+      default:
+        return false;
     }
-
-    this.applyA11y(node, el as HTMLElement);
-    el.style.cssText = `
-      position: absolute;
-      left: ${node.x}px;
-      top: ${node.y}px;
-      width: ${width}px;
-      height: ${height}px;
-      opacity: ${node.opacity};
-      font: 14px system-ui, sans-serif;
-      padding: 6px 8px;
-      border: 1px solid #d1d5db;
-      border-radius: 4px;
-      pointer-events: ${node.listening ? 'auto' : 'none'};
-    `;
-    el.value = value;
-    el.placeholder = placeholder;
-    if (node.focusable) {
-      el.tabIndex = node.id === this.focusedNodeId ? 0 : -1;
-    }
-    this.seenIds.add(node.id);
   }
 
   private syncNode(node: Node, parent: HTMLElement): void {
     const componentType = node.metadata?.componentType as string | undefined;
-    if (componentType === 'input' || componentType === 'textarea') {
-      this.syncNativeField(node, parent, componentType);
+    if (componentType === 'input') {
+      syncNativeInput(node, parent, this.nativeCtx());
+      return;
+    }
+    if (componentType === 'textarea') {
+      syncNativeTextarea(node, parent, this.nativeCtx());
+      return;
+    }
+
+    if (componentType && NATIVE_HTML_COMPONENTS.has(componentType)) {
+      if (this.syncNativeComponent(node, parent, componentType)) return;
+    }
+
+    if (this.isVectorShape(node)) {
+      this.syncVectorShape(node, parent);
       return;
     }
 
@@ -214,6 +282,7 @@ export class HTMLRenderer extends Renderer {
     }
 
     this.applyA11y(node, el);
+    this.applyUiClasses(node, el);
 
     let extra = '';
     if (node.shadow) extra += `box-shadow: ${shadowToCss(node.shadow)};`;
@@ -234,6 +303,12 @@ export class HTMLRenderer extends Renderer {
     this.seenIds.add(node.id);
 
     if ('children' in node) {
+      const bounds = (node as Group).getBounds();
+      if (node.metadata?.componentType && bounds.width > 0) {
+        el.style.width = `${bounds.width}px`;
+        el.style.height = `${Math.max(bounds.height, 1)}px`;
+      }
+
       let inner = this.innerContainers.get(node.id);
       if (!inner) {
         inner = document.createElement('div');
@@ -242,6 +317,123 @@ export class HTMLRenderer extends Renderer {
         this.innerContainers.set(node.id, inner);
       }
       this.syncGroup(node as Group, inner);
+    }
+  }
+
+  private applyUiClasses(node: Node, el: HTMLElement): void {
+    const t = node.metadata?.componentType as string | undefined;
+    if (t) {
+      el.classList.add('lightdraw-ui', `lightdraw-ui--${t}`);
+    }
+    if (node.focusable || t === 'button' || t === 'checkbox' || t === 'radio' || t === 'toggle') {
+      el.classList.add('lightdraw-interactive');
+    }
+  }
+
+  private isVectorShape(node: Node): boolean {
+    return (
+      node instanceof Line ||
+      node instanceof Polyline ||
+      node instanceof Arc ||
+      node instanceof Polygon ||
+      node instanceof Path
+    );
+  }
+
+  private syncVectorShape(node: Node, parent: HTMLElement): void {
+    let svg = this.nodeElements.get(node.id) as unknown as SVGSVGElement | undefined;
+    if (!svg || svg.tagName !== 'svg') {
+      svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.id = node.id;
+      parent.appendChild(svg);
+      this.nodeElements.set(node.id, svg as unknown as HTMLElement);
+    } else if (svg.parentElement !== parent) {
+      parent.appendChild(svg);
+    }
+
+    this.seenIds.add(node.id);
+
+    const b = node.getBounds();
+    const pad = Math.max(Math.ceil(node.strokeWidth || 0), 2) + 1;
+    const w = Math.max(b.width + pad * 2, 1);
+    const h = Math.max(b.height + pad * 2, 1);
+
+    svg.setAttribute('aria-hidden', 'true');
+    svg.style.cssText = `
+      position: absolute;
+      left: ${node.x + b.x - pad}px;
+      top: ${node.y + b.y - pad}px;
+      width: ${w}px;
+      height: ${h}px;
+      overflow: visible;
+      pointer-events: ${node.listening ? 'auto' : 'none'};
+      opacity: ${node.opacity};
+    `;
+
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+    const ox = pad - b.x;
+    const oy = pad - b.y;
+    const strokeColor = node.stroke ? this.strokeToCss(node.stroke) : '#64748b';
+    const sw = String(node.strokeWidth || 2);
+    const fillColor =
+      node.fill && node.fill !== null && node.fill !== 'transparent'
+        ? this.fillToCss(node.fill)
+        : 'none';
+
+    if (node instanceof Line) {
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.setAttribute('x1', String(ox));
+      line.setAttribute('y1', String(oy));
+      line.setAttribute('x2', String(node.x2 + ox));
+      line.setAttribute('y2', String(node.y2 + oy));
+      line.setAttribute('stroke', strokeColor);
+      line.setAttribute('stroke-width', sw);
+      line.setAttribute('stroke-linecap', node.lineCap);
+      svg.appendChild(line);
+    } else if (node instanceof Polyline) {
+      const pts = node.points.map((v, i) => (i % 2 === 0 ? v + ox : v + oy)).join(' ');
+      const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+      poly.setAttribute('points', pts);
+      poly.setAttribute('stroke', strokeColor);
+      poly.setAttribute('stroke-width', sw);
+      poly.setAttribute('fill', fillColor);
+      poly.setAttribute('stroke-linejoin', node.lineJoin);
+      poly.setAttribute('stroke-linecap', node.lineCap);
+      svg.appendChild(poly);
+    } else if (node instanceof Polygon) {
+      const pts = node.points.map((v, i) => (i % 2 === 0 ? v + ox : v + oy)).join(' ');
+      const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+      poly.setAttribute('points', pts);
+      poly.setAttribute('stroke', strokeColor);
+      poly.setAttribute('stroke-width', sw);
+      poly.setAttribute('fill', fillColor);
+      svg.appendChild(poly);
+    } else if (node instanceof Arc) {
+      const cx = node.radius + ox;
+      const cy = node.radius + oy;
+      const r = node.radius;
+      const x1 = cx + r * Math.cos(node.startAngle);
+      const y1 = cy + r * Math.sin(node.startAngle);
+      const x2 = cx + r * Math.cos(node.endAngle);
+      const y2 = cy + r * Math.sin(node.endAngle);
+      const sweep = node.counterClockwise ? 0 : 1;
+      const large = Math.abs(node.endAngle - node.startAngle) > Math.PI ? 1 : 0;
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', `M ${x1} ${y1} A ${r} ${r} 0 ${large} ${sweep} ${x2} ${y2}`);
+      path.setAttribute('stroke', strokeColor);
+      path.setAttribute('stroke-width', sw);
+      path.setAttribute('fill', fillColor);
+      path.setAttribute('stroke-linecap', node.lineCap);
+      svg.appendChild(path);
+    } else if (node instanceof Path) {
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', node.d);
+      path.setAttribute('stroke', node.stroke ? strokeColor : 'none');
+      path.setAttribute('stroke-width', sw);
+      path.setAttribute('fill', fillColor);
+      path.setAttribute('transform', `translate(${ox}, ${oy})`);
+      svg.appendChild(path);
     }
   }
 
@@ -286,14 +478,23 @@ export class HTMLRenderer extends Renderer {
       el.style.font = `${node.fontWeight} ${node.fontSize}px ${node.fontFamily}`;
       el.style.color = this.fillToCss(node.fill);
       el.style.background = 'transparent';
+      el.style.whiteSpace = 'pre';
+      if (node.textAlign && node.textAlign !== 'left') {
+        el.style.textAlign = node.textAlign;
+        const parent = node.parent;
+        if (parent && 'getBounds' in parent) {
+          const pb = (parent as Group).getBounds();
+          if (pb.width > 0) {
+            el.style.width = `${pb.width}px`;
+          }
+        }
+      }
     } else if (node instanceof Path) {
+      // Vector paths use SVG via syncVectorShape
       const b = node.getBounds();
       el.style.width = `${Math.max(b.width, 1)}px`;
       el.style.height = `${Math.max(b.height, 1)}px`;
-      el.style.background = this.fillToCss(node.fill);
-      el.style.border = node.stroke
-        ? `${node.strokeWidth}px solid ${this.strokeToCss(node.stroke)}`
-        : 'none';
+      el.style.background = 'transparent';
     }
   }
 

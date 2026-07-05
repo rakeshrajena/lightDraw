@@ -1,8 +1,10 @@
 import type { App } from '../App';
 import type { Group } from '../shapes/Group';
 import type { Node } from '../Node';
-import { TextNode } from '../shapes/index';
+import { Line, RoundedRect, TextNode } from '../shapes/index';
 import { syntheticEvent } from '../components/helpers';
+
+import { DASHBOARD } from './theme';
 
 export interface ChartLayout {
   plotX: number;
@@ -86,9 +88,9 @@ export function addGridLines(
       app.line({
         x: layout.plotX,
         y,
-        x2: layout.plotX + layout.plotWidth,
-        y2: y,
-        stroke: '#374151',
+        x2: layout.plotWidth,
+        y2: 0,
+        stroke: DASHBOARD.chartGrid,
         strokeWidth: 1,
         dash: [4, 4],
         listening: false,
@@ -101,9 +103,9 @@ export function addGridLines(
       app.line({
         x,
         y: layout.plotY,
-        x2: x,
-        y2: layout.plotY + layout.plotHeight,
-        stroke: '#374151',
+        x2: 0,
+        y2: layout.plotHeight,
+        stroke: DASHBOARD.chartGrid,
         strokeWidth: 1,
         dash: [4, 4],
         listening: false,
@@ -124,9 +126,9 @@ export function addAxes(
     app.line({
       x: layout.plotX,
       y: layout.plotY,
-      x2: layout.plotX,
-      y2: layout.plotY + layout.plotHeight,
-      stroke: '#9ca3af',
+      x2: 0,
+      y2: layout.plotHeight,
+      stroke: DASHBOARD.chartAxis,
       strokeWidth: 1,
       listening: false,
     })
@@ -135,9 +137,9 @@ export function addAxes(
     app.line({
       x: layout.plotX,
       y: layout.plotY + layout.plotHeight,
-      x2: layout.plotX + layout.plotWidth,
-      y2: layout.plotY + layout.plotHeight,
-      stroke: '#9ca3af',
+      x2: layout.plotWidth,
+      y2: 0,
+      stroke: DASHBOARD.chartAxis,
       strokeWidth: 1,
       listening: false,
     })
@@ -154,7 +156,7 @@ export function addAxes(
         x: 2,
         y: y - 6,
         fontSize: 10,
-        fill: '#9ca3af',
+        fill: DASHBOARD.textMuted,
         listening: false,
       })
     );
@@ -172,7 +174,7 @@ export function addLegend(
     const ly = y + i * 18;
     group.add(
       app.rect({ x, y: ly, width: 12, height: 12, fill: item.color, listening: false }),
-      app.text({ text: item.label, x: x + 16, y: ly - 1, fontSize: 11, fill: '#d1d5db', listening: false })
+      app.text({ text: item.label, x: x + 16, y: ly - 1, fontSize: 11, fill: DASHBOARD.text, listening: false })
     );
   });
 }
@@ -191,27 +193,73 @@ export function wireChartInteraction(
   group: Group,
   data: number[],
   layout: ChartLayout,
-  tooltip: Node,
-  tooltipLabel: Node
+  bounds: ChartBounds,
+  parts: {
+    tooltip: RoundedRect;
+    tooltipLabel: TextNode;
+    crosshair: Line;
+    dot: Node;
+    hitArea: Node;
+  }
 ): void {
-  group.on('mousemove', (e: { worldX: number; worldY: number }) => {
-    const localX = e.worldX - group.x;
+  const updateHover = (localX: number) => {
     const idx = nearestDataIndex(data, layout, localX);
-    const pts = seriesToPoints(data, layout, dataBounds(data));
+    const pts = seriesToPoints(data, layout, bounds);
     const px = pts[idx * 2];
     const py = pts[idx * 2 + 1];
-    tooltip.x = px - 20;
-    tooltip.y = py - 28;
-    tooltip.visible = true;
-    (tooltipLabel as TextNode).text = String(data[idx]);
-    group.emit('hover', syntheticEvent('hover', group, { index: idx, value: data[idx] }));
+    const val = data[idx];
+    const label = String(val);
+
+    parts.crosshair.x = px;
+    parts.crosshair.y = layout.plotY;
+    parts.crosshair.x2 = 0;
+    parts.crosshair.y2 = layout.plotHeight;
+    parts.crosshair.visible = true;
+
+    parts.dot.x = px - 4;
+    parts.dot.y = py - 4;
+    parts.dot.visible = true;
+
+    const tw = Math.max(44, label.length * 8 + 20);
+    parts.tooltip.x = px - tw / 2;
+    parts.tooltip.y = py - 36;
+    parts.tooltip.width = tw;
+    parts.tooltip.visible = true;
+
+    parts.tooltipLabel.text = label;
+    parts.tooltipLabel.x = px - tw / 2 + 10;
+    parts.tooltipLabel.y = py - 28;
+
+    parts.crosshair.markDirty();
+    parts.dot.markDirty();
+    parts.tooltip.markDirty();
+    parts.tooltipLabel.markDirty();
+    group.markDirty();
+    group.emit('hover', syntheticEvent('hover', group, { index: idx, value: val }));
     group.getApp()?.requestRender();
+  };
+
+  const clearHover = () => {
+    parts.crosshair.visible = false;
+    parts.dot.visible = false;
+    parts.tooltip.visible = false;
+    parts.crosshair.markDirty();
+    parts.dot.markDirty();
+    parts.tooltip.markDirty();
+    group.markDirty();
+    group.getApp()?.requestRender();
+  };
+
+  group.on('mousemove', (e: { worldX: number }) => {
+    updateHover(e.worldX - group.x);
   });
 
-  group.on('mouseleave', () => {
-    tooltip.visible = false;
-    group.getApp()?.requestRender();
+  group.on('mouseleave', clearHover);
+
+  parts.hitArea.on('mousemove', (e: { worldX: number }) => {
+    updateHover(e.worldX - group.x);
   });
+  parts.hitArea.on('mouseleave', clearHover);
 
   group.on('click', (e: { worldX: number }) => {
     const idx = nearestDataIndex(data, layout, e.worldX - group.x);

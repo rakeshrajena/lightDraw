@@ -3,62 +3,100 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LightDraw Playground</title>
+  <title>LightDraw.js — Playground</title>
+  <link rel="icon" href="data:,">
   <link rel="stylesheet" href="/lightdraw.min.css">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
   <header class="site-header">
-    <h1>LightDraw.js Playground</h1>
-    <p>Interactive examples — Phase 11</p>
-    <nav class="nav">
-      <a href="#core">Core</a>
-      <a href="#animation">Animation</a>
-      <a href="#ui">UI</a>
-      <a href="#dashboard">Dashboard</a>
-      <a href="#automotive">Automotive</a>
-      <a href="#diagram">Diagram</a>
-      <a href="#export">Export</a>
-      <a href="#a11y">A11y</a>
-    </nav>
+    <div class="site-header-inner">
+      <span class="site-badge">v1.0 · Production</span>
+      <h1>LightDraw.js Playground</h1>
+      <p class="tagline">Zero-dependency 2D graphics engine — shapes, animation, UI components, dashboards, automotive clusters, and diagrams.</p>
+      <nav class="nav">
+        <a href="#core">Core</a>
+        <a href="#animation">Animation</a>
+        <a href="#ui">UI</a>
+        <a href="#dashboard">Dashboard</a>
+        <a href="#automotive">Automotive</a>
+        <a href="#diagram">Diagram</a>
+        <a href="#export">Export</a>
+        <a href="#a11y">Accessibility</a>
+      </nav>
+    </div>
   </header>
   <main>
-    <section id="core" class="panel">
-      <h2>Core</h2>
-      <div id="demo-core" class="canvas-host"></div>
-    </section>
-    <section id="animation" class="panel">
-      <h2>Animation</h2>
-      <iframe src="/examples/demo-animation.html" title="Animation demo" class="demo-frame"></iframe>
-    </section>
-    <section id="ui" class="panel">
-      <h2>UI Components</h2>
-      <iframe src="/examples/demo-ui.html" title="UI demo" class="demo-frame"></iframe>
-    </section>
-    <section id="dashboard" class="panel">
-      <h2>Dashboard</h2>
-      <iframe src="/examples/demo-dashboard.html" title="Dashboard demo" class="demo-frame"></iframe>
-    </section>
-    <section id="automotive" class="panel">
-      <h2>Automotive</h2>
-      <iframe src="/examples/demo-automotive.html" title="Automotive demo" class="demo-frame"></iframe>
-    </section>
-    <section id="diagram" class="panel">
-      <h2>Diagram</h2>
-      <iframe src="/examples/demo-diagram.html" title="Diagram demo" class="demo-frame"></iframe>
-    </section>
-    <section id="export" class="panel">
-      <h2>Export</h2>
-      <iframe src="/examples/demo-export.html" title="Export demo" class="demo-frame"></iframe>
-    </section>
-    <section id="a11y" class="panel">
-      <h2>Accessibility</h2>
-      <iframe src="/examples/demo-a11y.html" title="A11y demo" class="demo-frame"></iframe>
-    </section>
+    <div class="demo-grid">
+      <section id="core" class="panel">
+        <div class="panel-header">
+          <h2>Core Engine</h2>
+          <p class="panel-desc">Canvas renderer with shapes, text, and live animation.</p>
+        </div>
+        <div id="demo-core" class="canvas-host"></div>
+      </section>
+
+      <section id="animation" class="panel">
+        <div class="panel-header">
+          <h2>Animation</h2>
+          <p class="panel-desc">Motion paths, morphing, stagger, and timeline sequencing.</p>
+        </div>
+        <iframe src="/examples/demo-animation.html?embed=1" title="Animation demo" class="demo-frame demo-frame--medium"></iframe>
+      </section>
+
+      <section id="ui" class="panel">
+        <div class="panel-header">
+          <h2>UI Components</h2>
+          <p class="panel-desc">17 interactive controls — buttons, forms, tables, dialogs, and more.</p>
+        </div>
+        <iframe src="/examples/demo-ui.html?embed=1" title="UI demo" class="demo-frame demo-frame--tall"></iframe>
+      </section>
+
+      <section id="dashboard" class="panel">
+        <div class="panel-header">
+          <h2>Dashboard Widgets</h2>
+          <p class="panel-desc">Gauges, charts, clocks, and live data visualization.</p>
+        </div>
+        <iframe src="/examples/demo-dashboard.html?embed=1" title="Dashboard demo" class="demo-frame demo-frame--tall"></iframe>
+      </section>
+
+      <section id="automotive" class="panel">
+        <div class="panel-header">
+          <h2>Automotive Instrument Cluster</h2>
+          <p class="panel-desc">Full digital cockpit with classic, sport, and digital themes.</p>
+        </div>
+        <iframe src="/examples/demo-automotive.html?embed=1" title="Automotive demo" class="demo-frame demo-frame--medium"></iframe>
+      </section>
+
+      <section id="diagram" class="panel">
+        <div class="panel-header">
+          <h2>Diagram Module</h2>
+          <p class="panel-desc">Flowcharts, state machines, network topology, UML, and more.</p>
+        </div>
+        <iframe src="/examples/demo-diagram.html?embed=1" title="Diagram demo" class="demo-frame demo-frame--medium"></iframe>
+      </section>
+
+      <section id="export" class="panel">
+        <div class="panel-header">
+          <h2>Export Pipeline</h2>
+          <p class="panel-desc">PNG, JPEG, SVG, and PDF export from scenes.</p>
+        </div>
+        <iframe src="/examples/demo-export.html?embed=1" title="Export demo" class="demo-frame demo-frame--compact"></iframe>
+      </section>
+
+      <section id="a11y" class="panel">
+        <div class="panel-header">
+          <h2>Accessibility</h2>
+          <p class="panel-desc">Keyboard navigation, ARIA roles, and high-contrast mode.</p>
+        </div>
+        <iframe src="/examples/demo-a11y.html?embed=1" title="A11y demo" class="demo-frame demo-frame--compact"></iframe>
+      </section>
+    </div>
   </main>
   <footer>
-    <a href="https://github.com/lightdraw/lightdraw.js">GitHub</a> ·
-    <a href="/docs/README.md">Documentation</a>
+    <a href="https://github.com/rakeshrajena/lightDraw">GitHub</a>
+    · <a href="/docs/getting-started.md">Documentation</a>
+    · MIT License
   </footer>
   <script src="/lightdraw.min.js"></script>
   <script type="module" src="/main.js"></script>

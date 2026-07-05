@@ -61,6 +61,8 @@ import {
   setAutoValue,
 } from './modules/automotive';
 import { diagramPlugin, Diagram } from './modules/diagram';
+import { applyUiTheme, UI_PRESETS } from './components/uiTheme';
+export type { UiThemeTokens } from './components/uiTheme';
 
 export { VERSION };
 
@@ -87,6 +89,8 @@ export const LightDrawFull = Object.assign(LightDraw, {
   animateAutoValue,
   setAutoValue,
   Diagram,
+  applyUiTheme,
+  UI_PRESETS,
 });
 
 export {
@@ -152,6 +156,8 @@ export {
   dashboardPlugin,
   automotivePlugin,
   diagramPlugin,
+  applyUiTheme,
+  UI_PRESETS,
 };
 
 export { LightDrawFull as LightDraw };

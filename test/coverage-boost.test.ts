@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { createTestApp, createTestContainer } from './helpers';
+import { createTestApp, createTestContainer, getNativeControl } from './helpers';
 import { Layout } from '../src/layout';
 import { exportScene, exportApp } from '../src/io/export';
 import { fillStyleRef, shadowToCss } from '../src/renderers/styles';
@@ -261,7 +261,7 @@ describe('Coverage — Phase 6 UI components', () => {
     const input = createComponentFromJSON('input', { value: '', x: 10, y: 10 }, app)!;
     app.add(input);
     app.render();
-    const el = document.getElementById(input.id) as HTMLInputElement;
+    const el = getNativeControl<HTMLInputElement>(input.id)!;
     el.value = 'typed';
     el.dispatchEvent(new Event('input', { bubbles: true }));
     el.dispatchEvent(new Event('change', { bubbles: true }));

@@ -2,6 +2,7 @@ import type { App } from '../App';
 import type { Node } from '../Node';
 import { Line, Polyline } from '../shapes/index';
 import type { Obstacle } from './types';
+import { DIAGRAM } from './theme';
 
 export type RouteStyle = 'straight' | 'orthogonal' | 'smart';
 
@@ -101,6 +102,25 @@ export function collectObstacles(nodes: Node[], exclude?: Node[]): Obstacle[] {
   return result;
 }
 
+/** Compute routed polyline points between two anchors */
+export function computeRoutePoints(
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  style: RouteStyle = 'orthogonal',
+  obstacles: Obstacle[] = []
+): number[] {
+  if (style === 'straight') {
+    return [x1, y1, x2, y2];
+  }
+  if (style === 'smart') {
+    return smartOrthogonalRoute(x1, y1, x2, y2, obstacles);
+  }
+  const midY = (y1 + y2) / 2;
+  return [x1, y1, x1, midY, x2, midY, x2, y2];
+}
+
 /** Route connector between two points */
 export function routeConnector(
   app: App,
@@ -109,24 +129,32 @@ export function routeConnector(
   x2: number,
   y2: number,
   style: RouteStyle = 'orthogonal',
-  obstacles: Obstacle[] = []
+  obstacles: Obstacle[] = [],
+  stroke = DIAGRAM.edge
 ): Line | Polyline {
-  if (style === 'straight') {
-    return app.line({ x: x1, y: y1, x2: x2 - x1, y2: y2 - y1, stroke: '#64748b', strokeWidth: 2 });
+  const points = computeRoutePoints(x1, y1, x2, y2, style, obstacles);
+  if (style === 'straight' && points.length === 4) {
+    return app.line({
+      x: x1,
+      y: y1,
+      x2: x2 - x1,
+      y2: y2 - y1,
+      stroke,
+      strokeWidth: 2,
+      lineCap: 'round',
+    });
   }
-
-  const points =
-    style === 'smart'
-      ? smartOrthogonalRoute(x1, y1, x2, y2, obstacles)
-      : (() => {
-          const midY = (y1 + y2) / 2;
-          return [x1, y1, x1, midY, x2, midY, x2, y2];
-        })();
-
-  return app.polyline({ points, fill: null, stroke: '#64748b', strokeWidth: 2 });
+  return app.polyline({
+    points,
+    fill: null,
+    stroke,
+    strokeWidth: 2,
+    lineJoin: 'round',
+    lineCap: 'round',
+  });
 }
 
-/** Get anchor point on node edge toward target */
+/** Get anchor point on node edge toward target (ray–box intersection) */
 export function getAnchor(
   node: Node,
   targetX: number,
@@ -137,8 +165,9 @@ export function getAnchor(
   const cy = b.y + b.height / 2;
   const dx = targetX - cx;
   const dy = targetY - cy;
-  if (Math.abs(dx) > Math.abs(dy)) {
-    return { x: dx > 0 ? b.x + b.width : b.x, y: cy };
-  }
-  return { x: cx, y: dy > 0 ? b.y + b.height : b.y };
+  if (dx === 0 && dy === 0) return { x: cx, y: b.y };
+  const hw = Math.max(b.width / 2, 1);
+  const hh = Math.max(b.height / 2, 1);
+  const scale = Math.max(Math.abs(dx) / hw, Math.abs(dy) / hh);
+  return { x: cx + dx / scale, y: cy + dy / scale };
 }

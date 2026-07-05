@@ -82,6 +82,7 @@
   "prepare:website": "node scripts/prepare-website.mjs",
   "dev:website": "npm run prepare:website && vite --config website/vite.config.ts",
   "build:website": "npm run prepare:website && vite build --config website/vite.config.ts",
+  "preview:website": "npm run build:website && vite preview --config website/vite.config.ts --port 4173 --strictPort --host 127.0.0.1",
   "size-gate": "node scripts/size-gate.mjs",
     "lint": "eslint src test --ext .ts",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",

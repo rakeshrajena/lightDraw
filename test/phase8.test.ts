@@ -60,7 +60,7 @@ describe('Phase 8 — Automotive Module', () => {
     const texts = tpms.children.filter((c) => c instanceof TextNode && c.text.match(/^\d+$/)) as TextNode[];
     expect(texts).toHaveLength(4);
     expect(texts[2].fill).toBe('#ef4444');
-    expect(texts[0].fill).toBe('#fff');
+    expect(texts[0].fill).toBe('#ffffff');
     app.destroy();
   });
 

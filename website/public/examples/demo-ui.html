@@ -3,70 +3,145 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LightDraw — UI Components Demo (Phase 6)</title>
+  <title>LightDraw — UI Components</title>
+  <script src="demo-embed.js"></script>
+  <link rel="stylesheet" href="demo-common.css">
   <link rel="stylesheet" href="../lightdraw.min.css">
-  <style>
-    body { font-family: system-ui, sans-serif; background: #f8fafc; margin: 0; color: #0f172a; }
-    header { padding: 1rem 2rem; border-bottom: 1px solid #e2e8f0; background: #fff; }
-    main { padding: 1rem 2rem; }
-    #app { border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; min-height: 560px; }
-    .log { margin-top: 1rem; padding: 0.75rem; background: #1e293b; color: #e2e8f0; border-radius: 6px; font-family: monospace; font-size: 12px; max-height: 120px; overflow: auto; }
-  </style>
 </head>
 <body>
-  <header>
-    <h1>LightDraw.js — Phase 6 UI Components</h1>
-    <p>All 17 interactive components — click, drag, and keyboard accessible</p>
-  </header>
-  <main>
-    <div id="app"></div>
-    <div class="log" id="log">Event log…</div>
-  </main>
+  <div class="demo-shell">
+    <header class="demo-header">
+      <span class="demo-badge">UI Module</span>
+      <h1>Component Library</h1>
+      <p>Production-ready controls out of the box — no custom CSS required. Theme via <code>uiTheme</code> API or optional CSS variables.</p>
+    </header>
+    <main class="demo-main">
+      <div class="demo-canvas-wrap light" id="canvas-wrap">
+        <div id="app"></div>
+      </div>
+      <div class="demo-log" id="log">Event log — interact with components above…</div>
+    </main>
+  </div>
   <script src="../lightdraw.min.js"></script>
   <script>
     const logEl = document.getElementById('log');
     function log(msg) {
-      logEl.textContent = msg + '\n' + logEl.textContent.slice(0, 800);
+      logEl.textContent = msg + '\n' + logEl.textContent.slice(0, 900);
     }
 
-    const app = LightDraw.createApp('#app', {
-      width: 900, height: 560, background: '#ffffff', renderer: 'html',
-    });
+    const CANVAS_H = 580;
+    let app;
 
-    const components = [
-      { type: 'button', props: { label: 'Submit', x: 20, y: 20 } },
-      { type: 'slider', props: { value: 40, x: 20, y: 70, width: 180 } },
-      { type: 'checkbox', props: { label: 'Agree', checked: false, x: 20, y: 110 } },
-      { type: 'toggle', props: { value: true, x: 20, y: 150 } },
-      { type: 'input', props: { value: 'Hello', placeholder: 'Name', x: 20, y: 190, width: 180 } },
-      { type: 'textarea', props: { value: 'Notes…', x: 20, y: 240, width: 180, height: 60 } },
-      { type: 'radio', props: { label: 'Option A', group: 'g1', selected: true, x: 20, y: 320 } },
-      { type: 'radio', props: { label: 'Option B', group: 'g1', x: 20, y: 350 } },
-      { type: 'progressBar', props: { value: 65, x: 240, y: 24, width: 160 } },
-      { type: 'tabs', props: { tabs: ['Home', 'Settings', 'About'], x: 240, y: 60, width: 300 } },
-      { type: 'accordion', props: { x: 240, y: 110, width: 280 } },
-      { type: 'toolbar', props: { buttons: ['New', 'Edit', 'Save'], x: 240, y: 220 } },
-      { type: 'table', props: { x: 240, y: 260, columns: ['Item', 'Qty'], rows: [['Apple', '3'], ['Banana', '5']] } },
-      { type: 'tree', props: { x: 240, y: 360 } },
-      { type: 'menu', props: { items: ['Copy', 'Paste', 'Delete'], x: 560, y: 24, open: true } },
-      { type: 'tooltip', props: { text: 'Hover me', x: 560, y: 160, visible: true } },
-      { type: 'statusBar', props: { segments: ['Ready', 'Ln 1', 'UTF-8'], x: 560, y: 220, width: 300 } },
-      { type: 'toast', props: { message: 'Saved!', x: 560, y: 260, duration: 8000 } },
-      { type: 'dialog', props: { title: 'Confirm', open: true, x: 560, y: 320, width: 280, height: 140, overlayWidth: 900, overlayHeight: 560 } },
-    ];
+    function initApp() {
+      const wrap = document.getElementById('canvas-wrap');
+      const W = Math.max(wrap.clientWidth || 960, 960);
+      const colW = Math.floor((W - 56) / 3);
 
-    app.loadJSON({
-      type: 'group',
-      children: components.map((c) => ({ type: c.type, props: c.props })),
-    });
-
-    app.stage.children.forEach((node) => {
-      ['change', 'select', 'open', 'close', 'input'].forEach((ev) => {
-        node.on(ev, (e) => log(`${node.metadata?.componentType || node.type}: ${ev} ${JSON.stringify(e.value ?? e.item ?? e.index ?? '')}`));
+      if (app) app.destroy();
+      app = LightDraw.createApp('#app', {
+        width: W,
+        height: CANVAS_H,
+        background: '#f1f5f9',
+        renderer: 'html',
       });
-    });
 
-    log('Scene loaded — interact with components above');
+      const c1 = 20;
+      const c2 = 20 + colW + 8;
+      const c3 = 20 + (colW + 8) * 2;
+      const top = 16;
+      const cardH = CANVAS_H - 16;
+
+      const panels = [
+        { type: 'card', props: { x: 12, y: 8, width: colW, height: cardH, title: 'Form Controls' } },
+        { type: 'card', props: { x: 12 + colW + 8, y: 8, width: colW, height: cardH, title: 'Navigation & Data' } },
+        { type: 'card', props: { x: 12 + (colW + 8) * 2, y: 8, width: colW, height: cardH, title: 'Feedback' } },
+      ];
+
+      app.loadJSON({
+        type: 'group',
+        children: [
+          ...panels,
+          { type: 'button', props: { label: 'Save changes', x: c1, y: top + 36, width: 136 } },
+          { type: 'button', props: { label: 'Cancel', x: c1 + 144, y: top + 36, width: 96, variant: 'secondary' } },
+          { type: 'button', props: { label: 'Delete', x: c1, y: top + 76, width: 96, variant: 'danger', size: 'sm' } },
+          { type: 'slider', props: { value: 62, x: c1, y: top + 112, width: colW - 32, label: 'Volume' } },
+          { type: 'checkbox', props: { label: 'Email notifications', checked: true, x: c1, y: top + 168 } },
+          { type: 'toggle', props: { value: true, label: 'Dark mode', x: c1, y: top + 204 } },
+          { type: 'input', props: { label: 'Full name', value: 'Jane Cooper', placeholder: 'Enter name', x: c1, y: top + 244, width: colW - 32 } },
+          { type: 'textarea', props: { label: 'Notes', value: 'Add project notes…', x: c1, y: top + 324, width: colW - 32, height: 72 } },
+          { type: 'radio', props: { label: 'Monthly billing', group: 'plan', selected: true, x: c1, y: top + 414 } },
+          { type: 'radio', props: { label: 'Annual billing', group: 'plan', x: c1, y: top + 446 } },
+
+          { type: 'progressBar', props: { value: 72, label: 'Upload', x: c2, y: top + 36, width: colW - 36 } },
+          { type: 'tabs', props: { tabs: ['Overview', 'Analytics', 'Settings'], x: c2, y: top + 56, width: colW - 28 } },
+          {
+            type: 'accordion',
+            props: {
+              x: c2,
+              y: top + 104,
+              width: colW - 32,
+              sections: [
+                { title: 'General', content: 'Workspace preferences and defaults.' },
+                { title: 'Security', content: 'Two-factor auth and session timeout.' },
+              ],
+            },
+          },
+          { type: 'toolbar', props: { buttons: ['New', 'Edit', 'Save'], x: c2, y: top + 228 } },
+          {
+            type: 'table',
+            props: {
+              x: c2,
+              y: top + 272,
+              colWidth: Math.floor((colW - 36) / 3),
+              columns: ['Product', 'Status', 'Revenue'],
+              rows: [
+                ['Analytics Pro', 'Active', '$12.4k'],
+                ['Dashboard Kit', 'Active', '$8.1k'],
+                ['Diagram Suite', 'Beta', '$2.3k'],
+              ],
+            },
+          },
+          { type: 'tree', props: { x: c2, y: top + 448, width: colW - 36 } },
+
+          { type: 'menu', props: { items: ['Copy', 'Paste', 'Delete'], x: c3, y: top + 36, open: false, width: 160 } },
+          { type: 'tooltip', props: { text: 'Keyboard accessible', x: c3, y: top + 88, visible: false } },
+          { type: 'statusBar', props: { segments: ['Ready', 'UTF-8', 'Ln 42'], x: c3, y: top + 132, width: colW - 36 } },
+          { type: 'toast', props: { message: 'Saved successfully', variant: 'success', x: c3, y: top + 172, duration: 12000 } },
+          {
+            type: 'dialog',
+            props: {
+              title: 'Confirm delete',
+              message: 'This action cannot be undone.',
+              open: false,
+              x: c3,
+              y: top + 232,
+              width: colW - 44,
+              height: 160,
+              overlayWidth: W,
+              overlayHeight: CANVAS_H,
+            },
+          },
+        ],
+      });
+
+      const layer = app.stage.children[0];
+      layer.children.forEach((node) => {
+        if (node.metadata?.componentType === 'card') return;
+        ['change', 'select', 'open', 'close', 'input', 'click'].forEach((ev) => {
+          node.on(ev, (e) =>
+            log(
+              `${node.metadata?.componentType || node.type}: ${ev} ${JSON.stringify(e.value ?? e.item ?? e.index ?? '')}`
+            )
+          );
+        });
+      });
+    }
+
+    initApp();
+    window.addEventListener('resize', () => {
+      clearTimeout(window._ldUiResize);
+      window._ldUiResize = setTimeout(initApp, 150);
+    });
   </script>
 </body>
 </html>

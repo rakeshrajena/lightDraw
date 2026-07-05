@@ -112,6 +112,8 @@ export interface AppOptions {
   autoResize?: boolean;
   accessibility?: boolean;
   highContrast?: boolean;
+  /** Optional design tokens — applied as CSS variables (no custom CSS file needed). */
+  uiTheme?: import('./components/uiTheme').UiThemeTokens;
   performance?: PerformanceOptions;
 }
 

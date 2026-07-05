@@ -2,20 +2,32 @@ import type { App } from '../App';
 import type { Node } from '../Node';
 import { Group } from '../shapes/Group';
 import type { NodeOptions } from '../types';
+import { DIAGRAM } from './theme';
 import {
   applyPositions,
+  autoLayoutNodes,
   createDiagramGroup,
   createNodeBox,
+  measureTextWidth,
   normalizeDiagramData,
   setDiagramState,
 } from './helpers';
+import {
+  createClassNode,
+  createFlowchartNode,
+  createNetworkNode,
+  createOrgNode,
+  createPipelineStage,
+  createStateNode,
+} from './primitives';
 import {
   forceDirectedLayout,
   layoutDiagram,
   pipelineLayout,
   radialLayout,
 } from './layouts';
-import { collectObstacles, getAnchor, routeConnector } from './router';
+import { collectObstacles } from './router';
+import { connectNodes, wireMindMapConnectors, wireOrgChartConnectors } from './connectors';
 import { buildSchematic } from './symbols';
 import type {
   CanNetworkData,
@@ -31,70 +43,36 @@ import type {
 export function createFlowchart(app: App, data: DiagramData, options: NodeOptions = {}): Group {
   const group = createDiagramGroup(app, 'flowchart', { ...options, data }, { name: 'flowchart' });
   const { nodes, edges } = normalizeDiagramData(data);
+  autoLayoutNodes(nodes, 3, 160, 88, 32, 28);
   const nodeMap = new Map<string, Node>();
 
   for (const n of nodes) {
-    const width = 120;
-    const height = 40;
-    const nodeGroup = app.group({ x: n.x ?? 0, y: n.y ?? 0 });
-
-    const shape =
-      n.type === 'decision'
-        ? app.polygon({
-            points: [60, 0, 120, 20, 60, 40, 0, 20],
-            fill: '#dbeafe',
-            stroke: '#2563eb',
-            strokeWidth: 1,
-          })
-        : app.roundedRect({
-            width,
-            height,
-            cornerRadius: n.type === 'start' || n.type === 'end' ? 20 : 4,
-            fill: '#dbeafe',
-            stroke: '#2563eb',
-            strokeWidth: 1,
-          });
-
-    nodeGroup.add(shape);
-    nodeGroup.add(
-      app.text({
-        text: n.label,
-        x: width / 2 - n.label.length * 3,
-        y: height / 2 - 7,
-        fontSize: 12,
-        fill: '#1e40af',
-      })
-    );
+    const nodeGroup = createFlowchartNode(app, n.label, n.type ?? 'process');
+    nodeGroup.x = n.x ?? 0;
+    nodeGroup.y = n.y ?? 0;
     nodeGroup.metadata = { diagramId: n.id };
     nodeMap.set(n.id, nodeGroup);
-    group.add(nodeGroup);
   }
 
+  const edgeLayer = app.group({ zIndex: -10, listening: false }) as Group;
   const obstacles = collectObstacles([...nodeMap.values()]);
   for (const edge of edges) {
     const fromNode = nodeMap.get(edge.from);
     const toNode = nodeMap.get(edge.to);
     if (!fromNode || !toNode) continue;
-
-    const toB = toNode.getBounds();
-    const anchor = getAnchor(fromNode, toB.x + toB.width / 2, toB.y + toB.height / 2);
-    const toAnchor = getAnchor(toNode, anchor.x, anchor.y);
-
-    group.add(
-      routeConnector(app, anchor.x, anchor.y, toAnchor.x, toAnchor.y, 'smart', obstacles)
+    edgeLayer.add(
+      connectNodes(app, fromNode, toNode, obstacles, {
+        parent: group,
+        stroke: DIAGRAM.edge,
+        strokeWidth: 2,
+        label: edge.label,
+      })
     );
+  }
+  group.add(edgeLayer);
 
-    if (edge.label) {
-      group.add(
-        app.text({
-          text: edge.label,
-          x: (anchor.x + toAnchor.x) / 2,
-          y: (anchor.y + toAnchor.y) / 2 - 10,
-          fontSize: 10,
-          fill: '#64748b',
-        })
-      );
-    }
+  for (const nodeGroup of nodeMap.values()) {
+    group.add(nodeGroup);
   }
 
   return group;
@@ -108,81 +86,38 @@ export function createStateMachine(
 ): Group {
   const group = createDiagramGroup(app, 'stateMachine', { ...options, data }, { name: 'stateMachine' });
   const nodeMap = new Map<string, Node>();
-  const radius = 30;
+  const states = data.states.map((s, i) => ({
+    ...s,
+    x: s.x ?? 48 + (i % 4) * 110,
+    y: s.y ?? 48 + Math.floor(i / 4) * 100,
+  }));
 
-  for (const s of data.states) {
-    const isFinal = s.type === 'final';
-    const isInitial = s.type === 'initial';
-    const nodeGroup = app.group({ x: s.x ?? 0, y: s.y ?? 0 });
-
-    if (isFinal) {
-      nodeGroup.add(
-        app.circle({
-          x: radius - 6,
-          y: radius - 6,
-          radius: radius - 4,
-          fill: '#dcfce7',
-          stroke: '#16a34a',
-          strokeWidth: 2,
-        })
-      );
-      nodeGroup.add(
-        app.circle({
-          x: radius - 6,
-          y: radius - 6,
-          radius: radius - 10,
-          fill: null,
-          stroke: '#16a34a',
-          strokeWidth: 2,
-        })
-      );
-    } else {
-      nodeGroup.add(
-        app.roundedRect({
-          width: radius * 2,
-          height: radius * 2,
-          cornerRadius: isInitial ? radius : 8,
-          fill: isInitial ? '#fef9c3' : '#e0e7ff',
-          stroke: isInitial ? '#ca8a04' : '#4f46e5',
-          strokeWidth: 2,
-        })
-      );
-    }
-
-    nodeGroup.add(
-      app.text({
-        text: s.label,
-        x: radius - s.label.length * 3,
-        y: radius - 6,
-        fontSize: 11,
-        fill: '#1e293b',
-      })
-    );
+  for (const s of states) {
+    const nodeGroup = createStateNode(app, s.label, s.type ?? 'normal');
+    nodeGroup.x = s.x ?? 0;
+    nodeGroup.y = s.y ?? 0;
     nodeGroup.metadata = { diagramId: s.id };
     nodeMap.set(s.id, nodeGroup);
-    group.add(nodeGroup);
   }
 
+  const edgeLayer = app.group({ zIndex: -10, listening: false }) as Group;
   const obstacles = collectObstacles([...nodeMap.values()]);
   for (const t of data.transitions) {
     const from = nodeMap.get(t.from);
     const to = nodeMap.get(t.to);
     if (!from || !to) continue;
-    const toB = to.getBounds();
-    const anchor = getAnchor(from, toB.x + toB.width / 2, toB.y + toB.height / 2);
-    const toAnchor = getAnchor(to, anchor.x, anchor.y);
-    group.add(routeConnector(app, anchor.x, anchor.y, toAnchor.x, toAnchor.y, 'smart', obstacles));
-    if (t.label) {
-      group.add(
-        app.text({
-          text: t.label,
-          x: (anchor.x + toAnchor.x) / 2,
-          y: (anchor.y + toAnchor.y) / 2 - 8,
-          fontSize: 10,
-          fill: '#64748b',
-        })
-      );
-    }
+    edgeLayer.add(
+      connectNodes(app, from, to, obstacles, {
+        parent: group,
+        stroke: DIAGRAM.edge,
+        label: t.label,
+      })
+    );
+  }
+  group.add(edgeLayer);
+
+  for (const node of nodeMap.values()) {
+    group.add(node);
   }
 
   return group;
@@ -196,89 +131,51 @@ export function createClassDiagram(
 ): Group {
   const group = createDiagramGroup(app, 'classDiagram', { ...options, data }, { name: 'classDiagram' });
   const nodeMap = new Map<string, Node>();
-  const width = 160;
 
   for (const cls of data.classes) {
-    const attrs = cls.attributes ?? [];
-    const methods = cls.methods ?? [];
-    const bodyLines = attrs.length + methods.length;
-    const height = 40 + bodyLines * 16;
-    const nodeGroup = app.group({ x: cls.x ?? 0, y: cls.y ?? 0 });
-
-    nodeGroup.add(
-      app.roundedRect({
-        width,
-        height,
-        cornerRadius: 2,
-        fill: '#f8fafc',
-        stroke: '#334155',
-        strokeWidth: 1,
-      })
-    );
-    nodeGroup.add(
-      app.text({
-        text: cls.name,
-        x: 8,
-        y: 8,
-        fontSize: 13,
-        fontWeight: 'bold',
-        fill: '#0f172a',
-      })
-    );
-    nodeGroup.add(
-      app.line({ x: 0, y: 28, x2: width, y2: 0, stroke: '#cbd5e1', strokeWidth: 1 })
-    );
-
-    let y = 34;
-    for (const attr of attrs) {
-      nodeGroup.add(app.text({ text: attr, x: 8, y, fontSize: 11, fill: '#475569' }));
-      y += 16;
-    }
-    if (methods.length > 0 && attrs.length > 0) {
-      nodeGroup.add(
-        app.line({ x: 0, y: y - 4, x2: width, y2: 0, stroke: '#cbd5e1', strokeWidth: 1 })
-      );
-    }
-    for (const method of methods) {
-      nodeGroup.add(app.text({ text: method, x: 8, y, fontSize: 11, fill: '#475569' }));
-      y += 16;
-    }
-
+    const nodeGroup = createClassNode(app, cls.name, cls.attributes ?? [], cls.methods ?? []);
+    nodeGroup.x = cls.x ?? 0;
+    nodeGroup.y = cls.y ?? 0;
     nodeGroup.metadata = { diagramId: cls.id };
     nodeMap.set(cls.id, nodeGroup);
     group.add(nodeGroup);
   }
 
+  const edgeLayer = app.group({ zIndex: -10, listening: false }) as Group;
   for (const rel of data.relations) {
     const from = nodeMap.get(rel.from);
     const to = nodeMap.get(rel.to);
     if (!from || !to) continue;
-    const toB = to.getBounds();
-    const anchor = getAnchor(from, toB.x + toB.width / 2, toB.y);
-    const toAnchor = getAnchor(to, anchor.x, anchor.y);
-
     if (rel.type === 'inheritance') {
-      const midX = (anchor.x + toAnchor.x) / 2;
-      group.add(
-        app.polyline({
-          points: [anchor.x, anchor.y, midX, anchor.y, midX, toAnchor.y, toAnchor.x, toAnchor.y],
-          fill: null,
-          stroke: '#334155',
-          strokeWidth: 1.5,
+      edgeLayer.add(
+        connectNodes(app, from, to, [], {
+          parent: group,
+          style: 'orthogonal',
+          stroke: DIAGRAM.classStroke,
+          arrowEnd: 'hollow',
         })
       );
-      group.add(
-        app.polygon({
-          points: [toAnchor.x, toAnchor.y, toAnchor.x - 8, toAnchor.y + 12, toAnchor.x + 8, toAnchor.y + 12],
-          fill: '#f8fafc',
-          stroke: '#334155',
-          strokeWidth: 1.5,
+    } else if (rel.type === 'association') {
+      edgeLayer.add(
+        connectNodes(app, from, to, [], {
+          parent: group,
+          style: 'orthogonal',
+          stroke: DIAGRAM.edge,
+          arrowEnd: 'open',
         })
       );
     } else {
-      group.add(routeConnector(app, anchor.x, anchor.y, toAnchor.x, toAnchor.y, 'orthogonal'));
+      edgeLayer.add(
+        connectNodes(app, from, to, [], {
+          parent: group,
+          style: 'orthogonal',
+          stroke: DIAGRAM.edge,
+          dash: rel.type === 'implements' ? [6, 4] : undefined,
+        })
+      );
     }
   }
+  group.add(edgeLayer);
 
   return group;
 }
@@ -292,32 +189,35 @@ export function createMindMap(
 ): Group {
   const group = createDiagramGroup(app, 'mindMap', { ...options, center, branches }, { name: 'mindMap' });
 
-  const centerNode = createNodeBox(app, center, 100, 50, {
-    fill: '#fef08a',
-    stroke: '#ca8a04',
-    cornerRadius: 25,
+  const centerNode = createNodeBox(app, center, 108, 52, {
+    fill: DIAGRAM.mindCenter.fill,
+    stroke: DIAGRAM.mindCenter.stroke,
+    cornerRadius: 26,
   });
   group.add(centerNode);
 
   for (const branch of branches) {
-    const branchNode = createNodeBox(app, branch.label, 90, 36, {
-      fill: '#e0f2fe',
-      stroke: '#0284c7',
+    const branchNode = createNodeBox(app, branch.label, 96, 38, {
+      fill: DIAGRAM.mindBranch.fill,
+      stroke: DIAGRAM.mindBranch.stroke,
     });
     group.add(branchNode);
 
     if (branch.children) {
-      for (const child of branch.children) {
-        const childNode = createNodeBox(app, child, 80, 30, {
-          fill: '#f1f5f9',
-          stroke: '#94a3b8',
+      branch.children.forEach((child, ci) => {
+        const childNode = createNodeBox(app, child, 84, 32, {
+          fill: DIAGRAM.mindLeaf.fill,
+          stroke: DIAGRAM.mindLeaf.stroke,
         });
+        childNode.x = -12 + ci * 92;
+        childNode.y = 50;
         branchNode.add(childNode);
-      }
+      });
     }
   }
 
-  radialLayout(group, 200, 150, 120, 180);
+  radialLayout(group, 220, 160, 130, 190);
+  wireMindMapConnectors(app, group);
   return group;
 }
 
@@ -329,65 +229,33 @@ export function createNetworkDiagram(
 ): Group {
   const group = createDiagramGroup(app, 'networkTopology', { ...options, data }, { name: 'network' });
   const { nodes, edges } = normalizeDiagramData(data);
+  autoLayoutNodes(nodes, 4, 130, 100, 28, 24);
   const nodeMap = new Map<string, Node>();
 
-  const colors: Record<string, { fill: string; stroke: string }> = {
-    router: { fill: '#dbeafe', stroke: '#2563eb' },
-    server: { fill: '#dcfce7', stroke: '#16a34a' },
-    switch: { fill: '#fef9c3', stroke: '#ca8a04' },
-    client: { fill: '#f3e8ff', stroke: '#9333ea' },
-    default: { fill: '#f1f5f9', stroke: '#64748b' },
-  };
-
   for (const n of nodes) {
-    const style = colors[n.type ?? 'default'] ?? colors.default;
-    const size = n.type === 'router' ? 50 : 40;
-    const nodeGroup = app.group({ x: n.x ?? 0, y: n.y ?? 0 });
-    nodeGroup.add(
-      app.roundedRect({
-        width: size,
-        height: size,
-        cornerRadius: n.type === 'server' ? 4 : size / 2,
-        fill: style.fill,
-        stroke: style.stroke,
-        strokeWidth: 2,
-      })
-    );
-    nodeGroup.add(
-      app.text({
-        text: n.label,
-        x: -10,
-        y: size + 4,
-        fontSize: 10,
-        fill: '#334155',
-      })
-    );
+    const nodeGroup = createNetworkNode(app, n.label, n.type ?? 'default');
+    nodeGroup.x = n.x ?? 0;
+    nodeGroup.y = n.y ?? 0;
     nodeGroup.metadata = { diagramId: n.id };
     nodeMap.set(n.id, nodeGroup);
     group.add(nodeGroup);
   }
 
   const obstacles = collectObstacles([...nodeMap.values()]);
+  const edgeLayer = app.group({ zIndex: -10, listening: false }) as Group;
   for (const edge of edges) {
     const from = nodeMap.get(edge.from);
     const to = nodeMap.get(edge.to);
     if (!from || !to) continue;
-    const toB = to.getBounds();
-    const anchor = getAnchor(from, toB.x + toB.width / 2, toB.y + toB.height / 2);
-    const toAnchor = getAnchor(to, anchor.x, anchor.y);
-    group.add(routeConnector(app, anchor.x, anchor.y, toAnchor.x, toAnchor.y, 'smart', obstacles));
-    if (edge.label) {
-      group.add(
-        app.text({
-          text: edge.label,
-          x: (anchor.x + toAnchor.x) / 2 - 10,
-          y: (anchor.y + toAnchor.y) / 2,
-          fontSize: 9,
-          fill: '#64748b',
-        })
-      );
-    }
+    edgeLayer.add(
+      connectNodes(app, from, to, obstacles, {
+        parent: group,
+        stroke: DIAGRAM.edge,
+        label: edge.label,
+      })
+    );
   }
+  group.add(edgeLayer);
 
   return group;
 }
@@ -400,7 +268,8 @@ export function createOrgChart(
 ): Group {
   const group = createDiagramGroup(app, 'orgChart', { ...options, root }, { name: 'orgChart' });
   buildOrgNode(app, group, root, 0, 0);
-  layoutDiagram(group, 100, 80);
+  layoutDiagram(group, 110, 72);
+  wireOrgChartConnectors(app, group);
   return group;
 }
 
@@ -411,37 +280,20 @@ function buildOrgNode(
   x: number,
   y: number
 ): Group {
-  const node = app.group({ x, y });
-  node.add(
-    app.roundedRect({
-      width: 140,
-      height: 50,
-      cornerRadius: 4,
-      fill: '#f1f5f9',
-      stroke: '#94a3b8',
-      strokeWidth: 1,
-    })
-  );
-  node.add(app.text({ text: data.name, x: 20, y: 16, fontSize: 13, fill: '#334155' }));
-
+  const childCount = data.children?.length ?? 0;
   const collapsed = data.collapsed ?? false;
-  node.metadata = { orgNode: true, collapsed, childCount: data.children?.length ?? 0 };
+  const { node, indicator } = createOrgNode(app, data.name, undefined, childCount, collapsed);
+  node.x = x;
+  node.y = y;
+  node.metadata = { orgNode: true, collapsed, childCount };
 
-  if (data.children && data.children.length > 0) {
-    const indicator = app.text({
-      text: collapsed ? `+${data.children.length}` : '−',
-      x: 120,
-      y: 16,
-      fontSize: 14,
-      fill: '#64748b',
-    });
-    node.add(indicator);
+  if (indicator) {
     node.metadata.collapseIndicator = indicator;
+  }
 
-    if (!collapsed) {
-      for (const child of data.children) {
-        buildOrgNode(app, node, child, 0, 0);
-      }
+  if (data.children && data.children.length > 0 && !collapsed) {
+    for (const child of data.children) {
+      buildOrgNode(app, node, child, 0, 0);
     }
   }
 
@@ -494,55 +346,122 @@ export function createCanNetwork(
   options: NodeOptions = {}
 ): Group {
   const group = createDiagramGroup(app, 'canNetwork', { ...options, data }, { name: 'canNetwork' });
-  const busY = 80;
-  const busWidth = Math.max(400, data.ecus.length * 100);
+  const busY = 72;
+  const busWidth = Math.max(440, data.ecus.length * 110);
+  const busLabel = data.busLabel ?? 'CAN Bus';
 
   group.add(
-    app.line({
-      x: 20,
-      y: busY,
-      x2: busWidth,
-      y2: 0,
-      stroke: '#dc2626',
-      strokeWidth: 4,
+    app.roundedRect({
+      x: 16,
+      y: busY - 3,
+      width: busWidth,
+      height: 6,
+      cornerRadius: 3,
+      fill: DIAGRAM.canBus,
+      stroke: null,
+      shadow: DIAGRAM.shadowSoft,
+      listening: false,
     })
   );
   group.add(
+    app.circle({
+      x: 16,
+      y: busY,
+      radius: 5,
+      fill: DIAGRAM.canTermination,
+      stroke: DIAGRAM.surface,
+      strokeWidth: 2,
+      listening: false,
+    })
+  );
+  group.add(
+    app.circle({
+      x: 16 + busWidth,
+      y: busY,
+      radius: 5,
+      fill: DIAGRAM.canTermination,
+      stroke: DIAGRAM.surface,
+      strokeWidth: 2,
+      listening: false,
+    })
+  );
+  const labelW = measureTextWidth(busLabel, DIAGRAM.fontSize.base, 'bold');
+  group.add(
     app.text({
-      text: data.busLabel ?? 'CAN Bus',
-      x: busWidth / 2 - 30,
-      y: busY - 20,
-      fontSize: 12,
-      fill: '#dc2626',
+      text: busLabel,
+      x: busWidth / 2 - labelW / 2 + 16,
+      y: busY - 24,
+      fontSize: DIAGRAM.fontSize.base,
+      fill: DIAGRAM.edge,
       fontWeight: 'bold',
+      fontFamily: DIAGRAM.fontFamily,
+      listening: false,
     })
   );
 
   const spacing = busWidth / (data.ecus.length + 1);
   for (let i = 0; i < data.ecus.length; i++) {
     const ecu = data.ecus[i];
-    const x = 20 + spacing * (i + 1) - 40;
-    const ecuGroup = app.group({ x, y: busY + 10 });
+    const x = 16 + spacing * (i + 1) - 44;
+    const ecuGroup = app.group({ x, y: busY + 14 });
     ecuGroup.add(
       app.roundedRect({
-        width: 80,
-        height: 50,
-        cornerRadius: 4,
-        fill: '#1e293b',
-        stroke: '#475569',
-        strokeWidth: 1,
+        width: 88,
+        height: 54,
+        cornerRadius: DIAGRAM.radii.md,
+        fill: DIAGRAM.nodeFill,
+        stroke: DIAGRAM.nodeStroke,
+        strokeWidth: 1.5,
+        shadow: DIAGRAM.shadowSoft,
+        listening: false,
       })
     );
     ecuGroup.add(
-      app.text({ text: ecu.label, x: 8, y: 10, fontSize: 11, fill: '#e2e8f0', fontWeight: 'bold' })
+      app.rect({
+        x: 0,
+        y: 0,
+        width: 88,
+        height: 4,
+        fill: DIAGRAM.nodeStroke,
+        listening: false,
+      })
+    );
+    ecuGroup.add(
+      app.text({
+        text: ecu.label,
+        x: DIAGRAM.spacing.sm,
+        y: 12,
+        fontSize: DIAGRAM.fontSize.md,
+        fill: DIAGRAM.nodeText,
+        fontWeight: 'bold',
+        fontFamily: DIAGRAM.fontFamily,
+        listening: false,
+      })
     );
     if (ecu.address) {
       ecuGroup.add(
-        app.text({ text: ecu.address, x: 8, y: 28, fontSize: 9, fill: '#94a3b8' })
+        app.text({
+          text: ecu.address,
+          x: DIAGRAM.spacing.sm,
+          y: 30,
+          fontSize: DIAGRAM.fontSize.xs,
+          fontFamily: DIAGRAM.fontMono,
+          fill: DIAGRAM.edgeLabel,
+          listening: false,
+        })
       );
     }
     ecuGroup.add(
-      app.line({ x: 40, y: 0, x2: 0, y2: -10, stroke: '#dc2626', strokeWidth: 2 })
+      app.line({
+        x: 44,
+        y: 0,
+        x2: 0,
+        y2: -14,
+        stroke: DIAGRAM.canBus,
+        strokeWidth: 2.5,
+        lineCap: 'round',
+        listening: false,
+      })
     );
     ecuGroup.metadata = { diagramId: ecu.id };
     group.add(ecuGroup);
@@ -558,40 +477,29 @@ export function createPipeline(
   options: NodeOptions = {}
 ): Group {
   const group = createDiagramGroup(app, 'processPipeline', { ...options, stages }, { name: 'pipeline' });
-  const statusColors: Record<string, { fill: string; stroke: string }> = {
-    pending: { fill: '#f1f5f9', stroke: '#94a3b8' },
-    active: { fill: '#dbeafe', stroke: '#2563eb' },
-    done: { fill: '#dcfce7', stroke: '#16a34a' },
-    error: { fill: '#fee2e2', stroke: '#dc2626' },
-  };
 
   const stageNodes: Node[] = [];
   for (const stage of stages) {
-    const colors = statusColors[stage.status ?? 'pending'];
-    const node = createNodeBox(app, stage.label, 100, 44, colors);
+    const node = createPipelineStage(app, stage.label, stage.status ?? 'pending');
     node.metadata = { diagramId: stage.id, pipelineStatus: stage.status };
     group.add(node);
     stageNodes.push(node);
   }
 
-  pipelineLayout(group, 50, 10);
+  pipelineLayout(group, 56, 12);
 
+  const edgeLayer = app.group({ zIndex: -10, listening: false }) as Group;
   for (let i = 0; i < stageNodes.length - 1; i++) {
-    const from = stageNodes[i];
-    const to = stageNodes[i + 1];
-    const fb = from.getBounds();
-    const tb = to.getBounds();
-    group.add(
-      routeConnector(
-        app,
-        fb.x + fb.width,
-        fb.y + fb.height / 2,
-        tb.x,
-        tb.y + tb.height / 2,
-        'straight'
-      )
+    edgeLayer.add(
+      connectNodes(app, stageNodes[i], stageNodes[i + 1], [], {
+        parent: group,
+        style: 'straight',
+        stroke: DIAGRAM.edge,
+        arrowEnd: 'filled',
+      })
     );
   }
+  group.add(edgeLayer);
 
   return group;
 }
