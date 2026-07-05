@@ -32,13 +32,13 @@ jobs:
         run: npm audit --production --audit-level=critical
 
       - name: Run unit & integration tests
-        run: vitest run --exclude 'test/perf.test.ts'
+        run: npx vitest run --exclude 'test/perf.test.ts'
 
       - name: Performance regression tests
         run: npm run test:perf
 
       - name: Coverage gate (Phase 12 ≥95%)
-        run: vitest run --coverage --exclude 'test/perf.test.ts'
+        run: npx vitest run --coverage --exclude 'test/perf.test.ts'
 
       - name: Phase 12 release hardening tests
         run: npm run test:phase12
@@ -59,7 +59,7 @@ jobs:
         run: npm run test:memory
 
       - name: Renderer smoke tests
-        run: vitest run test/renderers/
+        run: npx vitest run test/renderers/
 
       - name: Upload coverage
         uses: actions/upload-artifact@v4

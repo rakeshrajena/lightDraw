@@ -25,7 +25,7 @@ jobs:
       - run: npm run lint
       - run: npm run build
       - run: npm run size-gate
-      - run: vitest run --exclude 'test/perf.test.ts'
+      - run: npx vitest run --exclude 'test/perf.test.ts'
       - run: npm run test:phase12
 
       - name: Pack dist for GitHub Release
@@ -42,7 +42,11 @@ jobs:
           body_path: docs/v1-release-notes.md
 
       - name: Publish to npm
-        if: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "NPM_TOKEN secret not set — skipping npm publish"
+            exit 0
+          fi
+          npm publish --access public
