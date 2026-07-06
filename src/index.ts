@@ -50,7 +50,7 @@ import {
 import { svgPlugin, SVGRenderer } from './modules/svg';
 import { htmlPlugin, HTMLRenderer } from './modules/html';
 import { uiPlugin, registerComponent, createComponentFromJSON } from './modules/ui';
-import { dashboardPlugin, registerDashboard, createDashboardFromJSON, animateLiveValue, setLiveValue } from './modules/dashboard';
+import { dashboardPlugin, registerDashboard, createDashboardFromJSON, animateLiveValue, setLiveValue, updateChartProps, pushChartValue, installChartResizeObserver, detachChartResizeObserver } from './modules/dashboard';
 import {
   automotivePlugin,
   registerAutomotive,
@@ -61,8 +61,8 @@ import {
   setAutoValue,
 } from './modules/automotive';
 import { diagramPlugin, Diagram } from './modules/diagram';
-import { applyUiTheme, UI_PRESETS } from './components/uiTheme';
-export type { UiThemeTokens } from './components/uiTheme';
+import { applyUiTheme, resolveUiTheme, UI_PRESETS, UI_THEME_VAR_MAP } from './components/uiTheme';
+export type { UiThemeTokens, UiThemeInput, UiThemePreset } from './components/uiTheme';
 
 export { VERSION };
 
@@ -82,6 +82,10 @@ export const LightDrawFull = Object.assign(LightDraw, {
   createDashboardFromJSON,
   animateLiveValue,
   setLiveValue,
+  updateChartProps,
+  pushChartValue,
+  installChartResizeObserver,
+  detachChartResizeObserver,
   registerAutomotive,
   createAutomotiveFromJSON,
   applyDriveState,
@@ -90,7 +94,9 @@ export const LightDrawFull = Object.assign(LightDraw, {
   setAutoValue,
   Diagram,
   applyUiTheme,
+  resolveUiTheme,
   UI_PRESETS,
+  UI_THEME_VAR_MAP,
 });
 
 export {
@@ -136,14 +142,21 @@ export {
   validateSceneJSON,
   scenesEqual,
   registerComponent,
+  createComponentFromJSON,
   registerDashboard,
+  createDashboardFromJSON,
   registerAutomotive,
+  createAutomotiveFromJSON,
   applyDriveState,
   sampleDriveFrames,
   animateAutoValue,
   setAutoValue,
   animateLiveValue,
   setLiveValue,
+  updateChartProps,
+  pushChartValue,
+  installChartResizeObserver,
+  detachChartResizeObserver,
   createPluginContext,
   getInstalledPlugins,
   Matrix2D,
@@ -157,7 +170,9 @@ export {
   automotivePlugin,
   diagramPlugin,
   applyUiTheme,
+  resolveUiTheme,
   UI_PRESETS,
+  UI_THEME_VAR_MAP,
 };
 
 export { LightDrawFull as LightDraw };

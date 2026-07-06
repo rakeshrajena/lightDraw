@@ -107,7 +107,7 @@ describe('Coverage v0.9 — HTML native components (95% gate)', () => {
     )!;
     const table = createComponentFromJSON(
       'table',
-      { columns: ['Name', 'Value'], rows: [['Alpha', '1'], ['Beta', '2']], x: 10, y: 760 },
+      { columns: ['Name', 'Value'], rows: [['Alpha', '1'], ['Beta', '2']], sortable: true, x: 10, y: 760, width: 280 },
       app
     )!;
     const tree = createComponentFromJSON('tree', { x: 10, y: 900 }, app)!;
@@ -160,6 +160,10 @@ describe('Coverage v0.9 — HTML native components (95% gate)', () => {
     );
     app.render();
 
+    expect(container.querySelector('.lightdraw-dialog-center')).not.toBeNull();
+    expect(container.querySelector('.lightdraw-table-wrap--scroll-x')).not.toBeNull();
+    expect(container.querySelector('.lightdraw-tree-children')).not.toBeNull();
+
     const btnEl = container.querySelector('.lightdraw-btn--secondary') as HTMLButtonElement;
     btnEl?.click();
     const disabledBtn = container.querySelector('.lightdraw-btn--danger') as HTMLButtonElement;
@@ -189,6 +193,12 @@ describe('Coverage v0.9 — HTML native components (95% gate)', () => {
 
     const menuItem = container.querySelector('.lightdraw-menu-item--danger') as HTMLButtonElement;
     menuItem?.click();
+
+    const sortHeader = container.querySelector('.lightdraw-table-th--sortable') as HTMLElement;
+    sortHeader?.click();
+
+    const treeLeaf = container.querySelector('.lightdraw-tree-leaf') as HTMLButtonElement;
+    treeLeaf?.click();
 
     const tipAnchor = container.querySelector('.lightdraw-tooltip-anchor') as HTMLElement;
     tipAnchor?.dispatchEvent(new Event('mouseenter', { bubbles: true }));

@@ -46,12 +46,17 @@ export function createWidgetGroup(
   props: Record<string, unknown>,
   extra: Record<string, unknown> = {}
 ): Group {
+  const w = num(props, 'width', 0) || num(props, 'size', 0);
+  const h = num(props, 'height', 0) || num(props, 'size', 0);
   const group = app.group({
     ...(props as Record<string, unknown>),
     listening: true,
+    ...(w > 0 && h > 0 ? { clip: true } : {}),
     metadata: {
       widgetType: type,
       widgetState: { ...props },
+      ...(w > 0 ? { chartWidth: w } : {}),
+      ...(h > 0 ? { chartHeight: h } : {}),
     },
     ...extra,
   }) as Group;

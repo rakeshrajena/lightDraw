@@ -56,6 +56,11 @@ export function buildDialGauge(
   const format = opts.formatValue ?? ((v: number) => String(Math.round(v)));
   const tickCount = opts.tickCount ?? 8;
 
+  const shadow =
+    size >= 130
+      ? { color: 'rgba(0,0,0,0.4)', blur: Math.min(10, size / 14), offsetX: 0, offsetY: Math.min(3, size / 36) }
+      : undefined;
+
   group.add(
     app.circle({
       x: cx - r - 6,
@@ -64,7 +69,7 @@ export function buildDialGauge(
       fill: style.faceColor ?? '#111827',
       stroke: style.bezelColor ?? style.trackColor,
       strokeWidth: 2,
-      shadow: { color: 'rgba(0,0,0,0.45)', blur: 12, offsetX: 0, offsetY: 4 },
+      shadow,
       listening: false,
     })
   );

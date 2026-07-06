@@ -130,7 +130,15 @@ main {
 }
 
 .demo-frame--tall {
-  height: 680px;
+  height: 720px;
+}
+
+.demo-frame--dashboard {
+  height: 736px;
+}
+
+.demo-frame--ui {
+  height: 800px;
 }
 
 .demo-frame--medium {

@@ -43,41 +43,64 @@ function createGroup(
   return group;
 }
 
+/** Shared canvas surface chrome — consistent radius, border, shadow across UI components */
+function canvasSurface(
+  app: App,
+  width: number,
+  height: number,
+  opts: { radius?: number; elevated?: boolean } = {}
+) {
+  return app.roundedRect({
+    width,
+    height,
+    cornerRadius: opts.radius ?? UI.radius,
+    fill: UI.surface,
+    stroke: UI.border,
+    strokeWidth: 1,
+    shadow: opts.elevated ? UI.shadowLg : UI.shadowSm,
+    listening: false,
+  });
+}
+
 /** Button — hover, active, disabled states */
 registerComponent('button', (props, app) => {
   const width = num(props, 'width', 128);
-  const height = num(props, 'height', UI.controlHeight);
+  const size = str(props, 'size', 'md');
+  const height =
+    size === 'sm' ? 32 : size === 'lg' ? 44 : num(props, 'height', UI.controlHeight);
+  const fontSize = size === 'sm' ? UI.fontSizeSm : size === 'lg' ? UI.fontSizeLg : UI.fontSize;
   const label = str(props, 'label', 'Button');
   const disabled = bool(props, 'disabled', false);
   const variant = str(props, 'variant', 'primary');
   const fill =
     str(props, 'fill', '') ||
-    (variant === 'secondary' ? UI.secondary : variant === 'ghost' ? UI.surface : UI.primary);
+    (variant === 'secondary' ? UI.secondary : variant === 'ghost' ? UI.surface : variant === 'danger' ? UI.danger : UI.primary);
 
   const group = createGroup(app, 'button', props, {
     focusable: !disabled,
     role: 'button',
-    metadata: { componentType: 'button', label, componentState: { label, width, height, disabled, fill, variant } },
+    metadata: { componentType: 'button', label, componentState: { label, width, height, disabled, fill, variant, size } },
   });
-  setState(group, { label, width, height, disabled, fill, variant });
+  setState(group, { label, width, height, disabled, fill, variant, size });
 
-  const textColor = variant === 'ghost' ? UI.textSecondary : UI.textInverse;
+  const textColor =
+    variant === 'ghost' ? UI.textSecondary : variant === 'danger' ? UI.textInverse : UI.textInverse;
   const bg = app.roundedRect({
     width,
     height,
     cornerRadius: UI.radius,
-    fill,
+    fill: disabled ? UI.borderStrong : fill,
     stroke: variant === 'ghost' ? UI.border : null,
     strokeWidth: variant === 'ghost' ? 1 : 0,
-    shadow: variant === 'primary' ? UI.shadowPrimary : UI.shadowSm,
+    shadow: disabled ? null : variant === 'primary' || variant === 'danger' ? UI.shadowPrimary : UI.shadowSm,
   });
   const text = app.text({
     text: label,
-    fontSize: UI.fontSize,
+    fontSize,
     fontWeight: '600',
-    fill: textColor,
+    fill: disabled ? UI.textMuted : textColor,
     x: 0,
-    y: (height - UI.fontSize) / 2,
+    y: (height - fontSize) / 2,
     textAlign: 'center',
   });
   group.add(bg, text);
@@ -91,9 +114,21 @@ registerComponent('button', (props, app) => {
     }
     const base = fill;
     const hoverColor =
-      variant === 'secondary' ? UI.secondaryHover : variant === 'ghost' ? UI.surfaceInset : UI.primaryHover;
+      variant === 'secondary'
+        ? UI.secondaryHover
+        : variant === 'ghost'
+          ? UI.surfaceInset
+          : variant === 'danger'
+            ? '#b91c1c'
+            : UI.primaryHover;
     const activeColor =
-      variant === 'secondary' ? UI.textSecondary : variant === 'ghost' ? UI.surfaceMuted : UI.primaryActive;
+      variant === 'secondary'
+        ? UI.textSecondary
+        : variant === 'ghost'
+          ? UI.surfaceMuted
+          : variant === 'danger'
+            ? '#991b1b'
+            : UI.primaryActive;
     (parts.bg as { fill: string }).fill = active ? activeColor : hover ? hoverColor : base;
     group.getApp()?.requestRender();
   });
@@ -117,37 +152,70 @@ registerComponent('label', (props, app) => {
 registerComponent('card', (props, app) => {
   const width = num(props, 'width', 280);
   const height = num(props, 'height', 160);
+  const title = props.title as string | undefined;
+  const subtitle = str(props, 'subtitle', '');
+  const elevated = bool(props, 'elevated', false);
   const group = createGroup(app, 'card', props);
-  const bg = app.roundedRect({
-    width,
-    height,
-    cornerRadius: UI.radiusLg,
-    fill: UI.surface,
-    stroke: UI.border,
-    strokeWidth: 1,
-    shadow: UI.shadowMd,
-  });
+  const bg = canvasSurface(app, width, height, { radius: UI.radiusLg, elevated });
   group.add(bg);
-  if (props.title) {
+  const headerH = title || subtitle ? 40 : 0;
+  if (headerH > 0) {
     group.add(
-      app.text({
-        text: props.title as string,
-        fontSize: UI.fontSizeLg,
-        fontWeight: 'bold',
-        fill: UI.text,
-        x: 16,
-        y: 16,
+      app.roundedRect({
+        width,
+        height: headerH,
+        cornerRadius: UI.radiusLg,
+        fill: UI.surfaceMuted,
+        stroke: UI.border,
+        strokeWidth: 1,
+        listening: false,
       })
     );
+    if (title) {
+      group.add(
+        app.text({
+          text: String(title).toUpperCase(),
+          fontSize: UI.fontSizeSm,
+          fontWeight: '700',
+          fill: UI.textMuted,
+          x: 16,
+          y: 12,
+          listening: false,
+        })
+      );
+    }
+    if (subtitle) {
+      group.add(
+        app.text({
+          text: subtitle,
+          fontSize: UI.fontSize,
+          fontWeight: '500',
+          fill: UI.textSecondary,
+          x: 16,
+          y: title ? 26 : 12,
+          listening: false,
+        })
+      );
+    }
   }
-  setState(group, { width, height, title: props.title });
+  setState(group, { width, height, title: props.title, subtitle, actions: props.actions, elevated: props.elevated });
   return group;
 });
 
 registerComponent('progressBar', (props, app) => {
   const width = num(props, 'width', 200);
-  const height = num(props, 'height', 8);
+  const size = str(props, 'size', 'md');
+  const height = size === 'lg' ? 12 : size === 'sm' ? 6 : num(props, 'height', 8);
   const value = clamp(num(props, 'value', 0), 0, 100);
+  const variant = str(props, 'variant', 'default');
+  const fillColor =
+    variant === 'success'
+      ? UI.success
+      : variant === 'warning'
+        ? UI.warning
+        : variant === 'danger'
+          ? UI.danger
+          : str(props, 'fill', UI.primary);
   const group = createGroup(app, 'progressBar', props, {
     role: 'progressbar',
     ariaValueNow: value,
@@ -159,12 +227,25 @@ registerComponent('progressBar', (props, app) => {
     width: (width * value) / 100,
     height,
     cornerRadius: height / 2,
-    fill: str(props, 'fill', UI.primary),
+    fill: fillColor,
     listening: false,
   });
   group.add(track, fillBar);
+  if (props.label) {
+    group.add(
+      app.text({
+        text: props.label as string,
+        fontSize: UI.fontSizeSm,
+        fontWeight: '600',
+        fill: UI.textSecondary,
+        x: 0,
+        y: -18,
+        listening: false,
+      })
+    );
+  }
   setParts(group, { track, fillBar });
-  setState(group, { width, height, value, label: props.label, variant: props.variant });
+  setState(group, { width, height, value, label: props.label, variant, size, disabled: props.disabled });
   return group;
 });
 
@@ -207,7 +288,7 @@ registerComponent('slider', (props, app) => {
     group.getApp()?.requestRender();
   };
   updateVisual(value);
-  setState(group, { width, min, max, value, label: props.label });
+  setState(group, { width, min, max, value, label: props.label, disabled: props.disabled, size: props.size });
 
   const setValue = (worldX: number) => {
     const localX = clamp(worldX - group.x, 0, width);
@@ -227,8 +308,9 @@ registerComponent('slider', (props, app) => {
 /** Checkbox — toggle, aria-checked */
 registerComponent('checkbox', (props, app) => {
   const checked = bool(props, 'checked', false);
+  const disabled = bool(props, 'disabled', false);
   const group = createGroup(app, 'checkbox', props, {
-    focusable: true,
+    focusable: !disabled,
     role: 'checkbox',
     ariaChecked: checked,
     metadata: { componentType: 'checkbox', label: props.label ?? 'Checkbox' },
@@ -238,10 +320,10 @@ registerComponent('checkbox', (props, app) => {
     width: 20,
     height: 20,
     cornerRadius: 5,
-    fill: checked ? UI.primary : UI.surface,
-    stroke: checked ? UI.primary : UI.borderStrong,
+    fill: disabled ? UI.surfaceMuted : checked ? UI.primary : UI.surface,
+    stroke: disabled ? UI.border : checked ? UI.primary : UI.borderStrong,
     strokeWidth: 1.5,
-    shadow: checked ? UI.shadowSm : null,
+    shadow: checked && !disabled ? UI.shadowSm : null,
     listening: false,
   });
   const mark = app.text({
@@ -268,7 +350,13 @@ registerComponent('checkbox', (props, app) => {
     );
   }
   setParts(group, { box, mark });
-  setState(group, { checked, label: props.label });
+  setState(group, { checked, label: props.label, disabled, size: props.size });
+
+  if (disabled) {
+    group.opacity = 0.55;
+    group.listening = false;
+    return group;
+  }
 
   wireToggle(group, 'checked', (v) => {
     (box as { fill: string; stroke: string }).fill = v ? UI.primary : UI.surface;
@@ -283,8 +371,9 @@ registerComponent('checkbox', (props, app) => {
 /** Toggle switch */
 registerComponent('toggle', (props, app) => {
   const on = bool(props, 'value', false);
+  const disabled = bool(props, 'disabled', false);
   const group = createGroup(app, 'toggle', props, {
-    focusable: true,
+    focusable: !disabled,
     role: 'switch',
     ariaChecked: on,
     metadata: { componentType: 'toggle', label: props.label ?? 'Toggle' },
@@ -294,7 +383,7 @@ registerComponent('toggle', (props, app) => {
     width: 48,
     height: 26,
     cornerRadius: 13,
-    fill: on ? UI.primary : UI.borderStrong,
+    fill: disabled ? UI.border : on ? UI.primary : UI.borderStrong,
     listening: false,
   });
   const knob = app.circle({
@@ -307,7 +396,13 @@ registerComponent('toggle', (props, app) => {
   });
   group.add(track, knob);
   setParts(group, { track, knob });
-  setState(group, { value: on, label: props.label });
+  setState(group, { value: on, label: props.label, disabled, size: props.size });
+
+  if (disabled) {
+    group.opacity = 0.55;
+    group.listening = false;
+    return group;
+  }
 
   wireToggle(group, 'value', (v) => {
     (track as { fill: string }).fill = v ? UI.primary : UI.borderStrong;
@@ -324,8 +419,10 @@ registerComponent('input', (props, app) => {
   const height = num(props, 'height', UI.inputHeight);
   const value = str(props, 'value', '');
   const placeholder = str(props, 'placeholder', '');
+  const disabled = bool(props, 'disabled', false);
+  const invalid = bool(props, 'invalid', false);
   const group = createGroup(app, 'input', props, {
-    focusable: true,
+    focusable: !disabled,
     role: 'textbox',
     metadata: { componentType: 'input', label: props.label ?? (placeholder || 'Input') },
   });
@@ -333,10 +430,10 @@ registerComponent('input', (props, app) => {
     width,
     height,
     cornerRadius: UI.radius,
-    fill: UI.surface,
-    stroke: UI.border,
-    strokeWidth: 1,
-    shadow: UI.shadowSm,
+    fill: disabled ? UI.surfaceMuted : UI.surface,
+    stroke: invalid ? UI.danger : UI.border,
+    strokeWidth: invalid ? 2 : 1,
+    shadow: disabled ? null : UI.shadowSm,
     listening: false,
   });
   const text = app.text({
@@ -349,7 +446,8 @@ registerComponent('input', (props, app) => {
   });
   group.add(bg, text);
   setParts(group, { bg, text });
-  setState(group, { width, height, value, placeholder, label: props.label });
+  setState(group, { width, height, value, placeholder, label: props.label, disabled, invalid, error: props.error });
+  if (disabled) group.opacity = 0.65;
   return group;
 });
 
@@ -358,8 +456,10 @@ registerComponent('textarea', (props, app) => {
   const width = num(props, 'width', 280);
   const height = num(props, 'height', 96);
   const value = str(props, 'value', '');
+  const disabled = bool(props, 'disabled', false);
+  const invalid = bool(props, 'invalid', false);
   const group = createGroup(app, 'textarea', props, {
-    focusable: true,
+    focusable: !disabled,
     role: 'textbox',
     metadata: { componentType: 'textarea', multiline: true },
   });
@@ -367,10 +467,10 @@ registerComponent('textarea', (props, app) => {
     width,
     height,
     cornerRadius: UI.radius,
-    fill: UI.surface,
-    stroke: UI.border,
-    strokeWidth: 1,
-    shadow: UI.shadowSm,
+    fill: disabled ? UI.surfaceMuted : UI.surface,
+    stroke: invalid ? UI.danger : UI.border,
+    strokeWidth: invalid ? 2 : 1,
+    shadow: disabled ? null : UI.shadowSm,
     listening: false,
   });
   const text = app.text({
@@ -383,16 +483,18 @@ registerComponent('textarea', (props, app) => {
   });
   group.add(bg, text);
   setParts(group, { bg, text });
-  setState(group, { width, height, value, rows: num(props, 'rows', 4), label: props.label, placeholder: props.placeholder });
+  setState(group, { width, height, value, rows: num(props, 'rows', 4), label: props.label, placeholder: props.placeholder, disabled, invalid, error: props.error });
+  if (disabled) group.opacity = 0.65;
   return group;
 });
 
 /** Radio — group selection via metadata.group */
 registerComponent('radio', (props, app) => {
   const selected = bool(props, 'selected', false);
+  const disabled = bool(props, 'disabled', false);
   const groupName = str(props, 'group', 'default');
   const group = createGroup(app, 'radio', props, {
-    focusable: true,
+    focusable: !disabled,
     role: 'radio',
     ariaChecked: selected,
     metadata: { componentType: 'radio', group: groupName, label: props.label },
@@ -402,8 +504,8 @@ registerComponent('radio', (props, app) => {
     x: 10,
     y: 10,
     radius: 10,
-    fill: UI.surface,
-    stroke: selected ? UI.primary : UI.borderStrong,
+    fill: disabled ? UI.surfaceMuted : UI.surface,
+    stroke: disabled ? UI.border : selected ? UI.primary : UI.borderStrong,
     strokeWidth: selected ? 2 : 1.5,
     listening: false,
   });
@@ -428,7 +530,13 @@ registerComponent('radio', (props, app) => {
     );
   }
   setParts(group, { outer, inner });
-  setState(group, { selected, group: groupName, label: props.label });
+  setState(group, { selected, group: groupName, label: props.label, disabled, size: props.size });
+
+  if (disabled) {
+    group.opacity = 0.55;
+    group.listening = false;
+    return group;
+  }
 
   group.on('click', () => {
     setState(group, { selected: true });
@@ -445,31 +553,67 @@ registerComponent('radio', (props, app) => {
 /** Tooltip — show on hover/focus */
 registerComponent('tooltip', (props, app) => {
   const text = str(props, 'text', 'Tooltip');
+  const anchor = str(props, 'anchor', 'Hover me');
+  const placement = str(props, 'placement', 'bottom');
+  const delay = num(props, 'delay', 0);
   const group = createGroup(app, 'tooltip', props, { visible: bool(props, 'visible', false), listening: true });
   const pad = 10;
   const tw = text.length * 7 + pad * 2;
+  const bubbleY = placement === 'top' ? -36 : placement === 'right' ? 4 : 28;
+  const bubbleX = placement === 'right' ? anchor.length * 7 + 12 : 0;
+  const anchorText = app.text({
+    text: anchor,
+    fontSize: UI.fontSize,
+    fill: UI.primary,
+    x: 0,
+    y: 4,
+    listening: false,
+  });
   const bg = app.roundedRect({
     width: tw,
     height: 32,
     cornerRadius: UI.radiusSm,
     fill: '#1e293b',
     shadow: UI.shadowMd,
+    x: bubbleX,
+    y: bubbleY,
     listening: false,
+    visible: group.visible,
   });
-  const label = app.text({ text, fontSize: UI.fontSizeSm, fill: UI.textInverse, x: pad, y: 8, listening: false });
-  group.add(bg, label);
-  setState(group, { text, visible: group.visible });
+  const label = app.text({
+    text,
+    fontSize: UI.fontSizeSm,
+    fill: UI.textInverse,
+    x: bubbleX + pad,
+    y: bubbleY + 8,
+    listening: false,
+    visible: group.visible,
+  });
+  group.add(anchorText, bg, label);
+  setState(group, { text, anchor, placement, delay, visible: group.visible });
 
-  group.on('mouseenter', () => {
+  let delayTimer: ReturnType<typeof setTimeout> | undefined;
+  const show = () => {
     group.visible = true;
+    bg.visible = true;
+    label.visible = true;
     group.getApp()?.requestRender();
     group.emit('open', syntheticEvent('open', group));
-  });
-  group.on('mouseleave', () => {
+  };
+  const hide = () => {
+    if (delayTimer !== undefined) clearTimeout(delayTimer);
     group.visible = false;
+    bg.visible = false;
+    label.visible = false;
     group.getApp()?.requestRender();
     group.emit('close', syntheticEvent('close', group));
+  };
+
+  group.on('mouseenter', () => {
+    if (delay <= 0) show();
+    else delayTimer = setTimeout(show, delay);
   });
+  group.on('mouseleave', hide);
 
   return group;
 });
@@ -477,10 +621,11 @@ registerComponent('tooltip', (props, app) => {
 /** Menu / Dropdown */
 registerComponent('menu', (props, app) => {
   const items = (props.items as string[]) ?? ['Item 1', 'Item 2', 'Item 3'];
+  const variants = (props.itemVariants as string[]) ?? [];
   const open = bool(props, 'open', false);
   const rowH = 32;
   const width = num(props, 'width', 180);
-  const height = items.length * rowH + 12;
+  const height = Math.min(items.length * rowH + 12, 248);
 
   const group = createGroup(app, 'menu', props, {
     focusable: true,
@@ -500,6 +645,9 @@ registerComponent('menu', (props, app) => {
     listening: false,
   });
   group.add(bg);
+  const isDanger = (item: string, i: number) =>
+    variants[i] === 'danger' ||
+    ['delete', 'remove', 'danger'].includes(item.toLowerCase());
   items.forEach((item, i) => {
     group.add(
       app.text({
@@ -507,12 +655,12 @@ registerComponent('menu', (props, app) => {
         x: 14,
         y: 10 + i * rowH,
         fontSize: UI.fontSize,
-        fill: UI.text,
+        fill: isDanger(item, i) ? UI.danger : UI.text,
         listening: false,
       })
     );
   });
-  setState(group, { items, open, width, selectedIndex: -1, triggerLabel: props.triggerLabel });
+  setState(group, { items, open, width, selectedIndex: -1, triggerLabel: props.triggerLabel, itemVariants: variants });
 
   group.on('click', (e: { stopPropagation?: () => void }) => {
     if (!group.visible) {
@@ -592,7 +740,15 @@ registerComponent('dialog', (props, app) => {
   });
   group.add(overlay, panel, titleText, divider, bodyText);
   setParts(group, { overlay, panel, titleText });
-  setState(group, { open, title, width, height });
+  setState(group, {
+    open,
+    title,
+    message: str(props, 'message', 'Are you sure you want to continue?'),
+    width,
+    height,
+    overlayWidth: num(props, 'overlayWidth', 800),
+    overlayHeight: num(props, 'overlayHeight', 600),
+  });
 
   if (open) trapFocusIn(group);
 
@@ -631,9 +787,20 @@ registerComponent('tabs', (props, app) => {
       width,
       height: tabH + 4,
       cornerRadius: UI.radius,
-      fill: UI.surfaceInset,
+      fill: UI.surface,
       stroke: UI.border,
       strokeWidth: 1,
+      listening: false,
+    })
+  );
+  group.add(
+    app.roundedRect({
+      width: tabW - 8,
+      height: 2,
+      x: activeTab * tabW + 4,
+      y: tabH + 1,
+      cornerRadius: 1,
+      fill: UI.primary,
       listening: false,
     })
   );
@@ -641,16 +808,6 @@ registerComponent('tabs', (props, app) => {
     const tab = app.group({ x: i * tabW + 4, y: 2, listening: true, focusable: true, metadata: { tabIndex: i } });
     const active = i === activeTab;
     tab.add(
-      app.roundedRect({
-        width: tabW - 8,
-        height: tabH,
-        cornerRadius: UI.radiusSm,
-        fill: active ? UI.surface : 'transparent',
-        stroke: active ? UI.border : null,
-        strokeWidth: active ? 1 : 0,
-        shadow: active ? UI.shadowSm : null,
-        listening: false,
-      }),
       app.text({
         text: label,
         fontSize: UI.fontSize,
@@ -737,27 +894,20 @@ registerComponent('table', (props, app) => {
     ['Row B', '2'],
   ];
   const colW = num(props, 'colWidth', 100);
+  const width = num(props, 'width', colW * columns.length);
   const rowH = 36;
-  const tableW = colW * columns.length;
   const tableH = rowH * (rows.length + 1);
+  const sortable = bool(props, 'sortable', false);
+  const sortColumn = num(props, 'sortColumn', -1);
+  const sortDirection = str(props, 'sortDirection', 'asc');
+  const selectedRow = num(props, 'selectedRow', -1);
   const group = createGroup(app, 'table', props, { focusable: true, role: 'grid' });
 
-  group.add(
-    app.roundedRect({
-      width: tableW,
-      height: tableH,
-      cornerRadius: UI.radius,
-      fill: UI.surface,
-      stroke: UI.border,
-      strokeWidth: 1,
-      shadow: UI.shadowSm,
-      listening: false,
-    })
-  );
+  group.add(canvasSurface(app, width, tableH, { radius: UI.radius }));
 
   group.add(
     app.rect({
-      width: tableW,
+      width,
       height: rowH,
       fill: UI.surfaceMuted,
       stroke: null,
@@ -766,14 +916,16 @@ registerComponent('table', (props, app) => {
   );
 
   columns.forEach((col, ci) => {
+    const sorted = sortable && sortColumn === ci;
+    const arrow = sorted ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : sortable ? ' ⇅' : '';
     group.add(
       app.text({
-        text: col.toUpperCase(),
+        text: col.toUpperCase() + arrow,
         x: ci * colW + 14,
         y: 10,
         fontSize: UI.fontSizeSm,
         fontWeight: 'bold',
-        fill: UI.textMuted,
+        fill: sorted ? UI.primary : UI.textMuted,
         listening: false,
       })
     );
@@ -781,14 +933,27 @@ registerComponent('table', (props, app) => {
 
   rows.forEach((row, ri) => {
     const rowY = (ri + 1) * rowH;
-    if (ri % 2 === 1) {
+    const zebra = ri % 2 === 1;
+    const selected = ri === selectedRow;
+    if (zebra || selected) {
       group.add(
         app.rect({
-          width: tableW,
+          width,
           height: rowH,
           y: rowY,
-          fill: UI.surfaceMuted,
-          opacity: 0.5,
+          fill: selected ? UI.primarySubtle : UI.surfaceMuted,
+          opacity: selected ? 1 : 0.5,
+          listening: false,
+        })
+      );
+    }
+    if (selected) {
+      group.add(
+        app.rect({
+          width: 3,
+          height: rowH,
+          y: rowY,
+          fill: UI.primary,
           listening: false,
         })
       );
@@ -801,7 +966,7 @@ registerComponent('table', (props, app) => {
           x: ci * colW + 14,
           y: 10,
           fontSize: UI.fontSize,
-          fill: UI.text,
+          fill: selected ? UI.primary : UI.text,
           listening: false,
         })
       );
@@ -814,7 +979,18 @@ registerComponent('table', (props, app) => {
     group.add(rowGroup);
   });
 
-  setState(group, { columns, rows, selectedRow: -1 });
+  setState(group, {
+    columns,
+    rows,
+    selectedRow,
+    colWidth: colW,
+    width,
+    sortable,
+    sortColumn,
+    sortDirection,
+    stickyHeader: bool(props, 'stickyHeader', true),
+    maxHeight: num(props, 'maxHeight', 0),
+  });
   return group;
 });
 
@@ -823,50 +999,133 @@ registerComponent('tree', (props, app) => {
   const nodes = (props.nodes as { label: string; children?: { label: string }[] }[]) ?? [
     { label: 'Root', children: [{ label: 'Child A' }, { label: 'Child B' }] },
   ];
-  const expanded = new Set<number>([0]);
+  const expanded = new Set<number>((props.expanded as number[]) ?? [0]);
+  const selectedNode = str(props, 'selectedNode', '');
+  const width = num(props, 'width', 220);
   const group = createGroup(app, 'tree', props, { focusable: true, role: 'tree' });
-  let y = 0;
+  let y = 4;
 
   nodes.forEach((node, i) => {
-    const header = app.group({ x: 0, y, listening: true });
-    header.add(app.text({ text: (expanded.has(i) ? '▼  ' : '▶  ') + node.label, fontSize: UI.fontSize, fontWeight: '600', fill: UI.text, listening: false }));
+    const parentKey = `p${i}`;
+    const parentSelected = selectedNode === parentKey;
+    const header = app.group({ x: 0, y, listening: true, metadata: { treeKey: parentKey } });
+    if (parentSelected) {
+      header.add(
+        app.roundedRect({
+          width,
+          height: 24,
+          cornerRadius: UI.radiusSm,
+          fill: UI.primarySubtle,
+          listening: false,
+        })
+      );
+    }
+    header.add(
+      app.text({
+        text: (expanded.has(i) ? '▾  ' : '▸  ') + node.label,
+        fontSize: UI.fontSize,
+        fontWeight: '600',
+        fill: parentSelected ? UI.primary : UI.text,
+        x: 8,
+        y: 4,
+        listening: false,
+      })
+    );
     header.on('click', () => {
       if (expanded.has(i)) expanded.delete(i);
       else expanded.add(i);
-      setState(group, { expanded: Array.from(expanded) });
+      setState(group, { expanded: Array.from(expanded), selectedNode: parentKey });
       group.emit('change', syntheticEvent('change', group, { value: i }));
       group.getApp()?.requestRender();
     });
     group.add(header);
-    y += 24;
+    y += 26;
     if (expanded.has(i) && node.children) {
-      node.children.forEach((child) => {
-        group.add(
+      group.add(
+        app.rect({
+          x: 10,
+          y,
+          width: 1,
+          height: node.children.length * 22,
+          fill: UI.border,
+          listening: false,
+        })
+      );
+      node.children.forEach((child, ci) => {
+        const key = `${parentKey}.c${ci}`;
+        const leafSelected = selectedNode === key;
+        const leaf = app.group({ x: 18, y, listening: true, metadata: { treeKey: key } });
+        if (leafSelected) {
+          leaf.add(
+            app.roundedRect({
+              width: width - 22,
+              height: 22,
+              cornerRadius: UI.radiusSm,
+              fill: UI.primarySubtle,
+              listening: false,
+            })
+          );
+          leaf.add(
+            app.rect({
+              width: 3,
+              height: 22,
+              fill: UI.primary,
+              listening: false,
+            })
+          );
+        }
+        leaf.add(
           app.text({
-            text: '    ' + child.label,
-            x: 8,
-            y,
+            text: child.label,
+            x: leafSelected ? 10 : 8,
+            y: 4,
             fontSize: UI.fontSize,
-            fill: UI.textSecondary,
+            fill: leafSelected ? UI.primary : UI.textSecondary,
             listening: false,
           })
         );
+        leaf.on('click', (e: { stopPropagation?: () => void }) => {
+          e.stopPropagation?.();
+          setState(group, { selectedNode: key });
+          group.emit('select', syntheticEvent('select', group, { item: child.label, value: key }));
+          group.getApp()?.requestRender();
+        });
+        group.add(leaf);
         y += 22;
       });
     }
   });
 
-  setState(group, { nodes, expanded: Array.from(expanded) });
+  setState(group, { nodes, expanded: Array.from(expanded), selectedNode, width });
   return group;
 });
 
 /** Toolbar */
 registerComponent('toolbar', (props, app) => {
-  const buttons = (props.buttons as string[]) ?? ['New', 'Open', 'Save'];
+  const rawItems = (props.items as (string | null)[]) ?? (props.buttons as string[]) ?? ['New', 'Open', 'Save'];
+  const icons = (props.icons as string[]) ?? [];
   const group = createGroup(app, 'toolbar', props, { focusable: true, role: 'toolbar' });
   let x = 0;
-  buttons.forEach((label) => {
-    const btnW = Math.max(label.length * 8 + 24, 68);
+  let iconIdx = 0;
+  rawItems.forEach((item) => {
+    if (item === '|' || item === null) {
+      group.add(
+        app.rect({
+          x: x + 2,
+          y: 6,
+          width: 1,
+          height: 20,
+          fill: UI.border,
+          listening: false,
+        })
+      );
+      x += 8;
+      return;
+    }
+    const icon = icons[iconIdx] ? `${icons[iconIdx]} ` : '';
+    iconIdx += 1;
+    const label = item;
+    const btnW = Math.max((icon + label).length * 8 + 24, 68);
     const btn = createGroup(app, 'button', { label, width: btnW, height: 32, variant: 'ghost' }, { x, y: 0, focusable: true, role: 'button' });
     btn.add(
       app.roundedRect({
@@ -880,7 +1139,7 @@ registerComponent('toolbar', (props, app) => {
         listening: false,
       }),
       app.text({
-        text: label,
+        text: icon + label,
         fontSize: UI.fontSizeSm,
         fontWeight: '600',
         fill: UI.textSecondary,
@@ -893,16 +1152,25 @@ registerComponent('toolbar', (props, app) => {
       group.emit('select', syntheticEvent('select', group, { item: label }));
     });
     group.add(btn);
-    x += btnW + 6;
+    x += btnW + 4;
   });
-  setState(group, { buttons });
+  setState(group, { buttons: rawItems.filter((i) => i && i !== '|') as string[], items: rawItems, icons, width: props.width });
   return group;
 });
 
 /** Toast / Notification */
 registerComponent('toast', (props, app) => {
   const message = str(props, 'message', 'Notification');
+  const variant = str(props, 'variant', 'success');
+  const position = str(props, 'position', '');
+  const dismissible = bool(props, 'dismissible', true);
   const duration = num(props, 'duration', 3000);
+  const fills: Record<string, string> = {
+    success: '#1e293b',
+    error: '#450a0a',
+    warning: '#451a03',
+    info: '#0c2340',
+  };
   const group = createGroup(app, 'toast', props, {
     role: 'status',
     ariaLive: 'polite',
@@ -914,13 +1182,13 @@ registerComponent('toast', (props, app) => {
       width: tw,
       height: 40,
       cornerRadius: UI.radius,
-      fill: '#1e293b',
+      fill: fills[variant] ?? fills.success,
       shadow: UI.shadowLg,
       listening: false,
     }),
     app.text({ text: message, fontSize: UI.fontSize, fill: UI.textInverse, x: 16, y: 11, listening: false })
   );
-  setState(group, { message, duration, variant: props.variant ?? 'success' });
+  setState(group, { message, duration, variant, position, dismissible });
   group.emit('open', syntheticEvent('open', group));
   scheduleAutoDismiss(group, duration, () => {
     group.visible = false;
@@ -933,6 +1201,8 @@ registerComponent('statusBar', (props, app) => {
   const segments = (props.segments as string[]) ?? ['Ready', 'Line 1', 'UTF-8'];
   const width = num(props, 'width', 400);
   const height = 28;
+  const primaryIndex = num(props, 'primaryIndex', 0);
+  const mono = bool(props, 'mono', false);
   const group = createGroup(app, 'statusBar', props, { role: 'status' });
   group.add(
     app.rect({
@@ -946,17 +1216,31 @@ registerComponent('statusBar', (props, app) => {
   );
   const segW = width / segments.length;
   segments.forEach((seg, i) => {
+    if (i === primaryIndex) {
+      group.add(
+        app.rect({
+          x: i * segW,
+          y: 0,
+          width: segW,
+          height,
+          fill: 'rgba(59, 130, 246, 0.2)',
+          listening: false,
+        })
+      );
+    }
     group.add(
       app.text({
         text: seg,
         x: i * segW + 12,
         y: 6,
-        fontSize: UI.fontSizeSm,
-        fill: '#94a3b8',
+        fontSize: mono ? 11 : UI.fontSizeSm,
+        fontFamily: mono ? 'monospace' : UI.font,
+        fontWeight: i === primaryIndex ? '600' : '500',
+        fill: i === primaryIndex ? '#e2e8f0' : '#94a3b8',
         listening: false,
       })
     );
   });
-  setState(group, { segments, width });
+  setState(group, { segments, width, primaryIndex, mono });
   return group;
 });

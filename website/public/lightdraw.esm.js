@@ -1562,6 +1562,7 @@ var Arc = class extends Node {
     super("arc", options);
     this.counterClockwise = false;
     this.radius = options.radius ?? 50;
+    this.innerRadius = options.innerRadius ?? 0;
     this.startAngle = options.startAngle ?? 0;
     this.endAngle = options.endAngle ?? Math.PI * 1.5;
     this.counterClockwise = options.counterClockwise ?? false;
@@ -1572,12 +1573,19 @@ var Arc = class extends Node {
     const dx = localX - cx;
     const dy = localY - cy;
     const dist = Math.hypot(dx, dy);
-    if (dist > this.radius)
+    if (dist > this.radius || dist < this.innerRadius)
       return false;
     let angle = Math.atan2(dy, dx);
-    if (angle < 0)
-      angle += Math.PI * 2;
-    return angle >= this.startAngle && angle <= this.endAngle;
+    const start = this.startAngle;
+    const end = this.endAngle;
+    if (this.counterClockwise) {
+      if (start >= end)
+        return angle <= start && angle >= end;
+      return angle <= start || angle >= end;
+    }
+    if (end >= start)
+      return angle >= start && angle <= end;
+    return angle >= start || angle <= end;
   }
   getBounds() {
     return { x: 0, y: 0, width: this.radius * 2, height: this.radius * 2 };
@@ -1588,6 +1596,7 @@ var Arc = class extends Node {
   getShapeProps() {
     return {
       radius: this.radius,
+      innerRadius: this.innerRadius,
       startAngle: this.startAngle,
       endAngle: this.endAngle,
       counterClockwise: this.counterClockwise
@@ -1889,6 +1898,26 @@ function beginShapeClip(ctx, node) {
       node.endAngle,
       node.counterClockwise
     );
+  } else if ("children" in node) {
+    const g = node;
+    if (g.children.length === 0) {
+      ctx.rect(0, 0, 0, 0);
+    } else {
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      for (const child of g.children) {
+        const b = child.getBounds();
+        const x0 = child.x + b.x;
+        const y0 = child.y + b.y;
+        minX = Math.min(minX, x0);
+        minY = Math.min(minY, y0);
+        maxX = Math.max(maxX, x0 + b.width);
+        maxY = Math.max(maxY, y0 + b.height);
+      }
+      ctx.rect(minX, minY, maxX - minX, maxY - minY);
+    }
   } else {
     const b = node.getBounds();
     ctx.rect(b.x, b.y, b.width, b.height);
@@ -2033,6 +2062,37 @@ function isBatchableRect(node) {
   return node instanceof Rect && !node.clip && !node.mask && !node.shadow && node.rotation === 0 && node.skewX === 0 && node.skewY === 0 && node.scaleX === 1 && node.scaleY === 1 && node.cornerRadius === 0 && !node.stroke;
 }
 
+// src/renderers/arcSector.ts
+function arcSectorPath(cx, cy, outerR, startAngle, endAngle, innerR = 0, counterClockwise = false) {
+  const sweep = counterClockwise ? 0 : 1;
+  const large = Math.abs(endAngle - startAngle) > Math.PI ? 1 : 0;
+  const ox1 = cx + outerR * Math.cos(startAngle);
+  const oy1 = cy + outerR * Math.sin(startAngle);
+  const ox2 = cx + outerR * Math.cos(endAngle);
+  const oy2 = cy + outerR * Math.sin(endAngle);
+  if (innerR > 0 && innerR < outerR) {
+    const ix1 = cx + innerR * Math.cos(endAngle);
+    const iy1 = cy + innerR * Math.sin(endAngle);
+    const ix2 = cx + innerR * Math.cos(startAngle);
+    const iy2 = cy + innerR * Math.sin(startAngle);
+    const innerSweep = counterClockwise ? 1 : 0;
+    return `M ${ox1} ${oy1} A ${outerR} ${outerR} 0 ${large} ${sweep} ${ox2} ${oy2} L ${ix1} ${iy1} A ${innerR} ${innerR} 0 ${large} ${innerSweep} ${ix2} ${iy2} Z`;
+  }
+  return `M ${cx} ${cy} L ${ox1} ${oy1} A ${outerR} ${outerR} 0 ${large} ${sweep} ${ox2} ${oy2} Z`;
+}
+function traceArcSector(ctx, cx, cy, outerR, startAngle, endAngle, innerR = 0, counterClockwise = false) {
+  ctx.beginPath();
+  if (innerR > 0 && innerR < outerR) {
+    ctx.arc(cx, cy, outerR, startAngle, endAngle, counterClockwise);
+    ctx.arc(cx, cy, innerR, endAngle, startAngle, !counterClockwise);
+    ctx.closePath();
+  } else {
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, outerR, startAngle, endAngle, counterClockwise);
+    ctx.closePath();
+  }
+}
+
 // src/utils/a11y.ts
 var HC_PALETTE = {
   bg: "#000000",
@@ -2148,6 +2208,7 @@ var CanvasRenderer = class extends Renderer {
     this.canvas.remove();
   }
   drawGroup(group) {
+    group.sortChildren();
     if (this.layerCacheEnabled && group.cacheAsBitmap && !isSubtreeDirty(group) && this.layerCache.isValid(group)) {
       const entry = this.layerCache.get(group);
       this.ctx.drawImage(entry.canvas, 0, 0);
@@ -2172,6 +2233,7 @@ var CanvasRenderer = class extends Renderer {
     }
   }
   drawGroupBatched(group) {
+    group.sortChildren();
     let batch = [];
     let batchKey = "";
     const flush = () => {
@@ -2348,13 +2410,14 @@ var CanvasRenderer = class extends Renderer {
   }
   drawArc(node) {
     const ctx = this.ctx;
-    ctx.beginPath();
-    ctx.arc(
+    traceArcSector(
+      ctx,
       node.radius,
       node.radius,
       node.radius,
       node.startAngle,
       node.endAngle,
+      node.innerRadius,
       node.counterClockwise
     );
     this.fillAndStroke(ctx, node.fill, node.stroke, node.strokeWidth, node.dash, node.dashOffset, node.lineCap, node.lineJoin);
@@ -2669,7 +2732,7 @@ var EventManager = class {
       const handler = (e) => this.handleEvent(type, e);
       this.boundHandlers[type] = handler;
       this.element.addEventListener(type, handler, {
-        passive: type === "touchmove" || type === "wheel"
+        passive: type === "touchmove"
       });
     }
   }
@@ -2795,7 +2858,30 @@ var EventManager = class {
     }
     if (type === "wheel") {
       const wheelEvent = originalEvent;
-      this.app.camera.pan(wheelEvent.deltaX / this.app.camera.zoom, wheelEvent.deltaY / this.app.camera.zoom);
+      const hit2 = this.app.hitTest(world.x, world.y);
+      const target2 = hit2?.node ?? null;
+      let handled = false;
+      if (target2) {
+        const event = createEvent("wheel", target2, originalEvent, x, y, world.x, world.y);
+        let current = target2;
+        while (current) {
+          if (current.listening) {
+            event.currentTarget = current;
+            current.emit("wheel", event);
+            if (event.propagationStopped) {
+              handled = true;
+              break;
+            }
+          }
+          current = current.parent;
+        }
+      }
+      if (!handled) {
+        this.app.camera.pan(wheelEvent.deltaX / this.app.camera.zoom, wheelEvent.deltaY / this.app.camera.zoom);
+      } else {
+        wheelEvent.preventDefault();
+      }
+      return;
     }
   }
   handleKeydown(e) {
@@ -3114,12 +3200,16 @@ function bindApp2(node, app) {
   }
 }
 function createWidgetGroup(app, type, props, extra = {}) {
+  const w = num2(props, "width", 0) || num2(props, "size", 0);
+  const h = num2(props, "height", 0) || num2(props, "size", 0);
   const group = app.group({
     ...props,
     listening: true,
     metadata: {
       widgetType: type,
-      widgetState: { ...props }
+      widgetState: { ...props },
+      ...w > 0 ? { chartWidth: w } : {},
+      ...h > 0 ? { chartHeight: h } : {}
     },
     ...extra
   });
@@ -4537,6 +4627,21 @@ var SVGRenderer = class extends Renderer {
       el = document.createElementNS(ns, "polygon");
       el.setAttribute("points", this.starPoints(node));
       this.applyStyle(node, el);
+    } else if (node instanceof Arc) {
+      el = document.createElementNS(ns, "path");
+      el.setAttribute(
+        "d",
+        arcSectorPath(
+          node.radius,
+          node.radius,
+          node.radius,
+          node.startAngle,
+          node.endAngle,
+          node.innerRadius,
+          node.counterClockwise
+        )
+      );
+      this.applyStyle(node, el);
     } else if (node instanceof ImageNode) {
       el = document.createElementNS(ns, "image");
       el.setAttribute("href", node.src);
@@ -4562,6 +4667,20 @@ var SVGRenderer = class extends Renderer {
       el.setAttribute("font-size", String(node.fontSize));
     } else if (node instanceof Path) {
       el.setAttribute("d", node.d);
+      this.applyStyle(node, el);
+    } else if (node instanceof Arc) {
+      el.setAttribute(
+        "d",
+        arcSectorPath(
+          node.radius,
+          node.radius,
+          node.radius,
+          node.startAngle,
+          node.endAngle,
+          node.innerRadius,
+          node.counterClockwise
+        )
+      );
       this.applyStyle(node, el);
     } else {
       this.applyStyle(node, el);
@@ -5015,6 +5134,145 @@ var SpatialIndex = class {
   }
 };
 
+// src/components/uiTheme.ts
+var UI_THEME_VAR_MAP = {
+  primary: "--ld-primary",
+  primaryHover: "--ld-primary-hover",
+  primaryActive: "--ld-primary-active",
+  primarySubtle: "--ld-primary-subtle",
+  secondary: "--ld-secondary",
+  secondaryHover: "--ld-secondary-hover",
+  danger: "--ld-danger",
+  dangerSubtle: "--ld-danger-subtle",
+  success: "--ld-success",
+  successSubtle: "--ld-success-subtle",
+  warning: "--ld-warning",
+  warningSubtle: "--ld-warning-subtle",
+  surface: "--ld-surface",
+  surfaceMuted: "--ld-surface-muted",
+  surfaceInset: "--ld-surface-inset",
+  overlay: "--ld-overlay",
+  border: "--ld-border",
+  borderStrong: "--ld-border-strong",
+  text: "--ld-text",
+  textSecondary: "--ld-text-secondary",
+  textMuted: "--ld-text-muted",
+  textInverse: "--ld-text-inverse",
+  placeholder: "--ld-placeholder",
+  radius: "--ld-radius",
+  radiusSm: "--ld-radius-sm",
+  radiusLg: "--ld-radius-lg",
+  fontFamily: "--ld-font-family",
+  controlHeight: "--ld-control-h",
+  shadowMd: "--ld-shadow-md",
+  statusBarBg: "--ld-statusbar-bg",
+  statusBarText: "--ld-statusbar-text",
+  statusBarBorder: "--ld-statusbar-border",
+  tooltipBg: "--ld-tooltip-bg",
+  spaceXs: "--ld-space-xs",
+  spaceSm: "--ld-space-sm",
+  spaceMd: "--ld-space-md",
+  spaceLg: "--ld-space-lg",
+  spaceXl: "--ld-space-xl",
+  bpSm: "--ld-bp-sm",
+  bpMd: "--ld-bp-md",
+  bpLg: "--ld-bp-lg"
+};
+var UI_THEME_TOKEN_KEYS = Object.keys(UI_THEME_VAR_MAP);
+function applyUiTheme(el, tokens) {
+  if (tokens.mode) {
+    el.setAttribute("data-ld-theme", tokens.mode);
+  }
+  for (const key of UI_THEME_TOKEN_KEYS) {
+    const value = tokens[key];
+    const cssVar = UI_THEME_VAR_MAP[key];
+    if (value !== void 0 && value !== "") {
+      el.style.setProperty(cssVar, value);
+    }
+  }
+}
+var DARK_BASE = {
+  mode: "dark",
+  surface: "#1e293b",
+  surfaceMuted: "#0f172a",
+  surfaceInset: "#334155",
+  border: "#334155",
+  borderStrong: "#475569",
+  text: "#f1f5f9",
+  textSecondary: "#cbd5e1",
+  textMuted: "#94a3b8",
+  textInverse: "#0f172a",
+  placeholder: "#64748b",
+  primarySubtle: "#1e3a5f",
+  successSubtle: "#14532d",
+  warningSubtle: "#422006",
+  dangerSubtle: "#450a0a",
+  overlay: "rgba(0, 0, 0, 0.65)",
+  statusBarBg: "#0f172a",
+  statusBarText: "#94a3b8",
+  statusBarBorder: "#334155",
+  tooltipBg: "#0f172a"
+};
+var UI_PRESETS = {
+  /** Default light theme — uses CSS file defaults; only sets `mode: 'light'`. */
+  default: { mode: "light" },
+  /** Full dark palette with blue primary accent. */
+  dark: {
+    ...DARK_BASE,
+    primary: "#3b82f6",
+    primaryHover: "#2563eb",
+    primaryActive: "#1d4ed8"
+  },
+  /** Purple brand accent — dashboards and creative tools. */
+  violet: {
+    primary: "#7c3aed",
+    primaryHover: "#6d28d9",
+    primaryActive: "#5b21b6",
+    primarySubtle: "#ede9fe"
+  },
+  /** Green brand accent — success-oriented UIs. */
+  emerald: {
+    primary: "#059669",
+    primaryHover: "#047857",
+    primaryActive: "#065f46",
+    primarySubtle: "#d1fae5"
+  },
+  /** Neutral slate accent — minimal corporate look. */
+  slate: {
+    primary: "#334155",
+    primaryHover: "#1e293b",
+    primaryActive: "#0f172a",
+    primarySubtle: "#f1f5f9"
+  },
+  /** Sky-blue accent — data and analytics apps. */
+  ocean: {
+    primary: "#0284c7",
+    primaryHover: "#0369a1",
+    primaryActive: "#075985",
+    primarySubtle: "#e0f2fe"
+  },
+  /** Rose accent — alerts and marketing surfaces. */
+  rose: {
+    primary: "#e11d48",
+    primaryHover: "#be123c",
+    primaryActive: "#9f1239",
+    primarySubtle: "#ffe4e6"
+  },
+  /** Dark mode with violet accent (alias for dark + violet primary). */
+  darkViolet: {
+    ...DARK_BASE,
+    primary: "#8b5cf6",
+    primaryHover: "#7c3aed",
+    primaryActive: "#6d28d9",
+    primarySubtle: "#2e1065"
+  }
+};
+function resolveUiTheme(input) {
+  const { preset, ...overrides } = input;
+  const base = preset && UI_PRESETS[preset] ? { ...UI_PRESETS[preset] } : {};
+  return { ...base, ...overrides };
+}
+
 // src/App.ts
 var App = class extends EventEmitter {
   constructor(container, options = {}) {
@@ -5052,7 +5310,7 @@ var App = class extends EventEmitter {
       pixelRatio: this.pixelRatio,
       background: this.background,
       highContrast: this.highContrast,
-      uiTheme: this.uiTheme
+      uiTheme: resolveUiTheme(this.uiTheme)
     });
     this.eventManager = new EventManager(this, this.renderer.getElement());
     if (this.autoResize && typeof window !== "undefined") {
@@ -5314,9 +5572,10 @@ var App = class extends EventEmitter {
   /** Update built-in UI theme tokens (CSS variables) without custom stylesheets. */
   setUiTheme(tokens) {
     this.uiTheme = { ...this.uiTheme, ...tokens };
+    const resolved = resolveUiTheme(this.uiTheme);
     const renderer = this.renderer;
     if (typeof renderer.setUiTheme === "function") {
-      renderer.setUiTheme(tokens);
+      renderer.setUiTheme(resolved);
     }
     this.requestRender();
     return this;
@@ -5645,124 +5904,6 @@ var svgPlugin = {
   }
 };
 
-// src/components/uiTheme.ts
-var VAR_MAP = {
-  primary: "--ld-primary",
-  primaryHover: "--ld-primary-hover",
-  primaryActive: "--ld-primary-active",
-  primarySubtle: "--ld-primary-subtle",
-  secondary: "--ld-secondary",
-  secondaryHover: "--ld-secondary-hover",
-  danger: "--ld-danger",
-  dangerSubtle: "--ld-danger-subtle",
-  success: "--ld-success",
-  successSubtle: "--ld-success-subtle",
-  warning: "--ld-warning",
-  warningSubtle: "--ld-warning-subtle",
-  surface: "--ld-surface",
-  surfaceMuted: "--ld-surface-muted",
-  surfaceInset: "--ld-surface-inset",
-  overlay: "--ld-overlay",
-  border: "--ld-border",
-  borderStrong: "--ld-border-strong",
-  text: "--ld-text",
-  textSecondary: "--ld-text-secondary",
-  textMuted: "--ld-text-muted",
-  textInverse: "--ld-text-inverse",
-  placeholder: "--ld-placeholder",
-  radius: "--ld-radius",
-  radiusSm: "--ld-radius-sm",
-  radiusLg: "--ld-radius-lg",
-  fontFamily: "--ld-font-family",
-  controlHeight: "--ld-control-h",
-  shadowMd: "--ld-shadow-md",
-  statusBarBg: "--ld-statusbar-bg",
-  statusBarText: "--ld-statusbar-text",
-  statusBarBorder: "--ld-statusbar-border",
-  tooltipBg: "--ld-tooltip-bg"
-};
-function applyUiTheme(el, tokens) {
-  if (tokens.mode) {
-    el.setAttribute("data-ld-theme", tokens.mode);
-  }
-  for (const [key, value] of Object.entries(tokens)) {
-    if (key === "mode")
-      continue;
-    const cssVar = VAR_MAP[key];
-    if (cssVar && value !== void 0 && value !== "") {
-      el.style.setProperty(cssVar, value);
-    }
-  }
-}
-var DARK_BASE = {
-  mode: "dark",
-  surface: "#1e293b",
-  surfaceMuted: "#0f172a",
-  surfaceInset: "#334155",
-  border: "#334155",
-  borderStrong: "#475569",
-  text: "#f1f5f9",
-  textSecondary: "#cbd5e1",
-  textMuted: "#94a3b8",
-  textInverse: "#0f172a",
-  placeholder: "#64748b",
-  primarySubtle: "#1e3a5f",
-  successSubtle: "#14532d",
-  warningSubtle: "#422006",
-  dangerSubtle: "#450a0a",
-  overlay: "rgba(0, 0, 0, 0.65)",
-  statusBarBg: "#0f172a",
-  statusBarText: "#94a3b8",
-  statusBarBorder: "#334155",
-  tooltipBg: "#0f172a"
-};
-var UI_PRESETS = {
-  default: { mode: "light" },
-  dark: {
-    ...DARK_BASE,
-    primary: "#3b82f6",
-    primaryHover: "#2563eb",
-    primaryActive: "#1d4ed8"
-  },
-  violet: {
-    primary: "#7c3aed",
-    primaryHover: "#6d28d9",
-    primaryActive: "#5b21b6",
-    primarySubtle: "#ede9fe"
-  },
-  emerald: {
-    primary: "#059669",
-    primaryHover: "#047857",
-    primaryActive: "#065f46",
-    primarySubtle: "#d1fae5"
-  },
-  slate: {
-    primary: "#334155",
-    primaryHover: "#1e293b",
-    primaryActive: "#0f172a",
-    primarySubtle: "#f1f5f9"
-  },
-  ocean: {
-    primary: "#0284c7",
-    primaryHover: "#0369a1",
-    primaryActive: "#075985",
-    primarySubtle: "#e0f2fe"
-  },
-  rose: {
-    primary: "#e11d48",
-    primaryHover: "#be123c",
-    primaryActive: "#9f1239",
-    primarySubtle: "#ffe4e6"
-  },
-  darkViolet: {
-    ...DARK_BASE,
-    primary: "#8b5cf6",
-    primaryHover: "#7c3aed",
-    primaryActive: "#6d28d9",
-    primarySubtle: "#2e1065"
-  }
-};
-
 // src/renderers/htmlComponents.ts
 function positionStyle(node, width, height) {
   return `
@@ -5777,6 +5918,41 @@ function positionStyle(node, width, height) {
 }
 function getState4(node) {
   return node.metadata?.componentState ?? {};
+}
+function modifierClasses(base, mods, extra = "") {
+  const bases = base.split(" ").filter(Boolean);
+  const root = bases[0] ?? base;
+  const parts = [...bases];
+  if (mods.size && mods.size !== "md")
+    parts.push(`${root}--${mods.size}`);
+  if (mods.invalid)
+    parts.push(`${root}--invalid`);
+  if (mods.disabled)
+    parts.push(`${root}--disabled`);
+  if (mods.fullWidth)
+    parts.push(`${root}--full`);
+  if (extra)
+    parts.push(extra);
+  return parts.filter(Boolean).join(" ");
+}
+function fieldWidth(state, fallback) {
+  if (state.fullWidth)
+    return "100%";
+  return Number(state.width ?? fallback);
+}
+function syncFieldError(wrap, error) {
+  let errEl = wrap.querySelector(".lightdraw-field-error");
+  if (error) {
+    if (!errEl) {
+      errEl = document.createElement("span");
+      errEl.className = "lightdraw-field-error";
+      errEl.setAttribute("role", "alert");
+      wrap.appendChild(errEl);
+    }
+    errEl.textContent = error;
+  } else if (errEl) {
+    errEl.remove();
+  }
 }
 function syncNativeButton(node, parent, ctx) {
   const state = getState4(node);
@@ -5809,6 +5985,7 @@ function syncNativeButton(node, parent, ctx) {
   el.className = `lightdraw-btn lightdraw-btn--${variant}${size !== "md" ? ` lightdraw-btn--${size}` : ""}`;
   el.textContent = label;
   el.disabled = disabled;
+  el.setAttribute("aria-disabled", disabled ? "true" : "false");
   el.style.cssText = positionStyle(node, width, height);
   ctx.applyA11y(node, el);
   ctx.applyUiClasses(node, el);
@@ -5818,15 +5995,19 @@ function syncNativeCheckbox(node, parent, ctx) {
   const state = getState4(node);
   const label = String(state.label ?? "");
   const checked = Boolean(state.checked);
+  const disabled = Boolean(state.disabled);
+  const size = String(state.size ?? "md");
+  const mods = { size, disabled };
   let wrap = ctx.nodeElements.get(node.id);
   if (!wrap) {
     wrap = document.createElement("label");
     wrap.id = node.id;
-    wrap.className = "lightdraw-checkbox";
     wrap.innerHTML = '<input type="checkbox" class="lightdraw-checkbox-input" /><span class="lightdraw-checkbox-box" aria-hidden="true"></span><span class="lightdraw-checkbox-label"></span>';
     parent.appendChild(wrap);
     const input2 = wrap.querySelector("input");
     input2.addEventListener("change", () => {
+      if (getState4(node).disabled)
+        return;
       const v = input2.checked;
       node.metadata.componentState = { ...getState4(node), checked: v };
       node.ariaChecked = v;
@@ -5838,34 +6019,44 @@ function syncNativeCheckbox(node, parent, ctx) {
   } else if (wrap.parentElement !== parent) {
     parent.appendChild(wrap);
   }
+  wrap.className = modifierClasses("lightdraw-checkbox", mods);
   const input = wrap.querySelector("input");
   const labelEl = wrap.querySelector(".lightdraw-checkbox-label");
   input.checked = checked;
+  input.disabled = disabled;
   labelEl.textContent = label;
   wrap.style.cssText = positionStyle(node, Math.max(label.length * 8 + 36, 160), 24);
   ctx.applyA11y(node, wrap);
   ctx.applyUiClasses(node, wrap);
-  if (node.focusable)
+  if (node.focusable && !disabled)
     input.tabIndex = node.id === ctx.focusedNodeId ? 0 : -1;
+  else
+    input.removeAttribute("tabindex");
   ctx.seenIds.add(node.id);
 }
 function syncNativeInput(node, parent, ctx) {
   const state = getState4(node);
-  const width = Number(state.width ?? 240);
+  const width = fieldWidth(state, 240);
   const value = String(state.value ?? "");
   const placeholder = String(state.placeholder ?? "");
   const label = String(state.label ?? "");
+  const disabled = Boolean(state.disabled);
+  const invalid = Boolean(state.invalid);
+  const size = String(state.size ?? "md");
+  const error = state.error ? String(state.error) : "";
+  const mods = { size, disabled, invalid, fullWidth: Boolean(state.fullWidth), error };
   let wrap = ctx.nodeElements.get(node.id);
   if (!wrap) {
     wrap = document.createElement("div");
     wrap.id = node.id;
-    wrap.className = "lightdraw-field";
     const input2 = document.createElement("input");
     input2.type = "text";
     input2.className = "lightdraw-native-input";
     wrap.appendChild(input2);
     parent.appendChild(wrap);
     input2.addEventListener("input", () => {
+      if (getState4(node).disabled)
+        return;
       const v = input2.value;
       node.metadata.componentState = { ...getState4(node), value: v };
       node.emit("input", syntheticEvent("input", node, { value: v }));
@@ -5878,6 +6069,7 @@ function syncNativeInput(node, parent, ctx) {
   } else if (wrap.parentElement !== parent) {
     parent.appendChild(wrap);
   }
+  wrap.className = modifierClasses("lightdraw-field", mods);
   const input = wrap.querySelector("input");
   if (label) {
     let labelEl = wrap.querySelector(".lightdraw-field-label");
@@ -5892,31 +6084,42 @@ function syncNativeInput(node, parent, ctx) {
   }
   input.value = value;
   input.placeholder = placeholder;
-  const fieldH = label ? 70 : 40;
+  input.disabled = disabled;
+  input.setAttribute("aria-invalid", invalid ? "true" : "false");
+  syncFieldError(wrap, error || (invalid ? "Invalid value" : ""));
+  const fieldH = label ? error || invalid ? 88 : 70 : 40;
   wrap.style.cssText = absPosition(node, width, fieldH);
   ctx.applyA11y(node, input);
   ctx.applyUiClasses(node, wrap);
-  if (node.focusable)
+  if (node.focusable && !disabled)
     input.tabIndex = node.id === ctx.focusedNodeId ? 0 : -1;
+  else
+    input.removeAttribute("tabindex");
   ctx.seenIds.add(node.id);
 }
 function syncNativeTextarea(node, parent, ctx) {
   const state = getState4(node);
-  const width = Number(state.width ?? 280);
+  const width = fieldWidth(state, 280);
   const height = Number(state.height ?? 88);
   const value = String(state.value ?? "");
   const placeholder = String(state.placeholder ?? "");
   const label = String(state.label ?? "");
+  const disabled = Boolean(state.disabled);
+  const invalid = Boolean(state.invalid);
+  const size = String(state.size ?? "md");
+  const error = state.error ? String(state.error) : "";
+  const mods = { size, disabled, invalid, fullWidth: Boolean(state.fullWidth), error };
   let wrap = ctx.nodeElements.get(node.id);
   if (!wrap) {
     wrap = document.createElement("div");
     wrap.id = node.id;
-    wrap.className = "lightdraw-field lightdraw-field--textarea";
     const ta2 = document.createElement("textarea");
     ta2.className = "lightdraw-native-textarea";
     wrap.appendChild(ta2);
     parent.appendChild(wrap);
     ta2.addEventListener("input", () => {
+      if (getState4(node).disabled)
+        return;
       node.metadata.componentState = { ...getState4(node), value: ta2.value };
       node.emit("input", syntheticEvent("input", node, { value: ta2.value }));
     });
@@ -5928,6 +6131,7 @@ function syncNativeTextarea(node, parent, ctx) {
   } else if (wrap.parentElement !== parent) {
     parent.appendChild(wrap);
   }
+  wrap.className = modifierClasses("lightdraw-field lightdraw-field--textarea", mods);
   const ta = wrap.querySelector("textarea");
   if (label) {
     let labelEl = wrap.querySelector(".lightdraw-field-label");
@@ -5940,8 +6144,12 @@ function syncNativeTextarea(node, parent, ctx) {
   }
   ta.value = value;
   ta.placeholder = placeholder;
+  ta.disabled = disabled;
+  ta.setAttribute("aria-invalid", invalid ? "true" : "false");
+  syncFieldError(wrap, error || (invalid ? "Invalid value" : ""));
   ta.style.height = `${height}px`;
-  const fieldH = label ? height + 30 : height;
+  const errExtra = error || invalid ? 22 : 0;
+  const fieldH = label ? height + 30 + errExtra : height + errExtra;
   wrap.style.cssText = absPosition(node, width, fieldH);
   ctx.applyA11y(node, ta);
   ctx.applyUiClasses(node, wrap);
@@ -5951,15 +6159,19 @@ function syncNativeToggle(node, parent, ctx) {
   const state = getState4(node);
   const on = Boolean(state.value);
   const label = String(state.label ?? "");
+  const disabled = Boolean(state.disabled);
+  const size = String(state.size ?? "md");
+  const mods = { size, disabled };
   let wrap = ctx.nodeElements.get(node.id);
   if (!wrap) {
     wrap = document.createElement("label");
     wrap.id = node.id;
-    wrap.className = "lightdraw-switch-wrap";
     wrap.innerHTML = '<input type="checkbox" class="lightdraw-switch-input" role="switch" /><span class="lightdraw-switch-track" aria-hidden="true"><span class="lightdraw-switch-thumb"></span></span><span class="lightdraw-switch-label"></span>';
     parent.appendChild(wrap);
     const input2 = wrap.querySelector("input");
     input2.addEventListener("change", () => {
+      if (getState4(node).disabled)
+        return;
       const v = input2.checked;
       node.metadata.componentState = { ...getState4(node), value: v };
       node.ariaChecked = v;
@@ -5971,9 +6183,11 @@ function syncNativeToggle(node, parent, ctx) {
   } else if (wrap.parentElement !== parent) {
     parent.appendChild(wrap);
   }
+  wrap.className = modifierClasses("lightdraw-switch-wrap", mods);
   const input = wrap.querySelector("input");
   const labelEl = wrap.querySelector(".lightdraw-switch-label");
   input.checked = on;
+  input.disabled = disabled;
   labelEl.textContent = label;
   wrap.style.cssText = absPosition(node, Math.max(label.length * 8 + 80, 160), 28);
   ctx.applyA11y(node, wrap);
@@ -5982,21 +6196,25 @@ function syncNativeToggle(node, parent, ctx) {
 }
 function syncNativeSlider(node, parent, ctx) {
   const state = getState4(node);
-  const width = Number(state.width ?? 200);
+  const width = fieldWidth(state, 200);
   const min = Number(state.min ?? 0);
   const max = Number(state.max ?? 100);
   const value = Number(state.value ?? 50);
   const label = String(state.label ?? "");
+  const disabled = Boolean(state.disabled);
+  const size = String(state.size ?? "md");
   const pct = (value - min) / Math.max(max - min, 1) * 100;
+  const mods = { size, disabled };
   let wrap = ctx.nodeElements.get(node.id);
   if (!wrap) {
     wrap = document.createElement("div");
     wrap.id = node.id;
-    wrap.className = "lightdraw-field lightdraw-field--slider";
     wrap.innerHTML = '<div class="lightdraw-field-header"><span class="lightdraw-field-label"></span><span class="lightdraw-field-value"></span></div><input type="range" class="lightdraw-range" />';
     parent.appendChild(wrap);
     const input2 = wrap.querySelector("input");
     input2.addEventListener("input", () => {
+      if (getState4(node).disabled)
+        return;
       const v = Number(input2.value);
       node.metadata.componentState = { ...getState4(node), value: v };
       node.ariaValueNow = v;
@@ -6011,6 +6229,7 @@ function syncNativeSlider(node, parent, ctx) {
   } else if (wrap.parentElement !== parent) {
     parent.appendChild(wrap);
   }
+  wrap.className = modifierClasses("lightdraw-field lightdraw-field--slider", mods);
   const input = wrap.querySelector("input");
   const labelEl = wrap.querySelector(".lightdraw-field-label");
   const valueEl = wrap.querySelector(".lightdraw-field-value");
@@ -6019,6 +6238,7 @@ function syncNativeSlider(node, parent, ctx) {
   input.min = String(min);
   input.max = String(max);
   input.value = String(value);
+  input.disabled = disabled;
   node.ariaValueNow = value;
   node.ariaValueMin = min;
   node.ariaValueMax = max;
@@ -6032,15 +6252,19 @@ function syncNativeRadio(node, parent, ctx) {
   const label = String(state.label ?? "");
   const selected = Boolean(state.selected);
   const group = String(state.group ?? "default");
+  const disabled = Boolean(state.disabled);
+  const size = String(state.size ?? "md");
+  const mods = { size, disabled };
   let wrap = ctx.nodeElements.get(node.id);
   if (!wrap) {
     wrap = document.createElement("label");
     wrap.id = node.id;
-    wrap.className = "lightdraw-radio";
     wrap.innerHTML = '<input type="radio" class="lightdraw-radio-input" /><span class="lightdraw-radio-dot" aria-hidden="true"></span><span class="lightdraw-radio-label"></span>';
     parent.appendChild(wrap);
     const input2 = wrap.querySelector("input");
     input2.addEventListener("change", () => {
+      if (getState4(node).disabled)
+        return;
       node.metadata.componentState = { ...getState4(node), selected: true };
       node.ariaChecked = true;
       node.emit("change", syntheticEvent("change", node, { value: group, payload: group }));
@@ -6051,10 +6275,12 @@ function syncNativeRadio(node, parent, ctx) {
   } else if (wrap.parentElement !== parent) {
     parent.appendChild(wrap);
   }
+  wrap.className = modifierClasses("lightdraw-radio", mods);
   const input = wrap.querySelector("input");
   const labelEl = wrap.querySelector(".lightdraw-radio-label");
   input.name = group;
   input.checked = selected;
+  input.disabled = disabled;
   labelEl.textContent = label;
   wrap.style.cssText = positionStyle(node, Math.max(label.length * 8 + 32, 140), 22);
   ctx.applyA11y(node, wrap);
@@ -6063,21 +6289,24 @@ function syncNativeRadio(node, parent, ctx) {
 }
 function syncNativeProgress(node, parent, ctx) {
   const state = getState4(node);
-  const width = Number(state.width ?? 200);
+  const width = fieldWidth(state, 200);
   const value = Number(state.value ?? 0);
   const label = String(state.label ?? "");
   const variant = String(state.variant ?? "default");
+  const size = String(state.size ?? "md");
+  const disabled = Boolean(state.disabled);
+  const mods = { size, disabled };
   let el = ctx.nodeElements.get(node.id);
   if (!el) {
     el = document.createElement("div");
     el.id = node.id;
-    el.className = "lightdraw-progress-wrap";
     el.innerHTML = '<div class="lightdraw-progress-header"><span class="lightdraw-progress-label"></span><span class="lightdraw-progress-value"></span></div><div class="lightdraw-progress" role="progressbar"><div class="lightdraw-progress-bar"></div></div>';
     parent.appendChild(el);
     ctx.nodeElements.set(node.id, el);
   } else if (el.parentElement !== parent) {
     parent.appendChild(el);
   }
+  el.className = modifierClasses("lightdraw-progress-wrap", mods);
   const track = el.querySelector(".lightdraw-progress");
   const bar = el.querySelector(".lightdraw-progress-bar");
   const labelEl = el.querySelector(".lightdraw-progress-label");
@@ -6089,6 +6318,10 @@ function syncNativeProgress(node, parent, ctx) {
   el.setAttribute("aria-valuenow", String(pct));
   el.setAttribute("aria-valuemin", "0");
   el.setAttribute("aria-valuemax", "100");
+  if (disabled)
+    el.setAttribute("aria-disabled", "true");
+  else
+    el.removeAttribute("aria-disabled");
   const header = el.querySelector(".lightdraw-progress-header");
   if (label) {
     labelEl.textContent = label;
@@ -6098,7 +6331,7 @@ function syncNativeProgress(node, parent, ctx) {
     header.style.display = "none";
   }
   const height = label ? 36 : 8;
-  el.style.cssText = positionStyle(node, width, height);
+  el.style.cssText = absPosition(node, width, height);
   ctx.applyUiClasses(node, el);
   ctx.seenIds.add(node.id);
 }
@@ -6107,6 +6340,9 @@ function syncNativeCard(node, parent, ctx) {
   const width = Number(state.width ?? 280);
   const height = Number(state.height ?? 160);
   const title = state.title;
+  const subtitle = state.subtitle ? String(state.subtitle) : "";
+  const actions = state.actions ?? [];
+  const elevated = state.elevated !== false;
   let el = ctx.nodeElements.get(node.id);
   if (!el) {
     el = document.createElement("div");
@@ -6117,11 +6353,19 @@ function syncNativeCard(node, parent, ctx) {
   } else if (el.parentElement !== parent) {
     parent.appendChild(el);
   }
-  if (title) {
-    el.innerHTML = `<div class="lightdraw-card-header"><span class="lightdraw-card-title">${escHtml(title)}</span></div>`;
-  } else {
-    el.innerHTML = "";
+  el.className = `lightdraw-card${elevated ? " lightdraw-card--elevated" : ""}`;
+  let headerHtml = "";
+  if (title || subtitle || actions.length) {
+    const actionsHtml = actions.map((a) => `<button type="button" class="lightdraw-card-action">${escHtml(a)}</button>`).join("");
+    headerHtml = `<div class="lightdraw-card-header">
+      <div class="lightdraw-card-header-text">
+        ${title ? `<span class="lightdraw-card-title">${escHtml(String(title))}</span>` : ""}
+        ${subtitle ? `<span class="lightdraw-card-subtitle">${escHtml(subtitle)}</span>` : ""}
+      </div>
+      ${actions.length ? `<div class="lightdraw-card-actions">${actionsHtml}</div>` : ""}
+    </div>`;
   }
+  el.innerHTML = `${headerHtml}<div class="lightdraw-card-body" aria-hidden="true"></div>`;
   el.style.cssText = positionStyle(node, width, height);
   ctx.applyUiClasses(node, el);
   ctx.seenIds.add(node.id);
@@ -6142,6 +6386,14 @@ function formatTableCell(cell) {
   }
   return escHtml(cell);
 }
+function sortTableRows(rows, col, dir) {
+  return [...rows].sort((a, b) => {
+    const av = a[col] ?? "";
+    const bv = b[col] ?? "";
+    const cmp = av.localeCompare(bv, void 0, { numeric: true, sensitivity: "base" });
+    return dir === "asc" ? cmp : -cmp;
+  });
+}
 function absPosition(node, width, height) {
   const w = width !== void 0 ? `width: ${typeof width === "number" ? `${width}px` : width};` : "";
   const h = height !== void 0 ? `height: ${typeof height === "number" ? `${height}px` : height};` : "";
@@ -6161,11 +6413,94 @@ function bindDelegated(el, handler) {
   el.dataset.ldDelegated = "1";
   el.addEventListener("click", handler);
 }
+var dialogTrapHandlers = /* @__PURE__ */ new WeakMap();
+var menuOutsideHandlers = /* @__PURE__ */ new WeakMap();
+var tooltipDelayTimers = /* @__PURE__ */ new Map();
+function trapDialogFocus(host) {
+  const dialog = host.querySelector(".lightdraw-dialog");
+  if (!dialog)
+    return;
+  const focusable = dialog.querySelectorAll(
+    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+  );
+  if (focusable.length === 0)
+    return;
+  focusable[0].focus();
+  const existing = dialogTrapHandlers.get(host);
+  if (existing)
+    host.removeEventListener("keydown", existing);
+  const handler = (e) => {
+    if (e.key !== "Tab")
+      return;
+    const list = Array.from(focusable);
+    const first = list[0];
+    const last = list[list.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  };
+  dialogTrapHandlers.set(host, handler);
+  host.addEventListener("keydown", handler);
+}
+function releaseDialogFocus(host) {
+  const existing = dialogTrapHandlers.get(host);
+  if (existing) {
+    host.removeEventListener("keydown", existing);
+    dialogTrapHandlers.delete(host);
+  }
+}
+function bindMenuOutsideClose(el, node) {
+  const existing = menuOutsideHandlers.get(el);
+  if (existing)
+    document.removeEventListener("mousedown", existing);
+  const handler = (e) => {
+    const target = e.target;
+    if (target instanceof globalThis.Node && el.contains(target))
+      return;
+    node.metadata.componentState = { ...getState4(node), open: false };
+    node.visible = false;
+    node.emit("close", syntheticEvent("close", node));
+    node.getApp()?.requestRender();
+    document.removeEventListener("mousedown", handler);
+    menuOutsideHandlers.delete(el);
+  };
+  menuOutsideHandlers.set(el, handler);
+  setTimeout(() => document.addEventListener("mousedown", handler), 0);
+}
+function isDangerMenuItem(item, variants, index) {
+  if (variants?.[index] === "danger")
+    return true;
+  const lower = item.toLowerCase();
+  return lower === "delete" || lower === "remove" || lower === "danger";
+}
+function scheduleTooltipShow(node, delayMs, show) {
+  const prev = tooltipDelayTimers.get(node.id);
+  if (prev !== void 0)
+    clearTimeout(prev);
+  if (delayMs <= 0) {
+    show();
+    return;
+  }
+  const id = window.setTimeout(show, delayMs);
+  tooltipDelayTimers.set(node.id, id);
+}
+function cancelTooltipShow(nodeId) {
+  const prev = tooltipDelayTimers.get(nodeId);
+  if (prev !== void 0) {
+    clearTimeout(prev);
+    tooltipDelayTimers.delete(nodeId);
+  }
+}
 function syncNativeTabs(node, parent, ctx) {
   const state = getState4(node);
   const labels = state.tabs ?? ["Tab 1", "Tab 2"];
   const activeTab = Number(state.activeTab ?? 0);
   const width = Number(state.width ?? 300);
+  const tabPct = 100 / Math.max(labels.length, 1);
   let el = ctx.nodeElements.get(node.id);
   if (!el) {
     el = document.createElement("div");
@@ -6183,13 +6518,34 @@ function syncNativeTabs(node, parent, ctx) {
       node.emit("change", syntheticEvent("change", node, { value: i, tab: tabs[i] }));
       node.getApp()?.requestRender();
     });
+    el.addEventListener("keydown", (e) => {
+      const key = e.key;
+      if (key !== "ArrowLeft" && key !== "ArrowRight" && key !== "Home" && key !== "End")
+        return;
+      e.preventDefault();
+      const tabs = getState4(node).tabs ?? [];
+      const cur = Number(getState4(node).activeTab ?? 0);
+      let next = cur;
+      if (key === "ArrowLeft")
+        next = Math.max(0, cur - 1);
+      if (key === "ArrowRight")
+        next = Math.min(tabs.length - 1, cur + 1);
+      if (key === "Home")
+        next = 0;
+      if (key === "End")
+        next = tabs.length - 1;
+      node.metadata.componentState = { ...getState4(node), activeTab: next };
+      node.emit("change", syntheticEvent("change", node, { value: next, tab: tabs[next] }));
+      node.getApp()?.requestRender();
+    });
     ctx.nodeElements.set(node.id, el);
   } else if (el.parentElement !== parent) {
     parent.appendChild(el);
   }
-  el.innerHTML = labels.map(
-    (label, i) => `<button type="button" class="lightdraw-tabs-tab${i === activeTab ? " lightdraw-tabs-tab--active" : ""}" role="tab" aria-selected="${i === activeTab}" data-index="${i}">${escHtml(label)}</button>`
+  const tabsHtml = labels.map(
+    (label, i) => `<button type="button" class="lightdraw-tabs-tab${i === activeTab ? " lightdraw-tabs-tab--active" : ""}" role="tab" aria-selected="${i === activeTab}" tabindex="${i === activeTab ? 0 : -1}" data-index="${i}">${escHtml(label)}</button>`
   ).join("");
+  el.innerHTML = `<div class="lightdraw-tabs-inner">${tabsHtml}<span class="lightdraw-tabs-indicator" style="width:${tabPct}%;left:${activeTab * tabPct}%"></span></div>`;
   el.style.cssText = absPosition(node, width, 40);
   ctx.applyA11y(node, el);
   ctx.applyUiClasses(node, el);
@@ -6215,8 +6571,10 @@ function syncNativeAccordion(node, parent, ctx) {
         return;
       const i = Number(btn.getAttribute("data-index"));
       const secs = getState4(node).sections ?? [];
-      node.metadata.componentState = { ...getState4(node), expandedIndex: i };
-      node.emit("change", syntheticEvent("change", node, { value: i, section: secs[i]?.title }));
+      const cur = Number(getState4(node).expandedIndex ?? 0);
+      const next = cur === i ? -1 : i;
+      node.metadata.componentState = { ...getState4(node), expandedIndex: next };
+      node.emit("change", syntheticEvent("change", node, { value: next, section: secs[i]?.title }));
       node.getApp()?.requestRender();
     });
     ctx.nodeElements.set(node.id, el);
@@ -6230,10 +6588,13 @@ function syncNativeAccordion(node, parent, ctx) {
           <span class="lightdraw-accordion-chevron" aria-hidden="true"></span>
           <span>${escHtml(sec.title)}</span>
         </button>
-        <div class="lightdraw-accordion-panel" ${open ? "" : "hidden"}>${escHtml(sec.content)}</div>
+        <div class="lightdraw-accordion-panel-wrap">
+          <div class="lightdraw-accordion-panel">${escHtml(sec.content)}</div>
+        </div>
       </div>`;
   }).join("");
-  const estHeight = sections.length * 44 + (expandedIndex >= 0 ? 36 : 0);
+  const openPanel = expandedIndex >= 0 ? 48 : 0;
+  const estHeight = sections.length * 44 + openPanel;
   el.style.cssText = absPosition(node, width, estHeight);
   ctx.applyA11y(node, el);
   ctx.applyUiClasses(node, el);
@@ -6245,15 +6606,36 @@ function syncNativeTable(node, parent, ctx) {
   const rows = state.rows ?? [["A", "1"]];
   const selectedRow = Number(state.selectedRow ?? -1);
   const colW = Number(state.colWidth ?? 100);
-  const tableW = colW * columns.length;
+  const width = Number(state.width ?? colW * columns.length);
+  const sortable = Boolean(state.sortable);
+  const sortColumn = Number(state.sortColumn ?? -1);
+  const sortDirection = String(state.sortDirection ?? "asc") === "desc" ? "desc" : "asc";
+  const stickyHeader = state.stickyHeader !== false;
+  const maxHeight = Number(state.maxHeight ?? 0);
+  let displayRows = rows;
+  if (sortColumn >= 0 && sortColumn < columns.length) {
+    displayRows = sortTableRows(rows, sortColumn, sortDirection);
+  }
   let el = ctx.nodeElements.get(node.id);
   if (!el) {
     el = document.createElement("div");
     el.id = node.id;
-    el.className = "lightdraw-table-wrap";
+    el.className = "lightdraw-table-wrap lightdraw-table-wrap--scroll-x";
     el.setAttribute("role", "grid");
     parent.appendChild(el);
     bindDelegated(el, (e) => {
+      const th = e.target.closest(".lightdraw-table-th--sortable");
+      if (th) {
+        const ci = Number(th.getAttribute("data-col"));
+        const st = getState4(node);
+        const prevCol = Number(st.sortColumn ?? -1);
+        const prevDir = String(st.sortDirection ?? "asc");
+        const nextDir = prevCol === ci && prevDir === "asc" ? "desc" : "asc";
+        node.metadata.componentState = { ...st, sortColumn: ci, sortDirection: nextDir };
+        node.emit("change", syntheticEvent("change", node, { value: ci, field: nextDir }));
+        node.getApp()?.requestRender();
+        return;
+      }
       const row = e.target.closest(".lightdraw-table-row");
       if (!row)
         return;
@@ -6267,13 +6649,27 @@ function syncNativeTable(node, parent, ctx) {
   } else if (el.parentElement !== parent) {
     parent.appendChild(el);
   }
-  const head = columns.map((c) => `<th scope="col">${escHtml(c)}</th>`).join("");
-  const body = rows.map(
-    (row, ri) => `<tr class="lightdraw-table-row${ri === selectedRow ? " lightdraw-table-row--selected" : ""}" data-index="${ri}">${row.map((cell) => `<td>${formatTableCell(cell)}</td>`).join("")}</tr>`
-  ).join("");
-  el.innerHTML = `<table class="lightdraw-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
-  const tableH = 36 * (rows.length + 1);
-  el.style.cssText = absPosition(node, tableW, tableH);
+  const head = columns.map((c, ci) => {
+    let cls = "lightdraw-table-th";
+    if (sortable)
+      cls += " lightdraw-table-th--sortable";
+    if (sortColumn === ci) {
+      cls += sortDirection === "asc" ? " lightdraw-table-th--sorted-asc" : " lightdraw-table-th--sorted-desc";
+    }
+    const sortIcon = sortable ? '<span class="lightdraw-table-sort-icon" aria-hidden="true"></span>' : "";
+    return `<th scope="col" class="${cls}" data-col="${ci}"><span class="lightdraw-table-th-label">${escHtml(c)}</span>${sortIcon}</th>`;
+  }).join("");
+  const body = displayRows.map((row, ri) => {
+    const sourceIndex = rows.indexOf(row);
+    const dataIndex = sourceIndex >= 0 ? sourceIndex : ri;
+    return `<tr class="lightdraw-table-row${dataIndex === selectedRow ? " lightdraw-table-row--selected" : ""}" data-index="${dataIndex}">${row.map((cell) => `<td>${formatTableCell(cell)}</td>`).join("")}</tr>`;
+  }).join("");
+  const theadAttr = stickyHeader ? ' class="lightdraw-table-head--sticky"' : "";
+  const scrollStyle = maxHeight > 0 ? ` style="max-height:${maxHeight}px"` : "";
+  el.className = "lightdraw-table-wrap lightdraw-table-wrap--scroll-x";
+  el.innerHTML = `<div class="lightdraw-table-scroll"${scrollStyle}><table class="lightdraw-table"><thead${theadAttr}><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+  const tableH = maxHeight > 0 ? maxHeight : 36 * (rows.length + 1);
+  el.style.cssText = absPosition(node, width, tableH);
   ctx.applyA11y(node, el);
   ctx.applyUiClasses(node, el);
   ctx.seenIds.add(node.id);
@@ -6284,6 +6680,7 @@ function syncNativeTree(node, parent, ctx) {
     { label: "Root", children: [{ label: "Child A" }, { label: "Child B" }] }
   ];
   const expanded = new Set(state.expanded ?? [0]);
+  const selectedNode = String(state.selectedNode ?? "");
   let el = ctx.nodeElements.get(node.id);
   if (!el) {
     el = document.createElement("ul");
@@ -6292,6 +6689,15 @@ function syncNativeTree(node, parent, ctx) {
     el.setAttribute("role", "tree");
     parent.appendChild(el);
     bindDelegated(el, (e) => {
+      const leaf = e.target.closest(".lightdraw-tree-leaf");
+      if (leaf) {
+        const key = leaf.getAttribute("data-key") ?? "";
+        const st2 = getState4(node);
+        node.metadata.componentState = { ...st2, selectedNode: key };
+        node.emit("select", syntheticEvent("select", node, { item: key, value: key }));
+        node.getApp()?.requestRender();
+        return;
+      }
       const btn = e.target.closest(".lightdraw-tree-toggle");
       if (!btn)
         return;
@@ -6302,7 +6708,7 @@ function syncNativeTree(node, parent, ctx) {
         next.delete(i);
       else
         next.add(i);
-      node.metadata.componentState = { ...st, expanded: Array.from(next) };
+      node.metadata.componentState = { ...st, expanded: Array.from(next), selectedNode: `p${i}` };
       node.emit("change", syntheticEvent("change", node, { value: i }));
       node.getApp()?.requestRender();
     });
@@ -6312,9 +6718,13 @@ function syncNativeTree(node, parent, ctx) {
   }
   el.innerHTML = nodes.map((n, i) => {
     const isOpen = expanded.has(i);
-    const kids = isOpen && n.children?.length ? `<ul class="lightdraw-tree-children" role="group">${n.children.map((c) => `<li class="lightdraw-tree-leaf" role="treeitem">${escHtml(c.label)}</li>`).join("")}</ul>` : "";
-    return `<li class="lightdraw-tree-node" role="treeitem" aria-expanded="${isOpen}">
-        <button type="button" class="lightdraw-tree-toggle" data-index="${i}" aria-label="Toggle ${escHtml(n.label)}">
+    const parentKey = `p${i}`;
+    const kids = isOpen && n.children?.length ? `<ul class="lightdraw-tree-children" role="group">${n.children.map((c, ci) => {
+      const key = `${parentKey}.c${ci}`;
+      return `<li role="none"><button type="button" class="lightdraw-tree-leaf${selectedNode === key ? " lightdraw-tree-leaf--selected" : ""}" data-key="${key}" role="treeitem">${escHtml(c.label)}</button></li>`;
+    }).join("")}</ul>` : "";
+    return `<li class="lightdraw-tree-node${selectedNode === parentKey ? " lightdraw-tree-node--selected" : ""}" role="none">
+        <button type="button" class="lightdraw-tree-toggle" data-index="${i}" aria-label="Toggle ${escHtml(n.label)}" aria-expanded="${isOpen}">
           <span class="lightdraw-tree-chevron${isOpen ? " lightdraw-tree-chevron--open" : ""}" aria-hidden="true"></span>
           <span class="lightdraw-tree-label">${escHtml(n.label)}</span>
         </button>${kids}</li>`;
@@ -6325,14 +6735,23 @@ function syncNativeTree(node, parent, ctx) {
     if (expanded.has(i) && n.children)
       estHeight += n.children.length * 26;
   });
-  el.style.cssText = absPosition(node, 220, estHeight);
+  const treeW = Number(state.width ?? 220);
+  el.style.cssText = absPosition(node, treeW, estHeight);
   ctx.applyA11y(node, el);
   ctx.applyUiClasses(node, el);
   ctx.seenIds.add(node.id);
 }
 function syncNativeToolbar(node, parent, ctx) {
   const state = getState4(node);
-  const buttons = state.buttons ?? ["New", "Open", "Save"];
+  const icons = state.icons ?? [];
+  const rawItems = state.items ?? state.buttons ?? ["New", "Open", "Save"];
+  const items = [];
+  rawItems.forEach((item, i) => {
+    if (item === "|" || item === null)
+      items.push({ type: "sep" });
+    else
+      items.push({ type: "btn", label: item, icon: icons[i] });
+  });
   let el = ctx.nodeElements.get(node.id);
   if (!el) {
     el = document.createElement("div");
@@ -6344,18 +6763,24 @@ function syncNativeToolbar(node, parent, ctx) {
       const btn = e.target.closest(".lightdraw-toolbar-btn");
       if (!btn)
         return;
-      const buttons2 = getState4(node).buttons ?? [];
-      const idx = Array.from(el.querySelectorAll(".lightdraw-toolbar-btn")).indexOf(btn);
-      if (idx >= 0) {
-        node.emit("select", syntheticEvent("select", node, { item: buttons2[idx] }));
-      }
+      const label = btn.getAttribute("data-label") ?? "";
+      node.emit("select", syntheticEvent("select", node, { item: label }));
     });
     ctx.nodeElements.set(node.id, el);
   } else if (el.parentElement !== parent) {
     parent.appendChild(el);
   }
-  el.innerHTML = buttons.map((label) => `<button type="button" class="lightdraw-toolbar-btn">${escHtml(label)}</button>`).join("");
-  el.style.cssText = absPosition(node, "auto", 36);
+  let btnIndex = 0;
+  el.innerHTML = items.map((item) => {
+    if (item.type === "sep")
+      return '<span class="lightdraw-toolbar-separator" role="separator" aria-hidden="true"></span>';
+    const iconHtml = item.icon ? `<span class="lightdraw-toolbar-icon" aria-hidden="true">${escHtml(item.icon)}</span>` : "";
+    const html = `<button type="button" class="lightdraw-toolbar-btn" data-index="${btnIndex}" data-label="${escHtml(item.label)}">${iconHtml}<span>${escHtml(item.label)}</span></button>`;
+    btnIndex += 1;
+    return html;
+  }).join("");
+  const width = Number(state.width ?? 0);
+  el.style.cssText = absPosition(node, width > 0 ? width : "auto", "auto");
   ctx.applyA11y(node, el);
   ctx.applyUiClasses(node, el);
   ctx.seenIds.add(node.id);
@@ -6364,6 +6789,8 @@ function syncNativeToast(node, parent, ctx) {
   const state = getState4(node);
   const message = String(state.message ?? "Notification");
   const variant = String(state.variant ?? "success");
+  const position = String(state.position ?? "");
+  const dismissible = state.dismissible !== false;
   const icons = {
     success: "\u2713",
     error: "\u2715",
@@ -6374,29 +6801,46 @@ function syncNativeToast(node, parent, ctx) {
   if (!el) {
     el = document.createElement("div");
     el.id = node.id;
-    el.className = "lightdraw-toast";
     el.setAttribute("role", "status");
     el.setAttribute("aria-live", "polite");
     parent.appendChild(el);
+    el.addEventListener("click", (e) => {
+      if (e.target.closest(".lightdraw-toast-dismiss")) {
+        node.visible = false;
+        node.emit("close", syntheticEvent("close", node));
+        node.getApp()?.requestRender();
+      }
+    });
     ctx.nodeElements.set(node.id, el);
   } else if (el.parentElement !== parent) {
     parent.appendChild(el);
   }
+  const posClass = position ? ` lightdraw-toast--${position}` : "";
   if (!node.visible) {
     el.style.display = "none";
+    el.className = "lightdraw-toast";
   } else {
+    const dismissHtml = dismissible ? '<button type="button" class="lightdraw-toast-dismiss" aria-label="Dismiss">\xD7</button>' : "";
+    el.className = `lightdraw-toast lightdraw-toast--${variant}${posClass} lightdraw-toast--enter`;
+    el.innerHTML = `<span class="lightdraw-toast-icon" aria-hidden="true">${icons[variant] ?? icons.success}</span><span class="lightdraw-toast-message">${escHtml(message)}</span>${dismissHtml}`;
     el.style.display = "flex";
-    el.className = `lightdraw-toast lightdraw-toast--${variant}`;
-    el.innerHTML = `<span class="lightdraw-toast-icon" aria-hidden="true">${icons[variant] ?? icons.success}</span><span class="lightdraw-toast-message">${escHtml(message)}</span>`;
   }
+  let extraPos = "";
+  if (position === "top-right")
+    extraPos = "right:16px;top:16px;left:auto;";
+  else if (position === "bottom-right")
+    extraPos = "right:16px;bottom:16px;top:auto;left:auto;";
+  else if (position === "bottom-left")
+    extraPos = "left:16px;bottom:16px;top:auto;";
   const base = absPosition(node, "auto", 44);
-  el.style.cssText = base + (node.visible ? "display:flex;" : "display:none;");
+  el.style.cssText = base + extraPos + (node.visible ? "display:flex;" : "display:none;");
   ctx.applyUiClasses(node, el);
   ctx.seenIds.add(node.id);
 }
 function syncNativeMenu(node, parent, ctx) {
   const state = getState4(node);
   const items = state.items ?? ["Item 1", "Item 2"];
+  const variants = state.itemVariants ?? [];
   const triggerLabel = String(state.triggerLabel ?? "Actions");
   const open = Boolean(state.open) && node.visible;
   const width = Number(state.width ?? 180);
@@ -6433,15 +6877,22 @@ function syncNativeMenu(node, parent, ctx) {
     parent.appendChild(el);
   }
   if (open) {
-    el.innerHTML = items.map(
-      (item, i) => `<button type="button" class="lightdraw-menu-item${item.toLowerCase() === "delete" ? " lightdraw-menu-item--danger" : ""}" role="menuitem" data-index="${i}">${escHtml(item)}</button>`
+    const panelItems = items.map(
+      (item, i) => `<button type="button" class="lightdraw-menu-item${isDangerMenuItem(item, variants, i) ? " lightdraw-menu-item--danger" : ""}" role="menuitem" data-index="${i}">${escHtml(item)}</button>`
     ).join("");
+    el.innerHTML = `<div class="lightdraw-menu-panel">${panelItems}</div>`;
     el.classList.add("lightdraw-menu--open");
+    bindMenuOutsideClose(el, node);
   } else {
+    const outside = menuOutsideHandlers.get(el);
+    if (outside) {
+      document.removeEventListener("mousedown", outside);
+      menuOutsideHandlers.delete(el);
+    }
     el.innerHTML = `<button type="button" class="lightdraw-menu-trigger">${escHtml(triggerLabel)} <span aria-hidden="true">\u25BE</span></button>`;
     el.classList.remove("lightdraw-menu--open");
   }
-  const height = open ? items.length * 36 + 8 : 36;
+  const height = open ? Math.min(items.length * 36 + 8, 248) : 36;
   el.style.cssText = absPosition(node, width, height);
   ctx.applyA11y(node, el);
   ctx.applyUiClasses(node, el);
@@ -6465,6 +6916,7 @@ function syncNativeDialog(node, parent, ctx) {
       const st = getState4(node);
       const isOpen = Boolean(st.open) && node.visible;
       const close = () => {
+        releaseDialogFocus(el);
         node.metadata.componentState = { ...getState4(node), open: false };
         node.visible = false;
         node.emit("close", syntheticEvent("close", node));
@@ -6491,19 +6943,25 @@ function syncNativeDialog(node, parent, ctx) {
     parent.appendChild(el);
   }
   if (open) {
-    el.innerHTML = `<div class="lightdraw-dialog-overlay" style="left:${-node.x}px;top:${-node.y}px;width:${overlayW}px;height:${overlayH}px" role="presentation"></div>
-      <div class="lightdraw-dialog" role="dialog" aria-modal="true" aria-labelledby="${node.id}-title">
-        <div class="lightdraw-dialog-header">
-          <h2 class="lightdraw-dialog-title" id="${node.id}-title">${escHtml(title)}</h2>
-          <button type="button" class="lightdraw-dialog-close" aria-label="Close">\xD7</button>
-        </div>
-        <p class="lightdraw-dialog-body">${escHtml(message)}</p>
-        <div class="lightdraw-dialog-footer">
-          <button type="button" class="lightdraw-btn lightdraw-btn--ghost lightdraw-dialog-cancel">Cancel</button>
-          <button type="button" class="lightdraw-btn lightdraw-btn--primary lightdraw-dialog-confirm">Confirm</button>
+    el.className = "lightdraw-dialog-host lightdraw-dialog-host--open";
+    el.innerHTML = `<div class="lightdraw-dialog-overlay" style="width:${overlayW}px;height:${overlayH}px;left:${-node.x}px;top:${-node.y}px" role="presentation"></div>
+      <div class="lightdraw-dialog-center">
+        <div class="lightdraw-dialog" role="dialog" aria-modal="true" aria-labelledby="${node.id}-title" style="max-width:${width}px">
+          <div class="lightdraw-dialog-header">
+            <h2 class="lightdraw-dialog-title" id="${node.id}-title">${escHtml(title)}</h2>
+            <button type="button" class="lightdraw-dialog-close" aria-label="Close">\xD7</button>
+          </div>
+          <p class="lightdraw-dialog-body">${escHtml(message)}</p>
+          <div class="lightdraw-dialog-footer">
+            <button type="button" class="lightdraw-btn lightdraw-btn--ghost lightdraw-dialog-cancel">Cancel</button>
+            <button type="button" class="lightdraw-btn lightdraw-btn--primary lightdraw-dialog-confirm">Confirm</button>
+          </div>
         </div>
       </div>`;
+    requestAnimationFrame(() => trapDialogFocus(el));
   } else {
+    releaseDialogFocus(el);
+    el.className = "lightdraw-dialog-host";
     el.innerHTML = `<button type="button" class="lightdraw-btn lightdraw-btn--secondary lightdraw-dialog-open">Open dialog</button>`;
   }
   el.style.cssText = absPosition(node, open ? overlayW : width, open ? overlayH : 40);
@@ -6514,27 +6972,36 @@ function syncNativeDialog(node, parent, ctx) {
 function syncNativeTooltip(node, parent, ctx) {
   const state = getState4(node);
   const text = String(state.text ?? "Tooltip");
+  const anchor = String(state.anchor ?? "Hover me");
+  const placement = String(state.placement ?? "bottom");
+  const delay = Number(state.delay ?? 0);
   let el = ctx.nodeElements.get(node.id);
   if (!el) {
     el = document.createElement("div");
     el.id = node.id;
     el.className = "lightdraw-tooltip";
     parent.appendChild(el);
-    el.addEventListener("mouseenter", () => {
+    const show = () => {
       node.visible = true;
       node.emit("open", syntheticEvent("open", node));
       node.getApp()?.requestRender();
-    });
-    el.addEventListener("mouseleave", () => {
+    };
+    const hide = () => {
+      cancelTooltipShow(node.id);
       node.visible = false;
       node.emit("close", syntheticEvent("close", node));
       node.getApp()?.requestRender();
-    });
+    };
+    el.addEventListener("mouseenter", () => scheduleTooltipShow(node, delay, show));
+    el.addEventListener("mouseleave", hide);
+    el.addEventListener("focusin", () => scheduleTooltipShow(node, delay, show));
+    el.addEventListener("focusout", hide);
     ctx.nodeElements.set(node.id, el);
   } else if (el.parentElement !== parent) {
     parent.appendChild(el);
   }
-  el.innerHTML = `<span class="lightdraw-tooltip-anchor">Hover me</span>`;
+  el.className = `lightdraw-tooltip lightdraw-tooltip--${placement}`;
+  el.innerHTML = `<span class="lightdraw-tooltip-anchor" tabindex="0">${escHtml(anchor)}</span>`;
   if (node.visible) {
     el.innerHTML += `<span class="lightdraw-tooltip-bubble" role="tooltip">${escHtml(text)}</span>`;
   }
@@ -6547,6 +7014,8 @@ function syncNativeStatusBar(node, parent, ctx) {
   const state = getState4(node);
   const segments = state.segments ?? ["Ready"];
   const width = Number(state.width ?? 400);
+  const primaryIndex = Number(state.primaryIndex ?? 0);
+  const mono = Boolean(state.mono);
   let el = ctx.nodeElements.get(node.id);
   if (!el) {
     el = document.createElement("div");
@@ -6558,8 +7027,9 @@ function syncNativeStatusBar(node, parent, ctx) {
   } else if (el.parentElement !== parent) {
     parent.appendChild(el);
   }
+  el.className = `lightdraw-statusbar${mono ? " lightdraw-statusbar--mono" : ""}`;
   el.innerHTML = segments.map(
-    (s, i) => `<span class="lightdraw-statusbar-segment${i === 0 ? " lightdraw-statusbar-segment--primary" : ""}">${escHtml(s)}</span>`
+    (s, i) => `<span class="lightdraw-statusbar-segment${i === primaryIndex ? " lightdraw-statusbar-segment--primary" : ""}">${escHtml(s)}</span>`
   ).join("");
   el.style.cssText = absPosition(node, width, 28);
   ctx.applyA11y(node, el);
@@ -6606,9 +7076,9 @@ var HTMLRenderer = class extends Renderer {
     this.applyRootStyles();
     container.appendChild(this.root);
   }
-  /** Merge programmatic theme tokens (re-applied after each layout pass). */
+  /** Replace programmatic theme tokens (re-applied after each layout pass). */
   setUiTheme(tokens) {
-    this.uiTheme = { ...this.uiTheme, ...tokens };
+    this.uiTheme = { ...tokens };
     this.applyThemeVars();
   }
   applyThemeVars() {
@@ -6626,8 +7096,10 @@ var HTMLRenderer = class extends Renderer {
     `;
     if (this.highContrast) {
       this.root.classList.add("lightdraw-high-contrast");
+      this.root.setAttribute("data-ld-high-contrast", "true");
     } else {
       this.root.classList.remove("lightdraw-high-contrast");
+      this.root.removeAttribute("data-ld-high-contrast");
     }
     this.applyThemeVars();
   }
@@ -6655,10 +7127,14 @@ var HTMLRenderer = class extends Renderer {
     this.innerContainers.clear();
     this.root.remove();
   }
+  shouldSyncWhenHidden(node) {
+    const t = node.metadata?.componentType;
+    return t === "tooltip" || t === "menu" || t === "dialog";
+  }
   syncGroup(group, parent) {
     group.sortChildren();
     for (const child of group.children) {
-      if (!child.visible)
+      if (!child.visible && !this.shouldSyncWhenHidden(child))
         continue;
       this.syncNode(child, parent);
     }
@@ -6833,15 +7309,24 @@ var HTMLRenderer = class extends Renderer {
       transform: rotate(${node.rotation}deg) scale(${node.scaleX}, ${node.scaleY});
       transform-origin: top left;
       pointer-events: ${node.listening ? "auto" : "none"};
+      ${node.zIndex !== 0 ? `z-index: ${node.zIndex};` : ""}
       ${extra}
     `;
     this.applyShapeStyles(node, el);
+    if (node instanceof TextNode) {
+      this.applyTextBoxPosition(node, el);
+    }
     this.seenIds.add(node.id);
     if ("children" in node) {
       const bounds = node.getBounds();
+      const chartW = node.metadata?.chartWidth;
+      const chartH = node.metadata?.chartHeight;
       if (node.metadata?.componentType && bounds.width > 0) {
         el.style.width = `${bounds.width}px`;
         el.style.height = `${Math.max(bounds.height, 1)}px`;
+      } else if (chartW && chartW > 0) {
+        el.style.height = `${Math.max(chartH ?? chartW, 1)}px`;
+        el.style.width = `${chartW}px`;
       }
       let inner = this.innerContainers.get(node.id);
       if (!inner) {
@@ -6929,15 +7414,11 @@ var HTMLRenderer = class extends Renderer {
     } else if (node instanceof Arc) {
       const cx = node.radius + ox;
       const cy = node.radius + oy;
-      const r = node.radius;
-      const x1 = cx + r * Math.cos(node.startAngle);
-      const y1 = cy + r * Math.sin(node.startAngle);
-      const x2 = cx + r * Math.cos(node.endAngle);
-      const y2 = cy + r * Math.sin(node.endAngle);
-      const sweep = node.counterClockwise ? 0 : 1;
-      const large = Math.abs(node.endAngle - node.startAngle) > Math.PI ? 1 : 0;
       const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      path.setAttribute("d", `M ${x1} ${y1} A ${r} ${r} 0 ${large} ${sweep} ${x2} ${y2}`);
+      path.setAttribute(
+        "d",
+        arcSectorPath(cx, cy, node.radius, node.startAngle, node.endAngle, node.innerRadius, node.counterClockwise)
+      );
       path.setAttribute("stroke", strokeColor);
       path.setAttribute("stroke-width", sw);
       path.setAttribute("fill", fillColor);
@@ -6968,6 +7449,21 @@ var HTMLRenderer = class extends Renderer {
       return "#000";
     return this.highContrast ? toHighContrastColor(stroke, "stroke") : stroke;
   }
+  applyTextBoxPosition(node, el) {
+    const boxW = node.metadata?.textBoxWidth;
+    if (boxW && boxW > 0 && node.textAlign === "center") {
+      el.style.width = `${boxW}px`;
+      el.style.textAlign = "center";
+      el.style.left = `${node.x - boxW / 2}px`;
+      el.style.zIndex = String(Math.max(node.zIndex, 902));
+      return;
+    }
+    if (node.textAlign && node.textAlign !== "left") {
+      el.style.textAlign = node.textAlign;
+      const b = node.getBounds();
+      el.style.width = `${Math.max(b.width, node.fontSize)}px`;
+    }
+  }
   applyShapeStyles(node, el) {
     if (node instanceof Rect) {
       el.style.width = `${node.width}px`;
@@ -6992,16 +7488,7 @@ var HTMLRenderer = class extends Renderer {
       el.style.color = this.fillToCss(node.fill);
       el.style.background = "transparent";
       el.style.whiteSpace = "pre";
-      if (node.textAlign && node.textAlign !== "left") {
-        el.style.textAlign = node.textAlign;
-        const parent = node.parent;
-        if (parent && "getBounds" in parent) {
-          const pb = parent.getBounds();
-          if (pb.width > 0) {
-            el.style.width = `${pb.width}px`;
-          }
-        }
-      }
+      el.style.lineHeight = `${Math.max(node.fontSize + 2, 12)}px`;
     } else if (node instanceof Path) {
       const b = node.getBounds();
       el.style.width = `${Math.max(b.width, 1)}px`;
@@ -7145,10 +7632,12 @@ function trapFocusIn(group) {
 var UI = {
   primary: "#2563eb",
   primaryHover: "#1d4ed8",
-  primaryActive: "#1e40af",
-  primaryMuted: "#dbeafe",
-  secondary: "#64748b",
-  secondaryHover: "#475569",
+  primaryActive: "#163eb8",
+  primarySubtle: "#eff6ff",
+  /** @deprecated Use `primarySubtle` — kept for canvas definitions compatibility */
+  primaryMuted: "#eff6ff",
+  secondary: "#475569",
+  secondaryHover: "#334155",
   success: "#059669",
   successBg: "#ecfdf5",
   warning: "#d97706",
@@ -7156,7 +7645,7 @@ var UI = {
   surface: "#ffffff",
   surfaceMuted: "#f8fafc",
   surfaceInset: "#f1f5f9",
-  overlay: "rgba(15, 23, 42, 0.45)",
+  overlay: "rgba(15, 23, 42, 0.5)",
   border: "#e2e8f0",
   borderStrong: "#cbd5e1",
   borderFocus: "#2563eb",
@@ -7175,6 +7664,11 @@ var UI = {
   fontSizeLg: 16,
   controlHeight: 40,
   inputHeight: 40,
+  spaceXs: 4,
+  spaceSm: 8,
+  spaceMd: 16,
+  spaceLg: 24,
+  spaceXl: 32,
   shadowSm: { color: "rgba(15, 23, 42, 0.05)", blur: 2, offsetX: 0, offsetY: 1 },
   shadowMd: { color: "rgba(15, 23, 42, 0.08)", blur: 8, offsetX: 0, offsetY: 2 },
   shadowLg: { color: "rgba(15, 23, 42, 0.12)", blur: 20, offsetX: 0, offsetY: 8 },
@@ -7196,36 +7690,50 @@ function createGroup(app, type, props, extra = {}) {
   bindApp(group, app);
   return group;
 }
+function canvasSurface(app, width, height, opts = {}) {
+  return app.roundedRect({
+    width,
+    height,
+    cornerRadius: opts.radius ?? UI.radius,
+    fill: UI.surface,
+    stroke: UI.border,
+    strokeWidth: 1,
+    shadow: opts.elevated ? UI.shadowLg : UI.shadowSm,
+    listening: false
+  });
+}
 registerComponent("button", (props, app) => {
   const width = num(props, "width", 128);
-  const height = num(props, "height", UI.controlHeight);
+  const size = str(props, "size", "md");
+  const height = size === "sm" ? 32 : size === "lg" ? 44 : num(props, "height", UI.controlHeight);
+  const fontSize = size === "sm" ? UI.fontSizeSm : size === "lg" ? UI.fontSizeLg : UI.fontSize;
   const label = str(props, "label", "Button");
   const disabled = bool(props, "disabled", false);
   const variant = str(props, "variant", "primary");
-  const fill = str(props, "fill", "") || (variant === "secondary" ? UI.secondary : variant === "ghost" ? UI.surface : UI.primary);
+  const fill = str(props, "fill", "") || (variant === "secondary" ? UI.secondary : variant === "ghost" ? UI.surface : variant === "danger" ? UI.danger : UI.primary);
   const group = createGroup(app, "button", props, {
     focusable: !disabled,
     role: "button",
-    metadata: { componentType: "button", label, componentState: { label, width, height, disabled, fill, variant } }
+    metadata: { componentType: "button", label, componentState: { label, width, height, disabled, fill, variant, size } }
   });
-  setState(group, { label, width, height, disabled, fill, variant });
-  const textColor = variant === "ghost" ? UI.textSecondary : UI.textInverse;
+  setState(group, { label, width, height, disabled, fill, variant, size });
+  const textColor = variant === "ghost" ? UI.textSecondary : variant === "danger" ? UI.textInverse : UI.textInverse;
   const bg = app.roundedRect({
     width,
     height,
     cornerRadius: UI.radius,
-    fill,
+    fill: disabled ? UI.borderStrong : fill,
     stroke: variant === "ghost" ? UI.border : null,
     strokeWidth: variant === "ghost" ? 1 : 0,
-    shadow: variant === "primary" ? UI.shadowPrimary : UI.shadowSm
+    shadow: disabled ? null : variant === "primary" || variant === "danger" ? UI.shadowPrimary : UI.shadowSm
   });
   const text = app.text({
     text: label,
-    fontSize: UI.fontSize,
+    fontSize,
     fontWeight: "600",
-    fill: textColor,
+    fill: disabled ? UI.textMuted : textColor,
     x: 0,
-    y: (height - UI.fontSize) / 2,
+    y: (height - fontSize) / 2,
     textAlign: "center"
   });
   group.add(bg, text);
@@ -7237,8 +7745,8 @@ registerComponent("button", (props, app) => {
       return group.getApp()?.requestRender();
     }
     const base = fill;
-    const hoverColor = variant === "secondary" ? UI.secondaryHover : variant === "ghost" ? UI.surfaceInset : UI.primaryHover;
-    const activeColor = variant === "secondary" ? UI.textSecondary : variant === "ghost" ? UI.surfaceMuted : UI.primaryActive;
+    const hoverColor = variant === "secondary" ? UI.secondaryHover : variant === "ghost" ? UI.surfaceInset : variant === "danger" ? "#b91c1c" : UI.primaryHover;
+    const activeColor = variant === "secondary" ? UI.textSecondary : variant === "ghost" ? UI.surfaceMuted : variant === "danger" ? "#991b1b" : UI.primaryActive;
     parts.bg.fill = active ? activeColor : hover ? hoverColor : base;
     group.getApp()?.requestRender();
   });
@@ -7259,36 +7767,62 @@ registerComponent("label", (props, app) => {
 registerComponent("card", (props, app) => {
   const width = num(props, "width", 280);
   const height = num(props, "height", 160);
+  const title = props.title;
+  const subtitle = str(props, "subtitle", "");
+  const elevated = bool(props, "elevated", false);
   const group = createGroup(app, "card", props);
-  const bg = app.roundedRect({
-    width,
-    height,
-    cornerRadius: UI.radiusLg,
-    fill: UI.surface,
-    stroke: UI.border,
-    strokeWidth: 1,
-    shadow: UI.shadowMd
-  });
+  const bg = canvasSurface(app, width, height, { radius: UI.radiusLg, elevated });
   group.add(bg);
-  if (props.title) {
+  const headerH = title || subtitle ? 40 : 0;
+  if (headerH > 0) {
     group.add(
-      app.text({
-        text: props.title,
-        fontSize: UI.fontSizeLg,
-        fontWeight: "bold",
-        fill: UI.text,
-        x: 16,
-        y: 16
+      app.roundedRect({
+        width,
+        height: headerH,
+        cornerRadius: UI.radiusLg,
+        fill: UI.surfaceMuted,
+        stroke: UI.border,
+        strokeWidth: 1,
+        listening: false
       })
     );
+    if (title) {
+      group.add(
+        app.text({
+          text: String(title).toUpperCase(),
+          fontSize: UI.fontSizeSm,
+          fontWeight: "700",
+          fill: UI.textMuted,
+          x: 16,
+          y: 12,
+          listening: false
+        })
+      );
+    }
+    if (subtitle) {
+      group.add(
+        app.text({
+          text: subtitle,
+          fontSize: UI.fontSize,
+          fontWeight: "500",
+          fill: UI.textSecondary,
+          x: 16,
+          y: title ? 26 : 12,
+          listening: false
+        })
+      );
+    }
   }
-  setState(group, { width, height, title: props.title });
+  setState(group, { width, height, title: props.title, subtitle, actions: props.actions, elevated: props.elevated });
   return group;
 });
 registerComponent("progressBar", (props, app) => {
   const width = num(props, "width", 200);
-  const height = num(props, "height", 8);
+  const size = str(props, "size", "md");
+  const height = size === "lg" ? 12 : size === "sm" ? 6 : num(props, "height", 8);
   const value = clamp2(num(props, "value", 0), 0, 100);
+  const variant = str(props, "variant", "default");
+  const fillColor = variant === "success" ? UI.success : variant === "warning" ? UI.warning : variant === "danger" ? UI.danger : str(props, "fill", UI.primary);
   const group = createGroup(app, "progressBar", props, {
     role: "progressbar",
     ariaValueNow: value,
@@ -7300,12 +7834,25 @@ registerComponent("progressBar", (props, app) => {
     width: width * value / 100,
     height,
     cornerRadius: height / 2,
-    fill: str(props, "fill", UI.primary),
+    fill: fillColor,
     listening: false
   });
   group.add(track, fillBar);
+  if (props.label) {
+    group.add(
+      app.text({
+        text: props.label,
+        fontSize: UI.fontSizeSm,
+        fontWeight: "600",
+        fill: UI.textSecondary,
+        x: 0,
+        y: -18,
+        listening: false
+      })
+    );
+  }
   setParts(group, { track, fillBar });
-  setState(group, { width, height, value, label: props.label, variant: props.variant });
+  setState(group, { width, height, value, label: props.label, variant, size, disabled: props.disabled });
   return group;
 });
 registerComponent("slider", (props, app) => {
@@ -7343,7 +7890,7 @@ registerComponent("slider", (props, app) => {
     group.getApp()?.requestRender();
   };
   updateVisual(value);
-  setState(group, { width, min, max, value, label: props.label });
+  setState(group, { width, min, max, value, label: props.label, disabled: props.disabled, size: props.size });
   const setValue = (worldX) => {
     const localX = clamp2(worldX - group.x, 0, width);
     const pct = localX / width;
@@ -7358,8 +7905,9 @@ registerComponent("slider", (props, app) => {
 });
 registerComponent("checkbox", (props, app) => {
   const checked = bool(props, "checked", false);
+  const disabled = bool(props, "disabled", false);
   const group = createGroup(app, "checkbox", props, {
-    focusable: true,
+    focusable: !disabled,
     role: "checkbox",
     ariaChecked: checked,
     metadata: { componentType: "checkbox", label: props.label ?? "Checkbox" }
@@ -7368,10 +7916,10 @@ registerComponent("checkbox", (props, app) => {
     width: 20,
     height: 20,
     cornerRadius: 5,
-    fill: checked ? UI.primary : UI.surface,
-    stroke: checked ? UI.primary : UI.borderStrong,
+    fill: disabled ? UI.surfaceMuted : checked ? UI.primary : UI.surface,
+    stroke: disabled ? UI.border : checked ? UI.primary : UI.borderStrong,
     strokeWidth: 1.5,
-    shadow: checked ? UI.shadowSm : null,
+    shadow: checked && !disabled ? UI.shadowSm : null,
     listening: false
   });
   const mark = app.text({
@@ -7398,7 +7946,12 @@ registerComponent("checkbox", (props, app) => {
     );
   }
   setParts(group, { box, mark });
-  setState(group, { checked, label: props.label });
+  setState(group, { checked, label: props.label, disabled, size: props.size });
+  if (disabled) {
+    group.opacity = 0.55;
+    group.listening = false;
+    return group;
+  }
   wireToggle(group, "checked", (v) => {
     box.fill = v ? UI.primary : UI.surface;
     box.stroke = v ? UI.primary : UI.borderStrong;
@@ -7409,8 +7962,9 @@ registerComponent("checkbox", (props, app) => {
 });
 registerComponent("toggle", (props, app) => {
   const on = bool(props, "value", false);
+  const disabled = bool(props, "disabled", false);
   const group = createGroup(app, "toggle", props, {
-    focusable: true,
+    focusable: !disabled,
     role: "switch",
     ariaChecked: on,
     metadata: { componentType: "toggle", label: props.label ?? "Toggle" }
@@ -7419,7 +7973,7 @@ registerComponent("toggle", (props, app) => {
     width: 48,
     height: 26,
     cornerRadius: 13,
-    fill: on ? UI.primary : UI.borderStrong,
+    fill: disabled ? UI.border : on ? UI.primary : UI.borderStrong,
     listening: false
   });
   const knob = app.circle({
@@ -7432,7 +7986,12 @@ registerComponent("toggle", (props, app) => {
   });
   group.add(track, knob);
   setParts(group, { track, knob });
-  setState(group, { value: on, label: props.label });
+  setState(group, { value: on, label: props.label, disabled, size: props.size });
+  if (disabled) {
+    group.opacity = 0.55;
+    group.listening = false;
+    return group;
+  }
   wireToggle(group, "value", (v) => {
     track.fill = v ? UI.primary : UI.borderStrong;
     knob.x = v ? 24 : 2;
@@ -7445,8 +8004,10 @@ registerComponent("input", (props, app) => {
   const height = num(props, "height", UI.inputHeight);
   const value = str(props, "value", "");
   const placeholder = str(props, "placeholder", "");
+  const disabled = bool(props, "disabled", false);
+  const invalid = bool(props, "invalid", false);
   const group = createGroup(app, "input", props, {
-    focusable: true,
+    focusable: !disabled,
     role: "textbox",
     metadata: { componentType: "input", label: props.label ?? (placeholder || "Input") }
   });
@@ -7454,10 +8015,10 @@ registerComponent("input", (props, app) => {
     width,
     height,
     cornerRadius: UI.radius,
-    fill: UI.surface,
-    stroke: UI.border,
-    strokeWidth: 1,
-    shadow: UI.shadowSm,
+    fill: disabled ? UI.surfaceMuted : UI.surface,
+    stroke: invalid ? UI.danger : UI.border,
+    strokeWidth: invalid ? 2 : 1,
+    shadow: disabled ? null : UI.shadowSm,
     listening: false
   });
   const text = app.text({
@@ -7470,15 +8031,19 @@ registerComponent("input", (props, app) => {
   });
   group.add(bg, text);
   setParts(group, { bg, text });
-  setState(group, { width, height, value, placeholder, label: props.label });
+  setState(group, { width, height, value, placeholder, label: props.label, disabled, invalid, error: props.error });
+  if (disabled)
+    group.opacity = 0.65;
   return group;
 });
 registerComponent("textarea", (props, app) => {
   const width = num(props, "width", 280);
   const height = num(props, "height", 96);
   const value = str(props, "value", "");
+  const disabled = bool(props, "disabled", false);
+  const invalid = bool(props, "invalid", false);
   const group = createGroup(app, "textarea", props, {
-    focusable: true,
+    focusable: !disabled,
     role: "textbox",
     metadata: { componentType: "textarea", multiline: true }
   });
@@ -7486,10 +8051,10 @@ registerComponent("textarea", (props, app) => {
     width,
     height,
     cornerRadius: UI.radius,
-    fill: UI.surface,
-    stroke: UI.border,
-    strokeWidth: 1,
-    shadow: UI.shadowSm,
+    fill: disabled ? UI.surfaceMuted : UI.surface,
+    stroke: invalid ? UI.danger : UI.border,
+    strokeWidth: invalid ? 2 : 1,
+    shadow: disabled ? null : UI.shadowSm,
     listening: false
   });
   const text = app.text({
@@ -7502,14 +8067,17 @@ registerComponent("textarea", (props, app) => {
   });
   group.add(bg, text);
   setParts(group, { bg, text });
-  setState(group, { width, height, value, rows: num(props, "rows", 4), label: props.label, placeholder: props.placeholder });
+  setState(group, { width, height, value, rows: num(props, "rows", 4), label: props.label, placeholder: props.placeholder, disabled, invalid, error: props.error });
+  if (disabled)
+    group.opacity = 0.65;
   return group;
 });
 registerComponent("radio", (props, app) => {
   const selected = bool(props, "selected", false);
+  const disabled = bool(props, "disabled", false);
   const groupName = str(props, "group", "default");
   const group = createGroup(app, "radio", props, {
-    focusable: true,
+    focusable: !disabled,
     role: "radio",
     ariaChecked: selected,
     metadata: { componentType: "radio", group: groupName, label: props.label }
@@ -7518,8 +8086,8 @@ registerComponent("radio", (props, app) => {
     x: 10,
     y: 10,
     radius: 10,
-    fill: UI.surface,
-    stroke: selected ? UI.primary : UI.borderStrong,
+    fill: disabled ? UI.surfaceMuted : UI.surface,
+    stroke: disabled ? UI.border : selected ? UI.primary : UI.borderStrong,
     strokeWidth: selected ? 2 : 1.5,
     listening: false
   });
@@ -7544,7 +8112,12 @@ registerComponent("radio", (props, app) => {
     );
   }
   setParts(group, { outer, inner });
-  setState(group, { selected, group: groupName, label: props.label });
+  setState(group, { selected, group: groupName, label: props.label, disabled, size: props.size });
+  if (disabled) {
+    group.opacity = 0.55;
+    group.listening = false;
+    return group;
+  }
   group.on("click", () => {
     setState(group, { selected: true });
     group.ariaChecked = true;
@@ -7557,38 +8130,77 @@ registerComponent("radio", (props, app) => {
 });
 registerComponent("tooltip", (props, app) => {
   const text = str(props, "text", "Tooltip");
+  const anchor = str(props, "anchor", "Hover me");
+  const placement = str(props, "placement", "bottom");
+  const delay = num(props, "delay", 0);
   const group = createGroup(app, "tooltip", props, { visible: bool(props, "visible", false), listening: true });
   const pad = 10;
   const tw = text.length * 7 + pad * 2;
+  const bubbleY = placement === "top" ? -36 : placement === "right" ? 4 : 28;
+  const bubbleX = placement === "right" ? anchor.length * 7 + 12 : 0;
+  const anchorText = app.text({
+    text: anchor,
+    fontSize: UI.fontSize,
+    fill: UI.primary,
+    x: 0,
+    y: 4,
+    listening: false
+  });
   const bg = app.roundedRect({
     width: tw,
     height: 32,
     cornerRadius: UI.radiusSm,
     fill: "#1e293b",
     shadow: UI.shadowMd,
-    listening: false
+    x: bubbleX,
+    y: bubbleY,
+    listening: false,
+    visible: group.visible
   });
-  const label = app.text({ text, fontSize: UI.fontSizeSm, fill: UI.textInverse, x: pad, y: 8, listening: false });
-  group.add(bg, label);
-  setState(group, { text, visible: group.visible });
-  group.on("mouseenter", () => {
+  const label = app.text({
+    text,
+    fontSize: UI.fontSizeSm,
+    fill: UI.textInverse,
+    x: bubbleX + pad,
+    y: bubbleY + 8,
+    listening: false,
+    visible: group.visible
+  });
+  group.add(anchorText, bg, label);
+  setState(group, { text, anchor, placement, delay, visible: group.visible });
+  let delayTimer;
+  const show = () => {
     group.visible = true;
+    bg.visible = true;
+    label.visible = true;
     group.getApp()?.requestRender();
     group.emit("open", syntheticEvent("open", group));
-  });
-  group.on("mouseleave", () => {
+  };
+  const hide = () => {
+    if (delayTimer !== void 0)
+      clearTimeout(delayTimer);
     group.visible = false;
+    bg.visible = false;
+    label.visible = false;
     group.getApp()?.requestRender();
     group.emit("close", syntheticEvent("close", group));
+  };
+  group.on("mouseenter", () => {
+    if (delay <= 0)
+      show();
+    else
+      delayTimer = setTimeout(show, delay);
   });
+  group.on("mouseleave", hide);
   return group;
 });
 registerComponent("menu", (props, app) => {
   const items = props.items ?? ["Item 1", "Item 2", "Item 3"];
+  const variants = props.itemVariants ?? [];
   const open = bool(props, "open", false);
   const rowH = 32;
   const width = num(props, "width", 180);
-  const height = items.length * rowH + 12;
+  const height = Math.min(items.length * rowH + 12, 248);
   const group = createGroup(app, "menu", props, {
     focusable: true,
     role: "menu",
@@ -7606,6 +8218,7 @@ registerComponent("menu", (props, app) => {
     listening: false
   });
   group.add(bg);
+  const isDanger = (item, i) => variants[i] === "danger" || ["delete", "remove", "danger"].includes(item.toLowerCase());
   items.forEach((item, i) => {
     group.add(
       app.text({
@@ -7613,12 +8226,12 @@ registerComponent("menu", (props, app) => {
         x: 14,
         y: 10 + i * rowH,
         fontSize: UI.fontSize,
-        fill: UI.text,
+        fill: isDanger(item, i) ? UI.danger : UI.text,
         listening: false
       })
     );
   });
-  setState(group, { items, open, width, selectedIndex: -1, triggerLabel: props.triggerLabel });
+  setState(group, { items, open, width, selectedIndex: -1, triggerLabel: props.triggerLabel, itemVariants: variants });
   group.on("click", (e) => {
     if (!group.visible) {
       group.visible = true;
@@ -7691,7 +8304,15 @@ registerComponent("dialog", (props, app) => {
   });
   group.add(overlay, panel, titleText, divider, bodyText);
   setParts(group, { overlay, panel, titleText });
-  setState(group, { open, title, width, height });
+  setState(group, {
+    open,
+    title,
+    message: str(props, "message", "Are you sure you want to continue?"),
+    width,
+    height,
+    overlayWidth: num(props, "overlayWidth", 800),
+    overlayHeight: num(props, "overlayHeight", 600)
+  });
   if (open)
     trapFocusIn(group);
   group.on("click", () => {
@@ -7724,9 +8345,20 @@ registerComponent("tabs", (props, app) => {
       width,
       height: tabH + 4,
       cornerRadius: UI.radius,
-      fill: UI.surfaceInset,
+      fill: UI.surface,
       stroke: UI.border,
       strokeWidth: 1,
+      listening: false
+    })
+  );
+  group.add(
+    app.roundedRect({
+      width: tabW - 8,
+      height: 2,
+      x: activeTab * tabW + 4,
+      y: tabH + 1,
+      cornerRadius: 1,
+      fill: UI.primary,
       listening: false
     })
   );
@@ -7734,16 +8366,6 @@ registerComponent("tabs", (props, app) => {
     const tab = app.group({ x: i * tabW + 4, y: 2, listening: true, focusable: true, metadata: { tabIndex: i } });
     const active = i === activeTab;
     tab.add(
-      app.roundedRect({
-        width: tabW - 8,
-        height: tabH,
-        cornerRadius: UI.radiusSm,
-        fill: active ? UI.surface : "transparent",
-        stroke: active ? UI.border : null,
-        strokeWidth: active ? 1 : 0,
-        shadow: active ? UI.shadowSm : null,
-        listening: false
-      }),
       app.text({
         text: label,
         fontSize: UI.fontSize,
@@ -7825,25 +8447,18 @@ registerComponent("table", (props, app) => {
     ["Row B", "2"]
   ];
   const colW = num(props, "colWidth", 100);
+  const width = num(props, "width", colW * columns.length);
   const rowH = 36;
-  const tableW = colW * columns.length;
   const tableH = rowH * (rows.length + 1);
+  const sortable = bool(props, "sortable", false);
+  const sortColumn = num(props, "sortColumn", -1);
+  const sortDirection = str(props, "sortDirection", "asc");
+  const selectedRow = num(props, "selectedRow", -1);
   const group = createGroup(app, "table", props, { focusable: true, role: "grid" });
-  group.add(
-    app.roundedRect({
-      width: tableW,
-      height: tableH,
-      cornerRadius: UI.radius,
-      fill: UI.surface,
-      stroke: UI.border,
-      strokeWidth: 1,
-      shadow: UI.shadowSm,
-      listening: false
-    })
-  );
+  group.add(canvasSurface(app, width, tableH, { radius: UI.radius }));
   group.add(
     app.rect({
-      width: tableW,
+      width,
       height: rowH,
       fill: UI.surfaceMuted,
       stroke: null,
@@ -7851,28 +8466,43 @@ registerComponent("table", (props, app) => {
     })
   );
   columns.forEach((col, ci) => {
+    const sorted = sortable && sortColumn === ci;
+    const arrow = sorted ? sortDirection === "asc" ? " \u25B2" : " \u25BC" : sortable ? " \u21C5" : "";
     group.add(
       app.text({
-        text: col.toUpperCase(),
+        text: col.toUpperCase() + arrow,
         x: ci * colW + 14,
         y: 10,
         fontSize: UI.fontSizeSm,
         fontWeight: "bold",
-        fill: UI.textMuted,
+        fill: sorted ? UI.primary : UI.textMuted,
         listening: false
       })
     );
   });
   rows.forEach((row, ri) => {
     const rowY = (ri + 1) * rowH;
-    if (ri % 2 === 1) {
+    const zebra = ri % 2 === 1;
+    const selected = ri === selectedRow;
+    if (zebra || selected) {
       group.add(
         app.rect({
-          width: tableW,
+          width,
           height: rowH,
           y: rowY,
-          fill: UI.surfaceMuted,
-          opacity: 0.5,
+          fill: selected ? UI.primarySubtle : UI.surfaceMuted,
+          opacity: selected ? 1 : 0.5,
+          listening: false
+        })
+      );
+    }
+    if (selected) {
+      group.add(
+        app.rect({
+          width: 3,
+          height: rowH,
+          y: rowY,
+          fill: UI.primary,
           listening: false
         })
       );
@@ -7885,7 +8515,7 @@ registerComponent("table", (props, app) => {
           x: ci * colW + 14,
           y: 10,
           fontSize: UI.fontSize,
-          fill: UI.text,
+          fill: selected ? UI.primary : UI.text,
           listening: false
         })
       );
@@ -7897,55 +8527,149 @@ registerComponent("table", (props, app) => {
     });
     group.add(rowGroup);
   });
-  setState(group, { columns, rows, selectedRow: -1 });
+  setState(group, {
+    columns,
+    rows,
+    selectedRow,
+    colWidth: colW,
+    width,
+    sortable,
+    sortColumn,
+    sortDirection,
+    stickyHeader: bool(props, "stickyHeader", true),
+    maxHeight: num(props, "maxHeight", 0)
+  });
   return group;
 });
 registerComponent("tree", (props, app) => {
   const nodes = props.nodes ?? [
     { label: "Root", children: [{ label: "Child A" }, { label: "Child B" }] }
   ];
-  const expanded = /* @__PURE__ */ new Set([0]);
+  const expanded = new Set(props.expanded ?? [0]);
+  const selectedNode = str(props, "selectedNode", "");
+  const width = num(props, "width", 220);
   const group = createGroup(app, "tree", props, { focusable: true, role: "tree" });
-  let y = 0;
+  let y = 4;
   nodes.forEach((node, i) => {
-    const header = app.group({ x: 0, y, listening: true });
-    header.add(app.text({ text: (expanded.has(i) ? "\u25BC  " : "\u25B6  ") + node.label, fontSize: UI.fontSize, fontWeight: "600", fill: UI.text, listening: false }));
+    const parentKey = `p${i}`;
+    const parentSelected = selectedNode === parentKey;
+    const header = app.group({ x: 0, y, listening: true, metadata: { treeKey: parentKey } });
+    if (parentSelected) {
+      header.add(
+        app.roundedRect({
+          width,
+          height: 24,
+          cornerRadius: UI.radiusSm,
+          fill: UI.primarySubtle,
+          listening: false
+        })
+      );
+    }
+    header.add(
+      app.text({
+        text: (expanded.has(i) ? "\u25BE  " : "\u25B8  ") + node.label,
+        fontSize: UI.fontSize,
+        fontWeight: "600",
+        fill: parentSelected ? UI.primary : UI.text,
+        x: 8,
+        y: 4,
+        listening: false
+      })
+    );
     header.on("click", () => {
       if (expanded.has(i))
         expanded.delete(i);
       else
         expanded.add(i);
-      setState(group, { expanded: Array.from(expanded) });
+      setState(group, { expanded: Array.from(expanded), selectedNode: parentKey });
       group.emit("change", syntheticEvent("change", group, { value: i }));
       group.getApp()?.requestRender();
     });
     group.add(header);
-    y += 24;
+    y += 26;
     if (expanded.has(i) && node.children) {
-      node.children.forEach((child) => {
-        group.add(
+      group.add(
+        app.rect({
+          x: 10,
+          y,
+          width: 1,
+          height: node.children.length * 22,
+          fill: UI.border,
+          listening: false
+        })
+      );
+      node.children.forEach((child, ci) => {
+        const key = `${parentKey}.c${ci}`;
+        const leafSelected = selectedNode === key;
+        const leaf = app.group({ x: 18, y, listening: true, metadata: { treeKey: key } });
+        if (leafSelected) {
+          leaf.add(
+            app.roundedRect({
+              width: width - 22,
+              height: 22,
+              cornerRadius: UI.radiusSm,
+              fill: UI.primarySubtle,
+              listening: false
+            })
+          );
+          leaf.add(
+            app.rect({
+              width: 3,
+              height: 22,
+              fill: UI.primary,
+              listening: false
+            })
+          );
+        }
+        leaf.add(
           app.text({
-            text: "    " + child.label,
-            x: 8,
-            y,
+            text: child.label,
+            x: leafSelected ? 10 : 8,
+            y: 4,
             fontSize: UI.fontSize,
-            fill: UI.textSecondary,
+            fill: leafSelected ? UI.primary : UI.textSecondary,
             listening: false
           })
         );
+        leaf.on("click", (e) => {
+          e.stopPropagation?.();
+          setState(group, { selectedNode: key });
+          group.emit("select", syntheticEvent("select", group, { item: child.label, value: key }));
+          group.getApp()?.requestRender();
+        });
+        group.add(leaf);
         y += 22;
       });
     }
   });
-  setState(group, { nodes, expanded: Array.from(expanded) });
+  setState(group, { nodes, expanded: Array.from(expanded), selectedNode, width });
   return group;
 });
 registerComponent("toolbar", (props, app) => {
-  const buttons = props.buttons ?? ["New", "Open", "Save"];
+  const rawItems = props.items ?? props.buttons ?? ["New", "Open", "Save"];
+  const icons = props.icons ?? [];
   const group = createGroup(app, "toolbar", props, { focusable: true, role: "toolbar" });
   let x = 0;
-  buttons.forEach((label) => {
-    const btnW = Math.max(label.length * 8 + 24, 68);
+  let iconIdx = 0;
+  rawItems.forEach((item) => {
+    if (item === "|" || item === null) {
+      group.add(
+        app.rect({
+          x: x + 2,
+          y: 6,
+          width: 1,
+          height: 20,
+          fill: UI.border,
+          listening: false
+        })
+      );
+      x += 8;
+      return;
+    }
+    const icon = icons[iconIdx] ? `${icons[iconIdx]} ` : "";
+    iconIdx += 1;
+    const label = item;
+    const btnW = Math.max((icon + label).length * 8 + 24, 68);
     const btn = createGroup(app, "button", { label, width: btnW, height: 32, variant: "ghost" }, { x, y: 0, focusable: true, role: "button" });
     btn.add(
       app.roundedRect({
@@ -7959,7 +8683,7 @@ registerComponent("toolbar", (props, app) => {
         listening: false
       }),
       app.text({
-        text: label,
+        text: icon + label,
         fontSize: UI.fontSizeSm,
         fontWeight: "600",
         fill: UI.textSecondary,
@@ -7972,14 +8696,23 @@ registerComponent("toolbar", (props, app) => {
       group.emit("select", syntheticEvent("select", group, { item: label }));
     });
     group.add(btn);
-    x += btnW + 6;
+    x += btnW + 4;
   });
-  setState(group, { buttons });
+  setState(group, { buttons: rawItems.filter((i) => i && i !== "|"), items: rawItems, icons, width: props.width });
   return group;
 });
 registerComponent("toast", (props, app) => {
   const message = str(props, "message", "Notification");
+  const variant = str(props, "variant", "success");
+  const position = str(props, "position", "");
+  const dismissible = bool(props, "dismissible", true);
   const duration = num(props, "duration", 3e3);
+  const fills = {
+    success: "#1e293b",
+    error: "#450a0a",
+    warning: "#451a03",
+    info: "#0c2340"
+  };
   const group = createGroup(app, "toast", props, {
     role: "status",
     ariaLive: "polite",
@@ -7991,13 +8724,13 @@ registerComponent("toast", (props, app) => {
       width: tw,
       height: 40,
       cornerRadius: UI.radius,
-      fill: "#1e293b",
+      fill: fills[variant] ?? fills.success,
       shadow: UI.shadowLg,
       listening: false
     }),
     app.text({ text: message, fontSize: UI.fontSize, fill: UI.textInverse, x: 16, y: 11, listening: false })
   );
-  setState(group, { message, duration, variant: props.variant ?? "success" });
+  setState(group, { message, duration, variant, position, dismissible });
   group.emit("open", syntheticEvent("open", group));
   scheduleAutoDismiss(group, duration, () => {
     group.visible = false;
@@ -8008,6 +8741,8 @@ registerComponent("statusBar", (props, app) => {
   const segments = props.segments ?? ["Ready", "Line 1", "UTF-8"];
   const width = num(props, "width", 400);
   const height = 28;
+  const primaryIndex = num(props, "primaryIndex", 0);
+  const mono = bool(props, "mono", false);
   const group = createGroup(app, "statusBar", props, { role: "status" });
   group.add(
     app.rect({
@@ -8021,18 +8756,32 @@ registerComponent("statusBar", (props, app) => {
   );
   const segW = width / segments.length;
   segments.forEach((seg, i) => {
+    if (i === primaryIndex) {
+      group.add(
+        app.rect({
+          x: i * segW,
+          y: 0,
+          width: segW,
+          height,
+          fill: "rgba(59, 130, 246, 0.2)",
+          listening: false
+        })
+      );
+    }
     group.add(
       app.text({
         text: seg,
         x: i * segW + 12,
         y: 6,
-        fontSize: UI.fontSizeSm,
-        fill: "#94a3b8",
+        fontSize: mono ? 11 : UI.fontSizeSm,
+        fontFamily: mono ? "monospace" : UI.font,
+        fontWeight: i === primaryIndex ? "600" : "500",
+        fill: i === primaryIndex ? "#e2e8f0" : "#94a3b8",
         listening: false
       })
     );
   });
-  setState(group, { segments, width });
+  setState(group, { segments, width, primaryIndex, mono });
   return group;
 });
 
@@ -8046,6 +8795,65 @@ var uiPlugin = {
   }
 };
 
+// src/dashboard/charts/core/refresh.ts
+function clearChartWidgetListeners(group) {
+  group.off("mousemove");
+  group.off("mouseleave");
+  group.off("click");
+  group.off("wheel");
+}
+function installChartRebuild(group, app, build) {
+  const rebuild = () => {
+    clearChartWidgetListeners(group);
+    for (const child of [...group.children]) {
+      group.remove(child);
+    }
+    build(group, app, { ...getState2(group) });
+    app.requestRender();
+  };
+  group.metadata.chartRebuild = rebuild;
+  setRefresh(group, () => rebuild());
+  rebuild();
+}
+function installRegistryChartRebuild(group, app, factory) {
+  const rebuild = () => {
+    clearChartWidgetListeners(group);
+    const props = { ...getState2(group), x: group.x, y: group.y };
+    for (const child of [...group.children]) {
+      group.remove(child);
+    }
+    const fresh = factory(props, app);
+    for (const child of [...fresh.children]) {
+      fresh.remove(child);
+      group.add(child);
+    }
+    group.metadata._parts = fresh.metadata._parts;
+    group.metadata.widgetState = fresh.metadata.widgetState;
+    app.requestRender();
+  };
+  group.metadata.chartRebuild = rebuild;
+  setRefresh(group, () => rebuild());
+}
+function updateChartProps(group, patch) {
+  setState2(group, patch);
+  const rebuild = group.metadata?.chartRebuild;
+  rebuild?.();
+}
+function pushChartValue(group, value, maxPoints = 64) {
+  const state = getState2(group);
+  const data = Array.isArray(state.data) ? [...state.data] : [];
+  data.push(value);
+  while (data.length > maxPoints)
+    data.shift();
+  const patch = { data };
+  if (Array.isArray(state.series) && state.series.length) {
+    patch.series = state.series.map(
+      (s, i) => i === 0 ? { ...s, data: [...data] } : { ...s, data: [...s.data ?? []] }
+    );
+  }
+  updateChartProps(group, patch);
+}
+
 // src/dashboard/registryCore.ts
 var registry2 = {};
 function registerDashboard(type, factory) {
@@ -8053,16 +8861,46 @@ function registerDashboard(type, factory) {
 }
 function createDashboardFromJSON(type, props, app) {
   const factory = registry2[type];
-  return factory ? factory(props, app) : null;
+  if (!factory)
+    return null;
+  const node = factory(props, app);
+  if (node && "children" in node && node.metadata?.widgetType && !node.metadata.chartRebuild) {
+    installRegistryChartRebuild(node, app, factory);
+  }
+  return node;
+}
+
+// src/dashboard/charts/core/scales.ts
+function linearScale(domain, range) {
+  const [d0, d1] = domain;
+  const [r0, r1] = range;
+  const span = d1 - d0 || 1;
+  return (v) => r0 + (v - d0) / span * (r1 - r0);
+}
+function bandWidth(count, range, gap = 0.2) {
+  const step = range / Math.max(count, 1);
+  return step * (1 - gap);
+}
+function polarToXY(cx, cy, r, angle) {
+  return [cx + r * Math.cos(angle), cy + r * Math.sin(angle)];
 }
 
 // src/dashboard/theme.ts
 var DASHBOARD = {
   panel: "#151d2e",
   panelStroke: "#2a3654",
+  face: "#0f172a",
   text: "#e2e8f0",
   textMuted: "#94a3b8",
   textDim: "#64748b",
+  primary: "#3b82f6",
+  secondary: "#ef4444",
+  success: "#22c55e",
+  warning: "#f59e0b",
+  danger: "#ef4444",
+  dangerDark: "#dc2626",
+  inactive: "#374151",
+  inactiveBar: "#475569",
   gaugeTrack: "#374151",
   gaugeNeedle: "#3b82f6",
   speedoNeedle: "#ef4444",
@@ -8079,11 +8917,45 @@ var DASHBOARD = {
   barFill: "#3b82f6",
   compassFace: "#1c2740",
   compassRing: "#475569",
+  compassHub: "#334155",
   thermometerTube: "#334155",
-  thermometerBorder: "#475569"
+  thermometerBorder: "#475569",
+  meterTrack: "#374151",
+  meterFill: "#3b82f6",
+  clockFace: "#1f2937",
+  clockRing: "#374151",
+  clockHand: "#e2e8f0",
+  clockSecond: "#ef4444",
+  batteryOutline: "#475569",
+  batteryTip: "#475569",
+  knobTrack: "#374151",
+  knobRing: "#1f2937",
+  knobIndicator: "#f59e0b",
+  knobArc: "rgba(245, 158, 11, 0.25)",
+  clockTick: "#64748b",
+  clockTickMajor: "#94a3b8",
+  clockHub: "#374151",
+  signalActive: "#22c55e",
+  signalInactive: "#475569",
+  pieStroke: "#1f2937",
+  timelineLine: "#475569",
+  timelineDot: "#3b82f6",
+  highlight: "#3b82f6",
+  series: ["#3b82f6", "#ef4444", "#22c55e", "#f59e0b"],
+  financialUp: "#22c55e",
+  financialDown: "#ef4444",
+  flowLink: "rgba(59, 130, 246, 0.45)",
+  heatmapLow: "#1e3a5f",
+  heatmapHigh: "#60a5fa"
 };
 
 // src/dashboard/chartPrimitives.ts
+function chartLocalPoint(group, worldX, worldY) {
+  const inv = group.getWorldMatrix().invert();
+  if (inv)
+    return inv.transformPoint(worldX, worldY);
+  return { x: worldX - group.x, y: worldY - group.y };
+}
 function computeTicks(min, max, count = 5) {
   if (count < 2)
     return [min];
@@ -8101,12 +8973,13 @@ function dataBounds(data, minY, maxY) {
     max = min + 1;
   return { min, max };
 }
-function defaultLayout(width, height, padding = 30) {
+function defaultLayout(width, height, padding = 30, reserveLegend = false) {
+  const legendH = reserveLegend ? 22 : 0;
   return {
     plotX: padding,
     plotY: 10,
-    plotWidth: width - padding - 10,
-    plotHeight: height - padding - 10
+    plotWidth: Math.max(8, width - padding - 10),
+    plotHeight: Math.max(8, height - padding - 10 - legendH)
   };
 }
 function seriesToPoints(data, layout, bounds) {
@@ -8214,13 +9087,100 @@ function addLegend(app, group, items, x, y) {
   });
 }
 function nearestDataIndex(data, layout, localX) {
-  const step = layout.plotWidth / Math.max(data.length - 1, 1);
+  return nearestPlotIndex(data.length, layout, localX);
+}
+function nearestPlotIndex(count, layout, localX) {
+  if (count <= 0)
+    return 0;
+  const step = layout.plotWidth / Math.max(count - 1, 1);
   const idx = Math.round((localX - layout.plotX) / step);
-  return Math.max(0, Math.min(data.length - 1, idx));
+  return Math.max(0, Math.min(count - 1, idx));
+}
+function barIndexAtX(count, layout, localX) {
+  const step = layout.plotWidth / Math.max(count, 1);
+  if (step <= 0)
+    return 0;
+  const idx = Math.floor((localX - layout.plotX) / step);
+  return Math.max(0, Math.min(count - 1, idx));
+}
+function barGeometry(index, count, value, layout, bounds, gap = 0.2) {
+  const step = layout.plotWidth / Math.max(count, 1);
+  const bw = bandWidth(count, layout.plotWidth, gap);
+  const range = bounds.max - bounds.min || 1;
+  const height = (value - bounds.min) / range * layout.plotHeight;
+  const x = layout.plotX + index * step + (step - bw) / 2;
+  const y = layout.plotY + layout.plotHeight - height;
+  return { x, y, width: bw, height, centerX: x + bw / 2 };
+}
+function barIndexAtY(count, layout, localY) {
+  const slot = layout.plotHeight / Math.max(count, 1);
+  if (slot <= 0)
+    return 0;
+  const idx = Math.floor((localY - layout.plotY) / slot);
+  return Math.max(0, Math.min(count - 1, idx));
+}
+function stackedHorizontalBarGeometry(index, count, total, layout, bounds, gap = 0.2) {
+  const slot = layout.plotHeight / Math.max(count, 1);
+  const bh = bandWidth(count, layout.plotHeight, gap);
+  const xScale = linearScale([bounds.min, bounds.max], [0, layout.plotWidth]);
+  const x0 = layout.plotX + xScale(bounds.min);
+  const x1 = layout.plotX + xScale(total);
+  const y = layout.plotY + index * slot + (slot - bh) / 2;
+  return { x: x0, y, width: Math.max(1, x1 - x0), height: bh, centerY: y + bh / 2 };
+}
+var CHART_TOOLTIP_PAD_X = 8;
+var CHART_TOOLTIP_PAD_Y = 5;
+var CHART_TOOLTIP_LINE_H = 13;
+var CHART_TOOLTIP_MAX_W = 200;
+function chartTooltipSize(label) {
+  const lines = label.split("\n");
+  const maxLen = Math.max(...lines.map((l) => l.length), 1);
+  const width = Math.min(
+    CHART_TOOLTIP_MAX_W,
+    Math.max(40, Math.ceil(maxLen * 6.2) + CHART_TOOLTIP_PAD_X * 2)
+  );
+  const height = Math.max(22, lines.length * CHART_TOOLTIP_LINE_H + CHART_TOOLTIP_PAD_Y * 2);
+  return { width, height };
+}
+function positionChartTooltip(tooltip, tooltipLabel, centerX, topY, label, chartBounds) {
+  const trimmed = label.trim();
+  if (!trimmed) {
+    hideChartTooltip(tooltip, tooltipLabel);
+    return;
+  }
+  const { width: tw, height: th } = chartTooltipSize(trimmed);
+  let x = centerX - tw / 2;
+  let y = topY;
+  if (chartBounds) {
+    x = Math.max(4, Math.min(x, chartBounds.width - tw - 4));
+    y = Math.max(4, Math.min(y, chartBounds.height - th - 4));
+  }
+  tooltip.x = x;
+  tooltip.y = y;
+  tooltip.width = tw;
+  tooltip.height = th;
+  tooltip.visible = true;
+  tooltipLabel.text = trimmed;
+  tooltipLabel.textAlign = "center";
+  tooltipLabel.x = x + tw / 2;
+  const lines = trimmed.split("\n");
+  const textBlockH = lines.length * CHART_TOOLTIP_LINE_H;
+  tooltipLabel.y = y + Math.max(CHART_TOOLTIP_PAD_Y, (th - textBlockH) / 2);
+  tooltipLabel.visible = true;
+  tooltipLabel.zIndex = Math.max(tooltipLabel.zIndex, 902);
+  tooltipLabel.metadata = { ...tooltipLabel.metadata, textBoxWidth: tw, chartTooltipLabel: true };
+}
+function hideChartTooltip(tooltip, tooltipLabel) {
+  tooltip.visible = false;
+  tooltipLabel.visible = false;
 }
 function wireChartInteraction(group, data, layout, bounds, parts) {
+  let hoverIndex = -1;
   const updateHover = (localX) => {
     const idx = nearestDataIndex(data, layout, localX);
+    if (idx === hoverIndex && parts.tooltip.visible)
+      return;
+    hoverIndex = idx;
     const pts = seriesToPoints(data, layout, bounds);
     const px = pts[idx * 2];
     const py = pts[idx * 2 + 1];
@@ -8234,14 +9194,10 @@ function wireChartInteraction(group, data, layout, bounds, parts) {
     parts.dot.x = px - 4;
     parts.dot.y = py - 4;
     parts.dot.visible = true;
-    const tw = Math.max(44, label.length * 8 + 20);
-    parts.tooltip.x = px - tw / 2;
-    parts.tooltip.y = py - 36;
-    parts.tooltip.width = tw;
-    parts.tooltip.visible = true;
-    parts.tooltipLabel.text = label;
-    parts.tooltipLabel.x = px - tw / 2 + 10;
-    parts.tooltipLabel.y = py - 28;
+    positionChartTooltip(parts.tooltip, parts.tooltipLabel, px, py - 36, label, {
+      width: layout.plotX + layout.plotWidth + 10,
+      height: layout.plotY + layout.plotHeight + 30
+    });
     parts.crosshair.markDirty();
     parts.dot.markDirty();
     parts.tooltip.markDirty();
@@ -8251,26 +9207,282 @@ function wireChartInteraction(group, data, layout, bounds, parts) {
     group.getApp()?.requestRender();
   };
   const clearHover = () => {
+    if (hoverIndex < 0 && !parts.tooltip.visible)
+      return;
+    hoverIndex = -1;
     parts.crosshair.visible = false;
     parts.dot.visible = false;
-    parts.tooltip.visible = false;
+    hideChartTooltip(parts.tooltip, parts.tooltipLabel);
     parts.crosshair.markDirty();
     parts.dot.markDirty();
     parts.tooltip.markDirty();
+    parts.tooltipLabel.markDirty();
     group.markDirty();
     group.getApp()?.requestRender();
   };
+  const localXFrom = (e) => chartLocalPoint(group, e.worldX, e.worldY).x;
   group.on("mousemove", (e) => {
-    updateHover(e.worldX - group.x);
+    updateHover(localXFrom(e));
   });
   group.on("mouseleave", clearHover);
   parts.hitArea.on("mousemove", (e) => {
-    updateHover(e.worldX - group.x);
+    updateHover(localXFrom(e));
   });
   parts.hitArea.on("mouseleave", clearHover);
   group.on("click", (e) => {
-    const idx = nearestDataIndex(data, layout, e.worldX - group.x);
+    const idx = nearestDataIndex(data, layout, localXFrom(e));
     group.emit("select", syntheticEvent("select", group, { index: idx, value: data[idx] }));
+  });
+}
+function wireMultiSeriesChartInteraction(group, seriesList, layout, bounds, parts) {
+  const primaryData = seriesList[0]?.data ?? [];
+  const pointCount = Math.max(...seriesList.map((s) => s.data.length), 1);
+  let hoverIndex = -1;
+  const updateHover = (localX) => {
+    const idx = nearestPlotIndex(pointCount, layout, localX);
+    if (idx === hoverIndex && parts.tooltip.visible)
+      return;
+    hoverIndex = idx;
+    const label = seriesList.map((s) => `${s.name ?? "Series"}: ${s.data[idx] ?? "\u2014"}`).join("\n");
+    const anchor = primaryData.length ? primaryData : seriesList[0]?.data ?? [0];
+    const pts = seriesToPoints(anchor, layout, bounds);
+    const px = pts[idx * 2] ?? layout.plotX;
+    const py = pts[idx * 2 + 1] ?? layout.plotY;
+    parts.crosshair.x = px;
+    parts.crosshair.y = layout.plotY;
+    parts.crosshair.x2 = 0;
+    parts.crosshair.y2 = layout.plotHeight;
+    parts.crosshair.visible = true;
+    parts.dot.x = px - 4;
+    parts.dot.y = py - 4;
+    parts.dot.visible = true;
+    positionChartTooltip(parts.tooltip, parts.tooltipLabel, px, py - 36, label, {
+      width: layout.plotX + layout.plotWidth + 10,
+      height: layout.plotY + layout.plotHeight + 30
+    });
+    parts.crosshair.markDirty();
+    parts.dot.markDirty();
+    parts.tooltip.markDirty();
+    parts.tooltipLabel.markDirty();
+    group.markDirty();
+    group.emit("hover", syntheticEvent("hover", group, { index: idx, series: seriesList.map((s) => s.data[idx]) }));
+    group.getApp()?.requestRender();
+  };
+  const clearHover = () => {
+    if (hoverIndex < 0 && !parts.tooltip.visible)
+      return;
+    hoverIndex = -1;
+    parts.crosshair.visible = false;
+    parts.dot.visible = false;
+    hideChartTooltip(parts.tooltip, parts.tooltipLabel);
+    parts.crosshair.markDirty();
+    parts.dot.markDirty();
+    parts.tooltip.markDirty();
+    parts.tooltipLabel.markDirty();
+    group.markDirty();
+    group.getApp()?.requestRender();
+  };
+  const localXFrom = (e) => chartLocalPoint(group, e.worldX, e.worldY).x;
+  group.on("mousemove", (e) => {
+    updateHover(localXFrom(e));
+  });
+  group.on("mouseleave", clearHover);
+  parts.hitArea.on("mousemove", (e) => {
+    updateHover(localXFrom(e));
+  });
+  parts.hitArea.on("mouseleave", clearHover);
+  group.on("click", (e) => {
+    const idx = nearestPlotIndex(pointCount, layout, localXFrom(e));
+    group.emit("select", syntheticEvent("select", group, { index: idx, series: seriesList.map((s) => s.data[idx]) }));
+  });
+}
+function wireBarChartInteraction(group, data, layout, bounds, gap = 0.2, parts) {
+  const count = data.length;
+  let hoverIndex = -1;
+  const updateHover = (localX) => {
+    const idx = barIndexAtX(count, layout, localX);
+    if (idx === hoverIndex && parts.tooltip.visible)
+      return;
+    hoverIndex = idx;
+    const val = data[idx];
+    const geo = barGeometry(idx, count, val, layout, bounds, gap);
+    const label = String(val);
+    parts.highlight.x = geo.x;
+    parts.highlight.y = geo.y;
+    const hi = parts.highlight;
+    hi.width = geo.width;
+    hi.height = geo.height;
+    parts.highlight.visible = true;
+    positionChartTooltip(parts.tooltip, parts.tooltipLabel, geo.centerX, geo.y - 32, label, {
+      width: layout.plotX + layout.plotWidth + 10,
+      height: layout.plotY + layout.plotHeight + 30
+    });
+    parts.highlight.markDirty();
+    parts.tooltip.markDirty();
+    parts.tooltipLabel.markDirty();
+    group.markDirty();
+    group.emit("hover", syntheticEvent("hover", group, { index: idx, value: val }));
+    group.getApp()?.requestRender();
+  };
+  const clearHover = () => {
+    if (hoverIndex < 0 && !parts.tooltip.visible)
+      return;
+    hoverIndex = -1;
+    parts.highlight.visible = false;
+    hideChartTooltip(parts.tooltip, parts.tooltipLabel);
+    parts.highlight.markDirty();
+    parts.tooltip.markDirty();
+    parts.tooltipLabel.markDirty();
+    group.markDirty();
+    group.getApp()?.requestRender();
+  };
+  const localXFrom = (e) => chartLocalPoint(group, e.worldX, e.worldY).x;
+  group.on("mousemove", (e) => {
+    updateHover(localXFrom(e));
+  });
+  group.on("mouseleave", clearHover);
+  parts.hitArea.on("mousemove", (e) => {
+    updateHover(localXFrom(e));
+  });
+  parts.hitArea.on("mouseleave", clearHover);
+  group.on("click", (e) => {
+    const idx = barIndexAtX(count, layout, localXFrom(e));
+    group.emit("select", syntheticEvent("select", group, { index: idx, value: data[idx] }));
+  });
+}
+function stackedBarHoverLabel(seriesList, index) {
+  return seriesList.map((s) => `${s.name ?? "Series"}: ${s.data[index] ?? "\u2014"}`).join("\n");
+}
+function wireStackedBarChartInteraction(group, seriesList, layout, bounds, totals, gap = 0.2, parts) {
+  const count = totals.length;
+  let hoverIndex = -1;
+  const updateHover = (localX) => {
+    const idx = barIndexAtX(count, layout, localX);
+    if (idx === hoverIndex && parts.tooltip.visible)
+      return;
+    hoverIndex = idx;
+    const total = totals[idx] ?? 0;
+    const geo = barGeometry(idx, count, total, layout, bounds, gap);
+    const label = stackedBarHoverLabel(seriesList, idx);
+    parts.highlight.x = geo.x;
+    parts.highlight.y = geo.y;
+    const hi = parts.highlight;
+    hi.width = geo.width;
+    hi.height = geo.height;
+    parts.highlight.visible = true;
+    positionChartTooltip(parts.tooltip, parts.tooltipLabel, geo.centerX, geo.y - 32, label, {
+      width: layout.plotX + layout.plotWidth + 10,
+      height: layout.plotY + layout.plotHeight + 30
+    });
+    parts.highlight.markDirty();
+    parts.tooltip.markDirty();
+    parts.tooltipLabel.markDirty();
+    group.markDirty();
+    group.emit(
+      "hover",
+      syntheticEvent("hover", group, {
+        index: idx,
+        series: seriesList.map((s) => s.data[idx])
+      })
+    );
+    group.getApp()?.requestRender();
+  };
+  const clearHover = () => {
+    if (hoverIndex < 0 && !parts.tooltip.visible)
+      return;
+    hoverIndex = -1;
+    parts.highlight.visible = false;
+    hideChartTooltip(parts.tooltip, parts.tooltipLabel);
+    parts.highlight.markDirty();
+    parts.tooltip.markDirty();
+    parts.tooltipLabel.markDirty();
+    group.markDirty();
+    group.getApp()?.requestRender();
+  };
+  const localXFrom = (e) => chartLocalPoint(group, e.worldX, e.worldY).x;
+  group.on("mousemove", (e) => {
+    updateHover(localXFrom(e));
+  });
+  group.on("mouseleave", clearHover);
+  parts.hitArea.on("mousemove", (e) => {
+    updateHover(localXFrom(e));
+  });
+  parts.hitArea.on("mouseleave", clearHover);
+  group.on("click", (e) => {
+    const idx = barIndexAtX(count, layout, localXFrom(e));
+    group.emit(
+      "select",
+      syntheticEvent("select", group, {
+        index: idx,
+        series: seriesList.map((s) => s.data[idx])
+      })
+    );
+  });
+}
+function wireStackedHorizontalBarChartInteraction(group, seriesList, layout, bounds, totals, gap = 0.2, parts) {
+  const count = totals.length;
+  let hoverIndex = -1;
+  const updateHover = (localY) => {
+    const idx = barIndexAtY(count, layout, localY);
+    if (idx === hoverIndex && parts.tooltip.visible)
+      return;
+    hoverIndex = idx;
+    const total = totals[idx] ?? 0;
+    const geo = stackedHorizontalBarGeometry(idx, count, total, layout, bounds, gap);
+    const label = stackedBarHoverLabel(seriesList, idx);
+    parts.highlight.x = geo.x;
+    parts.highlight.y = geo.y;
+    const hi = parts.highlight;
+    hi.width = geo.width;
+    hi.height = geo.height;
+    parts.highlight.visible = true;
+    positionChartTooltip(parts.tooltip, parts.tooltipLabel, layout.plotX + layout.plotWidth / 2, geo.y - 32, label, {
+      width: layout.plotX + layout.plotWidth + 10,
+      height: layout.plotY + layout.plotHeight + 30
+    });
+    parts.highlight.markDirty();
+    parts.tooltip.markDirty();
+    parts.tooltipLabel.markDirty();
+    group.markDirty();
+    group.emit(
+      "hover",
+      syntheticEvent("hover", group, {
+        index: idx,
+        series: seriesList.map((s) => s.data[idx])
+      })
+    );
+    group.getApp()?.requestRender();
+  };
+  const clearHover = () => {
+    if (hoverIndex < 0 && !parts.tooltip.visible)
+      return;
+    hoverIndex = -1;
+    parts.highlight.visible = false;
+    hideChartTooltip(parts.tooltip, parts.tooltipLabel);
+    parts.highlight.markDirty();
+    parts.tooltip.markDirty();
+    parts.tooltipLabel.markDirty();
+    group.markDirty();
+    group.getApp()?.requestRender();
+  };
+  const localYFrom = (e) => chartLocalPoint(group, e.worldX, e.worldY).y;
+  group.on("mousemove", (e) => {
+    updateHover(localYFrom(e));
+  });
+  group.on("mouseleave", clearHover);
+  parts.hitArea.on("mousemove", (e) => {
+    updateHover(localYFrom(e));
+  });
+  parts.hitArea.on("mouseleave", clearHover);
+  group.on("click", (e) => {
+    const idx = barIndexAtY(count, layout, localYFrom(e));
+    group.emit(
+      "select",
+      syntheticEvent("select", group, {
+        index: idx,
+        series: seriesList.map((s) => s.data[idx])
+      })
+    );
   });
 }
 
@@ -8288,6 +9500,7 @@ function buildDialGauge(app, group, style, opts) {
   const tickColor = style.tickColor ?? style.bezelColor ?? style.trackColor;
   const format = opts.formatValue ?? ((v) => String(Math.round(v)));
   const tickCount = opts.tickCount ?? 8;
+  const shadow = size >= 130 ? { color: "rgba(0,0,0,0.4)", blur: Math.min(10, size / 14), offsetX: 0, offsetY: Math.min(3, size / 36) } : void 0;
   group.add(
     app.circle({
       x: cx - r - 6,
@@ -8296,7 +9509,7 @@ function buildDialGauge(app, group, style, opts) {
       fill: style.faceColor ?? "#111827",
       stroke: style.bezelColor ?? style.trackColor,
       strokeWidth: 2,
-      shadow: { color: "rgba(0,0,0,0.45)", blur: 12, offsetX: 0, offsetY: 4 },
+      shadow,
       listening: false
     })
   );
@@ -8438,23 +9651,496 @@ function updateDialNeedle(needle, _cx, value, max, r, start = DEFAULT_START, swe
   needle.y2 = len * Math.sin(angle);
 }
 
-// src/dashboard/definitions.ts
-function buildDataChart(group, app, props, filled) {
+// src/dashboard/charts/core/interaction.ts
+function isInteractive(props) {
+  return props.interactive !== false;
+}
+function localXY(group, e) {
+  return chartLocalPoint(group, e.worldX, e.worldY);
+}
+function chartSize(group) {
+  const state = getState2(group);
+  const w = num2(state, "width", 0) || num2(state, "size", 300);
+  const h = num2(state, "height", 0) || num2(state, "size", 150);
+  return { width: w, height: h };
+}
+function showTooltip(group, parts, label, centerX, topY, highlight) {
+  if (!label.trim()) {
+    clearTooltip(group, parts);
+    return;
+  }
+  if (highlight && parts.highlight) {
+    parts.highlight.x = highlight.x;
+    parts.highlight.y = highlight.y;
+    const hi = parts.highlight;
+    hi.width = highlight.width;
+    hi.height = highlight.height;
+    parts.highlight.visible = true;
+    parts.highlight.markDirty();
+  }
+  const bounds = chartSize(group);
+  positionChartTooltip(
+    parts.tooltip,
+    parts.tooltipLabel,
+    centerX,
+    topY,
+    label,
+    bounds
+  );
+  parts.tooltip.markDirty();
+  parts.tooltipLabel.markDirty();
+  group.markDirty();
+  group.getApp()?.requestRender();
+}
+function clearTooltip(group, parts) {
+  if (!parts.tooltip.visible && !parts.highlight?.visible)
+    return;
+  hideChartTooltip(
+    parts.tooltip,
+    parts.tooltipLabel
+  );
+  if (parts.highlight)
+    parts.highlight.visible = false;
+  parts.tooltip.markDirty();
+  parts.tooltipLabel.markDirty();
+  parts.highlight?.markDirty();
+  group.markDirty();
+  group.getApp()?.requestRender();
+}
+function bindHover(group, parts, onMove) {
+  let lastHoverKey = "";
+  const handleMove = (e) => {
+    const { x, y } = localXY(group, e);
+    const hit = onMove(x, y);
+    if (!hit) {
+      lastHoverKey = "";
+      clearTooltip(group, parts);
+      return;
+    }
+    const key = `${hit.label}|${hit.centerX}|${hit.topY}`;
+    if (key === lastHoverKey)
+      return;
+    lastHoverKey = key;
+    showTooltip(group, parts, hit.label, hit.centerX, hit.topY, hit.highlight);
+    group.emit("hover", syntheticEvent("hover", group, hit.payload ?? { value: hit.label }));
+  };
+  const handleClear = () => {
+    lastHoverKey = "";
+    clearTooltip(group, parts);
+  };
+  group.on("mousemove", handleMove);
+  group.on("mouseleave", handleClear);
+  parts.hitArea.on("mousemove", handleMove);
+  parts.hitArea.on("mouseleave", handleClear);
+  group.on("click", (e) => {
+    const { x, y } = localXY(group, e);
+    const hit = onMove(x, y);
+    if (hit)
+      group.emit("select", syntheticEvent("select", group, hit.payload ?? { value: hit.label }));
+  });
+}
+function createHoverParts(app, rect, withHighlight = true) {
+  const tooltip = app.roundedRect({
+    width: 52,
+    height: 24,
+    cornerRadius: 6,
+    fill: DASHBOARD.chartTooltipBg,
+    stroke: DASHBOARD.chartTooltipBorder,
+    strokeWidth: 1,
+    visible: false,
+    listening: false,
+    zIndex: 900
+  });
+  const tooltipLabel = app.text({
+    text: "",
+    fontSize: 11,
+    fontWeight: "bold",
+    fill: DASHBOARD.text,
+    textAlign: "center",
+    x: 0,
+    y: 0,
+    visible: false,
+    listening: false,
+    zIndex: 901
+  });
+  const hitArea = app.rect({
+    x: rect.x,
+    y: rect.y,
+    width: rect.width,
+    height: rect.height,
+    fill: "rgba(0,0,0,0.001)",
+    listening: true,
+    zIndex: 800
+  });
+  const highlight = withHighlight ? app.rect({
+    fill: "rgba(96,165,250,0.28)",
+    stroke: DASHBOARD.chartLine,
+    strokeWidth: 2,
+    visible: false,
+    listening: false
+  }) : void 0;
+  return { tooltip, tooltipLabel, hitArea, highlight };
+}
+function mountHover(group, app, props, rect, onMove, withHighlight = true) {
+  if (!isInteractive(props))
+    return;
+  const parts = createHoverParts(app, rect, withHighlight);
+  const nodes = parts.highlight ? [parts.highlight, parts.tooltip, parts.tooltipLabel, parts.hitArea] : [parts.tooltip, parts.tooltipLabel, parts.hitArea];
+  group.add(...nodes);
+  bindHover(group, parts, onMove);
+  setParts2(group, parts);
+}
+function attachIndexXHover(app, group, props, layout, count, labelAt, highlightAt, payloadAt) {
+  if (!isInteractive(props) || count <= 0)
+    return;
+  const slot = layout.plotWidth / Math.max(count, 1);
+  mountHover(
+    group,
+    app,
+    props,
+    { x: layout.plotX, y: layout.plotY, width: layout.plotWidth, height: layout.plotHeight },
+    (x) => {
+      const idx = Math.max(0, Math.min(count - 1, Math.floor((x - layout.plotX) / slot)));
+      const centerX = layout.plotX + slot * idx + slot / 2;
+      return {
+        label: labelAt(idx),
+        centerX,
+        topY: layout.plotY - 8,
+        highlight: highlightAt?.(idx),
+        payload: payloadAt ? payloadAt(idx) : { index: idx, value: labelAt(idx) }
+      };
+    }
+  );
+}
+function attachIndexYHover(app, group, props, layout, count, labelAt, highlightAt) {
+  if (!isInteractive(props) || count <= 0)
+    return;
+  const slot = layout.plotHeight / Math.max(count, 1);
+  mountHover(
+    group,
+    app,
+    props,
+    { x: layout.plotX, y: layout.plotY, width: layout.plotWidth, height: layout.plotHeight },
+    (_x, y) => {
+      const idx = Math.max(0, Math.min(count - 1, Math.floor((y - layout.plotY) / slot)));
+      const centerY = layout.plotY + slot * idx + slot / 2;
+      return {
+        label: labelAt(idx),
+        centerX: layout.plotX + layout.plotWidth / 2,
+        topY: centerY - 32,
+        highlight: highlightAt?.(idx),
+        payload: { index: idx, value: labelAt(idx) }
+      };
+    }
+  );
+}
+function attachBandYHover(app, group, props, width, height, count, labelAt) {
+  if (!isInteractive(props) || count <= 0)
+    return;
+  const band = height / count;
+  mountHover(group, app, props, { x: 0, y: 0, width, height }, (_x, y) => {
+    const idx = Math.max(0, Math.min(count - 1, Math.floor(y / band)));
+    return {
+      label: labelAt(idx),
+      centerX: width / 2,
+      topY: idx * band + 4,
+      highlight: { x: 0, y: idx * band, width, height: band },
+      payload: { index: idx, value: labelAt(idx) }
+    };
+  });
+}
+function attachPolarSliceHover(app, group, props, size, data, labels, innerRadius = 0) {
+  if (!isInteractive(props) || !data.length)
+    return;
+  const cx = size / 2;
+  const cy = size / 2;
+  const outerR = size / 2 - 10;
+  const total = data.reduce((a, b) => a + b, 0) || 1;
+  let start = -Math.PI / 2;
+  const slices = data.map((val, i) => {
+    const sweep = val / total * Math.PI * 2;
+    const slice = { start, end: start + sweep, val, i };
+    start += sweep;
+    return slice;
+  });
+  mountHover(
+    group,
+    app,
+    props,
+    { x: 0, y: 0, width: size, height: size },
+    (x, y) => {
+      const dx = x - cx;
+      const dy = y - cy;
+      const r = Math.hypot(dx, dy);
+      if (r < innerRadius || r > outerR)
+        return null;
+      let angle = Math.atan2(dy, dx);
+      if (angle < -Math.PI / 2)
+        angle += Math.PI * 2;
+      const hit = slices.find((s) => angle >= s.start && angle < s.end);
+      if (!hit)
+        return null;
+      const mid = (hit.start + hit.end) / 2;
+      const lr = (outerR + innerRadius) / 2;
+      const tx = cx + lr * Math.cos(mid);
+      const ty = cy + lr * Math.sin(mid);
+      const name = labels?.[hit.i];
+      const label = name ?? String(hit.val);
+      return {
+        label,
+        centerX: tx,
+        topY: ty - 28,
+        payload: { index: hit.i, value: hit.val, label: name }
+      };
+    },
+    false
+  );
+}
+function attachGridHover(app, group, props, width, height, rows, cols, valueAt) {
+  if (!isInteractive(props) || rows <= 0 || cols <= 0)
+    return;
+  const cw = width / cols;
+  const ch = height / rows;
+  mountHover(group, app, props, { x: 0, y: 0, width, height }, (x, y) => {
+    const col = Math.max(0, Math.min(cols - 1, Math.floor(x / cw)));
+    const row = Math.max(0, Math.min(rows - 1, Math.floor(y / ch)));
+    const label = valueAt(row, col);
+    if (!label.trim())
+      return null;
+    return {
+      label,
+      centerX: col * cw + cw / 2,
+      topY: row * ch - 4,
+      highlight: { x: col * cw, y: row * ch, width: cw, height: ch },
+      payload: { row, col, value: valueAt(row, col) }
+    };
+  });
+}
+function attachNearestHover(app, group, props, rect, points, radius = 80) {
+  if (!isInteractive(props) || !points.length)
+    return;
+  mountHover(group, app, props, rect, (x, y) => {
+    let best = null;
+    let bestD = radius * radius;
+    for (const p of points) {
+      const d = (p.x - x) ** 2 + (p.y - y) ** 2;
+      if (d < bestD) {
+        bestD = d;
+        best = p;
+      }
+    }
+    if (!best)
+      return null;
+    const label = best.label ?? "";
+    if (!label.trim())
+      return null;
+    return {
+      label,
+      centerX: best.x,
+      topY: best.y - 28,
+      payload: best.payload ?? { label }
+    };
+  }, false);
+}
+function attachRegionsHover(app, group, props, width, height, regions) {
+  if (!isInteractive(props) || !regions.length)
+    return;
+  mountHover(group, app, props, { x: 0, y: 0, width, height }, (x, y) => {
+    const hit = regions.find(
+      (r) => x >= r.x && x <= r.x + r.width && y >= r.y && y <= r.y + r.height
+    );
+    if (!hit)
+      return null;
+    const label = hit.label ?? "";
+    if (!label.trim())
+      return null;
+    return {
+      label,
+      centerX: hit.x + hit.width / 2,
+      topY: hit.y - 8,
+      highlight: { x: hit.x, y: hit.y, width: hit.width, height: hit.height },
+      payload: hit.payload ?? { label }
+    };
+  });
+}
+function attachValueHover(app, group, props, width, height, label) {
+  if (!isInteractive(props))
+    return;
+  mountHover(
+    group,
+    app,
+    props,
+    { x: 0, y: 0, width, height },
+    () => ({
+      label,
+      centerX: width / 2,
+      topY: height * 0.2,
+      payload: { value: label }
+    }),
+    false
+  );
+}
+
+// src/dashboard/charts/core/zoom.ts
+function attachPlotWheelZoom(group, hitArea, bounds, options = {}) {
+  const minSpan = options.minSpan ?? 1;
+  const factor = options.factor ?? 1.12;
+  const applyZoom = (direction) => {
+    const state = getState2(group);
+    const minY = typeof state.minY === "number" ? state.minY : bounds.min;
+    const maxY = typeof state.maxY === "number" ? state.maxY : bounds.max;
+    const mid = (minY + maxY) / 2;
+    let half = (maxY - minY) / 2 * (direction > 0 ? factor : 1 / factor);
+    half = Math.max(minSpan / 2, half);
+    setState2(group, { minY: mid - half, maxY: mid + half });
+    const rebuild = group.metadata?.chartRebuild;
+    rebuild?.();
+    group.getApp()?.requestRender();
+  };
+  const onWheel = (e) => {
+    const we = e.originalEvent;
+    const dy = we.deltaY ?? 0;
+    if (dy === 0)
+      return;
+    e.preventDefault();
+    e.stopPropagation();
+    applyZoom(dy > 0 ? 1 : -1);
+  };
+  group.on("wheel", onWheel);
+  hitArea.on("wheel", onWheel);
+}
+
+// src/dashboard/charts/core/series.ts
+function parseSeries(props, fallback = [10, 30, 20, 50, 40, 60]) {
+  const raw = props.series;
+  if (raw?.length) {
+    return raw.map((s, i) => ({
+      name: s.name ?? s.label ?? `Series ${i + 1}`,
+      data: s.data ?? [],
+      type: s.type,
+      color: s.color ?? DASHBOARD.series[i % DASHBOARD.series.length],
+      yAxis: s.yAxis,
+      errorY: s.errorY,
+      rangeMin: s.rangeMin,
+      rangeMax: s.rangeMax
+    }));
+  }
+  const data = props.data ?? fallback;
+  return [
+    {
+      name: typeof props.seriesLabel === "string" ? props.seriesLabel : "Series",
+      data,
+      color: DASHBOARD.chartLine
+    }
+  ];
+}
+function seriesPointCount(series) {
+  return Math.max(...series.map((s) => s.data.length), 0);
+}
+function flattenSeriesData(series) {
+  return series.flatMap((s) => s.data);
+}
+function stackSeries(series) {
+  const len = seriesPointCount(series);
+  const stacked = series.map(() => Array(len).fill(0));
+  for (let i = 0; i < len; i++) {
+    let acc = 0;
+    for (let s = 0; s < series.length; s++) {
+      const v = series[s].data[i] ?? 0;
+      acc += v;
+      stacked[s][i] = acc;
+    }
+  }
+  return series.map((s, si) => ({
+    ...s,
+    data: stacked[si],
+    _base: si === 0 ? Array(len).fill(0) : stacked[si - 1]
+  }));
+}
+function normalizeBumpRanks(series) {
+  const len = seriesPointCount(series);
+  const result = [];
+  for (let i = 0; i < len; i++) {
+    const vals = series.map((s, si) => ({ si, v: s.data[i] ?? 0 }));
+    vals.sort((a, b) => b.v - a.v);
+    vals.forEach((entry, rank) => {
+      if (!result[entry.si]) {
+        result[entry.si] = { ...series[entry.si], data: [] };
+      }
+      result[entry.si].data[i] = rank + 1;
+    });
+  }
+  return result;
+}
+
+// src/dashboard/charts/core/layout.ts
+function buildChartContext(props, series) {
   const width = num2(props, "width", 300);
   const height = num2(props, "height", 150);
-  const data = props.data ?? [10, 30, 20, 50, 40, 60];
-  const layout = defaultLayout(width, height);
-  const minY = props.minY;
-  const maxY = props.maxY;
-  const bounds = dataBounds(
-    data,
-    typeof minY === "number" ? minY : void 0,
-    typeof maxY === "number" ? maxY : void 0
-  );
+  const minimal = props.minimalAxes === true;
+  const showLegend = props.showLegend !== false && !minimal;
+  const padding = minimal ? 4 : 30;
+  const layout = defaultLayout(width, height, padding, showLegend);
+  const minY = typeof props.minY === "number" ? props.minY : void 0;
+  const maxY = typeof props.maxY === "number" ? props.maxY : void 0;
+  const bounds = dataBounds(flattenSeriesData(series), minY, maxY);
   const yTicks = computeTicks(bounds.min, bounds.max, num2(props, "tickCount", 5));
-  group.add(
-    app.rect({ width, height, fill: DASHBOARD.chartBg, stroke: DASHBOARD.chartGrid, strokeWidth: 1, listening: true })
-  );
+  const categories = props.categories ?? Array.from({ length: Math.max(...series.map((s) => s.data.length), 1) }, (_, i) => String(i + 1));
+  return { width, height, layout, bounds, yTicks, categories, series };
+}
+
+// src/dashboard/charts/core/spline.ts
+function stepPoints(data, toXY) {
+  const pts = [];
+  for (let i = 0; i < data.length; i++) {
+    const [x, y] = toXY(i, data[i]);
+    if (i === 0) {
+      pts.push(x, y);
+    } else {
+      const [px] = toXY(i - 1, data[i - 1]);
+      pts.push(x, data[i - 1] !== void 0 ? toXY(i - 1, data[i - 1])[1] : y);
+      pts.push(x, y);
+    }
+  }
+  return pts;
+}
+function catmullRomPath(points, tension = 0.5) {
+  if (points.length < 2)
+    return "";
+  if (points.length === 2) {
+    return `M ${points[0][0]} ${points[0][1]} L ${points[1][0]} ${points[1][1]}`;
+  }
+  let d = `M ${points[0][0]} ${points[0][1]}`;
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[Math.max(i - 1, 0)];
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const p3 = points[Math.min(i + 2, points.length - 1)];
+    const cp1x = p1[0] + (p2[0] - p0[0]) / 6 * tension;
+    const cp1y = p1[1] + (p2[1] - p0[1]) / 6 * tension;
+    const cp2x = p2[0] - (p3[0] - p1[0]) / 6 * tension;
+    const cp2y = p2[1] - (p3[1] - p1[1]) / 6 * tension;
+    d += ` C ${cp1x} ${cp1y} ${cp2x} ${cp2y} ${p2[0]} ${p2[1]}`;
+  }
+  return d;
+}
+function pointsToPairs(points) {
+  const pairs = [];
+  for (let i = 0; i < points.length; i += 2) {
+    pairs.push([points[i], points[i + 1]]);
+  }
+  return pairs;
+}
+
+// src/dashboard/charts/cartesian/cartesianChart.ts
+function valueToY(v, layout, bounds) {
+  const range = bounds.max - bounds.min || 1;
+  return layout.plotY + layout.plotHeight - (v - bounds.min) / range * layout.plotHeight;
+}
+function addPlotChrome(app, group, ctx, props) {
+  const { width, height, layout, bounds, yTicks } = ctx;
+  const minimal = ctx.series.length === 0 || props.minimalAxes === true || ["sparkline"].includes(String(props.variant));
+  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
   group.add(
     app.rect({
       x: layout.plotX,
@@ -8466,57 +10152,15 @@ function buildDataChart(group, app, props, filled) {
       listening: false
     })
   );
-  addGridLines(app, group, layout, yTicks, bounds);
-  addAxes(app, group, layout, bounds, yTicks);
-  const points = seriesToPoints(data, layout, bounds);
-  const baselineY = layout.plotY + layout.plotHeight;
-  if (filled) {
-    group.add(
-      app.path({
-        d: areaPathFromPoints(points, baselineY),
-        fill: DASHBOARD.chartArea,
-        stroke: null,
-        listening: false
-      })
-    );
+  if (!minimal && props.showGrid !== false) {
+    addGridLines(app, group, layout, yTicks, bounds);
+    addAxes(app, group, layout, bounds, yTicks);
   }
-  group.add(
-    app.polyline({
-      points,
-      fill: null,
-      stroke: DASHBOARD.chartLine,
-      strokeWidth: 2.5,
-      lineCap: "round",
-      lineJoin: "round",
-      listening: false
-    })
-  );
-  data.forEach((_, i) => {
-    if (i % Math.max(1, Math.floor(data.length / 6)) === 0 || data.length <= 8) {
-      const px = points[i * 2];
-      const py = points[i * 2 + 1];
-      group.add(
-        app.circle({
-          x: px - 3,
-          y: py - 3,
-          radius: 3,
-          fill: DASHBOARD.chartBg,
-          stroke: DASHBOARD.chartLine,
-          strokeWidth: 2,
-          listening: false
-        })
-      );
-    }
-  });
-  if (props.showLegend !== false) {
-    addLegend(
-      app,
-      group,
-      [{ label: str2(props, "seriesLabel", "Series"), color: DASHBOARD.chartLine }],
-      width - 90,
-      8
-    );
-  }
+}
+function addInteraction(app, group, ctx, props, primaryData, allSeries) {
+  if (props.interactive === false)
+    return;
+  const { layout, bounds } = ctx;
   const crosshair = app.line({
     x: layout.plotX,
     y: layout.plotY,
@@ -8546,16 +10190,20 @@ function buildDataChart(group, app, props, filled) {
     stroke: DASHBOARD.chartTooltipBorder,
     strokeWidth: 1,
     visible: false,
-    listening: false
+    listening: false,
+    zIndex: 900
   });
   const tooltipLabel = app.text({
     text: "",
     fontSize: 11,
     fontWeight: "bold",
     fill: DASHBOARD.text,
-    x: 8,
-    y: 5,
-    listening: false
+    textAlign: "center",
+    x: 0,
+    y: 0,
+    visible: false,
+    listening: false,
+    zIndex: 901
   });
   const hitArea = app.rect({
     x: layout.plotX,
@@ -8563,11 +10211,21 @@ function buildDataChart(group, app, props, filled) {
     width: layout.plotWidth,
     height: layout.plotHeight,
     fill: "rgba(0,0,0,0.001)",
-    listening: true
+    listening: true,
+    zIndex: 800
   });
   group.add(crosshair, dot, tooltip, tooltipLabel, hitArea);
-  if (props.interactive !== false) {
-    wireChartInteraction(group, data, layout, bounds, {
+  const seriesForHover = allSeries && allSeries.length > 1 ? allSeries : null;
+  if (seriesForHover) {
+    wireMultiSeriesChartInteraction(group, seriesForHover, layout, bounds, {
+      tooltip,
+      tooltipLabel,
+      crosshair,
+      dot,
+      hitArea
+    });
+  } else {
+    wireChartInteraction(group, primaryData, layout, bounds, {
       tooltip,
       tooltipLabel,
       crosshair,
@@ -8575,9 +10233,2740 @@ function buildDataChart(group, app, props, filled) {
       hitArea
     });
   }
+  if (props.zoomEnabled !== false && props.interactive !== false) {
+    attachPlotWheelZoom(group, hitArea, bounds);
+  }
   setParts2(group, { crosshair, dot, tooltip, tooltipLabel, hitArea });
-  setState2(group, { width, height, data, filled, tickCount: num2(props, "tickCount", 5) });
 }
+function drawLineSeries(app, group, ctx, series, variant) {
+  const { layout, bounds } = ctx;
+  const color = series.color ?? DASHBOARD.chartLine;
+  const toXY = (i, v) => [
+    layout.plotX + layout.plotWidth / Math.max(series.data.length - 1, 1) * i,
+    valueToY(v, layout, bounds)
+  ];
+  let points;
+  if (variant === "step" || variant === "run" || variant === "control") {
+    points = stepPoints(series.data, toXY);
+  } else {
+    points = seriesToPoints(series.data, layout, bounds);
+  }
+  if (variant === "area" || variant === "stackedArea" || variant === "rangeArea" || variant === "ribbon" || variant === "horizon") {
+    const baselineY = layout.plotY + layout.plotHeight;
+    group.add(
+      app.path({
+        d: areaPathFromPoints(points, baselineY),
+        fill: color,
+        opacity: 0.35,
+        stroke: null,
+        listening: false
+      })
+    );
+  }
+  if (variant === "spline") {
+    const path = catmullRomPath(pointsToPairs(points));
+    group.add(app.path({ d: path, fill: null, stroke: color, strokeWidth: 2.5, listening: false }));
+  } else {
+    group.add(
+      app.polyline({
+        points,
+        fill: null,
+        stroke: color,
+        strokeWidth: 2.5,
+        lineCap: "round",
+        lineJoin: "round",
+        listening: false
+      })
+    );
+  }
+}
+function drawBarSeries(app, group, ctx, series, horizontal, stackBase) {
+  const { layout, bounds } = ctx;
+  const n = series.data.length;
+  const gap = 0.2;
+  const bars = [];
+  const color = series.color ?? DASHBOARD.barFill;
+  if (horizontal) {
+    const bw = bandWidth(n, layout.plotHeight, gap);
+    const scale = linearScale([bounds.min, bounds.max], [0, layout.plotWidth]);
+    const rowStep = layout.plotHeight / n;
+    series.data.forEach((val, i) => {
+      const base = stackBase?.[i] ?? bounds.min;
+      const x0 = scale(base);
+      const x1 = scale(val);
+      const y = layout.plotY + rowStep * i + (rowStep - bw) / 2;
+      const bar = app.rect({
+        x: layout.plotX + x0,
+        y,
+        width: Math.max(1, x1 - x0),
+        height: bw,
+        fill: color,
+        listening: false
+      });
+      bars.push(bar);
+      group.add(bar);
+    });
+  } else {
+    const bw = bandWidth(n, layout.plotWidth, gap);
+    series.data.forEach((val, i) => {
+      const base = stackBase?.[i] ?? bounds.min;
+      const yTop = valueToY(val, layout, bounds);
+      const yBase = valueToY(base, layout, bounds);
+      const x = layout.plotX + layout.plotWidth / n * i + (layout.plotWidth / n - bw) / 2;
+      const bar = app.rect({
+        x,
+        y: Math.min(yTop, yBase),
+        width: bw,
+        height: Math.max(1, Math.abs(yBase - yTop)),
+        fill: color,
+        listening: false
+      });
+      bars.push(bar);
+      group.add(bar);
+    });
+  }
+  return bars;
+}
+function drawWaterfall(app, group, ctx, data) {
+  const { layout, bounds } = ctx;
+  const n = data.length;
+  const bw = bandWidth(n, layout.plotWidth, 0.25);
+  let running = 0;
+  data.forEach((delta, i) => {
+    const start = running;
+    running += delta;
+    const y0 = valueToY(start, layout, bounds);
+    const y1 = valueToY(running, layout, bounds);
+    const x = layout.plotX + layout.plotWidth / n * i + (layout.plotWidth / n - bw) / 2;
+    group.add(
+      app.rect({
+        x,
+        y: Math.min(y0, y1),
+        width: bw,
+        height: Math.max(1, Math.abs(y1 - y0)),
+        fill: delta >= 0 ? DASHBOARD.success : DASHBOARD.danger,
+        listening: false
+      })
+    );
+  });
+}
+function drawPareto(app, group, ctx, data) {
+  drawBarSeries(app, group, ctx, { data, color: DASHBOARD.barFill }, false);
+  const sorted = [...data];
+  const total = sorted.reduce((a, b) => a + b, 0) || 1;
+  const cum = [];
+  let acc = 0;
+  for (const v of sorted) {
+    acc += v;
+    cum.push(acc / total * 100);
+  }
+  const cumBounds = { min: 0, max: 100 };
+  const pts = seriesToPoints(cum, ctx.layout, cumBounds);
+  group.add(
+    app.polyline({
+      points: pts,
+      fill: null,
+      stroke: DASHBOARD.warning,
+      strokeWidth: 2,
+      listening: false
+    })
+  );
+}
+function drawControlChart(app, group, ctx, data, limits) {
+  drawLineSeries(app, group, ctx, { data, color: DASHBOARD.chartLine }, "step");
+  if (!limits) {
+    const mean = data.reduce((a, b) => a + b, 0) / (data.length || 1);
+    const sd = Math.sqrt(data.reduce((a, b) => a + (b - mean) ** 2, 0) / (data.length || 1));
+    limits = { mean, ucl: mean + 2 * sd, lcl: mean - 2 * sd };
+  }
+  for (const [val, label, color] of [
+    [limits.mean, "\u03BC", DASHBOARD.textMuted],
+    [limits.ucl, "UCL", DASHBOARD.danger],
+    [limits.lcl, "LCL", DASHBOARD.danger]
+  ]) {
+    const y = valueToY(val, ctx.layout, ctx.bounds);
+    group.add(
+      app.line({
+        x: ctx.layout.plotX,
+        y,
+        x2: ctx.layout.plotWidth,
+        y2: 0,
+        stroke: color,
+        strokeWidth: 1,
+        dash: label === "\u03BC" ? [] : [6, 4],
+        listening: false
+      }),
+      app.text({
+        text: label,
+        x: ctx.layout.plotX + ctx.layout.plotWidth - 24,
+        y: y - 12,
+        fontSize: 9,
+        fill: color,
+        listening: false
+      })
+    );
+  }
+}
+function drawPopulationPyramid(app, group, ctx, left, right) {
+  const max = Math.max(...left, ...right, 1);
+  const bounds = { min: -max, max };
+  const n = Math.max(left.length, right.length);
+  const bh = ctx.layout.plotHeight / n - 2;
+  for (let i = 0; i < n; i++) {
+    const y = ctx.layout.plotY + i * (bh + 2);
+    const cx = ctx.layout.plotX + ctx.layout.plotWidth / 2;
+    const lw = (left[i] ?? 0) / max * (ctx.layout.plotWidth / 2 - 4);
+    const rw = (right[i] ?? 0) / max * (ctx.layout.plotWidth / 2 - 4);
+    group.add(
+      app.rect({ x: cx - lw, y, width: lw, height: bh, fill: DASHBOARD.primary, listening: false }),
+      app.rect({ x: cx, y, width: rw, height: bh, fill: DASHBOARD.secondary, listening: false })
+    );
+  }
+  ctx.bounds.min = bounds.min;
+  ctx.bounds.max = bounds.max;
+}
+function drawLollipop(app, group, ctx, data) {
+  const { layout, bounds } = ctx;
+  const n = data.length;
+  data.forEach((val, i) => {
+    const x = layout.plotX + layout.plotWidth / Math.max(n - 1, 1) * i;
+    const y = valueToY(val, layout, bounds);
+    const y0 = layout.plotY + layout.plotHeight;
+    group.add(
+      app.line({ x, y: y0, x2: 0, y2: y - y0, stroke: DASHBOARD.chartLine, strokeWidth: 2, listening: false }),
+      app.circle({ x: x - 4, y: y - 4, radius: 4, fill: DASHBOARD.chartDot, listening: false })
+    );
+  });
+}
+function drawDotStrip(app, group, ctx, data, strip = false) {
+  const { layout, bounds } = ctx;
+  data.forEach((val, i) => {
+    const jitter = strip ? (i % 5 - 2) * 4 : Math.sin(i * 12.9898) * 43758.5453 % 1 * 10 - 5;
+    const x = layout.plotX + layout.plotWidth / Math.max(data.length, 1) * (i + 0.5) + jitter;
+    const y = valueToY(val, layout, bounds);
+    group.add(app.circle({ x: x - 3, y: y - 3, radius: 3, fill: DASHBOARD.chartDot, listening: false }));
+  });
+}
+function drawErrorBars(app, group, ctx, series) {
+  const { layout, bounds } = ctx;
+  const errors = series.errorY ?? series.data.map((v) => [v - 5, v + 5]);
+  series.data.forEach((val, i) => {
+    const x = layout.plotX + layout.plotWidth / Math.max(series.data.length - 1, 1) * i;
+    const [lo, hi] = errors[i] ?? [val - 5, val + 5];
+    const yLo = valueToY(lo, layout, bounds);
+    const yHi = valueToY(hi, layout, bounds);
+    group.add(
+      app.line({ x, y: yLo, x2: 0, y2: yHi - yLo, stroke: DASHBOARD.textMuted, strokeWidth: 1, listening: false }),
+      app.line({ x: x - 4, y: yLo, x2: 8, y2: 0, stroke: DASHBOARD.textMuted, strokeWidth: 1, listening: false }),
+      app.line({ x: x - 4, y: yHi, x2: 8, y2: 0, stroke: DASHBOARD.textMuted, strokeWidth: 1, listening: false }),
+      app.circle({ x: x - 3, y: valueToY(val, layout, bounds) - 3, radius: 3, fill: DASHBOARD.chartLine, listening: false })
+    );
+  });
+}
+function drawRangeBand(app, group, ctx, series, filled) {
+  const mins = series.rangeMin ?? series.data.map((v) => v - 8);
+  const maxs = series.rangeMax ?? series.data.map((v) => v + 8);
+  const { layout, bounds } = ctx;
+  const ptsTop = [];
+  const ptsBot = [];
+  for (let i = 0; i < series.data.length; i++) {
+    const x = layout.plotX + layout.plotWidth / Math.max(series.data.length - 1, 1) * i;
+    ptsTop.push(x, valueToY(maxs[i], layout, bounds));
+    ptsBot.unshift(valueToY(mins[i], layout, bounds), x);
+  }
+  const all = [...ptsTop, ...ptsBot];
+  if (filled) {
+    let d = `M ${all[0]} ${all[1]}`;
+    for (let i = 2; i < all.length; i += 2)
+      d += ` L ${all[i]} ${all[i + 1]}`;
+    d += " Z";
+    group.add(app.path({ d, fill: DASHBOARD.chartArea, stroke: null, listening: false }));
+  } else {
+    group.add(
+      app.polyline({ points: ptsTop, fill: null, stroke: DASHBOARD.chartLine, strokeWidth: 1.5, listening: false }),
+      app.polyline({ points: ptsBot.reverse(), fill: null, stroke: DASHBOARD.chartLine, strokeWidth: 1.5, listening: false })
+    );
+  }
+  drawLineSeries(app, group, ctx, series, "line");
+}
+function drawHorizon(app, group, ctx, series, bands = 4, rowLayout) {
+  const layout = rowLayout ?? ctx.layout;
+  const { bounds } = ctx;
+  const bandH = layout.plotHeight / bands;
+  const offset = (bounds.max - bounds.min) / bands;
+  for (let b = 0; b < bands; b++) {
+    const subBounds = { min: bounds.min + b * offset, max: bounds.min + (b + 1) * offset };
+    const pts = seriesToPoints(series.data, { ...layout, plotY: layout.plotY + b * bandH, plotHeight: bandH }, subBounds);
+    group.add(
+      app.path({
+        d: areaPathFromPoints(pts, layout.plotY + (b + 1) * bandH),
+        fill: series.color ?? DASHBOARD.series[b % DASHBOARD.series.length],
+        opacity: 0.55,
+        stroke: null,
+        listening: false
+      })
+    );
+  }
+}
+function drawHorizonRows(app, group, ctx, allSeries) {
+  const rowH = ctx.layout.plotHeight / allSeries.length;
+  allSeries.forEach((s, si) => {
+    const rowLayout = {
+      ...ctx.layout,
+      plotY: ctx.layout.plotY + si * rowH,
+      plotHeight: Math.max(8, rowH - 2)
+    };
+    const rowBounds = dataBounds(s.data);
+    drawHorizon(app, group, { ...ctx, bounds: rowBounds }, s, 3, rowLayout);
+    group.add(
+      app.text({
+        text: s.name ?? `S${si + 1}`,
+        x: ctx.layout.plotX - 2,
+        y: rowLayout.plotY + 2,
+        fontSize: 9,
+        fill: DASHBOARD.textMuted,
+        listening: false
+      })
+    );
+  });
+}
+function buildCartesianChart(group, app, props, options) {
+  const variant = options.variant;
+  let series = parseSeries(props);
+  const rawSeries = series.map((s) => ({
+    name: s.name,
+    data: [...s.data],
+    color: s.color
+  }));
+  const mirror = props.mirrorData;
+  if (variant === "stackedBar" || variant === "stackedColumn" || variant === "stackedArea") {
+    series = stackSeries(series);
+  }
+  if (variant === "bump") {
+    series = normalizeBumpRanks(series);
+  }
+  const ctx = buildChartContext(props, series);
+  addPlotChrome(app, group, ctx, { ...props, variant });
+  const horizontal = variant === "horizontalBar" || variant === "stackedBar" || variant === "populationPyramid" || props.orientation === "horizontal";
+  if (variant === "waterfall") {
+    drawWaterfall(app, group, ctx, series[0]?.data ?? []);
+  } else if (variant === "pareto") {
+    drawPareto(app, group, ctx, series[0]?.data ?? []);
+  } else if (variant === "control") {
+    drawControlChart(app, group, ctx, series[0]?.data ?? [], props.controlLimits);
+  } else if (variant === "populationPyramid") {
+    drawPopulationPyramid(app, group, ctx, series[0]?.data ?? [], mirror ?? series[1]?.data ?? []);
+  } else if (variant === "lollipop") {
+    drawLollipop(app, group, ctx, series[0]?.data ?? []);
+  } else if (variant === "dotPlot") {
+    drawDotStrip(app, group, ctx, series[0]?.data ?? [], false);
+  } else if (variant === "stripPlot") {
+    drawDotStrip(app, group, ctx, series[0]?.data ?? [], true);
+  } else if (variant === "errorBar") {
+    drawErrorBars(app, group, ctx, series[0]);
+  } else if (variant === "range" || variant === "band") {
+    drawRangeBand(app, group, ctx, series[0], false);
+  } else if (variant === "rangeArea") {
+    drawRangeBand(app, group, ctx, series[0], true);
+  } else if (variant === "horizon") {
+    if (series.length > 1) {
+      drawHorizonRows(app, group, ctx, series);
+    } else {
+      drawHorizon(app, group, ctx, series[0]);
+    }
+  } else if (variant === "bar" || variant === "horizontalBar" || variant === "stackedBar" || variant === "stackedColumn" || variant === "combination" || variant === "mixed") {
+    const stacked = variant === "stackedBar" || variant === "stackedColumn";
+    series.forEach((s, si) => {
+      const base = stacked ? s._base : void 0;
+      const kind = variant === "mixed" || variant === "combination" ? s.type ?? (si === 0 ? "bar" : "line") : "bar";
+      if (kind === "line" || kind === "area") {
+        drawLineSeries(app, group, ctx, s, kind === "area" ? "area" : "line");
+      } else {
+        drawBarSeries(app, group, ctx, s, horizontal, base);
+      }
+    });
+  } else if (variant === "ribbon") {
+    series.forEach((s) => drawLineSeries(app, group, ctx, s, "area"));
+  } else {
+    series.forEach((s) => {
+      drawLineSeries(app, group, ctx, s, variant === "stackedArea" ? "stackedArea" : variant);
+    });
+  }
+  if (props.showLegend !== false && variant !== "sparkline") {
+    addLegend(
+      app,
+      group,
+      series.map((s) => ({ label: s.name ?? "Series", color: s.color ?? DASHBOARD.chartLine })),
+      ctx.layout.plotX,
+      ctx.layout.plotY + ctx.layout.plotHeight + 4
+    );
+  }
+  const primaryData = series[0]?.data ?? [];
+  const isStacked = variant === "stackedBar" || variant === "stackedColumn";
+  const stackedMulti = isStacked && rawSeries.length > 1;
+  const stackedTotals = isStacked ? series[series.length - 1]?.data ?? primaryData : primaryData;
+  if (["bar", "horizontalBar", "stackedBar", "stackedColumn", "waterfall", "pareto"].includes(variant)) {
+    if (horizontal) {
+      const n = primaryData.length;
+      if (stackedMulti) {
+        const highlight = app.rect({
+          fill: "rgba(96,165,250,0.28)",
+          stroke: DASHBOARD.chartLine,
+          strokeWidth: 2,
+          visible: false,
+          listening: false
+        });
+        const tooltip = app.roundedRect({
+          width: 52,
+          height: 24,
+          cornerRadius: 6,
+          fill: DASHBOARD.chartTooltipBg,
+          stroke: DASHBOARD.chartTooltipBorder,
+          strokeWidth: 1,
+          visible: false,
+          listening: false
+        });
+        const tooltipLabel = app.text({
+          text: "",
+          fontSize: 11,
+          fontWeight: "bold",
+          fill: DASHBOARD.text,
+          textAlign: "center",
+          x: 0,
+          y: 0,
+          listening: false
+        });
+        const hitArea = app.rect({
+          x: ctx.layout.plotX,
+          y: ctx.layout.plotY,
+          width: ctx.layout.plotWidth,
+          height: ctx.layout.plotHeight,
+          fill: "rgba(0,0,0,0.001)",
+          listening: true
+        });
+        group.add(highlight, tooltip, tooltipLabel, hitArea);
+        if (props.interactive !== false) {
+          wireStackedHorizontalBarChartInteraction(group, rawSeries, ctx.layout, ctx.bounds, stackedTotals, 0.2, {
+            tooltip,
+            tooltipLabel,
+            highlight,
+            hitArea
+          });
+        }
+        setParts2(group, { highlight, tooltip, tooltipLabel, hitArea });
+      } else {
+        const bw = bandWidth(n, ctx.layout.plotHeight, 0.2);
+        const xScale = linearScale([ctx.bounds.min, ctx.bounds.max], [0, ctx.layout.plotWidth]);
+        attachIndexYHover(
+          app,
+          group,
+          props,
+          ctx.layout,
+          n,
+          (i) => String(primaryData[i]),
+          (i) => {
+            const slot = ctx.layout.plotHeight / Math.max(n, 1);
+            const val = primaryData[i];
+            const x0 = ctx.layout.plotX + xScale(ctx.bounds.min);
+            const x1 = ctx.layout.plotX + xScale(val);
+            const y = ctx.layout.plotY + slot * i + (slot - bw) / 2;
+            return { x: x0, y, width: Math.max(1, x1 - x0), height: bw };
+          }
+        );
+      }
+    } else {
+      const highlight = app.rect({ fill: "rgba(96,165,250,0.28)", stroke: DASHBOARD.chartLine, strokeWidth: 2, visible: false, listening: false });
+      const tooltip = app.roundedRect({ width: 52, height: 24, cornerRadius: 6, fill: DASHBOARD.chartTooltipBg, stroke: DASHBOARD.chartTooltipBorder, strokeWidth: 1, visible: false, listening: false });
+      const tooltipLabel = app.text({ text: "", fontSize: 11, fontWeight: "bold", fill: DASHBOARD.text, textAlign: "center", x: 0, y: 0, listening: false });
+      const hitArea = app.rect({ x: ctx.layout.plotX, y: ctx.layout.plotY, width: ctx.layout.plotWidth, height: ctx.layout.plotHeight, fill: "rgba(0,0,0,0.001)", listening: true });
+      group.add(highlight, tooltip, tooltipLabel, hitArea);
+      if (props.interactive !== false) {
+        if (stackedMulti) {
+          wireStackedBarChartInteraction(group, rawSeries, ctx.layout, ctx.bounds, stackedTotals, 0.2, {
+            tooltip,
+            tooltipLabel,
+            highlight,
+            hitArea
+          });
+        } else {
+          wireBarChartInteraction(group, primaryData, ctx.layout, ctx.bounds, 0.2, {
+            tooltip,
+            tooltipLabel,
+            highlight,
+            hitArea
+          });
+        }
+      }
+      setParts2(group, { highlight, tooltip, tooltipLabel, hitArea });
+    }
+  } else if (variant !== "sparkline") {
+    addInteraction(app, group, ctx, props, primaryData, series.length > 1 ? series : void 0);
+  }
+  setState2(group, {
+    width: ctx.width,
+    height: ctx.height,
+    data: primaryData,
+    series,
+    variant
+  });
+}
+function createCartesianWidget(app, type, props, variant) {
+  const group = createWidgetGroup(app, type, props);
+  installChartRebuild(
+    group,
+    app,
+    (g, a, p) => buildCartesianChart(g, a, p, { variant, widgetType: type })
+  );
+  return group;
+}
+
+// src/dashboard/charts/cartesian/register.ts
+var CARTESIAN_TYPES = [
+  { type: "lineChart", variant: "line" },
+  { type: "areaChart", variant: "area" },
+  { type: "barChart", variant: "bar" },
+  { type: "columnChart", variant: "bar" },
+  { type: "horizontalBarChart", variant: "horizontalBar" },
+  { type: "stackedColumnChart", variant: "stackedColumn" },
+  { type: "stackedBarChart", variant: "stackedBar" },
+  { type: "stackedAreaChart", variant: "stackedArea" },
+  { type: "stepChart", variant: "step" },
+  { type: "splineChart", variant: "spline" },
+  { type: "errorBarChart", variant: "errorBar" },
+  { type: "lollipopChart", variant: "lollipop" },
+  { type: "dotPlot", variant: "dotPlot" },
+  { type: "stripPlot", variant: "stripPlot" },
+  { type: "sparklineChart", variant: "sparkline" },
+  { type: "rangeChart", variant: "range" },
+  { type: "rangeAreaChart", variant: "rangeArea" },
+  { type: "bandChart", variant: "band" },
+  { type: "ribbonChart", variant: "ribbon" },
+  { type: "combinationChart", variant: "combination" },
+  { type: "mixedChart", variant: "mixed" },
+  { type: "waterfallChart", variant: "waterfall" },
+  { type: "paretoChart", variant: "pareto" },
+  { type: "runChart", variant: "run" },
+  { type: "controlChart", variant: "control" },
+  { type: "populationPyramidChart", variant: "populationPyramid" },
+  { type: "bumpChart", variant: "bump" },
+  { type: "horizonChart", variant: "horizon" }
+];
+for (const { type, variant } of CARTESIAN_TYPES) {
+  registerDashboard(type, (props, app) => createCartesianWidget(app, type, props, variant));
+}
+
+// src/dashboard/charts/polar/polarBase.ts
+function buildPolarSlices(group, app, data, size, colors, options = {}) {
+  const innerR = options.innerRadius ?? 0;
+  const outerR = size / 2 - 10;
+  const cx = size / 2;
+  const cy = size / 2;
+  const total = data.reduce((a, b) => a + b, 0) || 1;
+  let startAngle = -Math.PI / 2;
+  data.forEach((val, i) => {
+    const sweep = val / total * Math.PI * 2;
+    const endAngle = startAngle + sweep;
+    group.add(
+      new Arc({
+        x: cx - outerR,
+        y: cy - outerR,
+        innerRadius: innerR,
+        radius: outerR,
+        startAngle,
+        endAngle,
+        fill: colors[i % colors.length],
+        stroke: DASHBOARD.pieStroke,
+        strokeWidth: 1,
+        listening: false
+      })
+    );
+    if (options.showLabels !== false && sweep > 0.15) {
+      const mid = (startAngle + endAngle) / 2;
+      const lr = (outerR + innerR) / 2;
+      const [lx, ly] = polarToXY(cx, cy, lr, mid);
+      const pct = Math.round(val / total * 100);
+      group.add(
+        app.text({
+          text: `${pct}%`,
+          x: lx - 10,
+          y: ly - 6,
+          fontSize: 10,
+          fill: DASHBOARD.text,
+          listening: false
+        })
+      );
+    }
+    startAngle = endAngle;
+  });
+}
+function buildRadarChart(group, app, props) {
+  const size = num2(props, "size", 200);
+  const data = props.data ?? [4, 6, 3, 7, 5];
+  const labels = props.categories ?? data.map((_, i) => `A${i + 1}`);
+  const cx = size / 2;
+  const cy = size / 2;
+  const max = Math.max(...data, 1);
+  const r = size / 2 - 24;
+  const n = data.length;
+  for (let ring = 1; ring <= 4; ring++) {
+    const rr = r * ring / 4;
+    const pts = [];
+    for (let i = 0; i < n; i++) {
+      const a = i / n * Math.PI * 2 - Math.PI / 2;
+      pts.push(cx + rr * Math.cos(a), cy + rr * Math.sin(a));
+    }
+    group.add(app.polygon({ points: pts, fill: null, stroke: DASHBOARD.chartGrid, strokeWidth: 1, listening: false }));
+  }
+  const dataPts = [];
+  data.forEach((v, i) => {
+    const a = i / n * Math.PI * 2 - Math.PI / 2;
+    const dr = v / max * r;
+    dataPts.push(cx + dr * Math.cos(a), cy + dr * Math.sin(a));
+    group.add(
+      app.text({
+        text: labels[i],
+        x: cx + (r + 12) * Math.cos(a) - 8,
+        y: cy + (r + 12) * Math.sin(a) - 6,
+        fontSize: 10,
+        fill: DASHBOARD.textMuted,
+        listening: false
+      })
+    );
+  });
+  dataPts.push(dataPts[0], dataPts[1]);
+  group.add(
+    app.polygon({
+      points: dataPts,
+      fill: DASHBOARD.chartArea,
+      stroke: DASHBOARD.chartLine,
+      strokeWidth: 2,
+      listening: false
+    })
+  );
+  attachPolarSliceHover(
+    app,
+    group,
+    props,
+    size,
+    data.map(() => 1),
+    labels.map((l, i) => `${l}: ${data[i]}`)
+  );
+  setState2(group, { size, data, labels });
+}
+function createPieWidget(app, type, props, innerRadius = 0) {
+  const size = num2(props, "size", 150);
+  const data = props.data ?? [30, 25, 20, 25];
+  const colors = props.colors ?? [...DASHBOARD.series];
+  const resolvedInner = typeof props.innerRadius === "number" ? props.innerRadius : innerRadius > 0 ? innerRadius : type === "doughnutChart" ? Math.round(size * 0.42) : 0;
+  const group = createWidgetGroup(app, type, props);
+  buildPolarSlices(group, app, data, size, colors, {
+    innerRadius: resolvedInner,
+    showLabels: props.showLabels !== false
+  });
+  const labels = props.labels ?? data.map((_, i) => `Slice ${i + 1}`);
+  attachPolarSliceHover(
+    app,
+    group,
+    props,
+    size,
+    data,
+    labels.map((l, i) => `${l}: ${data[i]}`),
+    resolvedInner
+  );
+  setState2(group, { size, data, colors, innerRadius: resolvedInner });
+  return group;
+}
+
+// src/dashboard/charts/polar/register.ts
+registerDashboard("pieChart", (props, app) => createPieWidget(app, "pieChart", props, 0));
+registerDashboard("doughnutChart", (props, app) => createPieWidget(app, "doughnutChart", props));
+registerDashboard("radarChart", (props, app) => {
+  const group = createWidgetGroup(app, "radarChart", props);
+  buildRadarChart(group, app, props);
+  return group;
+});
+registerDashboard("spiderChart", (props, app) => {
+  const group = createWidgetGroup(app, "spiderChart", props);
+  buildRadarChart(group, app, props);
+  return group;
+});
+registerDashboard("polarAreaChart", (props, app) => {
+  const size = num2(props, "size", 200);
+  const data = props.data ?? [3, 5, 4, 6, 2];
+  const group = createWidgetGroup(app, "polarAreaChart", props);
+  const cx = size / 2;
+  const max = Math.max(...data, 1);
+  const n = data.length;
+  let start = -Math.PI / 2;
+  data.forEach((v, i) => {
+    const sweep = Math.PI * 2 / n;
+    const r = v / max * (size / 2 - 16);
+    const end = start + sweep;
+    group.add(
+      app.arc({
+        x: cx - r,
+        y: cx - r,
+        radius: r,
+        startAngle: start,
+        endAngle: end,
+        fill: DASHBOARD.series[i % DASHBOARD.series.length],
+        stroke: DASHBOARD.pieStroke,
+        strokeWidth: 1,
+        listening: false
+      })
+    );
+    start = end;
+  });
+  attachPolarSliceHover(
+    app,
+    group,
+    props,
+    size,
+    data,
+    data.map((v, i) => `Cat ${i + 1}: ${v}`)
+  );
+  setState2(group, { size, data });
+  return group;
+});
+registerDashboard("bulletChart", (props, app) => {
+  const width = num2(props, "width", 260);
+  const height = num2(props, "height", 48);
+  const value = clamp3(num2(props, "value", 65), 0, 100);
+  const target = num2(props, "target", 80);
+  const max = num2(props, "max", 100);
+  const group = createWidgetGroup(app, "bulletChart", props);
+  group.add(app.rect({ width, height: height * 0.5, y: height * 0.25, fill: DASHBOARD.meterTrack, listening: false }));
+  group.add(
+    app.rect({
+      x: 0,
+      y: height * 0.25,
+      width: width * value / max,
+      height: height * 0.5,
+      fill: DASHBOARD.primary,
+      listening: false
+    })
+  );
+  const tx = width * target / max;
+  group.add(
+    app.line({
+      x: tx,
+      y: height * 0.15,
+      x2: 0,
+      y2: height * 0.7,
+      stroke: DASHBOARD.danger,
+      strokeWidth: 3,
+      listening: false
+    })
+  );
+  attachValueHover(app, group, props, width, height, `Value: ${value} / Target: ${target}`);
+  setState2(group, { width, height, value, target, max });
+  return group;
+});
+registerDashboard("funnelChart", (props, app) => {
+  const width = num2(props, "width", 200);
+  const height = num2(props, "height", 220);
+  const data = props.data ?? [100, 72, 48, 28, 12];
+  const group = createWidgetGroup(app, "funnelChart", props);
+  const max = Math.max(...data, 1);
+  const step = height / data.length;
+  data.forEach((v, i) => {
+    const w = v / max * width;
+    const x = (width - w) / 2;
+    group.add(
+      app.polygon({
+        points: [x, i * step, x + w, i * step, x + w * 0.92, (i + 1) * step, x + w * 0.08, (i + 1) * step],
+        fill: DASHBOARD.series[i % DASHBOARD.series.length],
+        stroke: DASHBOARD.pieStroke,
+        strokeWidth: 1,
+        listening: false
+      }),
+      app.text({
+        text: String(v),
+        x: width / 2 - 12,
+        y: i * step + step / 2 - 6,
+        fontSize: 11,
+        fill: DASHBOARD.text,
+        listening: false
+      })
+    );
+  });
+  attachBandYHover(app, group, props, width, height, data.length, (i) => String(data[i]));
+  setState2(group, { width, height, data });
+  return group;
+});
+registerDashboard("pyramidChart", (props, app) => {
+  const width = num2(props, "width", 200);
+  const height = num2(props, "height", 200);
+  const data = props.data ?? [10, 20, 35, 55, 80];
+  const group = createWidgetGroup(app, "pyramidChart", props);
+  const max = Math.max(...data, 1);
+  const step = height / data.length;
+  data.forEach((v, i) => {
+    const w = v / max * width;
+    const x = (width - w) / 2;
+    group.add(
+      app.rect({
+        x,
+        y: i * step,
+        width: w,
+        height: step - 2,
+        fill: DASHBOARD.series[i % DASHBOARD.series.length],
+        listening: false
+      })
+    );
+  });
+  attachBandYHover(app, group, props, width, height, data.length, (i) => String(data[i]));
+  setState2(group, { width, height, data });
+  return group;
+});
+registerDashboard("coneChart", (props, app) => {
+  const width = num2(props, "width", 160);
+  const height = num2(props, "height", 200);
+  const group = createWidgetGroup(app, "coneChart", props);
+  group.add(
+    app.polygon({
+      points: [width / 2, 0, width, height, 0, height],
+      fill: DASHBOARD.primary,
+      stroke: DASHBOARD.panelStroke,
+      strokeWidth: 1,
+      listening: false
+    })
+  );
+  attachValueHover(app, group, props, width, height, "Cone chart");
+  setState2(group, { width, height });
+  return group;
+});
+
+// src/dashboard/charts/core/stats.ts
+function histogramBins(data, binCount = 10) {
+  if (!data.length)
+    return [];
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const span = max - min || 1;
+  const step = span / binCount;
+  const bins = Array.from({ length: binCount }, (_, i) => ({
+    x0: min + i * step,
+    x1: min + (i + 1) * step,
+    count: 0
+  }));
+  for (const v of data) {
+    const idx = Math.min(binCount - 1, Math.floor((v - min) / step));
+    bins[idx].count++;
+  }
+  return bins;
+}
+function quantile(sorted, p) {
+  if (!sorted.length)
+    return 0;
+  const pos = (sorted.length - 1) * p;
+  const base = Math.floor(pos);
+  const rest = pos - base;
+  if (sorted[base + 1] !== void 0) {
+    return sorted[base] + rest * (sorted[base + 1] - sorted[base]);
+  }
+  return sorted[base];
+}
+function boxStats(values) {
+  const sorted = [...values].sort((a, b) => a - b);
+  return {
+    min: sorted[0] ?? 0,
+    q1: quantile(sorted, 0.25),
+    median: quantile(sorted, 0.5),
+    q3: quantile(sorted, 0.75),
+    max: sorted[sorted.length - 1] ?? 0
+  };
+}
+function kdeSamples(data, points, bandwidth) {
+  if (!data.length)
+    return points.map(() => 0);
+  const n = data.length;
+  const h = bandwidth ?? (1.06 * stddev(data) * Math.pow(n, -0.2) || 1);
+  return points.map((x) => {
+    let sum = 0;
+    for (const d of data) {
+      const z = (x - d) / h;
+      sum += Math.exp(-0.5 * z * z) / Math.sqrt(2 * Math.PI);
+    }
+    return sum / (n * h);
+  });
+}
+function stddev(data) {
+  const mean = data.reduce((a, b) => a + b, 0) / data.length;
+  const v = data.reduce((a, b) => a + (b - mean) ** 2, 0) / data.length;
+  return Math.sqrt(v);
+}
+function normalQuantiles(n) {
+  return Array.from({ length: n }, (_, i) => {
+    const p = (i + 0.5) / n;
+    return Math.sqrt(2) * inverseErf(2 * p - 1);
+  });
+}
+function inverseErf(x) {
+  const a = 0.147;
+  const ln = Math.log(1 - x * x);
+  const s = Math.sign(x);
+  const t = 2 / (Math.PI * a) + ln / 2;
+  return s * Math.sqrt(Math.sqrt(t * t - ln / a) - t);
+}
+function hexbinCenters(points, width, height, radius) {
+  const bins = /* @__PURE__ */ new Map();
+  const dx = radius * 1.5;
+  const dy = radius * Math.sqrt(3);
+  for (const [px, py] of points) {
+    const col = Math.round(px / dx);
+    const row = Math.round(py / dy);
+    const cx = col * dx;
+    const cy = row * dy + (col % 2 ? dy / 2 : 0);
+    const key = `${col},${row}`;
+    const existing = bins.get(key);
+    if (existing)
+      existing.count++;
+    else
+      bins.set(key, { x: cx, y: cy, count: 1 });
+  }
+  return bins;
+}
+
+// src/dashboard/charts/statistical/register.ts
+function plotChrome(app, group, width, height, bounds) {
+  const layout = defaultLayout(width, height);
+  const yTicks = computeTicks(bounds.min, bounds.max, 5);
+  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  group.add(app.rect({ x: layout.plotX, y: layout.plotY, width: layout.plotWidth, height: layout.plotHeight, fill: DASHBOARD.chartPlot, listening: false }));
+  addGridLines(app, group, layout, yTicks, bounds);
+  addAxes(app, group, layout, bounds, yTicks);
+  return layout;
+}
+registerDashboard("histogram", (props, app) => {
+  const width = num2(props, "width", 300);
+  const height = num2(props, "height", 150);
+  const data = props.data ?? [2, 3, 3, 4, 5, 5, 5, 6, 7, 8, 9, 12];
+  const bins = histogramBins(data, num2(props, "binCount", 8));
+  const max = Math.max(...bins.map((b) => b.count), 1);
+  const group = createWidgetGroup(app, "histogram", props);
+  const layout = plotChrome(app, group, width, height, { min: 0, max });
+  const bw = layout.plotWidth / bins.length;
+  bins.forEach((b, i) => {
+    const h = b.count / max * layout.plotHeight;
+    group.add(app.rect({ x: layout.plotX + i * bw, y: layout.plotY + layout.plotHeight - h, width: bw - 2, height: h, fill: DASHBOARD.barFill, listening: false }));
+  });
+  attachIndexXHover(
+    app,
+    group,
+    props,
+    layout,
+    bins.length,
+    (i) => `${bins[i].x0.toFixed(1)}\u2013${bins[i].x1.toFixed(1)}: ${bins[i].count}`,
+    (i) => {
+      const h = bins[i].count / max * layout.plotHeight;
+      return { x: layout.plotX + i * bw, y: layout.plotY + layout.plotHeight - h, width: bw - 2, height: h };
+    }
+  );
+  setState2(group, { width, height, data });
+  return group;
+});
+registerDashboard("boxPlot", (props, app) => {
+  const width = num2(props, "width", 300);
+  const height = num2(props, "height", 150);
+  const sets = Array.isArray(props.data?.[0]) ? props.data : props.data ?? [[2, 3, 4, 5, 6, 7, 8], [3, 5, 7, 9, 11]];
+  const group = createWidgetGroup(app, "boxPlot", props);
+  const layout = plotChrome(app, group, width, height, dataBounds(sets.flat()));
+  const slot = layout.plotWidth / sets.length;
+  sets.forEach((vals, i) => {
+    const s = boxStats(vals);
+    const cx = layout.plotX + slot * i + slot / 2;
+    const scale = linearScale([s.min, s.max], [layout.plotY + layout.plotHeight, layout.plotY]);
+    const yQ1 = scale(s.q1);
+    const yQ3 = scale(s.q3);
+    const yMed = scale(s.median);
+    group.add(
+      app.rect({ x: cx - 16, y: yQ3, width: 32, height: yQ1 - yQ3, fill: DASHBOARD.chartArea, stroke: DASHBOARD.chartLine, strokeWidth: 1, listening: false }),
+      app.line({ x: cx - 16, y: yMed, x2: 32, y2: 0, stroke: DASHBOARD.chartLine, strokeWidth: 2, listening: false }),
+      app.line({ x: cx, y: scale(s.min), x2: 0, y2: scale(s.max) - scale(s.min), stroke: DASHBOARD.textMuted, strokeWidth: 1, listening: false })
+    );
+  });
+  attachIndexXHover(app, group, props, layout, sets.length, (i) => {
+    const s = boxStats(sets[i]);
+    return `med ${s.median} [${s.q1}, ${s.q3}]`;
+  });
+  setState2(group, { width, height, data: sets });
+  return group;
+});
+registerDashboard("boxAndWhiskerChart", (props, app) => {
+  const width = num2(props, "width", 300);
+  const height = num2(props, "height", 150);
+  const sets = Array.isArray(props.data?.[0]) ? props.data : props.data ?? [[2, 3, 4, 5, 6, 7, 8], [3, 5, 7, 9, 11]];
+  const group = createWidgetGroup(app, "boxAndWhiskerChart", props);
+  const layout = plotChrome(app, group, width, height, dataBounds(sets.flat()));
+  const slot = layout.plotWidth / sets.length;
+  sets.forEach((vals, i) => {
+    const s = boxStats(vals);
+    const cx = layout.plotX + slot * i + slot / 2;
+    const scale = linearScale([s.min, s.max], [layout.plotY + layout.plotHeight, layout.plotY]);
+    const yQ1 = scale(s.q1);
+    const yQ3 = scale(s.q3);
+    const yMed = scale(s.median);
+    group.add(
+      app.rect({ x: cx - 16, y: yQ3, width: 32, height: yQ1 - yQ3, fill: DASHBOARD.chartArea, stroke: DASHBOARD.chartLine, strokeWidth: 1, listening: false }),
+      app.line({ x: cx - 16, y: yMed, x2: 32, y2: 0, stroke: DASHBOARD.chartLine, strokeWidth: 2, listening: false }),
+      app.line({ x: cx, y: scale(s.min), x2: 0, y2: scale(s.max) - scale(s.min), stroke: DASHBOARD.textMuted, strokeWidth: 1, listening: false })
+    );
+  });
+  attachIndexXHover(app, group, props, layout, sets.length, (i) => {
+    const s = boxStats(sets[i]);
+    return `med ${s.median} [${s.q1}, ${s.q3}]`;
+  });
+  setState2(group, { width, height, data: sets });
+  return group;
+});
+registerDashboard("violinPlot", (props, app) => {
+  const width = num2(props, "width", 300);
+  const height = num2(props, "height", 150);
+  const data = props.data ?? [2, 3, 3, 4, 5, 5, 6, 7, 8, 9];
+  const group = createWidgetGroup(app, "violinPlot", props);
+  const layout = plotChrome(app, group, width, height, dataBounds(data));
+  const samples = Array.from({ length: 20 }, (_, i) => layout.plotY + layout.plotHeight / 19 * i);
+  const dens = kdeSamples(data, samples.map((y) => layout.plotY + layout.plotHeight - (y - layout.plotY)));
+  const maxD = Math.max(...dens, 1e-3);
+  const cx = layout.plotX + layout.plotWidth / 2;
+  const pts = [];
+  dens.forEach((d, i) => {
+    const y = layout.plotY + layout.plotHeight / dens.length * i;
+    pts.push(cx - d / maxD * 40, y, cx + d / maxD * 40, y);
+  });
+  group.add(app.polygon({ points: pts, fill: DASHBOARD.chartArea, stroke: DASHBOARD.chartLine, strokeWidth: 1, listening: false }));
+  attachIndexXHover(app, group, props, layout, 20, (i) => {
+    const y = layout.plotY + layout.plotHeight / 19 * i;
+    const v = layout.plotY + layout.plotHeight - (y - layout.plotY);
+    return `density @ ${v.toFixed(1)}`;
+  });
+  setState2(group, { width, height, data });
+  return group;
+});
+registerDashboard("densityPlot", (props, app) => {
+  const width = num2(props, "width", 300);
+  const height = num2(props, "height", 150);
+  const data = props.data ?? [2, 3, 3, 4, 5, 5, 6, 7, 8, 9];
+  const group = createWidgetGroup(app, "densityPlot", props);
+  const bounds = dataBounds(data);
+  const layout = plotChrome(app, group, width, height, bounds);
+  const xs = Array.from({ length: 40 }, (_, i) => bounds.min + (bounds.max - bounds.min) * i / 39);
+  const dens = kdeSamples(data, xs);
+  const maxD = Math.max(...dens, 1e-3);
+  const pts = [];
+  xs.forEach((_x, i) => {
+    const px = layout.plotX + layout.plotWidth * i / 39;
+    const py = layout.plotY + layout.plotHeight - dens[i] / maxD * layout.plotHeight;
+    pts.push(px, py);
+  });
+  group.add(app.polyline({ points: pts, fill: null, stroke: DASHBOARD.chartLine, strokeWidth: 2, listening: false }));
+  attachIndexXHover(app, group, props, layout, xs.length, (i) => `x=${xs[i].toFixed(1)} \u03C1=${dens[i].toFixed(3)}`);
+  setState2(group, { width, height, data });
+  return group;
+});
+registerDashboard("heatmap", (props, app) => {
+  const width = num2(props, "width", 240);
+  const height = num2(props, "height", 160);
+  const matrix = props.matrix ?? [
+    [1, 3, 5, 2],
+    [4, 1, 6, 3],
+    [2, 5, 1, 4]
+  ];
+  const group = createWidgetGroup(app, "heatmap", props);
+  const max = Math.max(...matrix.flat(), 1);
+  const rows = matrix.length;
+  const cols = matrix[0]?.length ?? 1;
+  const cw = width / cols;
+  const ch = height / rows;
+  matrix.forEach((row, ri) => {
+    row.forEach((v, ci) => {
+      const t = v / max;
+      const r = Math.round(59 + t * 100);
+      const g = Math.round(130 - t * 80);
+      const b = Math.round(246 - t * 100);
+      group.add(app.rect({ x: ci * cw, y: ri * ch, width: cw - 1, height: ch - 1, fill: `rgb(${r},${g},${b})`, listening: false }));
+    });
+  });
+  attachGridHover(app, group, props, width, height, rows, cols, (ri, ci) => String(matrix[ri][ci]));
+  setState2(group, { width, height, matrix });
+  return group;
+});
+registerDashboard("hexbinChart", (props, app) => {
+  const width = num2(props, "width", 300);
+  const height = num2(props, "height", 150);
+  const points = props.points ?? Array.from({ length: 40 }, () => ({ x: Math.random() * 280, y: Math.random() * 130 }));
+  const group = createWidgetGroup(app, "hexbinChart", props);
+  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  const bins = hexbinCenters(points.map((p) => [p.x, p.y]), width, height, 12);
+  const max = Math.max(...[...bins.values()].map((b) => b.count), 1);
+  for (const b of bins.values()) {
+    group.add(app.circle({ x: b.x - 10, y: b.y - 10, radius: 10, fill: DASHBOARD.primary, opacity: b.count / max, listening: false }));
+  }
+  attachNearestHover(
+    app,
+    group,
+    props,
+    { x: 0, y: 0, width, height },
+    [...bins.values()].map((b) => ({ x: b.x, y: b.y, label: `count: ${b.count}` }))
+  );
+  setState2(group, { width, height, points });
+  return group;
+});
+registerDashboard("contourChart", (props, app) => {
+  const width = num2(props, "width", 300);
+  const height = num2(props, "height", 150);
+  const group = createWidgetGroup(app, "contourChart", props);
+  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  for (let i = 1; i <= 5; i++) {
+    const inset = i * 12;
+    group.add(app.rect({ x: inset, y: inset, width: width - inset * 2, height: height - inset * 2, fill: null, stroke: DASHBOARD.chartLine, strokeWidth: 1, listening: false }));
+  }
+  attachGridHover(app, group, props, width, height, 5, 5, (_r, _c) => "contour");
+  setState2(group, { width, height });
+  return group;
+});
+registerDashboard("qqPlot", (props, app) => {
+  const width = num2(props, "width", 300);
+  const height = num2(props, "height", 150);
+  const data = props.data ?? [2, 3, 3, 4, 5, 5, 6, 7, 8, 9];
+  const sorted = [...data].sort((a, b) => a - b);
+  const theoretical = normalQuantiles(sorted.length);
+  const group = createWidgetGroup(app, "qqPlot", props);
+  const bounds = dataBounds([...sorted, ...theoretical]);
+  const layout = plotChrome(app, group, width, height, bounds);
+  sorted.forEach((_v, i) => {
+    const x = layout.plotX + layout.plotWidth * i / Math.max(sorted.length - 1, 1);
+    const tx = theoretical[i];
+    const range = bounds.max - bounds.min || 1;
+    const py = layout.plotY + layout.plotHeight - (tx - bounds.min) / range * layout.plotHeight;
+    group.add(app.circle({ x: x - 3, y: py - 3, radius: 3, fill: DASHBOARD.chartDot, listening: false }));
+  });
+  attachIndexXHover(app, group, props, layout, sorted.length, (i) => `obs ${sorted[i]} / q ${theoretical[i].toFixed(2)}`);
+  setState2(group, { width, height, data });
+  return group;
+});
+registerDashboard("beeswarmChart", (props, app) => {
+  const width = num2(props, "width", 300);
+  const height = num2(props, "height", 150);
+  const data = props.data ?? [2, 3, 3, 4, 5, 5, 6, 7, 8, 9];
+  const group = createWidgetGroup(app, "beeswarmChart", props);
+  const layout = plotChrome(app, group, width, height, dataBounds(data));
+  const cx = layout.plotX + layout.plotWidth / 2;
+  const db = dataBounds(data);
+  data.forEach((v, i) => {
+    const y = layout.plotY + layout.plotHeight - (v - db.min) / (db.max - db.min || 1) * layout.plotHeight;
+    const x = cx + (i % 7 - 3) * 8;
+    group.add(app.circle({ x: x - 3, y: y - 3, radius: 4, fill: DASHBOARD.chartDot, listening: false }));
+  });
+  attachNearestHover(
+    app,
+    group,
+    props,
+    { x: layout.plotX, y: layout.plotY, width: layout.plotWidth, height: layout.plotHeight },
+    data.map((v, i) => {
+      const y = layout.plotY + layout.plotHeight - (v - db.min) / (db.max - db.min || 1) * layout.plotHeight;
+      const x = cx + (i % 7 - 3) * 8;
+      return { x, y, label: String(v) };
+    })
+  );
+  setState2(group, { width, height, data });
+  return group;
+});
+registerDashboard("ridgelinePlot", (props, app) => {
+  const width = num2(props, "width", 300);
+  const height = num2(props, "height", 200);
+  const series = props.series ?? [[2, 3, 4, 5], [3, 5, 7, 9], [1, 2, 3, 8]];
+  const group = createWidgetGroup(app, "ridgelinePlot", props);
+  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  const band = height / series.length;
+  series.forEach((data, si) => {
+    const bounds = dataBounds(data);
+    const y0 = si * band + 10;
+    const pts = [];
+    data.forEach((v, i) => {
+      pts.push(30 + (width - 60) * (i / Math.max(data.length - 1, 1)), y0 + band - 10 - (v - bounds.min) / (bounds.max - bounds.min || 1) * (band - 20));
+    });
+    group.add(app.polyline({ points: pts, fill: null, stroke: DASHBOARD.series[si % DASHBOARD.series.length], strokeWidth: 2, listening: false }));
+  });
+  attachBandYHover(app, group, props, width, height, series.length, (i) => `series ${i + 1}`);
+  setState2(group, { width, height, series });
+  return group;
+});
+registerDashboard("parallelCoordinatesPlot", (props, app) => {
+  const width = num2(props, "width", 300);
+  const height = num2(props, "height", 150);
+  const dimensions = props.dimensions ?? [[1, 5, 3], [2, 4, 6], [3, 2, 8]];
+  const group = createWidgetGroup(app, "parallelCoordinatesPlot", props);
+  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  const cols = dimensions[0]?.length ?? 3;
+  const step = (width - 40) / Math.max(cols - 1, 1);
+  for (let c = 0; c < cols; c++) {
+    const x = 20 + c * step;
+    group.add(app.line({ x, y: 20, x2: 0, y2: height - 40, stroke: DASHBOARD.chartGrid, strokeWidth: 1, listening: false }));
+  }
+  dimensions.forEach((row, ri) => {
+    const pts = [];
+    const max = Math.max(...row, 1);
+    row.forEach((v, ci) => {
+      pts.push(20 + ci * step, height - 20 - v / max * (height - 40));
+    });
+    group.add(app.polyline({ points: pts, fill: null, stroke: DASHBOARD.series[ri % DASHBOARD.series.length], strokeWidth: 1.5, listening: false }));
+  });
+  attachIndexXHover(
+    app,
+    group,
+    props,
+    { plotX: 20, plotY: 20, plotWidth: width - 40, plotHeight: height - 40 },
+    cols,
+    (i) => `dim ${i + 1}`
+  );
+  setState2(group, { width, height, dimensions });
+  return group;
+});
+registerDashboard("mosaicChart", (props, app) => {
+  const width = num2(props, "width", 300);
+  const height = num2(props, "height", 150);
+  const cells = props.cells ?? [
+    { w: 0.5, h: 0.5, value: 1 },
+    { w: 0.5, h: 0.5, value: 2 },
+    { w: 0.3, h: 0.5, value: 3 },
+    { w: 0.7, h: 0.5, value: 4 }
+  ];
+  const group = createWidgetGroup(app, "mosaicChart", props);
+  let x = 0;
+  let y = 0;
+  const regions = [];
+  cells.forEach((c, i) => {
+    const cw = c.w * width;
+    const ch = c.h * height;
+    regions.push({ x, y, width: cw - 1, height: ch - 1, label: String(c.value) });
+    group.add(app.rect({ x, y, width: cw - 1, height: ch - 1, fill: DASHBOARD.series[i % DASHBOARD.series.length], listening: false }));
+    x += cw;
+    if (x >= width - 1) {
+      x = 0;
+      y += ch;
+    }
+  });
+  attachRegionsHover(app, group, props, width, height, regions);
+  setState2(group, { width, height, cells });
+  return group;
+});
+registerDashboard("marimekkoChart", (props, app) => {
+  const width = num2(props, "width", 300);
+  const height = num2(props, "height", 150);
+  const segments = props.segments ?? [
+    { widthFrac: 0.4, heightFrac: 0.6 },
+    { widthFrac: 0.6, heightFrac: 0.4 },
+    { widthFrac: 0.5, heightFrac: 0.5 }
+  ];
+  const group = createWidgetGroup(app, "marimekkoChart", props);
+  let x = 0;
+  const regions = [];
+  segments.forEach((s, i) => {
+    const w = s.widthFrac * width;
+    const h = s.heightFrac * height;
+    regions.push({ x, y: height - h, width: w - 1, height: h, label: `${Math.round(s.widthFrac * 100)}%` });
+    group.add(app.rect({ x, y: height - h, width: w - 1, height: h, fill: DASHBOARD.series[i % DASHBOARD.series.length], listening: false }));
+    x += w;
+  });
+  attachRegionsHover(app, group, props, width, height, regions);
+  setState2(group, { width, height, segments });
+  return group;
+});
+registerDashboard("mekkoChart", (props, app) => {
+  const width = num2(props, "width", 300);
+  const height = num2(props, "height", 150);
+  const segments = props.segments ?? [
+    { widthFrac: 0.4, heightFrac: 0.6 },
+    { widthFrac: 0.6, heightFrac: 0.4 },
+    { widthFrac: 0.5, heightFrac: 0.5 }
+  ];
+  const group = createWidgetGroup(app, "mekkoChart", props);
+  let x = 0;
+  const regions = [];
+  segments.forEach((s, i) => {
+    const w = s.widthFrac * width;
+    const h = s.heightFrac * height;
+    regions.push({ x, y: height - h, width: w - 1, height: h, label: `${Math.round(s.widthFrac * 100)}%` });
+    group.add(app.rect({ x, y: height - h, width: w - 1, height: h, fill: DASHBOARD.series[i % DASHBOARD.series.length], listening: false }));
+    x += w;
+  });
+  attachRegionsHover(app, group, props, width, height, regions);
+  setState2(group, { width, height, segments });
+  return group;
+});
+registerDashboard("waffleChart", (props, app) => {
+  const size = num2(props, "size", 160);
+  const total = num2(props, "total", 100);
+  const value = num2(props, "value", 42);
+  const group = createWidgetGroup(app, "waffleChart", props);
+  const grid = 10;
+  const cell = size / grid;
+  const filled = Math.round(value / total * grid * grid);
+  for (let i = 0; i < grid * grid; i++) {
+    const col = i % grid;
+    const row = Math.floor(i / grid);
+    group.add(
+      app.rect({
+        x: col * cell,
+        y: row * cell,
+        width: cell - 2,
+        height: cell - 2,
+        fill: i < filled ? DASHBOARD.primary : DASHBOARD.inactive,
+        cornerRadius: 2,
+        listening: false
+      })
+    );
+  }
+  attachGridHover(app, group, props, size, size, grid, grid, (_r, c) => {
+    const idx = _r * grid + c;
+    return idx < filled ? "filled" : "empty";
+  });
+  setState2(group, { size, total, value });
+  return group;
+});
+registerDashboard("calendarHeatmap", (props, app) => {
+  const group = createWidgetGroup(app, "calendarHeatmap", props);
+  installChartRebuild(group, app, buildCalendarHeatmap);
+  return group;
+});
+function buildCalendarHeatmap(group, app, props) {
+  const width = num2(props, "width", 280);
+  const height = num2(props, "height", 120);
+  const values = props.values ?? Array.from({ length: 35 }, (_, i) => i % 7 + 1);
+  const max = Math.max(...values, 1);
+  const cols = 7;
+  const rows = Math.ceil(values.length / cols);
+  const gap = 2;
+  const cellW = (width - gap * (cols - 1)) / cols;
+  const cellH = (height - gap * (rows - 1)) / rows;
+  const cell = Math.max(4, Math.floor(Math.min(cellW, cellH)));
+  const gridW = cols * cell + gap * (cols - 1);
+  const gridH = rows * cell + gap * (rows - 1);
+  const offsetX = Math.max(0, (width - gridW) / 2);
+  const offsetY = Math.max(0, (height - gridH) / 2);
+  values.forEach((v, i) => {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const t = v / max;
+    group.add(
+      app.rect({
+        x: offsetX + col * (cell + gap),
+        y: offsetY + row * (cell + gap),
+        width: cell,
+        height: cell,
+        fill: `rgba(59,130,246,${0.2 + t * 0.8})`,
+        cornerRadius: Math.min(2, cell * 0.15),
+        listening: false
+      })
+    );
+  });
+  attachGridHover(app, group, props, width, height, rows, cols, (row, col) => {
+    const v = values[row * cols + col];
+    return v != null ? String(v) : "";
+  });
+  setState2(group, { width, height, values });
+}
+registerDashboard("stemLeafPlot", (props, app) => {
+  const width = num2(props, "width", 200);
+  const height = num2(props, "height", 180);
+  const data = props.data ?? [12, 23, 23, 34, 45, 56, 67, 78, 89];
+  const group = createWidgetGroup(app, "stemLeafPlot", props);
+  const stems = /* @__PURE__ */ new Map();
+  data.forEach((v) => {
+    const stem = Math.floor(v / 10);
+    const leaf = v % 10;
+    if (!stems.has(stem))
+      stems.set(stem, []);
+    stems.get(stem).push(leaf);
+  });
+  let y = 8;
+  for (const [stem, leaves] of [...stems.entries()].sort((a, b) => a[0] - b[0])) {
+    group.add(
+      app.text({ text: `${stem} | ${leaves.join(" ")}`, x: 8, y, fontSize: 12, fill: DASHBOARD.text, listening: false })
+    );
+    y += 16;
+  }
+  const rowCount = stems.size;
+  attachBandYHover(app, group, props, width, height, rowCount, (i) => {
+    const entries = [...stems.entries()].sort((a, b) => a[0] - b[0]);
+    const [stem, leaves] = entries[i] ?? [0, []];
+    return `${stem} | ${leaves.join(" ")}`;
+  });
+  setState2(group, { width, height, data });
+  return group;
+});
+registerDashboard("scatterChart", (props, app) => {
+  const width = num2(props, "width", 300);
+  const height = num2(props, "height", 150);
+  const points = props.points ?? [
+    { x: 10, y: 20 },
+    { x: 30, y: 45 },
+    { x: 50, y: 35 },
+    { x: 70, y: 80 },
+    { x: 90, y: 60 }
+  ];
+  const group = createWidgetGroup(app, "scatterChart", props);
+  const xs = points.map((p) => p.x);
+  const ys = points.map((p) => p.y);
+  const layout = plotChrome(app, group, width, height, { min: Math.min(...ys, 0), max: Math.max(...ys, 1) });
+  const xScale = linearScale([Math.min(...xs), Math.max(...xs)], [layout.plotX, layout.plotX + layout.plotWidth]);
+  const yScale = linearScale([Math.min(...ys), Math.max(...ys)], [layout.plotY + layout.plotHeight, layout.plotY]);
+  points.forEach((p) => {
+    group.add(app.circle({ x: xScale(p.x) - 4, y: yScale(p.y) - 4, radius: 4, fill: DASHBOARD.chartDot, listening: false }));
+  });
+  attachNearestHover(
+    app,
+    group,
+    props,
+    { x: layout.plotX, y: layout.plotY, width: layout.plotWidth, height: layout.plotHeight },
+    points.map((p) => ({
+      x: xScale(p.x),
+      y: yScale(p.y),
+      label: `(${p.x}, ${p.y})`
+    }))
+  );
+  setState2(group, { width, height, points });
+  return group;
+});
+registerDashboard("bubbleChart", (props, app) => {
+  const width = num2(props, "width", 300);
+  const height = num2(props, "height", 150);
+  const points = props.points ?? [
+    { x: 20, y: 30, size: 10 },
+    { x: 50, y: 60, size: 25 },
+    { x: 80, y: 40, size: 15 }
+  ];
+  const group = createWidgetGroup(app, "bubbleChart", props);
+  const xs = points.map((p) => p.x);
+  const ys = points.map((p) => p.y);
+  const layout = plotChrome(app, group, width, height, { min: Math.min(...ys, 0), max: Math.max(...ys, 1) });
+  const xScale = linearScale([Math.min(...xs), Math.max(...xs)], [layout.plotX, layout.plotX + layout.plotWidth]);
+  const yScale = linearScale([Math.min(...ys), Math.max(...ys)], [layout.plotY + layout.plotHeight, layout.plotY]);
+  points.forEach((p) => {
+    const r = (p.size ?? 8) / 2;
+    group.add(app.circle({ x: xScale(p.x) - r, y: yScale(p.y) - r, radius: r, fill: DASHBOARD.chartArea, stroke: DASHBOARD.chartLine, strokeWidth: 1, listening: false }));
+  });
+  attachNearestHover(
+    app,
+    group,
+    props,
+    { x: layout.plotX, y: layout.plotY, width: layout.plotWidth, height: layout.plotHeight },
+    points.map((p) => ({
+      x: xScale(p.x),
+      y: yScale(p.y),
+      label: `(${p.x}, ${p.y}) r=${p.size ?? 8}`
+    }))
+  );
+  setState2(group, { width, height, points });
+  return group;
+});
+
+// src/dashboard/charts/core/financial.ts
+function toHeikinAshi(bars) {
+  const out = [];
+  let prevClose = bars[0]?.close ?? 0;
+  for (const b of bars) {
+    const close = (b.open + b.high + b.low + b.close) / 4;
+    const open = out.length ? (out[out.length - 1].open + out[out.length - 1].close) / 2 : (b.open + b.close) / 2;
+    const high = Math.max(b.high, open, close);
+    const low = Math.min(b.low, open, close);
+    out.push({ time: b.time, open, high, low, close, volume: b.volume });
+    prevClose = close;
+  }
+  return out;
+}
+function toRenko(bars, brickSize) {
+  const out = [];
+  if (!bars.length)
+    return out;
+  let price = bars[0].close;
+  for (const b of bars) {
+    let diff = b.close - price;
+    while (Math.abs(diff) >= brickSize) {
+      const dir = diff > 0 ? 1 : -1;
+      const open = price;
+      price += dir * brickSize;
+      out.push({
+        time: b.time,
+        open,
+        high: Math.max(open, price),
+        low: Math.min(open, price),
+        close: price
+      });
+      diff = b.close - price;
+    }
+  }
+  return out;
+}
+function toKagi(bars, reversal) {
+  const pts = [];
+  if (!bars.length)
+    return pts;
+  let dir = 0;
+  let price = bars[0].close;
+  pts.push({ x: 0, y: price });
+  for (let i = 1; i < bars.length; i++) {
+    const c = bars[i].close;
+    if (dir >= 0 && c >= price + reversal) {
+      dir = 1;
+      price = c;
+      pts.push({ x: i, y: price });
+    } else if (dir <= 0 && c <= price - reversal) {
+      dir = -1;
+      price = c;
+      pts.push({ x: i, y: price });
+    } else if (dir === 1 && c < price - reversal) {
+      dir = -1;
+      price = c;
+      pts.push({ x: i, y: price });
+    } else if (dir === -1 && c > price + reversal) {
+      dir = 1;
+      price = c;
+      pts.push({ x: i, y: price });
+    }
+  }
+  return pts;
+}
+function toPointAndFigure(bars, boxSize, reversal = 3) {
+  const out = [];
+  if (!bars.length)
+    return out;
+  let col = 0;
+  let price = bars[0].close;
+  let dir = null;
+  for (const b of bars) {
+    if (!dir) {
+      dir = b.close >= price ? "X" : "O";
+      price = b.close;
+      continue;
+    }
+    const move = b.close - price;
+    const boxes = Math.floor(Math.abs(move) / boxSize);
+    if (boxes >= reversal && (dir === "X" && move < 0 || dir === "O" && move > 0)) {
+      dir = dir === "X" ? "O" : "X";
+      col++;
+      price = b.close;
+      out.push({ time: col, open: price, high: price + boxSize, low: price - boxSize, close: price });
+    } else if (boxes > 0) {
+      price += (move > 0 ? 1 : -1) * boxes * boxSize;
+      out.push({ time: col, open: price, high: price + boxSize, low: price - boxSize, close: price });
+    }
+  }
+  return out;
+}
+function volumeProfile(bars, bins = 20) {
+  if (!bars.length)
+    return [];
+  const lows = bars.map((b) => b.low);
+  const highs = bars.map((b) => b.high);
+  const min = Math.min(...lows);
+  const max = Math.max(...highs);
+  const step = (max - min) / bins || 1;
+  const profile = Array.from({ length: bins }, (_, i) => ({
+    price: min + (i + 0.5) * step,
+    volume: 0
+  }));
+  for (const b of bars) {
+    const vol = b.volume ?? 1;
+    const idx = Math.min(bins - 1, Math.floor((b.close - min) / step));
+    profile[idx].volume += vol;
+  }
+  return profile;
+}
+var SAMPLE_OHLC = [
+  { time: "1", open: 100, high: 105, low: 98, close: 103, volume: 1200 },
+  { time: "2", open: 103, high: 108, low: 101, close: 106, volume: 1500 },
+  { time: "3", open: 106, high: 107, low: 99, close: 100, volume: 1800 },
+  { time: "4", open: 100, high: 104, low: 97, close: 102, volume: 1100 },
+  { time: "5", open: 102, high: 110, low: 101, close: 109, volume: 2e3 },
+  { time: "6", open: 109, high: 112, low: 105, close: 107, volume: 1600 },
+  { time: "7", open: 107, high: 109, low: 103, close: 104, volume: 1300 }
+];
+
+// src/dashboard/charts/financial/register.ts
+function ohlcLabel(b) {
+  return `C:${b.close} H:${b.high} L:${b.low}`;
+}
+function attachOhlcHover(app, group, props, layout, bars) {
+  attachIndexXHover(app, group, props, layout, bars.length, (i) => ohlcLabel(bars[i]), void 0, (i) => ({
+    index: i,
+    bar: bars[i],
+    value: bars[i].close
+  }));
+}
+function getOhlc(props) {
+  return props.data ?? SAMPLE_OHLC;
+}
+function plotFinancial(app, group, bars, width, height, props, style = "candle") {
+  const lows = bars.map((b) => b.low);
+  const highs = bars.map((b) => b.high);
+  const bounds = { min: Math.min(...lows), max: Math.max(...highs) };
+  const layout = defaultLayout(width, height);
+  const yTicks = computeTicks(bounds.min, bounds.max, 5);
+  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  group.add(app.rect({ x: layout.plotX, y: layout.plotY, width: layout.plotWidth, height: layout.plotHeight, fill: DASHBOARD.chartPlot, listening: false }));
+  addGridLines(app, group, layout, yTicks, bounds);
+  addAxes(app, group, layout, bounds, yTicks);
+  const slot = layout.plotWidth / Math.max(bars.length, 1);
+  const yScale = linearScale([bounds.min, bounds.max], [layout.plotY + layout.plotHeight, layout.plotY]);
+  bars.forEach((b, i) => {
+    const cx = layout.plotX + slot * i + slot / 2;
+    const yH = yScale(b.high);
+    const yL = yScale(b.low);
+    const up = b.close >= b.open;
+    const color = up ? DASHBOARD.financialUp : DASHBOARD.financialDown;
+    if (style === "ohlc") {
+      group.add(
+        app.line({ x: cx, y: yH, x2: 0, y2: yL - yH, stroke: color, strokeWidth: 1, listening: false }),
+        app.line({ x: cx - slot * 0.3, y: yScale(b.open), x2: slot * 0.3, y2: 0, stroke: color, strokeWidth: 2, listening: false }),
+        app.line({ x: cx, y: yScale(b.close), x2: slot * 0.3, y2: 0, stroke: color, strokeWidth: 2, listening: false })
+      );
+    } else if (style === "hilo") {
+      group.add(app.line({ x: cx, y: yH, x2: 0, y2: yL - yH, stroke: color, strokeWidth: 2, listening: false }));
+    } else {
+      const yO = yScale(b.open);
+      const yC = yScale(b.close);
+      const bodyTop = Math.min(yO, yC);
+      const bodyH = Math.max(2, Math.abs(yC - yO));
+      group.add(
+        app.line({ x: cx, y: yH, x2: 0, y2: yL - yH, stroke: color, strokeWidth: 1, listening: false }),
+        app.rect({ x: cx - slot * 0.25, y: bodyTop, width: slot * 0.5, height: bodyH, fill: up ? color : DASHBOARD.chartBg, stroke: color, strokeWidth: 1, listening: false })
+      );
+    }
+  });
+  attachOhlcHover(app, group, props, layout, bars);
+  return layout;
+}
+function registerOhlcChart(type, style, transform) {
+  registerDashboard(type, (props, app) => {
+    const width = num2(props, "width", 300);
+    const height = num2(props, "height", 150);
+    let bars = getOhlc(props);
+    const group = createWidgetGroup(app, type, props);
+    if (transform)
+      bars = transform(bars);
+    plotFinancial(app, group, bars, width, height, props, style);
+    setState2(group, { width, height, data: bars });
+    return group;
+  });
+}
+registerOhlcChart("candlestickChart", "candle");
+registerOhlcChart("kLineChart", "candle");
+registerOhlcChart("ohlcChart", "ohlc");
+registerOhlcChart("highLowChart", "hilo");
+registerOhlcChart("heikinAshiChart", "candle", toHeikinAshi);
+registerOhlcChart("renkoChart", "candle", (b) => toRenko(b, 3));
+registerOhlcChart("pointAndFigureChart", "candle", (b) => toPointAndFigure(b, 2));
+registerDashboard("kagiChart", (props, app) => {
+  const width = num2(props, "width", 300);
+  const height = num2(props, "height", 150);
+  const bars = getOhlc(props);
+  const pts = toKagi(bars, num2(props, "reversal", 4));
+  const group = createWidgetGroup(app, "kagiChart", props);
+  const layout = defaultLayout(width, height);
+  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  const ys = pts.map((p) => p.y);
+  const bounds = dataBounds(ys);
+  const yScale = linearScale([bounds.min, bounds.max], [layout.plotY + layout.plotHeight, layout.plotY]);
+  const linePts = [];
+  pts.forEach((p, i) => {
+    linePts.push(layout.plotX + layout.plotWidth * i / Math.max(pts.length - 1, 1), yScale(p.y));
+  });
+  group.add(app.polyline({ points: linePts, fill: null, stroke: DASHBOARD.chartLine, strokeWidth: 2, listening: false }));
+  attachIndexXHover(app, group, props, layout, pts.length, (i) => `price: ${pts[i].y.toFixed(2)}`);
+  setState2(group, { width, height, data: bars });
+  return group;
+});
+registerDashboard("volumeChart", (props, app) => {
+  const width = num2(props, "width", 300);
+  const height = num2(props, "height", 120);
+  const bars = getOhlc(props);
+  const group = createWidgetGroup(app, "volumeChart", props);
+  const layout = defaultLayout(width, height);
+  const maxVol = Math.max(...bars.map((b) => b.volume ?? 0), 1);
+  const slot = layout.plotWidth / bars.length;
+  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  bars.forEach((b, i) => {
+    const v = b.volume ?? 0;
+    const h = v / maxVol * layout.plotHeight;
+    const up = b.close >= b.open;
+    group.add(
+      app.rect({
+        x: layout.plotX + i * slot,
+        y: layout.plotY + layout.plotHeight - h,
+        width: slot - 2,
+        height: h,
+        fill: up ? DASHBOARD.financialUp : DASHBOARD.financialDown,
+        listening: false
+      })
+    );
+  });
+  attachIndexXHover(app, group, props, layout, bars.length, (i) => `vol: ${bars[i].volume ?? 0}`);
+  setState2(group, { width, height, data: bars });
+  return group;
+});
+registerDashboard("candlestickVolumeChart", (props, app) => {
+  const width = num2(props, "width", 300);
+  const height = num2(props, "height", 220);
+  const bars = getOhlc(props);
+  const group = createWidgetGroup(app, "candlestickVolumeChart", props);
+  plotFinancial(app, group, bars, width, height * 0.65, props, "candle");
+  const volH = height * 0.3;
+  const layout = defaultLayout(width, volH);
+  layout.plotY = height * 0.68;
+  const maxVol = Math.max(...bars.map((b) => b.volume ?? 0), 1);
+  const slot = layout.plotWidth / bars.length;
+  bars.forEach((b, i) => {
+    const v = b.volume ?? 0;
+    const h = v / maxVol * layout.plotHeight;
+    group.add(
+      app.rect({
+        x: layout.plotX + i * slot,
+        y: layout.plotY + layout.plotHeight - h,
+        width: slot - 2,
+        height: h,
+        fill: DASHBOARD.inactiveBar,
+        listening: false
+      })
+    );
+  });
+  attachIndexXHover(app, group, props, layout, bars.length, (i) => `vol: ${bars[i].volume ?? 0}`);
+  setState2(group, { width, height, data: bars });
+  return group;
+});
+registerDashboard("volumeProfileChart", (props, app) => {
+  const width = num2(props, "width", 300);
+  const height = num2(props, "height", 150);
+  const bars = getOhlc(props);
+  const profile = volumeProfile(bars, num2(props, "bins", 12));
+  const group = createWidgetGroup(app, "volumeProfileChart", props);
+  const layout = defaultLayout(width, height);
+  const maxV = Math.max(...profile.map((p) => p.volume), 1);
+  const minP = Math.min(...profile.map((p) => p.price));
+  const maxP = Math.max(...profile.map((p) => p.price));
+  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  profile.forEach((p) => {
+    const y = layout.plotY + layout.plotHeight - (p.price - minP) / (maxP - minP || 1) * layout.plotHeight;
+    const w = p.volume / maxV * layout.plotWidth * 0.4;
+    group.add(app.rect({ x: layout.plotX, y: y - 4, width: w, height: 8, fill: DASHBOARD.primary, listening: false }));
+  });
+  attachIndexYHover(app, group, props, layout, profile.length, (i) => `price ${profile[i].price.toFixed(1)} vol ${profile[i].volume}`);
+  setState2(group, { width, height, data: bars });
+  return group;
+});
+
+// src/dashboard/charts/core/treemap.ts
+function squarify(nodes, x, y, width, height) {
+  const items = nodes.map((n) => ({ name: n.name, value: n.value ?? sumChildren(n) })).filter((n) => n.value > 0);
+  const total = items.reduce((a, b) => a + b.value, 0) || 1;
+  const rects = [];
+  layoutRow(items, x, y, width, height, total, rects);
+  return rects;
+}
+function sumChildren(n) {
+  if (n.value != null)
+    return n.value;
+  if (!n.children?.length)
+    return 1;
+  return n.children.reduce((a, c) => a + sumChildren(c), 0);
+}
+function layoutRow(items, x, y, w, h, total, out) {
+  if (!items.length)
+    return;
+  if (items.length === 1) {
+    out.push({ name: items[0].name, x, y, width: w, height: h, value: items[0].value });
+    return;
+  }
+  const horizontal = w >= h;
+  const sum = items.reduce((a, b) => a + b.value, 0);
+  const rowValue = items[0].value;
+  const rowFrac = rowValue / sum;
+  if (horizontal) {
+    const rw = w * rowFrac;
+    out.push({ name: items[0].name, x, y, width: rw, height: h, value: items[0].value });
+    layoutRow(items.slice(1), x + rw, y, w - rw, h, total - rowValue, out);
+  } else {
+    const rh = h * rowFrac;
+    out.push({ name: items[0].name, x, y, width: w, height: rh, value: items[0].value });
+    layoutRow(items.slice(1), x, y + rh, w, h - rh, total - rowValue, out);
+  }
+}
+function flattenHierarchy(root) {
+  const out = [];
+  const walk2 = (n) => {
+    if (!n.children?.length)
+      out.push(n);
+    else
+      n.children.forEach(walk2);
+  };
+  if (root.children?.length)
+    root.children.forEach(walk2);
+  else
+    out.push(root);
+  return out;
+}
+
+// src/dashboard/charts/hierarchical/register.ts
+var SAMPLE_TREE = {
+  name: "root",
+  children: [
+    { name: "A", value: 40 },
+    { name: "B", value: 30 },
+    { name: "C", value: 20 },
+    { name: "D", value: 10 }
+  ]
+};
+registerDashboard("treemap", (props, app) => {
+  const width = num2(props, "width", 300);
+  const height = num2(props, "height", 200);
+  const root = props.data ?? SAMPLE_TREE;
+  const nodes = root.children ?? [root];
+  const group = createWidgetGroup(app, "treemap", props);
+  const rects = squarify(nodes, 0, 0, width, height);
+  const regions = rects.map((r) => ({
+    x: r.x,
+    y: r.y,
+    width: r.width - 1,
+    height: r.height - 1,
+    label: `${r.name}: ${r.value ?? ""}`,
+    payload: { name: r.name, value: r.value }
+  }));
+  rects.forEach((r, i) => {
+    group.add(
+      app.rect({
+        x: r.x,
+        y: r.y,
+        width: r.width - 1,
+        height: r.height - 1,
+        fill: DASHBOARD.series[i % DASHBOARD.series.length],
+        stroke: DASHBOARD.pieStroke,
+        strokeWidth: 1,
+        listening: false
+      }),
+      app.text({
+        text: r.name,
+        x: r.x + 4,
+        y: r.y + 4,
+        fontSize: 10,
+        fill: DASHBOARD.text,
+        listening: false
+      })
+    );
+  });
+  attachRegionsHover(app, group, props, width, height, regions);
+  setState2(group, { width, height, data: root });
+  return group;
+});
+registerDashboard("sunburstChart", (props, app) => {
+  const size = num2(props, "size", 200);
+  const root = props.data ?? SAMPLE_TREE;
+  const group = createWidgetGroup(app, "sunburstChart", props);
+  const cx = size / 2;
+  const children = root.children ?? [root];
+  const total = children.reduce((a, c) => a + (c.value ?? 1), 0);
+  let angle = -Math.PI / 2;
+  children.forEach((c, i) => {
+    const sweep = (c.value ?? 1) / total * Math.PI * 2;
+    group.add(
+      new Arc({
+        x: cx - size / 2 + 10,
+        y: cx - size / 2 + 10,
+        innerRadius: size * 0.2,
+        radius: size / 2 - 10,
+        startAngle: angle,
+        endAngle: angle + sweep,
+        fill: DASHBOARD.series[i % DASHBOARD.series.length],
+        stroke: DASHBOARD.pieStroke,
+        strokeWidth: 1,
+        listening: false
+      })
+    );
+    angle += sweep;
+  });
+  const sliceData = children.map((c) => c.value ?? 1);
+  attachPolarSliceHover(
+    app,
+    group,
+    props,
+    size,
+    sliceData,
+    children.map((c) => `${c.name}: ${c.value ?? 1}`)
+  );
+  setState2(group, { size, data: root });
+  return group;
+});
+registerDashboard("treeChart", (props, app) => {
+  const width = num2(props, "width", 300);
+  const height = num2(props, "height", 200);
+  const root = props.data ?? {
+    name: "root",
+    children: [
+      { name: "A", children: [{ name: "A1" }, { name: "A2" }] },
+      { name: "B", children: [{ name: "B1" }] }
+    ]
+  };
+  const group = createWidgetGroup(app, "treeChart", props);
+  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  const leaves = flattenHierarchy(root);
+  leaves.forEach((n, i) => {
+    const x = 20 + i % 4 * 70;
+    const y = 30 + Math.floor(i / 4) * 50;
+    group.add(
+      app.circle({ x: x - 8, y: y - 8, radius: 8, fill: DASHBOARD.primary, listening: false }),
+      app.text({ text: n.name, x: x + 12, y: y - 6, fontSize: 11, fill: DASHBOARD.text, listening: false })
+    );
+  });
+  attachNearestHover(
+    app,
+    group,
+    props,
+    { x: 0, y: 0, width, height },
+    leaves.map((n, i) => {
+      const x = 20 + i % 4 * 70;
+      const y = 30 + Math.floor(i / 4) * 50;
+      return { x, y, label: n.name ?? "node" };
+    })
+  );
+  setState2(group, { width, height, data: root });
+  return group;
+});
+registerDashboard("dendrogramChart", (props, app) => {
+  const width = num2(props, "width", 300);
+  const height = num2(props, "height", 200);
+  const group = createWidgetGroup(app, "dendrogramChart", props);
+  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  const nodes = ["A", "B", "C", "D", "E"];
+  const step = width / nodes.length;
+  nodes.forEach((n, i) => {
+    const x = step * i + step / 2;
+    group.add(
+      app.line({ x, y: height - 30, x2: 0, y2: -80, stroke: DASHBOARD.chartGrid, strokeWidth: 1, listening: false }),
+      app.text({ text: n, x: x - 6, y: height - 12, fontSize: 10, fill: DASHBOARD.text, listening: false })
+    );
+  });
+  group.add(app.line({ x: step / 2, y: height - 110, x2: width - step, y2: 0, stroke: DASHBOARD.chartLine, strokeWidth: 2, listening: false }));
+  attachIndexXHover(
+    app,
+    group,
+    props,
+    { plotX: 0, plotY: 0, plotWidth: width, plotHeight: height },
+    nodes.length,
+    (i) => nodes[i]
+  );
+  setState2(group, { width, height });
+  return group;
+});
+
+// src/dashboard/charts/core/sankey.ts
+function layoutSankey(nodes, links, width, height, nodeWidth = 12) {
+  const cols = 3;
+  const colW = width / cols;
+  const inflow = /* @__PURE__ */ new Map();
+  const outflow = /* @__PURE__ */ new Map();
+  for (const l of links) {
+    inflow.set(l.target, (inflow.get(l.target) ?? 0) + l.value);
+    outflow.set(l.source, (outflow.get(l.source) ?? 0) + l.value);
+  }
+  const total = links.reduce((a, l) => a + l.value, 0) || 1;
+  const layoutNodes = nodes.map((n, i) => {
+    const col = i % cols;
+    const flow = Math.max(inflow.get(n.id) ?? 0, outflow.get(n.id) ?? 0, 1);
+    const h = flow / total * height * 0.8;
+    return {
+      id: n.id,
+      label: n.label ?? n.id,
+      x: col * colW + colW / 2 - nodeWidth / 2,
+      y: 20 + i % 4 * (h + 10),
+      width: nodeWidth,
+      height: Math.max(20, h)
+    };
+  });
+  const nodeMap = new Map(layoutNodes.map((n) => [n.id, n]));
+  const layoutLinks = links.map((l) => {
+    const source = nodeMap.get(l.source);
+    const target = nodeMap.get(l.target);
+    if (!source || !target)
+      return null;
+    const sx = source.x + source.width;
+    const sy = source.y + source.height / 2;
+    const tx = target.x;
+    const ty = target.y + target.height / 2;
+    const mx = (sx + tx) / 2;
+    const path = `M ${sx} ${sy} C ${mx} ${sy} ${mx} ${ty} ${tx} ${ty}`;
+    return { source, target, value: l.value, path };
+  }).filter((l) => l != null);
+  return { nodes: layoutNodes, links: layoutLinks };
+}
+function layoutChord(matrix, size, padAngle = 0.04) {
+  const n = matrix.length;
+  const cx = size / 2;
+  const cy = size / 2;
+  const outerR = size / 2 - 16;
+  const innerR = outerR - 18;
+  const totals = matrix.map((row) => row.reduce((a, v) => a + v, 0));
+  const grand = totals.reduce((a, v) => a + v, 0) || 1;
+  const tau = Math.PI * 2;
+  const gap = padAngle;
+  let angle = -Math.PI / 2;
+  const segments = [];
+  for (let i = 0; i < n; i++) {
+    const sweep = totals[i] / grand * tau;
+    const start = angle + gap / 2;
+    const end = angle + sweep - gap / 2;
+    segments.push({ index: i, startAngle: start, endAngle: end, value: totals[i] });
+    angle += sweep;
+  }
+  const ribbons = [];
+  for (let i = 0; i < n; i++) {
+    const row = matrix[i];
+    const outTotal = row.reduce((a, v) => a + v, 0) || 1;
+    let outAcc = 0;
+    for (let j = 0; j < n; j++) {
+      const v = row[j];
+      if (!v)
+        continue;
+      const segI = segments[i];
+      const segJ = segments[j];
+      const srcSpan = segI.endAngle - segI.startAngle;
+      const tgtSpan = segJ.endAngle - segJ.startAngle;
+      const sa1 = segI.startAngle + outAcc / outTotal * srcSpan;
+      const ea1 = segI.startAngle + (outAcc + v) / outTotal * srcSpan;
+      outAcc += v;
+      const inTotal = matrix.reduce((a, r) => a + (r[j] ?? 0), 0) || 1;
+      let inBefore = 0;
+      for (let k = 0; k < i; k++)
+        inBefore += matrix[k][j] ?? 0;
+      const sa2 = segJ.startAngle + inBefore / inTotal * tgtSpan;
+      const ea2 = segJ.startAngle + (inBefore + v) / inTotal * tgtSpan;
+      ribbons.push({
+        source: i,
+        target: j,
+        value: v,
+        path: chordRibbonPath(cx, cy, outerR, innerR, sa1, ea1, sa2, ea2)
+      });
+    }
+  }
+  return { cx, cy, outerR, innerR, segments, ribbons };
+}
+function chordRibbonPath(cx, cy, outerR, _innerR, sa1, ea1, sa2, ea2) {
+  const p = (r, a) => [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+  const [x00, y00] = p(outerR, sa1);
+  const [x01, y01] = p(outerR, ea1);
+  const [x10, y10] = p(outerR, sa2);
+  const [x11, y11] = p(outerR, ea2);
+  const large1 = Math.abs(ea1 - sa1) > Math.PI ? 1 : 0;
+  const large2 = Math.abs(ea2 - sa2) > Math.PI ? 1 : 0;
+  return `M ${x00} ${y00} A ${outerR} ${outerR} 0 ${large1} 1 ${x01} ${y01} Q ${cx} ${cy} ${x10} ${y10} A ${outerR} ${outerR} 0 ${large2} 1 ${x11} ${y11} Q ${cx} ${cy} ${x00} ${y00} Z`;
+}
+
+// src/dashboard/charts/core/streamLayout.ts
+function layoutStreamgraph(series, width, height, pad = { left: 24, right: 24, top: 12, bottom: 12 }) {
+  const n = series.length;
+  if (!n)
+    return [];
+  const len = Math.max(...series.map((s) => s.length), 1);
+  const plotW = Math.max(width - pad.left - pad.right, 8);
+  const plotH = Math.max(height - pad.top - pad.bottom, 8);
+  const midY = pad.top + plotH / 2;
+  const totals = Array.from(
+    { length: len },
+    (_, i) => series.reduce((a, s) => a + (s[i] ?? 0), 0)
+  );
+  const maxTotal = Math.max(...totals, 1);
+  const yScale = plotH / maxTotal;
+  const tops = series.map(() => Array(len).fill(0));
+  const bots = series.map(() => Array(len).fill(0));
+  for (let i = 0; i < len; i++) {
+    const totalH = totals[i] * yScale;
+    let y = midY - totalH / 2;
+    for (let s = 0; s < n; s++) {
+      const h = (series[s][i] ?? 0) * yScale;
+      bots[s][i] = y;
+      tops[s][i] = y + h;
+      y += h;
+    }
+  }
+  const xAt = (i) => pad.left + plotW * i / Math.max(len - 1, 1);
+  return series.map((_, si) => {
+    const topPts = [];
+    const botPts = [];
+    for (let i = 0; i < len; i++) {
+      const x = xAt(i);
+      topPts.push(`${x},${tops[si][i]}`);
+      botPts.unshift(`${x},${bots[si][i]}`);
+    }
+    const d = `M ${topPts.join(" L ")} L ${botPts.join(" L ")} Z`;
+    return { path: d, index: si };
+  });
+}
+function streamTooltipLabel(series, index, names) {
+  return series.map((s, si) => `${names?.[si] ?? `S${si + 1}`}: ${s[index] ?? 0}`).join("\n");
+}
+
+// src/dashboard/charts/flow/register.ts
+var SAMPLE_FLOW_NODES = [
+  { id: "a", label: "Source" },
+  { id: "b", label: "Process" },
+  { id: "c", label: "Sink" }
+];
+var SAMPLE_FLOW_LINKS = [
+  { source: "a", target: "b", value: 40 },
+  { source: "b", target: "c", value: 35 }
+];
+registerDashboard("sankeyChart", (props, app) => {
+  const width = num2(props, "width", 400);
+  const height = num2(props, "height", 220);
+  const nodes = props.nodes ?? SAMPLE_FLOW_NODES;
+  const links = props.links ?? SAMPLE_FLOW_LINKS;
+  const group = createWidgetGroup(app, "sankeyChart", props);
+  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  const layout = layoutSankey(nodes, links, width, height);
+  layout.links.forEach((l) => {
+    group.add(app.path({ d: l.path, fill: null, stroke: DASHBOARD.flowLink, strokeWidth: Math.max(2, l.value / 10), listening: false }));
+  });
+  layout.nodes.forEach((n) => {
+    group.add(
+      app.rect({ x: n.x, y: n.y, width: n.width, height: n.height, fill: DASHBOARD.primary, listening: false }),
+      app.text({ text: n.label, x: n.x, y: n.y - 12, fontSize: 10, fill: DASHBOARD.text, listening: false })
+    );
+  });
+  attachRegionsHover(
+    app,
+    group,
+    props,
+    width,
+    height,
+    layout.nodes.map((n) => ({
+      x: n.x - 10,
+      y: n.y,
+      width: n.width + 20,
+      height: n.height,
+      label: n.label,
+      payload: { id: n.id, label: n.label }
+    }))
+  );
+  setState2(group, { width, height, nodes, links });
+  return group;
+});
+registerDashboard("chordChart", (props, app) => {
+  const size = num2(props, "size", 220);
+  const labels = props.labels ?? [];
+  const matrix = props.matrix ?? [
+    [0, 5, 3],
+    [4, 0, 2],
+    [1, 3, 0]
+  ];
+  const group = createWidgetGroup(app, "chordChart", props);
+  group.add(app.rect({ width: size, height: size, fill: DASHBOARD.chartBg, listening: true }));
+  const chord = layoutChord(matrix, size);
+  chord.ribbons.forEach((ribbon) => {
+    group.add(
+      app.path({
+        d: ribbon.path,
+        fill: DASHBOARD.flowLink,
+        opacity: 0.35 + ribbon.value / 10 * 0.15,
+        stroke: null,
+        listening: false
+      })
+    );
+  });
+  chord.segments.forEach((seg) => {
+    group.add(
+      app.path({
+        d: arcSectorPath(chord.cx, chord.cy, chord.outerR, seg.startAngle, seg.endAngle, chord.innerR),
+        fill: DASHBOARD.series[seg.index % DASHBOARD.series.length],
+        stroke: DASHBOARD.pieStroke,
+        strokeWidth: 1,
+        listening: false
+      })
+    );
+    const mid = (seg.startAngle + seg.endAngle) / 2;
+    const lr = (chord.outerR + chord.innerR) / 2;
+    const lx = chord.cx + lr * Math.cos(mid);
+    const ly = chord.cy + lr * Math.sin(mid);
+    const name = labels[seg.index] ?? `N${seg.index + 1}`;
+    group.add(
+      app.text({
+        text: name,
+        x: lx - 10,
+        y: ly - 6,
+        fontSize: 9,
+        fill: DASHBOARD.text,
+        listening: false
+      })
+    );
+  });
+  attachPolarSliceHover(
+    app,
+    group,
+    props,
+    size,
+    chord.segments.map((s) => s.value),
+    chord.segments.map((s, i) => labels[i] ?? `node ${i + 1}: ${s.value}`)
+  );
+  setState2(group, { size, matrix, labels });
+  return group;
+});
+registerDashboard("alluvialChart", (props, app) => {
+  const width = num2(props, "width", 400);
+  const height = num2(props, "height", 200);
+  const stages = props.stages ?? [
+    ["A1", "A2"],
+    ["B1", "B2", "B3"],
+    ["C1", "C2"]
+  ];
+  const group = createWidgetGroup(app, "alluvialChart", props);
+  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  const colW = width / stages.length;
+  const regions = [];
+  stages.forEach((col, ci) => {
+    const step = height / (col.length + 1);
+    col.forEach((label, ri) => {
+      const x = ci * colW + 10;
+      const y = step * (ri + 1);
+      regions.push({ x, y, width: colW - 20, height: 24, label });
+      group.add(
+        app.rect({ x, y, width: colW - 20, height: 24, fill: DASHBOARD.series[ri % DASHBOARD.series.length], cornerRadius: 4, listening: false }),
+        app.text({ text: label, x: x + 6, y: y + 5, fontSize: 10, fill: DASHBOARD.text, listening: false })
+      );
+      if (ci < stages.length - 1) {
+        const nx = (ci + 1) * colW + 10;
+        const ny = step * (ri + 1) + 12;
+        group.add(app.path({ d: `M ${x + colW - 20} ${y + 12} C ${x + colW} ${y + 12} ${nx - 20} ${ny} ${nx} ${ny}`, fill: null, stroke: DASHBOARD.flowLink, strokeWidth: 8, listening: false }));
+      }
+    });
+  });
+  attachRegionsHover(app, group, props, width, height, regions);
+  setState2(group, { width, height, stages });
+  return group;
+});
+registerDashboard("streamgraph", (props, app) => {
+  const width = num2(props, "width", 300);
+  const height = num2(props, "height", 150);
+  const series = props.series ?? [
+    [10, 12, 8, 14, 11],
+    [8, 10, 12, 9, 13],
+    [6, 7, 9, 11, 8]
+  ];
+  const names = props.seriesNames ?? series.map((_, i) => `S${i + 1}`);
+  const group = createWidgetGroup(app, "streamgraph", props);
+  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  const layers = layoutStreamgraph(series, width, height);
+  const len = Math.max(...series.map((s) => s.length), 1);
+  layers.forEach((layer) => {
+    group.add(
+      app.path({
+        d: layer.path,
+        fill: DASHBOARD.series[layer.index % DASHBOARD.series.length],
+        opacity: 0.82,
+        stroke: DASHBOARD.chartBg,
+        strokeWidth: 0.5,
+        listening: false
+      })
+    );
+  });
+  attachIndexXHover(
+    app,
+    group,
+    props,
+    { plotX: 24, plotY: 0, plotWidth: width - 48, plotHeight: height },
+    len,
+    (i) => streamTooltipLabel(series, i, names)
+  );
+  setState2(group, { width, height, series, names });
+  return group;
+});
+
+// src/diagram/layouts.ts
+function forceDirectedLayout(nodes, edges, options = {}) {
+  const {
+    width = 600,
+    height = 400,
+    iterations = 100,
+    seed = 42,
+    repulsion = 4e3,
+    attraction = 0.05,
+    damping = 0.85
+  } = options;
+  const rand = seededRandom(seed);
+  const positions = /* @__PURE__ */ new Map();
+  for (const n of nodes) {
+    positions.set(n.id, {
+      x: n.x ?? rand() * width,
+      y: n.y ?? rand() * height,
+      vx: 0,
+      vy: 0
+    });
+  }
+  for (let iter = 0; iter < iterations; iter++) {
+    const forces = /* @__PURE__ */ new Map();
+    for (const n of nodes)
+      forces.set(n.id, { fx: 0, fy: 0 });
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const a = positions.get(nodes[i].id);
+        const b = positions.get(nodes[j].id);
+        let dx = a.x - b.x;
+        let dy = a.y - b.y;
+        let dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 1) {
+          dx = rand() - 0.5;
+          dy = rand() - 0.5;
+          dist = 1;
+        }
+        const force = repulsion / (dist * dist);
+        const fx = dx / dist * force;
+        const fy = dy / dist * force;
+        forces.get(nodes[i].id).fx += fx;
+        forces.get(nodes[i].id).fy += fy;
+        forces.get(nodes[j].id).fx -= fx;
+        forces.get(nodes[j].id).fy -= fy;
+      }
+    }
+    for (const edge of edges) {
+      const a = positions.get(edge.from);
+      const b = positions.get(edge.to);
+      if (!a || !b)
+        continue;
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      const force = dist * attraction;
+      const fx = dx / dist * force;
+      const fy = dy / dist * force;
+      forces.get(edge.from).fx += fx;
+      forces.get(edge.from).fy += fy;
+      forces.get(edge.to).fx -= fx;
+      forces.get(edge.to).fy -= fy;
+    }
+    const cx = width / 2;
+    const cy = height / 2;
+    for (const n of nodes) {
+      const p = positions.get(n.id);
+      const f = forces.get(n.id);
+      f.fx += (cx - p.x) * 0.01;
+      f.fy += (cy - p.y) * 0.01;
+      p.vx = (p.vx + f.fx) * damping;
+      p.vy = (p.vy + f.fy) * damping;
+      p.x = Math.max(20, Math.min(width - 20, p.x + p.vx));
+      p.y = Math.max(20, Math.min(height - 20, p.y + p.vy));
+    }
+  }
+  const result = /* @__PURE__ */ new Map();
+  for (const n of nodes) {
+    const p = positions.get(n.id);
+    result.set(n.id, { x: p.x, y: p.y });
+  }
+  return result;
+}
+function radialLayout(group, cx, cy, innerRadius, outerRadius) {
+  const children = group.children;
+  if (children.length === 0)
+    return;
+  if (children.length === 1) {
+    children[0].x = cx;
+    children[0].y = cy;
+    children[0].markDirty();
+    return;
+  }
+  children[0].x = cx;
+  children[0].y = cy;
+  children[0].markDirty();
+  const outer = children.slice(1);
+  const n = outer.length;
+  for (let i = 0; i < n; i++) {
+    const angle = 2 * Math.PI * i / n - Math.PI / 2;
+    const r = n <= 4 ? innerRadius : outerRadius;
+    outer[i].x = cx + r * Math.cos(angle) - outer[i].getBounds().width / 2;
+    outer[i].y = cy + r * Math.sin(angle) - outer[i].getBounds().height / 2;
+    outer[i].markDirty();
+  }
+}
+function layoutDiagram(group, levelGap = 80, siblingGap = 40) {
+  treeLayout(group, levelGap, siblingGap);
+}
+function pipelineLayout(group, gap = 40, padding = 10) {
+  let x = padding;
+  const y = padding;
+  for (const child of group.children) {
+    child.x = x;
+    child.y = y;
+    child.markDirty();
+    x += child.getBounds().width + gap;
+  }
+}
+
+// src/dashboard/charts/network/register.ts
+registerDashboard("networkChart", (props, app) => {
+  const width = num2(props, "width", 300);
+  const height = num2(props, "height", 200);
+  const nodes = props.nodes ?? [
+    { id: "a", label: "A" },
+    { id: "b", label: "B" },
+    { id: "c", label: "C" },
+    { id: "d", label: "D" }
+  ];
+  const edges = props.edges ?? [
+    { from: "a", to: "b" },
+    { from: "b", to: "c" },
+    { from: "a", to: "d" },
+    { from: "d", to: "c" }
+  ];
+  const group = createWidgetGroup(app, "networkChart", props);
+  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  const positions = forceDirectedLayout(nodes, edges, { width, height, iterations: 50, seed: 7 });
+  edges.forEach((e) => {
+    const a = positions.get(e.from);
+    const b = positions.get(e.to);
+    if (!a || !b)
+      return;
+    group.add(app.line({ x: a.x, y: a.y, x2: b.x - a.x, y2: b.y - a.y, stroke: DASHBOARD.chartGrid, strokeWidth: 1, listening: false }));
+  });
+  nodes.forEach((n) => {
+    const p = positions.get(n.id);
+    if (!p)
+      return;
+    group.add(
+      app.circle({ x: p.x - 10, y: p.y - 10, radius: 10, fill: DASHBOARD.primary, listening: false }),
+      app.text({ text: n.label ?? n.id, x: p.x - 8, y: p.y + 16, fontSize: 9, fill: DASHBOARD.text, listening: false })
+    );
+  });
+  attachNearestHover(
+    app,
+    group,
+    props,
+    { x: 0, y: 0, width, height },
+    nodes.map((n) => {
+      const p = positions.get(n.id);
+      if (!p)
+        return null;
+      return { x: p.x, y: p.y, label: n.label ?? n.id };
+    }).filter((p) => p != null)
+  );
+  setState2(group, { width, height, nodes, edges });
+  return group;
+});
+registerDashboard("timeline", (props, app) => {
+  const width = num2(props, "width", 320);
+  const height = num2(props, "height", 120);
+  const events = props.events ?? [
+    { label: "Kickoff", start: 0, end: 2 },
+    { label: "Build", start: 2, end: 8 },
+    { label: "Launch", start: 8, end: 10 }
+  ];
+  const group = createWidgetGroup(app, "timeline", props);
+  const max = Math.max(...events.map((e) => e.end ?? e.start ?? 0), 10);
+  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  group.add(app.line({ x: 20, y: height / 2, x2: width - 40, y2: 0, stroke: DASHBOARD.timelineLine, strokeWidth: 2, listening: false }));
+  events.forEach((ev, i) => {
+    const start = ev.start ?? i * 2;
+    const end = ev.end ?? start + 1;
+    const x = 20 + start / max * (width - 60);
+    const w = (end - start) / max * (width - 60);
+    group.add(
+      app.roundedRect({ x, y: height / 2 - 14, width: Math.max(w, 20), height: 28, cornerRadius: 4, fill: DASHBOARD.series[i % DASHBOARD.series.length], listening: false }),
+      app.text({ text: ev.label, x: x + 4, y: height / 2 - 6, fontSize: 10, fill: DASHBOARD.text, listening: false })
+    );
+  });
+  attachRegionsHover(
+    app,
+    group,
+    props,
+    width,
+    height,
+    events.map((ev, i) => {
+      const start = ev.start ?? i * 2;
+      const end = ev.end ?? start + 1;
+      const x = 20 + start / max * (width - 60);
+      const w = (end - start) / max * (width - 60);
+      return { x, y: height / 2 - 14, width: Math.max(w, 20), height: 28, label: ev.label };
+    })
+  );
+  setState2(group, { width, height, events });
+  return group;
+});
+registerDashboard("ganttChart", (props, app) => {
+  const width = num2(props, "width", 360);
+  const height = num2(props, "height", 200);
+  const tasks = props.tasks ?? [
+    { label: "Design", start: 0, end: 3 },
+    { label: "Develop", start: 2, end: 8 },
+    { label: "Test", start: 7, end: 10 },
+    { label: "Ship", start: 10, end: 12 }
+  ];
+  const group = createWidgetGroup(app, "ganttChart", props);
+  const max = Math.max(...tasks.map((t) => t.end), 12);
+  const rowH = height / tasks.length;
+  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  tasks.forEach((t, i) => {
+    const y = i * rowH + 8;
+    const x = 80 + t.start / max * (width - 100);
+    const w = (t.end - t.start) / max * (width - 100);
+    group.add(
+      app.text({ text: t.label, x: 4, y: y + 4, fontSize: 11, fill: DASHBOARD.text, listening: false }),
+      app.roundedRect({ x, y, width: Math.max(w, 8), height: rowH - 16, cornerRadius: 3, fill: t.color ?? DASHBOARD.series[i % DASHBOARD.series.length], listening: false })
+    );
+  });
+  attachRegionsHover(
+    app,
+    group,
+    props,
+    width,
+    height,
+    tasks.map((t, i) => {
+      const y = i * rowH + 8;
+      const x = 80 + t.start / max * (width - 100);
+      const w = (t.end - t.start) / max * (width - 100);
+      return { x, y, width: Math.max(w, 8), height: rowH - 16, label: `${t.label} (${t.start}-${t.end})` };
+    })
+  );
+  setState2(group, { width, height, tasks });
+  return group;
+});
+
+// src/dashboard/charts/core/projection3d.ts
+function project3d(x, y, z, cx, cy, scale = 1) {
+  const isoX = (x - y) * Math.cos(Math.PI / 6) * scale;
+  const isoY = (x + y) * Math.sin(Math.PI / 6) * scale - z * scale;
+  return [cx + isoX, cy + isoY];
+}
+function surfaceMeshPath(zGrid, cx, cy, cellSize = 8) {
+  const paths = [];
+  const rows = zGrid.length;
+  const cols = zGrid[0]?.length ?? 0;
+  for (let i = 0; i < rows - 1; i++) {
+    for (let j = 0; j < cols - 1; j++) {
+      const z00 = zGrid[i][j];
+      const z10 = zGrid[i + 1][j];
+      const z01 = zGrid[i][j + 1];
+      const z11 = zGrid[i + 1][j + 1];
+      const [x0, y0] = project3d(j, i, z00, cx, cy, cellSize);
+      const [x1, y1] = project3d(j + 1, i, z01, cx, cy, cellSize);
+      const [x2, y2] = project3d(j + 1, i + 1, z11, cx, cy, cellSize);
+      const [x3, y3] = project3d(j, i + 1, z10, cx, cy, cellSize);
+      paths.push(`M ${x0} ${y0} L ${x1} ${y1} L ${x2} ${y2} L ${x3} ${y3} Z`);
+    }
+  }
+  return paths;
+}
+function wireframePaths(zGrid, cx, cy, cellSize = 8) {
+  const paths = [];
+  const rows = zGrid.length;
+  const cols = zGrid[0]?.length ?? 0;
+  for (let i = 0; i < rows; i++) {
+    let d = "";
+    for (let j = 0; j < cols; j++) {
+      const [x, y] = project3d(j, i, zGrid[i][j], cx, cy, cellSize);
+      d += (j === 0 ? "M" : "L") + ` ${x} ${y}`;
+    }
+    paths.push(d);
+  }
+  for (let j = 0; j < cols; j++) {
+    let d = "";
+    for (let i = 0; i < rows; i++) {
+      const [x, y] = project3d(j, i, zGrid[i][j], cx, cy, cellSize);
+      d += (i === 0 ? "M" : "L") + ` ${x} ${y}`;
+    }
+    paths.push(d);
+  }
+  return paths;
+}
+function sampleZGrid(size = 8) {
+  return Array.from(
+    { length: size },
+    (_, i) => Array.from({ length: size }, (_2, j) => Math.sin(i * 0.5) * Math.cos(j * 0.5) * 3 + 2)
+  );
+}
+
+// src/dashboard/charts/core/wordLayout.ts
+function wordBox(x, y, text, fontSize) {
+  const w = text.length * fontSize * 0.58;
+  const h = fontSize * 1.15;
+  return { x, y, w, h };
+}
+function overlaps(a, b, pad = 3) {
+  return a.x < b.x + b.w + pad && a.x + a.w + pad > b.x && a.y < b.y + b.h + pad && a.y + a.h + pad > b.y;
+}
+function layoutWordCloud(words, width, height) {
+  const maxVal = Math.max(...words.map((w) => w.value), 1);
+  const cx = width / 2;
+  const cy = height / 2;
+  const sorted = [...words].sort((a, b) => b.value - a.value);
+  const placed = [];
+  const boxes = [];
+  for (const w of sorted) {
+    const fontSize = 12 + w.value / maxVal * 26;
+    const estW = w.text.length * fontSize * 0.58;
+    let angle = 0;
+    let radius = 0;
+    let found = false;
+    for (let t = 0; t < 720; t++) {
+      const x = cx + radius * Math.cos(angle) - estW / 2;
+      const y = cy + radius * Math.sin(angle) - fontSize / 2;
+      const box = wordBox(x, y, w.text, fontSize);
+      const inBounds = box.x >= 4 && box.y >= 4 && box.x + box.w <= width - 4 && box.y + box.h <= height - 4;
+      const clear = inBounds && !boxes.some((b) => overlaps(box, b));
+      if (clear) {
+        placed.push({ text: w.text, x, y, fontSize, value: w.value });
+        boxes.push(box);
+        found = true;
+        break;
+      }
+      angle += 0.42;
+      radius += 0.55;
+    }
+    if (!found) {
+      const x = cx - estW / 2 + placed.length % 3 * 12;
+      const y = cy - fontSize / 2 + placed.length % 5 * 8;
+      placed.push({ text: w.text, x, y, fontSize, value: w.value });
+      boxes.push(wordBox(x, y, w.text, fontSize));
+    }
+  }
+  return placed;
+}
+
+// src/dashboard/charts/specialty/register.ts
+registerDashboard("surfaceChart3d", (props, app) => {
+  const width = num2(props, "width", 300);
+  const height = num2(props, "height", 200);
+  const zGrid = props.zGrid ?? sampleZGrid(8);
+  const group = createWidgetGroup(app, "surfaceChart3d", props);
+  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  const paths = surfaceMeshPath(zGrid, width / 2, height / 2 + 20, 6);
+  paths.forEach((d, i) => {
+    group.add(app.path({ d, fill: DASHBOARD.series[i % DASHBOARD.series.length], opacity: 0.6, stroke: DASHBOARD.chartGrid, strokeWidth: 0.5, listening: false }));
+  });
+  attachGridHover(app, group, props, width, height, zGrid.length, zGrid[0]?.length ?? 1, (r, c) => String(zGrid[r]?.[c] ?? ""));
+  setState2(group, { width, height, zGrid });
+  return group;
+});
+registerDashboard("wireframeChart3d", (props, app) => {
+  const width = num2(props, "width", 300);
+  const height = num2(props, "height", 200);
+  const zGrid = props.zGrid ?? sampleZGrid(8);
+  const group = createWidgetGroup(app, "wireframeChart3d", props);
+  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  wireframePaths(zGrid, width / 2, height / 2 + 20, 6).forEach((d) => {
+    group.add(app.path({ d, fill: null, stroke: DASHBOARD.chartLine, strokeWidth: 1, listening: false }));
+  });
+  attachGridHover(app, group, props, width, height, zGrid.length, zGrid[0]?.length ?? 1, (r, c) => String(zGrid[r]?.[c] ?? ""));
+  setState2(group, { width, height, zGrid });
+  return group;
+});
+registerDashboard("meshChart3d", (props, app) => {
+  const width = num2(props, "width", 300);
+  const height = num2(props, "height", 200);
+  const zGrid = props.zGrid ?? sampleZGrid(6);
+  const group = createWidgetGroup(app, "meshChart3d", props);
+  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  surfaceMeshPath(zGrid, width / 2, height / 2 + 20, 8).forEach((d) => {
+    group.add(app.path({ d, fill: DASHBOARD.chartArea, stroke: DASHBOARD.primary, strokeWidth: 1, listening: false }));
+  });
+  attachGridHover(app, group, props, width, height, zGrid.length, zGrid[0]?.length ?? 1, (r, c) => String(zGrid[r]?.[c] ?? ""));
+  setState2(group, { width, height, zGrid });
+  return group;
+});
+registerDashboard("vectorFieldChart", (props, app) => {
+  const width = num2(props, "width", 300);
+  const height = num2(props, "height", 200);
+  const group = createWidgetGroup(app, "vectorFieldChart", props);
+  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  const cols = 8;
+  const rows = 6;
+  for (let i = 0; i < rows; i++) {
+    for (let j = 0; j < cols; j++) {
+      const x = 20 + j / (cols - 1) * (width - 40);
+      const y = 20 + i / (rows - 1) * (height - 40);
+      const angle = Math.sin(j * 0.5) * Math.cos(i * 0.5);
+      const len = 12;
+      group.add(
+        app.line({
+          x,
+          y,
+          x2: len * Math.cos(angle),
+          y2: len * Math.sin(angle),
+          stroke: DASHBOARD.chartLine,
+          strokeWidth: 1.5,
+          lineCap: "round",
+          listening: false
+        })
+      );
+    }
+  }
+  attachGridHover(app, group, props, width, height, rows, cols, () => "flow");
+  setState2(group, { width, height });
+  return group;
+});
+registerDashboard("pictogramChart", (props, app) => {
+  const width = num2(props, "width", 200);
+  const height = num2(props, "height", 120);
+  const value = num2(props, "value", 12);
+  const icon = str2(props, "icon", "\u25CF");
+  const group = createWidgetGroup(app, "pictogramChart", props);
+  const cols = 6;
+  for (let i = 0; i < value; i++) {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    group.add(
+      app.text({
+        text: icon,
+        x: col * 28 + 4,
+        y: row * 28 + 4,
+        fontSize: 18,
+        fill: DASHBOARD.primary,
+        listening: false
+      })
+    );
+  }
+  attachValueHover(app, group, props, width, height, `count: ${value}`);
+  setState2(group, { width, height, value });
+  return group;
+});
+registerDashboard("wordCloudChart", (props, app) => {
+  const width = num2(props, "width", 320);
+  const height = num2(props, "height", 200);
+  const words = props.words ?? [
+    { text: "data", value: 90 },
+    { text: "chart", value: 70 },
+    { text: "visual", value: 55 },
+    { text: "lightdraw", value: 80 },
+    { text: "canvas", value: 45 },
+    { text: "dashboard", value: 60 }
+  ];
+  const group = createWidgetGroup(app, "wordCloudChart", props);
+  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  const placed = layoutWordCloud(words, width, height);
+  placed.forEach((w, i) => {
+    group.add(
+      app.text({
+        text: w.text,
+        x: w.x,
+        y: w.y,
+        fontSize: w.fontSize,
+        fontWeight: i < 3 ? "700" : "400",
+        fill: DASHBOARD.series[i % DASHBOARD.series.length],
+        listening: false
+      })
+    );
+  });
+  attachNearestHover(
+    app,
+    group,
+    props,
+    { x: 0, y: 0, width, height },
+    placed.map((w) => ({
+      x: w.x + w.fontSize / 2,
+      y: w.y + w.fontSize / 2,
+      label: `${w.text} (${w.value ?? ""})`
+    }))
+  );
+  setState2(group, { width, height, words });
+  return group;
+});
+
+// src/dashboard/definitions.ts
 registerDashboard("gauge", (props, app) => {
   const size = num2(props, "size", 120);
   const max = num2(props, "max", 100);
@@ -8593,7 +12982,7 @@ registerDashboard("gauge", (props, app) => {
       needleColor: DASHBOARD.gaugeNeedle,
       textColor: DASHBOARD.text,
       textMuted: DASHBOARD.textMuted,
-      faceColor: "#0f172a",
+      faceColor: DASHBOARD.face,
       bezelColor: DASHBOARD.panelStroke
     },
     { size, value, max, tickCount: 6, ariaLive: "polite" }
@@ -8621,9 +13010,9 @@ registerDashboard("speedometer", (props, app) => {
       needleColor: DASHBOARD.speedoNeedle,
       textColor: DASHBOARD.text,
       textMuted: DASHBOARD.textMuted,
-      faceColor: "#0f172a",
+      faceColor: DASHBOARD.face,
       bezelColor: DASHBOARD.panelStroke,
-      redlineColor: "#dc2626"
+      redlineColor: DASHBOARD.dangerDark
     },
     {
       size,
@@ -8643,80 +13032,14 @@ registerDashboard("speedometer", (props, app) => {
   setState2(group, { size, value, max });
   return group;
 });
-registerDashboard("lineChart", (props, app) => {
-  const group = createWidgetGroup(app, "lineChart", props);
-  buildDataChart(group, app, props, false);
-  return group;
-});
-registerDashboard("areaChart", (props, app) => {
-  const group = createWidgetGroup(app, "areaChart", props);
-  buildDataChart(group, app, props, true);
-  return group;
-});
 registerDashboard("legend", (props, app) => {
   const group = createWidgetGroup(app, "legend", props);
   const items = props.items ?? [
-    { label: "Series A", color: "#3b82f6" },
-    { label: "Series B", color: "#ef4444" }
+    { label: "Series A", color: DASHBOARD.primary },
+    { label: "Series B", color: DASHBOARD.secondary }
   ];
   addLegend(app, group, items, 0, 0);
   setState2(group, { items });
-  return group;
-});
-registerDashboard("barChart", (props, app) => {
-  const width = num2(props, "width", 300);
-  const height = num2(props, "height", 150);
-  const data = props.data ?? [30, 50, 40, 70, 60];
-  const group = createWidgetGroup(app, "barChart", props);
-  const layout = defaultLayout(width, height);
-  const bounds = dataBounds(data);
-  const yTicks = computeTicks(bounds.min, bounds.max, 5);
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
-  addGridLines(app, group, layout, yTicks, bounds);
-  addAxes(app, group, layout, bounds, yTicks);
-  const barWidth = layout.plotWidth / data.length - 8;
-  data.forEach((val, i) => {
-    const barHeight = (val - bounds.min) / (bounds.max - bounds.min || 1) * layout.plotHeight;
-    group.add(
-      app.rect({
-        x: layout.plotX + i * (barWidth + 8),
-        y: layout.plotY + layout.plotHeight - barHeight,
-        width: barWidth,
-        height: barHeight,
-        fill: DASHBOARD.barFill,
-        listening: false
-      })
-    );
-  });
-  setState2(group, { width, height, data });
-  return group;
-});
-registerDashboard("pieChart", (props, app) => {
-  const size = num2(props, "size", 150);
-  const data = props.data ?? [30, 25, 20, 25];
-  const colors = props.colors ?? ["#3b82f6", "#ef4444", "#22c55e", "#f59e0b"];
-  const group = createWidgetGroup(app, "pieChart", props);
-  const total = data.reduce((a, b) => a + b, 0) || 1;
-  const cx = size / 2;
-  let startAngle = -Math.PI / 2;
-  data.forEach((val, i) => {
-    const sweep = val / total * Math.PI * 2;
-    group.add(
-      new Arc({
-        x: cx - size / 2 + 10,
-        y: cx - size / 2 + 10,
-        radius: size / 2 - 10,
-        startAngle,
-        endAngle: startAngle + sweep,
-        fill: colors[i % colors.length],
-        stroke: "#1f2937",
-        strokeWidth: 1,
-        listening: false
-      })
-    );
-    startAngle += sweep;
-  });
-  setState2(group, { size, data, colors });
   return group;
 });
 registerDashboard("thermometer", (props, app) => {
@@ -8724,7 +13047,9 @@ registerDashboard("thermometer", (props, app) => {
   const width = num2(props, "width", 24);
   const value = clamp3(num2(props, "value", 50), 0, 100);
   const group = createWidgetGroup(app, "thermometer", props);
-  const tubeH = height - 30;
+  const tubeH = height - Math.round(width * 1.1);
+  const bulbR = Math.max(8, Math.round(width * 0.48));
+  const fontSize = Math.max(10, Math.round(width * 0.5));
   group.add(
     app.roundedRect({
       width,
@@ -8743,13 +13068,27 @@ registerDashboard("thermometer", (props, app) => {
     width: width - 4,
     height: fillH,
     cornerRadius: (width - 4) / 2,
-    fill: value > 80 ? "#ef4444" : value > 50 ? "#f59e0b" : "#3b82f6",
+    fill: value > 80 ? DASHBOARD.danger : value > 50 ? DASHBOARD.warning : DASHBOARD.primary,
     listening: false
   });
   group.add(
     fill,
-    app.circle({ x: width / 2 - 8, y: tubeH + 2, radius: 12, fill: "#ef4444", listening: false }),
-    app.text({ text: `${Math.round(value)}\xB0`, x: width + 8, y: tubeH / 2 - 8, fontSize: 12, fill: DASHBOARD.text, listening: false })
+    app.circle({
+      x: width / 2 - bulbR,
+      y: tubeH - 2,
+      radius: bulbR,
+      fill: DASHBOARD.danger,
+      listening: false
+    }),
+    app.text({
+      text: `${Math.round(value)}\xB0`,
+      x: width + 8,
+      y: tubeH / 2 - fontSize / 2,
+      fontSize,
+      fontWeight: "600",
+      fill: DASHBOARD.text,
+      listening: false
+    })
   );
   setParts2(group, { fill });
   setRefresh(group, (v) => {
@@ -8763,59 +13102,128 @@ registerDashboard("thermometer", (props, app) => {
 registerDashboard("compass", (props, app) => {
   const size = num2(props, "size", 100);
   const heading = num2(props, "heading", 0);
-  const group = createWidgetGroup(app, "compass", props);
+  const group = createWidgetGroup(app, "compass", props, { width: size, height: size });
   const cx = size / 2;
-  const r = size / 2 - 5;
+  const r = size / 2 - 4;
+  const fontSize = Math.max(8, Math.round(size * 0.1));
   group.add(
-    app.circle({ x: 0, y: 0, radius: r, fill: DASHBOARD.compassFace, stroke: DASHBOARD.compassRing, strokeWidth: 2, listening: false }),
-    app.text({ text: "N", x: cx - 4, y: 4, fontSize: 10, fill: DASHBOARD.textMuted, listening: false })
+    app.circle({
+      x: cx - r,
+      y: cx - r,
+      radius: r,
+      fill: DASHBOARD.compassFace,
+      stroke: DASHBOARD.compassRing,
+      strokeWidth: Math.max(1.5, size / 50),
+      shadow: size >= 90 ? { color: "rgba(0,0,0,0.3)", blur: 6, offsetX: 0, offsetY: 2 } : void 0,
+      listening: false
+    })
   );
+  ["N", "E", "S", "W"].forEach((label, i) => {
+    const a = i / 4 * Math.PI * 2 - Math.PI / 2;
+    const lr = r * 0.62;
+    group.add(
+      app.text({
+        text: label,
+        x: cx + lr * Math.cos(a) - fontSize / 2,
+        y: cx + lr * Math.sin(a) - fontSize / 2,
+        fontSize,
+        fontWeight: label === "N" ? "700" : "500",
+        fill: label === "N" ? DASHBOARD.text : DASHBOARD.textMuted,
+        textAlign: "center",
+        textBaseline: "middle",
+        listening: false
+      })
+    );
+  });
   const rad = (heading - 90) * Math.PI / 180;
+  const needleLen = r * 0.55;
   const needle = app.line({
     x: cx,
     y: cx,
-    x2: (r - 10) * Math.cos(rad),
-    y2: (r - 10) * Math.sin(rad),
+    x2: needleLen * Math.cos(rad),
+    y2: needleLen * Math.sin(rad),
     stroke: DASHBOARD.speedoNeedle,
-    strokeWidth: 3,
+    strokeWidth: Math.max(2, size / 32),
+    lineCap: "round",
     listening: false
   });
   group.add(
     needle,
-    app.circle({ x: cx - 4, y: cx - 4, radius: 4, fill: "#334155", listening: false }),
-    app.text({ text: `${Math.round(heading)}\xB0`, x: cx - 12, y: size - 18, fontSize: 11, fill: DASHBOARD.text, listening: false })
+    app.circle({
+      x: cx - size * 0.05,
+      y: cx - size * 0.05,
+      radius: size * 0.05,
+      fill: DASHBOARD.compassHub,
+      stroke: DASHBOARD.compassRing,
+      strokeWidth: 1,
+      listening: false
+    }),
+    app.text({
+      text: `${Math.round(heading)}\xB0`,
+      x: cx,
+      y: cx + r * 0.22,
+      fontSize: Math.max(8, Math.round(size * 0.09)),
+      fontWeight: "600",
+      fill: DASHBOARD.text,
+      textAlign: "center",
+      textBaseline: "middle",
+      listening: false
+    })
   );
   setParts2(group, { needle });
   setRefresh(group, (v) => {
     const h = (v - 90) * Math.PI / 180;
-    needle.x2 = (r - 10) * Math.cos(h);
-    needle.y2 = (r - 10) * Math.sin(h);
+    const len = r * 0.55;
+    needle.x2 = len * Math.cos(h);
+    needle.y2 = len * Math.sin(h);
   });
   setState2(group, { size, heading });
   return group;
 });
 registerDashboard("calendar", (props, app) => {
-  const width = num2(props, "width", 210);
-  const cell = 28;
   const group = createWidgetGroup(app, "calendar", props);
+  installChartRebuild(group, app, buildCalendar);
+  return group;
+});
+function buildCalendar(group, app, props) {
+  const width = num2(props, "width", 210);
+  const height = num2(props, "height", 0);
   const year = num2(props, "year", (/* @__PURE__ */ new Date()).getFullYear());
   const month = num2(props, "month", (/* @__PURE__ */ new Date()).getMonth());
+  const highlightDay = num2(props, "highlightDay", -1);
   const first = new Date(year, month, 1);
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const startDay = first.getDay();
+  const numRows = Math.ceil((startDay + daysInMonth) / 7);
+  const headerH = 36;
+  const gridW = width - 8;
+  const gridH = height > headerH ? height - headerH - 4 : numRows * 26;
+  const cell = Math.max(14, Math.min(Math.floor(gridW / 7), Math.floor(gridH / numRows), 32));
+  const contentH = headerH + numRows * cell;
+  group.metadata.chartWidth = width;
+  group.metadata.chartHeight = height > 0 ? height : contentH + 4;
   group.add(
     app.text({
       text: first.toLocaleString("default", { month: "long", year: "numeric" }),
       x: 4,
       y: 4,
-      fontSize: 13,
+      fontSize: Math.min(13, cell * 0.45),
       fontWeight: "bold",
       fill: DASHBOARD.text,
       listening: false
     })
   );
   ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].forEach((d, i) => {
-    group.add(app.text({ text: d, x: i * cell + 4, y: 24, fontSize: 10, fill: "#64748b", listening: false }));
+    group.add(
+      app.text({
+        text: d,
+        x: i * cell + 4,
+        y: 22,
+        fontSize: Math.max(8, cell * 0.32),
+        fill: DASHBOARD.textDim,
+        listening: false
+      })
+    );
   });
   for (let day = 1; day <= daysInMonth; day++) {
     const cellIdx = startDay + day - 1;
@@ -8824,51 +13232,34 @@ registerDashboard("calendar", (props, app) => {
     group.add(
       app.text({
         text: String(day),
-        x: col * cell + 6,
-        y: 40 + row * cell,
-        fontSize: 11,
-        fill: day === num2(props, "highlightDay", -1) ? "#3b82f6" : DASHBOARD.text,
+        x: col * cell + Math.max(4, cell * 0.2),
+        y: headerH + row * cell,
+        fontSize: Math.max(9, cell * 0.38),
+        fill: day === highlightDay ? DASHBOARD.highlight : DASHBOARD.text,
         listening: false
       })
     );
   }
-  setState2(group, { width, year, month });
-  return group;
-});
-registerDashboard("timeline", (props, app) => {
-  const height = num2(props, "height", 160);
-  const events = props.events ?? [
-    { label: "Start", time: "09:00" },
-    { label: "Review", time: "12:00" },
-    { label: "Done", time: "17:00" }
-  ];
-  const group = createWidgetGroup(app, "timeline", props);
-  const step = height / Math.max(events.length, 1);
-  group.add(app.line({ x: 12, y: 0, x2: 0, y2: height, stroke: "#475569", strokeWidth: 2, listening: false }));
-  events.forEach((ev, i) => {
-    const y = i * step + 10;
-    group.add(
-      app.circle({ x: 8, y, radius: 6, fill: "#2563eb", listening: false }),
-      app.text({ text: ev.time ?? "", x: 24, y: y - 6, fontSize: 10, fill: "#64748b", listening: false }),
-      app.text({ text: ev.label, x: 24, y: y + 8, fontSize: 12, fill: DASHBOARD.text, listening: false })
-    );
-  });
-  setState2(group, { height, events });
-  return group;
-});
+  setState2(group, { width, height: height > 0 ? height : contentH + 4, year, month, highlightDay, cell });
+}
 registerDashboard("signalStrength", (props, app) => {
   const level = clamp3(num2(props, "value", 3), 0, 5);
+  const scale = num2(props, "scale", 1);
   const group = createWidgetGroup(app, "signalStrength", props);
+  const barW = Math.max(5, Math.round(7 * scale));
+  const gap = Math.max(2, Math.round(3 * scale));
+  const maxH = Math.round(28 * scale);
+  const totalW = 5 * barW + 4 * gap;
   const bars = [];
   for (let i = 0; i < 5; i++) {
-    const h = 8 + i * 5;
+    const h = Math.round((8 + i * 5) * scale);
     const bar = app.rect({
-      x: i * 10,
-      y: 28 - h,
-      width: 7,
+      x: i * (barW + gap),
+      y: maxH - h,
+      width: barW,
       height: h,
-      fill: i < level ? "#22c55e" : "#d1d5db",
-      cornerRadius: 1,
+      fill: i < level ? DASHBOARD.signalActive : DASHBOARD.signalInactive,
+      cornerRadius: Math.max(1, scale),
       listening: false
     });
     bars.push(bar);
@@ -8878,46 +13269,90 @@ registerDashboard("signalStrength", (props, app) => {
   setRefresh(group, (v) => {
     const lv = clamp3(Math.round(v), 0, 5);
     bars.forEach((bar, i) => {
-      bar.fill = i < lv ? "#22c55e" : "#d1d5db";
+      bar.fill = i < lv ? DASHBOARD.signalActive : DASHBOARD.signalInactive;
     });
   });
-  setState2(group, { value: level });
+  setState2(group, { value: level, scale, width: totalW, height: maxH });
   return group;
 });
 registerDashboard("knob", (props, app) => {
   const size = num2(props, "size", 80);
   const value = clamp3(num2(props, "value", 50), 0, 100);
-  const group = createWidgetGroup(app, "knob", props, { focusable: true, listening: true });
+  const group = createWidgetGroup(app, "knob", props, { width: size, height: size, focusable: true, listening: true });
   const cx = size / 2;
-  const r = size / 2 - 8;
-  const angle = Math.PI * 0.75 + value / 100 * Math.PI * 1.5;
+  const r = size / 2 - 5;
+  const start = Math.PI * 0.75;
+  const sweep = Math.PI * 1.5;
+  const angle = start + value / 100 * sweep;
+  const arcW = Math.max(3, size * 0.07);
+  const ptrR = r - arcW;
   group.add(
-    app.circle({ x: 0, y: 0, radius: r, fill: "#374151", stroke: "#1f2937", strokeWidth: 2, listening: false })
+    app.circle({
+      x: cx - r,
+      y: cx - r,
+      radius: r,
+      fill: DASHBOARD.knobTrack,
+      stroke: DASHBOARD.knobRing,
+      strokeWidth: Math.max(1.5, size / 40),
+      shadow: size >= 48 ? { color: "rgba(0,0,0,0.35)", blur: 5, offsetX: 0, offsetY: 2 } : void 0,
+      listening: false
+    })
   );
-  const indicator = app.line({
-    x: cx,
-    y: cx,
-    x2: (r - 12) * Math.cos(angle),
-    y2: (r - 12) * Math.sin(angle),
-    stroke: "#f59e0b",
-    strokeWidth: 3,
+  group.add(
+    new Arc({
+      x: cx - r + arcW,
+      y: cx - r + arcW,
+      radius: r - arcW,
+      startAngle: start,
+      endAngle: start + sweep,
+      fill: null,
+      stroke: DASHBOARD.inactive,
+      strokeWidth: arcW * 0.65,
+      listening: false
+    })
+  );
+  const valueArc = new Arc({
+    x: cx - r + arcW,
+    y: cx - r + arcW,
+    radius: r - arcW,
+    startAngle: start,
+    endAngle: angle,
+    fill: null,
+    stroke: DASHBOARD.knobIndicator,
+    strokeWidth: arcW,
+    listening: false
+  });
+  group.add(valueArc);
+  const ptrSize = Math.max(4, size * 0.09);
+  const pointer = app.circle({
+    x: cx + ptrR * Math.cos(angle) - ptrSize,
+    y: cx + ptrR * Math.sin(angle) - ptrSize,
+    radius: ptrSize,
+    fill: DASHBOARD.knobIndicator,
+    stroke: "#fff",
+    strokeWidth: 1,
     listening: false
   });
   const valueLabel = app.text({
     text: String(Math.round(value)),
-    x: cx - 10,
-    y: cx + r - 10,
-    fontSize: 12,
+    x: cx,
+    y: cx,
+    fontSize: Math.max(10, size * 0.22),
+    fontWeight: "600",
     fill: DASHBOARD.text,
+    textAlign: "center",
+    textBaseline: "middle",
     listening: false
   });
-  group.add(indicator, valueLabel);
-  setParts2(group, { indicator, valueLabel });
+  group.add(pointer, valueLabel);
+  setParts2(group, { valueArc, pointer, valueLabel });
   setRefresh(group, (v) => {
-    const a = Math.PI * 0.75 + clamp3(v, 0, 100) / 100 * Math.PI * 1.5;
-    indicator.x2 = (r - 12) * Math.cos(a);
-    indicator.y2 = (r - 12) * Math.sin(a);
-    valueLabel.text = String(Math.round(v));
+    const pct = clamp3(v, 0, 100) / 100;
+    const a = start + pct * sweep;
+    valueArc.endAngle = a;
+    pointer.x = cx + ptrR * Math.cos(a) - ptrSize;
+    pointer.y = cx + ptrR * Math.sin(a) - ptrSize;
+    valueLabel.text = String(Math.round(clamp3(v, 0, 100)));
   });
   group.on("click", () => {
     const next = (num2(getState2(group), "value", 0) + 10) % 100;
@@ -8934,13 +13369,13 @@ registerDashboard("meter", (props, app) => {
   const vertical = bool2(props, "vertical", false);
   const group = createWidgetGroup(app, "meter", props);
   if (vertical) {
-    group.add(app.rect({ width: height, height: width, fill: "#e5e7eb", listening: false }));
+    group.add(app.rect({ width: height, height: width, fill: DASHBOARD.meterTrack, listening: false }));
     const fillBar = app.rect({
       x: 2,
       y: width - width * value / 100 - 2,
       width: height - 4,
       height: width * value / 100,
-      fill: "#2563eb",
+      fill: DASHBOARD.meterFill,
       listening: false
     });
     group.add(fillBar);
@@ -8950,13 +13385,23 @@ registerDashboard("meter", (props, app) => {
       fillBar.height = width * pct;
     });
   } else {
-    group.add(app.rect({ width, height, fill: "#e5e7eb", listening: false }));
-    const fillBar = app.rect({
+    const trackR = Math.min(4, height / 2);
+    group.add(
+      app.roundedRect({
+        width,
+        height,
+        cornerRadius: trackR,
+        fill: DASHBOARD.meterTrack,
+        listening: false
+      })
+    );
+    const fillBar = app.roundedRect({
       x: 0,
       y: 0,
       width: width * value / 100,
       height,
-      fill: "#2563eb",
+      cornerRadius: trackR,
+      fill: DASHBOARD.meterFill,
       listening: false
     });
     group.add(fillBar);
@@ -8969,48 +13414,326 @@ registerDashboard("meter", (props, app) => {
 });
 registerDashboard("battery", (props, app) => {
   const level = clamp3(num2(props, "value", 75), 0, 100);
+  const scale = num2(props, "scale", 1);
+  const bodyW = Math.round(40 * scale);
+  const bodyH = Math.round(20 * scale);
   const group = createWidgetGroup(app, "battery", props);
-  group.add(app.rect({ width: 40, height: 20, fill: null, stroke: "#333", strokeWidth: 2, listening: false }));
-  group.add(app.rect({ x: 40, y: 6, width: 4, height: 8, fill: "#333", listening: false }));
-  const fill = app.rect({
-    x: 2,
-    y: 2,
-    width: 36 * level / 100,
-    height: 16,
-    fill: level > 20 ? "#22c55e" : "#ef4444",
+  group.add(
+    app.roundedRect({
+      width: bodyW,
+      height: bodyH,
+      cornerRadius: Math.max(2, 3 * scale),
+      fill: null,
+      stroke: DASHBOARD.batteryOutline,
+      strokeWidth: Math.max(1.5, 2 * scale),
+      listening: false
+    })
+  );
+  group.add(
+    app.roundedRect({
+      x: bodyW,
+      y: bodyH * 0.3,
+      width: Math.max(3, 4 * scale),
+      height: bodyH * 0.4,
+      cornerRadius: 1,
+      fill: DASHBOARD.batteryTip,
+      listening: false
+    })
+  );
+  const inset = Math.max(2, 2 * scale);
+  const fill = app.roundedRect({
+    x: inset,
+    y: inset,
+    width: (bodyW - inset * 2) * level / 100,
+    height: bodyH - inset * 2,
+    cornerRadius: Math.max(1, 2 * scale),
+    fill: level > 20 ? DASHBOARD.success : DASHBOARD.danger,
     listening: false
   });
   group.add(fill);
   setRefresh(group, (v) => {
     const lv = clamp3(v, 0, 100);
-    fill.width = 36 * lv / 100;
-    fill.fill = lv > 20 ? "#22c55e" : "#ef4444";
+    fill.width = (bodyW - inset * 2) * lv / 100;
+    fill.fill = lv > 20 ? DASHBOARD.success : DASHBOARD.danger;
   });
-  setState2(group, { value: level });
+  setState2(group, { value: level, scale, width: bodyW + Math.max(3, 4 * scale), height: bodyH });
   return group;
 });
 registerDashboard("clock", (props, app) => {
   const size = num2(props, "size", 120);
-  const group = createWidgetGroup(app, "clock", props);
+  const live = bool2(props, "live", true);
+  const showSeconds = bool2(props, "showSeconds", size >= 44);
+  const group = createWidgetGroup(app, "clock", props, { width: size, height: size });
   const cx = size / 2;
-  const now2 = /* @__PURE__ */ new Date();
-  const hours = now2.getHours() % 12;
-  const minutes = now2.getMinutes();
-  const seconds = now2.getSeconds();
+  const r = size / 2 - 3;
+  const pad = Math.max(2, size * 0.04);
+  const hourLen = (r - pad) * 0.5;
+  const minLen = (r - pad) * 0.72;
+  const secLen = (r - pad) * 0.82;
+  const hourW = Math.max(2, size * 0.035);
+  const minW = Math.max(1.5, size * 0.025);
+  const hubR = Math.max(3, size * 0.05);
   group.add(
-    app.circle({ x: cx - cx, y: cx - cx, radius: cx, fill: "#1f2937", stroke: "#374151", strokeWidth: 2, listening: false })
+    app.circle({
+      x: cx - r,
+      y: cx - r,
+      radius: r,
+      fill: DASHBOARD.clockFace,
+      stroke: DASHBOARD.clockRing,
+      strokeWidth: Math.max(1.5, size / 50),
+      shadow: size >= 56 ? { color: "rgba(0,0,0,0.35)", blur: 5, offsetX: 0, offsetY: 2 } : void 0,
+      listening: false
+    })
   );
-  const hourAngle = (hours + minutes / 60) / 12 * Math.PI * 2 - Math.PI / 2;
-  const minAngle = (minutes + seconds / 60) / 60 * Math.PI * 2 - Math.PI / 2;
-  const secAngle = seconds / 60 * Math.PI * 2 - Math.PI / 2;
+  for (let i = 0; i < 12; i++) {
+    const a = i / 12 * Math.PI * 2 - Math.PI / 2;
+    const major = i % 3 === 0;
+    const tickLen = major ? size * 0.1 : size * 0.06;
+    const inner = r - tickLen;
+    const outer = r - size * 0.03;
+    const cos = Math.cos(a);
+    const sin = Math.sin(a);
+    group.add(
+      app.line({
+        x: cx + inner * cos,
+        y: cx + inner * sin,
+        x2: (outer - inner) * cos,
+        y2: (outer - inner) * sin,
+        stroke: major ? DASHBOARD.clockTickMajor : DASHBOARD.clockTick,
+        strokeWidth: major ? Math.max(1.5, size / 40) : 1,
+        lineCap: "round",
+        listening: false
+      })
+    );
+  }
+  const hourHand = app.line({
+    x: cx,
+    y: cx,
+    x2: 0,
+    y2: -hourLen,
+    stroke: DASHBOARD.clockHand,
+    strokeWidth: hourW,
+    lineCap: "round",
+    listening: false
+  });
+  const minHand = app.line({
+    x: cx,
+    y: cx,
+    x2: 0,
+    y2: -minLen,
+    stroke: DASHBOARD.clockHand,
+    strokeWidth: minW,
+    lineCap: "round",
+    listening: false
+  });
+  const secHand = app.line({
+    x: cx,
+    y: cx,
+    x2: 0,
+    y2: -secLen,
+    stroke: DASHBOARD.clockSecond,
+    strokeWidth: Math.max(1, size * 0.015),
+    lineCap: "round",
+    visible: showSeconds,
+    listening: false
+  });
+  group.add(hourHand, minHand, secHand);
   group.add(
-    app.line({ x: cx, y: cx, x2: 30 * Math.cos(hourAngle), y2: 30 * Math.sin(hourAngle), stroke: "#fff", strokeWidth: 3, listening: false }),
-    app.line({ x: cx, y: cx, x2: 40 * Math.cos(minAngle), y2: 40 * Math.sin(minAngle), stroke: "#fff", strokeWidth: 2, listening: false }),
-    app.line({ x: cx, y: cx, x2: 45 * Math.cos(secAngle), y2: 45 * Math.sin(secAngle), stroke: "#ef4444", strokeWidth: 1, listening: false })
+    app.circle({
+      x: cx - hubR,
+      y: cx - hubR,
+      radius: hubR,
+      fill: DASHBOARD.clockHub,
+      stroke: DASHBOARD.clockRing,
+      strokeWidth: 1,
+      listening: false
+    }),
+    app.circle({
+      x: cx - hubR * 0.45,
+      y: cx - hubR * 0.45,
+      radius: hubR * 0.45,
+      fill: DASHBOARD.clockHand,
+      listening: false
+    })
   );
-  setState2(group, { size });
+  const updateHands = () => {
+    const now2 = /* @__PURE__ */ new Date();
+    const hours = now2.getHours() % 12;
+    const minutes = now2.getMinutes();
+    const seconds = now2.getSeconds();
+    const hourAngle = (hours + minutes / 60) / 12 * Math.PI * 2 - Math.PI / 2;
+    const minAngle = (minutes + seconds / 60) / 60 * Math.PI * 2 - Math.PI / 2;
+    const secAngle = seconds / 60 * Math.PI * 2 - Math.PI / 2;
+    hourHand.x2 = hourLen * Math.cos(hourAngle);
+    hourHand.y2 = hourLen * Math.sin(hourAngle);
+    minHand.x2 = minLen * Math.cos(minAngle);
+    minHand.y2 = minLen * Math.sin(minAngle);
+    if (showSeconds) {
+      secHand.x2 = secLen * Math.cos(secAngle);
+      secHand.y2 = secLen * Math.sin(secAngle);
+    }
+  };
+  updateHands();
+  setParts2(group, { hourHand, minHand, secHand });
+  if (live) {
+    setRefresh(group, () => updateHands());
+  }
+  setState2(group, { size, live, showSeconds });
   return group;
 });
+registerDashboard("chartPanel", (props, app) => {
+  const chartType = str2(props, "chartType", "lineChart");
+  const title = str2(props, "title", chartType);
+  const width = num2(props, "width", 320);
+  const height = num2(props, "height", 200);
+  const pad = 8;
+  const headerH = 26;
+  const innerW = Math.max(40, width - pad * 2);
+  const innerH = Math.max(32, height - headerH - pad);
+  const group = createWidgetGroup(app, "chartPanel", props);
+  group.add(
+    app.rect({
+      width,
+      height,
+      fill: DASHBOARD.chartBg,
+      stroke: DASHBOARD.panelStroke,
+      strokeWidth: 1,
+      cornerRadius: 8,
+      listening: false
+    }),
+    app.text({
+      text: title,
+      x: pad,
+      y: 6,
+      fontSize: 12,
+      fontWeight: "bold",
+      fill: DASHBOARD.text,
+      listening: false
+    })
+  );
+  if (props.maximizable !== false) {
+    group.add(
+      app.text({
+        text: "\u2922",
+        x: width - 22,
+        y: 5,
+        fontSize: 14,
+        fill: DASHBOARD.textMuted,
+        listening: true,
+        metadata: { chartPanelAction: "maximize" }
+      })
+    );
+  }
+  const { chartType: _ct, title: _t, width: _w, height: _h, maximizable: _m, ...chartProps } = props;
+  const chart = createDashboardFromJSON(
+    chartType,
+    {
+      ...chartProps,
+      width: innerW,
+      height: innerH,
+      x: pad,
+      y: headerH,
+      responsive: props.responsive !== false,
+      zoomEnabled: props.zoomEnabled !== false
+    },
+    app
+  );
+  if (chart) {
+    chart.x = pad;
+    chart.y = headerH;
+    group.add(chart);
+    setParts2(group, { chart });
+  }
+  setState2(group, { chartType, title, width, height, innerW, innerH });
+  return group;
+});
+
+// src/dashboard/charts/core/responsive.ts
+var observers = /* @__PURE__ */ new WeakMap();
+function createResizeObserver(callback) {
+  if (typeof ResizeObserver !== "undefined") {
+    return new ResizeObserver(callback);
+  }
+  return {
+    observe() {
+    },
+    unobserve() {
+    },
+    disconnect() {
+    }
+  };
+}
+function installChartResizeObserver(chartNode, container, options = {}) {
+  detachChartResizeObserver(chartNode);
+  const minW = options.minWidth ?? 64;
+  const minH = options.minHeight ?? 48;
+  const pad = options.padding ?? 0;
+  const watchHeight = options.watchHeight !== false;
+  const syncSize = options.syncSize !== false;
+  let raf = 0;
+  const ro = createResizeObserver((entries) => {
+    const rect = entries[0]?.contentRect;
+    if (!rect)
+      return;
+    cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(() => {
+      applyChartContainerSize(chartNode, rect.width, rect.height, {
+        minW,
+        minH,
+        pad,
+        watchHeight,
+        syncSize
+      });
+    });
+  });
+  ro.observe(container);
+  observers.set(chartNode, ro);
+  chartNode.metadata.resizeObserverAttached = true;
+  applyChartContainerSize(chartNode, container.clientWidth, container.clientHeight, {
+    minW,
+    minH,
+    pad,
+    watchHeight,
+    syncSize
+  });
+}
+function detachChartResizeObserver(chartNode) {
+  const ro = observers.get(chartNode);
+  ro?.disconnect();
+  observers.delete(chartNode);
+  delete chartNode.metadata.resizeObserverAttached;
+}
+function applyChartContainerSize(chartNode, rawW, rawH, opts) {
+  const w = Math.max(opts.minW, Math.floor(rawW - opts.pad));
+  const h = Math.max(opts.minH, Math.floor(rawH - opts.pad));
+  const last = chartNode.metadata._lastContainerSize;
+  if (last && last.w === w && last.h === h)
+    return;
+  const state = getState2(chartNode);
+  const patch = {};
+  const hasWidth = num2(state, "width", 0) > 0 || "width" in state;
+  const hasHeight = num2(state, "height", 0) > 0 || "height" in state;
+  const hasSize = num2(state, "size", 0) > 0;
+  if (hasWidth && w > 0 && w !== num2(state, "width", 0))
+    patch.width = w;
+  if (opts.watchHeight && hasHeight && h > 0 && h !== num2(state, "height", 0))
+    patch.height = h;
+  if (opts.syncSize && hasSize && !hasWidth) {
+    const sz = opts.watchHeight ? Math.min(w, h) : w;
+    if (sz > 0 && sz !== num2(state, "size", 0))
+      patch.size = sz;
+  } else if (opts.syncSize && hasSize && hasWidth && opts.watchHeight) {
+    const sz = Math.min(w, h);
+    if (sz > 0 && sz !== num2(state, "size", 0))
+      patch.size = sz;
+  }
+  if (Object.keys(patch).length > 0) {
+    chartNode.metadata._lastContainerSize = { w, h };
+    updateChartProps(chartNode, patch);
+  } else {
+    chartNode.metadata._lastContainerSize = { w, h };
+  }
+}
 
 // src/modules/dashboard/index.ts
 var dashboardPlugin = {
@@ -9725,125 +14448,6 @@ var automotivePlugin = {
     LD.registerAutomotive = registerAutomotive;
   }
 };
-
-// src/diagram/layouts.ts
-function forceDirectedLayout(nodes, edges, options = {}) {
-  const {
-    width = 600,
-    height = 400,
-    iterations = 100,
-    seed = 42,
-    repulsion = 4e3,
-    attraction = 0.05,
-    damping = 0.85
-  } = options;
-  const rand = seededRandom(seed);
-  const positions = /* @__PURE__ */ new Map();
-  for (const n of nodes) {
-    positions.set(n.id, {
-      x: n.x ?? rand() * width,
-      y: n.y ?? rand() * height,
-      vx: 0,
-      vy: 0
-    });
-  }
-  for (let iter = 0; iter < iterations; iter++) {
-    const forces = /* @__PURE__ */ new Map();
-    for (const n of nodes)
-      forces.set(n.id, { fx: 0, fy: 0 });
-    for (let i = 0; i < nodes.length; i++) {
-      for (let j = i + 1; j < nodes.length; j++) {
-        const a = positions.get(nodes[i].id);
-        const b = positions.get(nodes[j].id);
-        let dx = a.x - b.x;
-        let dy = a.y - b.y;
-        let dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < 1) {
-          dx = rand() - 0.5;
-          dy = rand() - 0.5;
-          dist = 1;
-        }
-        const force = repulsion / (dist * dist);
-        const fx = dx / dist * force;
-        const fy = dy / dist * force;
-        forces.get(nodes[i].id).fx += fx;
-        forces.get(nodes[i].id).fy += fy;
-        forces.get(nodes[j].id).fx -= fx;
-        forces.get(nodes[j].id).fy -= fy;
-      }
-    }
-    for (const edge of edges) {
-      const a = positions.get(edge.from);
-      const b = positions.get(edge.to);
-      if (!a || !b)
-        continue;
-      const dx = b.x - a.x;
-      const dy = b.y - a.y;
-      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-      const force = dist * attraction;
-      const fx = dx / dist * force;
-      const fy = dy / dist * force;
-      forces.get(edge.from).fx += fx;
-      forces.get(edge.from).fy += fy;
-      forces.get(edge.to).fx -= fx;
-      forces.get(edge.to).fy -= fy;
-    }
-    const cx = width / 2;
-    const cy = height / 2;
-    for (const n of nodes) {
-      const p = positions.get(n.id);
-      const f = forces.get(n.id);
-      f.fx += (cx - p.x) * 0.01;
-      f.fy += (cy - p.y) * 0.01;
-      p.vx = (p.vx + f.fx) * damping;
-      p.vy = (p.vy + f.fy) * damping;
-      p.x = Math.max(20, Math.min(width - 20, p.x + p.vx));
-      p.y = Math.max(20, Math.min(height - 20, p.y + p.vy));
-    }
-  }
-  const result = /* @__PURE__ */ new Map();
-  for (const n of nodes) {
-    const p = positions.get(n.id);
-    result.set(n.id, { x: p.x, y: p.y });
-  }
-  return result;
-}
-function radialLayout(group, cx, cy, innerRadius, outerRadius) {
-  const children = group.children;
-  if (children.length === 0)
-    return;
-  if (children.length === 1) {
-    children[0].x = cx;
-    children[0].y = cy;
-    children[0].markDirty();
-    return;
-  }
-  children[0].x = cx;
-  children[0].y = cy;
-  children[0].markDirty();
-  const outer = children.slice(1);
-  const n = outer.length;
-  for (let i = 0; i < n; i++) {
-    const angle = 2 * Math.PI * i / n - Math.PI / 2;
-    const r = n <= 4 ? innerRadius : outerRadius;
-    outer[i].x = cx + r * Math.cos(angle) - outer[i].getBounds().width / 2;
-    outer[i].y = cy + r * Math.sin(angle) - outer[i].getBounds().height / 2;
-    outer[i].markDirty();
-  }
-}
-function layoutDiagram(group, levelGap = 80, siblingGap = 40) {
-  treeLayout(group, levelGap, siblingGap);
-}
-function pipelineLayout(group, gap = 40, padding = 10) {
-  let x = padding;
-  const y = padding;
-  for (const child of group.children) {
-    child.x = x;
-    child.y = y;
-    child.markDirty();
-    x += child.getBounds().width + gap;
-  }
-}
 
 // src/diagram/router.ts
 function hSegIntersectsRect(x1, x2, y, obs) {
@@ -10866,6 +15470,10 @@ var LightDrawFull = Object.assign(LightDraw, {
   createDashboardFromJSON,
   animateLiveValue,
   setLiveValue,
+  updateChartProps,
+  pushChartValue,
+  installChartResizeObserver,
+  detachChartResizeObserver,
   registerAutomotive,
   createAutomotiveFromJSON,
   applyDriveState,
@@ -10874,7 +15482,9 @@ var LightDrawFull = Object.assign(LightDraw, {
   setAutoValue,
   Diagram,
   applyUiTheme,
-  UI_PRESETS
+  resolveUiTheme,
+  UI_PRESETS,
+  UI_THEME_VAR_MAP
 });
 var src_default = LightDrawFull;
 if (typeof window !== "undefined") {
@@ -10913,6 +15523,7 @@ export {
   TextNode,
   Timeline,
   UI_PRESETS,
+  UI_THEME_VAR_MAP,
   VERSION,
   animate,
   animateAutoValue,
@@ -10921,9 +15532,13 @@ export {
   applyUiTheme,
   automotivePlugin,
   createApp,
+  createAutomotiveFromJSON,
+  createComponentFromJSON,
+  createDashboardFromJSON,
   createPluginContext,
   dashboardPlugin,
   src_default as default,
+  detachChartResizeObserver,
   detectBestRenderer,
   diagramPlugin,
   downloadExport,
@@ -10934,12 +15549,15 @@ export {
   getEasing,
   getInstalledPlugins,
   htmlPlugin,
+  installChartResizeObserver,
   parallel,
+  pushChartValue,
   registerAutomotive,
   registerComponent,
   registerDashboard,
   registerEasing,
   registerJSONType,
+  resolveUiTheme,
   sampleDriveFrames,
   scenesEqual,
   setAutoValue,
@@ -10947,6 +15565,7 @@ export {
   svgPlugin,
   toJSON,
   uiPlugin,
+  updateChartProps,
   use,
   validateSceneJSON
 };

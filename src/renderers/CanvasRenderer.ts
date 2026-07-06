@@ -21,6 +21,7 @@ import { setCanvasFill, setCanvasStroke } from './styles';
 import { beginShapeClip } from './clipUtils';
 import { LayerCache } from '../performance/LayerCache';
 import { isBatchableRect, paintStyleKey } from '../performance/styleKey';
+import { traceArcSector } from './arcSector';
 import { isSubtreeDirty } from '../performance/bounds';
 import { toHighContrastColor } from '../utils/a11y';
 
@@ -133,6 +134,7 @@ export class CanvasRenderer extends Renderer {
   }
 
   drawGroup(group: Group): void {
+    group.sortChildren();
     if (
       this.layerCacheEnabled &&
       group.cacheAsBitmap &&
@@ -165,6 +167,7 @@ export class CanvasRenderer extends Renderer {
   }
 
   private drawGroupBatched(group: Group): void {
+    group.sortChildren();
     let batch: Rect[] = [];
     let batchKey = '';
 
@@ -352,13 +355,14 @@ export class CanvasRenderer extends Renderer {
 
   drawArc(node: Arc): void {
     const ctx = this.ctx;
-    ctx.beginPath();
-    ctx.arc(
+    traceArcSector(
+      ctx,
       node.radius,
       node.radius,
       node.radius,
       node.startAngle,
       node.endAngle,
+      node.innerRadius,
       node.counterClockwise
     );
     this.fillAndStroke(ctx, node.fill, node.stroke, node.strokeWidth, node.dash, node.dashOffset, node.lineCap, node.lineJoin);

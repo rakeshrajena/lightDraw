@@ -35,6 +35,7 @@ import { SpatialIndex } from './performance/SpatialIndex';
 import { getWorldBounds, countNodes } from './performance/bounds';
 import { AnimationEngine } from './animation/Animation';
 import { collectFocusable } from './utils/focusOrder';
+import { resolveUiTheme, type UiThemeInput } from './components/uiTheme';
 
 export class App extends EventEmitter {
   readonly camera: Camera;
@@ -54,7 +55,7 @@ export class App extends EventEmitter {
   private spatialIndex = new SpatialIndex();
   private nodeCount = 0;
   private highContrast: boolean;
-  private uiTheme: import('./components/uiTheme').UiThemeTokens;
+  private uiTheme: UiThemeInput;
 
   constructor(container: string | HTMLElement, options: AppOptions = {}) {
     super();
@@ -87,7 +88,7 @@ export class App extends EventEmitter {
       pixelRatio: this.pixelRatio,
       background: this.background,
       highContrast: this.highContrast,
-      uiTheme: this.uiTheme,
+      uiTheme: resolveUiTheme(this.uiTheme),
     });
 
     this.eventManager = new EventManager(this, this.renderer.getElement() as HTMLElement);
@@ -388,11 +389,12 @@ export class App extends EventEmitter {
   }
 
   /** Update built-in UI theme tokens (CSS variables) without custom stylesheets. */
-  setUiTheme(tokens: import('./components/uiTheme').UiThemeTokens): this {
+  setUiTheme(tokens: UiThemeInput): this {
     this.uiTheme = { ...this.uiTheme, ...tokens };
+    const resolved = resolveUiTheme(this.uiTheme);
     const renderer = this.renderer as Renderer & { setUiTheme?: (t: import('./components/uiTheme').UiThemeTokens) => void };
     if (typeof renderer.setUiTheme === 'function') {
-      renderer.setUiTheme(tokens);
+      renderer.setUiTheme(resolved);
     }
     this.requestRender();
     return this;

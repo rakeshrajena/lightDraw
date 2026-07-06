@@ -67,8 +67,9 @@ export class EventManager {
     for (const type of events) {
       const handler = (e: Event) => this.handleEvent(type as EventType, e);
       this.boundHandlers[type] = handler;
+      // Wheel must be non-passive so chart zoom can call preventDefault (block page scroll).
       this.element.addEventListener(type, handler, {
-        passive: type === 'touchmove' || type === 'wheel',
+        passive: type === 'touchmove',
       });
     }
   }
@@ -208,7 +209,30 @@ export class EventManager {
 
     if (type === 'wheel') {
       const wheelEvent = originalEvent as WheelEvent;
-      this.app.camera.pan(wheelEvent.deltaX / this.app.camera.zoom, wheelEvent.deltaY / this.app.camera.zoom);
+      const hit = this.app.hitTest(world.x, world.y);
+      const target = hit?.node ?? null;
+      let handled = false;
+      if (target) {
+        const event = createEvent('wheel', target, originalEvent, x, y, world.x, world.y);
+        let current: Node | null = target;
+        while (current) {
+          if (current.listening) {
+            event.currentTarget = current;
+            current.emit('wheel', event);
+            if (event.propagationStopped) {
+              handled = true;
+              break;
+            }
+          }
+          current = current.parent;
+        }
+      }
+      if (!handled) {
+        this.app.camera.pan(wheelEvent.deltaX / this.app.camera.zoom, wheelEvent.deltaY / this.app.camera.zoom);
+      } else {
+        wheelEvent.preventDefault();
+      }
+      return;
     }
   }
 

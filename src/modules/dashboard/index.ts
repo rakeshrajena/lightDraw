@@ -19,4 +19,9 @@ export const dashboardPlugin: Plugin = {
 
 export { registerDashboard, createDashboardFromJSON };
 export { animateLiveValue, setLiveValue, dashboardToJSON } from '../../dashboard/helpers';
+export { updateChartProps, pushChartValue, pushChartOhlc } from '../../dashboard/charts/core/refresh';
+export {
+  installChartResizeObserver,
+  detachChartResizeObserver,
+} from '../../dashboard/charts/core/responsive';
 export default dashboardPlugin;

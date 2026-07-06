@@ -134,6 +134,7 @@ function clamp(v: number, min: number, max: number): number {
 
 export class Arc extends Node {
   radius: number;
+  innerRadius: number;
   startAngle: number;
   endAngle: number;
   counterClockwise = false;
@@ -141,6 +142,7 @@ export class Arc extends Node {
   constructor(
     options: NodeOptions & {
       radius?: number;
+      innerRadius?: number;
       startAngle?: number;
       endAngle?: number;
       counterClockwise?: boolean;
@@ -148,6 +150,7 @@ export class Arc extends Node {
   ) {
     super('arc', options);
     this.radius = options.radius ?? 50;
+    this.innerRadius = options.innerRadius ?? 0;
     this.startAngle = options.startAngle ?? 0;
     this.endAngle = options.endAngle ?? Math.PI * 1.5;
     this.counterClockwise = options.counterClockwise ?? false;
@@ -159,10 +162,16 @@ export class Arc extends Node {
     const dx = localX - cx;
     const dy = localY - cy;
     const dist = Math.hypot(dx, dy);
-    if (dist > this.radius) return false;
+    if (dist > this.radius || dist < this.innerRadius) return false;
     let angle = Math.atan2(dy, dx);
-    if (angle < 0) angle += Math.PI * 2;
-    return angle >= this.startAngle && angle <= this.endAngle;
+    const start = this.startAngle;
+    const end = this.endAngle;
+    if (this.counterClockwise) {
+      if (start >= end) return angle <= start && angle >= end;
+      return angle <= start || angle >= end;
+    }
+    if (end >= start) return angle >= start && angle <= end;
+    return angle >= start || angle <= end;
   }
 
   getBounds() {
@@ -176,6 +185,7 @@ export class Arc extends Node {
   protected getShapeProps() {
     return {
       radius: this.radius,
+      innerRadius: this.innerRadius,
       startAngle: this.startAngle,
       endAngle: this.endAngle,
       counterClockwise: this.counterClockwise,

@@ -326,4 +326,364 @@ describe('Phase 6 — UI Components', () => {
     expect(() => app.render()).not.toThrow();
     app.destroy();
   });
+
+  describe('form control variants (UI-1)', () => {
+    const formTypes = ['button', 'input', 'textarea', 'checkbox', 'toggle', 'radio', 'slider', 'progressBar'] as const;
+
+    for (const type of formTypes) {
+      it(`${type} renders with sm size and disabled`, () => {
+        const container = createTestContainer();
+        const app = createTestApp(container, { renderer: 'html' });
+        const props: Record<string, unknown> = { x: 10, y: 10, size: 'sm', disabled: true };
+        if (type === 'button') props.variant = 'secondary';
+        if (type === 'progressBar') props.value = 40;
+        const node = createComponentFromJSON(type, props, app)!;
+        app.add(node);
+        app.render();
+        expect(() => app.render()).not.toThrow();
+        app.destroy();
+      });
+    }
+
+    it('button applies variant and size CSS classes', () => {
+      const container = createTestContainer();
+      const app = createTestApp(container, { renderer: 'html' });
+      app.loadJSON({
+        type: 'group',
+        children: [
+          { type: 'button', props: { label: 'Primary', x: 10, y: 10, variant: 'primary', size: 'lg' } },
+          { type: 'button', props: { label: 'Ghost', x: 10, y: 60, variant: 'ghost', size: 'sm' } },
+        ],
+      });
+      app.render();
+      expect(container.querySelector('.lightdraw-btn--primary.lightdraw-btn--lg')).not.toBeNull();
+      expect(container.querySelector('.lightdraw-btn--ghost.lightdraw-btn--sm')).not.toBeNull();
+      app.destroy();
+    });
+
+    it('input shows invalid state and error message', () => {
+      const container = createTestContainer();
+      const app = createTestApp(container, { renderer: 'html' });
+      app.loadJSON({
+        type: 'input',
+        props: {
+          label: 'Email',
+          value: 'bad',
+          invalid: true,
+          error: 'Enter a valid email',
+          x: 10,
+          y: 10,
+          width: 200,
+        },
+      });
+      app.render();
+      const field = container.querySelector('.lightdraw-field--invalid');
+      expect(field).not.toBeNull();
+      expect(container.querySelector('.lightdraw-field-error')?.textContent).toBe('Enter a valid email');
+      const input = container.querySelector('.lightdraw-native-input') as HTMLInputElement;
+      expect(input.getAttribute('aria-invalid')).toBe('true');
+      app.destroy();
+    });
+
+    it('label component renders on canvas', () => {
+      const container = createTestContainer();
+      const app = createTestApp(container, { renderer: 'canvas' });
+      const node = createComponentFromJSON('label', { text: 'Section title', x: 10, y: 10 }, app)!;
+      app.add(node);
+      expect(() => app.render()).not.toThrow();
+      app.destroy();
+    });
+  });
+
+  describe('surface layout variants (UI-2)', () => {
+    it('card renders subtitle and elevated class in HTML', () => {
+      const container = createTestContainer();
+      const app = createTestApp(container, { renderer: 'html' });
+      app.loadJSON({
+        type: 'card',
+        props: { title: 'Dashboard', subtitle: 'Live metrics', width: 300, height: 120, x: 10, y: 10, elevated: true },
+      });
+      app.render();
+      expect(container.querySelector('.lightdraw-card--elevated')).not.toBeNull();
+      expect(container.querySelector('.lightdraw-card-subtitle')?.textContent).toBe('Live metrics');
+      app.destroy();
+    });
+
+    it('tabs HTML has sliding indicator aligned to equal columns', () => {
+      const container = createTestContainer();
+      const app = createTestApp(container, { renderer: 'html' });
+      app.loadJSON({
+        type: 'tabs',
+        props: { tabs: ['Overview', 'Analytics', 'Reports', 'Settings'], activeTab: 1, width: 320, x: 10, y: 10 },
+      });
+      app.render();
+      const indicator = container.querySelector('.lightdraw-tabs-indicator') as HTMLElement;
+      expect(indicator).not.toBeNull();
+      expect(indicator.style.width).toBe('25%');
+      expect(indicator.style.left).toBe('25%');
+      const tabs = container.querySelectorAll('.lightdraw-tabs-tab');
+      expect(tabs.length).toBe(4);
+      app.destroy();
+    });
+
+    it('toolbar renders separator and icons', () => {
+      const container = createTestContainer();
+      const app = createTestApp(container, { renderer: 'html' });
+      app.loadJSON({
+        type: 'toolbar',
+        props: { items: ['New', '|', 'Save'], icons: ['+', '💾'], x: 10, y: 10 },
+      });
+      app.render();
+      expect(container.querySelector('.lightdraw-toolbar-separator')).not.toBeNull();
+      expect(container.querySelector('.lightdraw-toolbar-icon')).not.toBeNull();
+      app.destroy();
+    });
+
+    it('statusBar supports mono and primaryIndex', () => {
+      const container = createTestContainer();
+      const app = createTestApp(container, { renderer: 'html' });
+      app.loadJSON({
+        type: 'statusBar',
+        props: { segments: ['Build', 'main', 'UTF-8'], primaryIndex: 1, mono: true, width: 360, x: 10, y: 10 },
+      });
+      app.render();
+      expect(container.querySelector('.lightdraw-statusbar--mono')).not.toBeNull();
+      const segments = container.querySelectorAll('.lightdraw-statusbar-segment');
+      expect(segments[1]?.classList.contains('lightdraw-statusbar-segment--primary')).toBe(true);
+      app.destroy();
+    });
+
+    it('accordion panel uses animated wrap', () => {
+      const container = createTestContainer();
+      const app = createTestApp(container, { renderer: 'html' });
+      app.loadJSON({
+        type: 'accordion',
+        props: {
+          x: 10,
+          y: 10,
+          width: 260,
+          sections: [{ title: 'One', content: 'A' }, { title: 'Two', content: 'B' }],
+        },
+      });
+      app.render();
+      expect(container.querySelector('.lightdraw-accordion-panel-wrap')).not.toBeNull();
+      app.destroy();
+    });
+  });
+
+  describe('overlay feedback variants (UI-3)', () => {
+    it('dialog renders centered host with backdrop when open', () => {
+      const container = createTestContainer();
+      const app = createTestApp(container, { renderer: 'html' });
+      app.loadJSON({
+        type: 'dialog',
+        props: { open: true, title: 'Confirm', message: 'Proceed?', x: 50, y: 50, width: 320 },
+      });
+      app.render();
+      expect(container.querySelector('.lightdraw-dialog-host--open')).not.toBeNull();
+      expect(container.querySelector('.lightdraw-dialog-center')).not.toBeNull();
+      expect(container.querySelector('.lightdraw-dialog-overlay')).not.toBeNull();
+      app.destroy();
+    });
+
+    it('menu renders scrollable panel and danger item', () => {
+      const container = createTestContainer();
+      const app = createTestApp(container, { renderer: 'html' });
+      app.loadJSON({
+        type: 'menu',
+        props: {
+          items: ['Edit', 'Copy', 'Delete'],
+          itemVariants: ['', '', 'danger'],
+          open: true,
+          x: 10,
+          y: 10,
+          width: 160,
+        },
+      });
+      app.render();
+      expect(container.querySelector('.lightdraw-menu-panel')).not.toBeNull();
+      expect(container.querySelector('.lightdraw-menu-item--danger')).not.toBeNull();
+      app.destroy();
+    });
+
+    it('toast supports position class and dismiss control', () => {
+      const container = createTestContainer();
+      const app = createTestApp(container, { renderer: 'html' });
+      const toast = createComponentFromJSON(
+        'toast',
+        { message: 'Done', variant: 'info', position: 'top-right', dismissible: true, visible: true, x: 10, y: 10 },
+        app
+      )!;
+      app.add(toast);
+      app.render();
+      const el = container.querySelector('.lightdraw-toast--top-right');
+      expect(el).not.toBeNull();
+      expect(container.querySelector('.lightdraw-toast-dismiss')).not.toBeNull();
+      (container.querySelector('.lightdraw-toast-dismiss') as HTMLButtonElement)?.click();
+      app.render();
+      expect(toast.visible).toBe(false);
+      app.destroy();
+    });
+
+    it('tooltip renders anchor and placement class', () => {
+      const container = createTestContainer();
+      const app = createTestApp(container, { renderer: 'html' });
+      app.loadJSON({
+        type: 'tooltip',
+        props: { text: 'Hint', anchor: 'Help', placement: 'top', delay: 0, x: 10, y: 10 },
+      });
+      app.render();
+      expect(container.querySelector('.lightdraw-tooltip--top')).not.toBeNull();
+      expect(container.querySelector('.lightdraw-tooltip-anchor')?.textContent).toBe('Help');
+      app.destroy();
+    });
+  });
+
+  describe('data display variants (UI-4)', () => {
+    it('table renders sticky header, zebra rows, and sortable headers', () => {
+      const container = createTestContainer();
+      const app = createTestApp(container, { renderer: 'html' });
+      app.loadJSON({
+        type: 'table',
+        props: {
+          columns: ['Name', 'Status'],
+          rows: [
+            ['Alpha', 'Active'],
+            ['Beta', 'Pending'],
+            ['Gamma', 'Inactive'],
+          ],
+          sortable: true,
+          sortColumn: 0,
+          sortDirection: 'asc',
+          stickyHeader: true,
+          maxHeight: 120,
+          width: 280,
+          x: 10,
+          y: 10,
+        },
+      });
+      app.render();
+      expect(container.querySelector('.lightdraw-table-wrap--scroll-x')).not.toBeNull();
+      expect(container.querySelector('.lightdraw-table-head--sticky')).not.toBeNull();
+      expect(container.querySelector('.lightdraw-table-th--sortable')).not.toBeNull();
+      expect(container.querySelector('.lightdraw-table-th--sorted-asc')).not.toBeNull();
+      expect(container.querySelector('.lightdraw-table-scroll')).not.toBeNull();
+      app.destroy();
+    });
+
+    it('table row click selects row in HTML', () => {
+      const container = createTestContainer();
+      const app = createTestApp(container, { renderer: 'html' });
+      const table = createComponentFromJSON(
+        'table',
+        {
+          columns: ['A', 'B'],
+          rows: [
+            ['One', '1'],
+            ['Two', '2'],
+          ],
+          x: 10,
+          y: 10,
+          width: 200,
+        },
+        app
+      )!;
+      app.add(table);
+      app.render();
+      (container.querySelector('.lightdraw-table-row[data-index="1"]') as HTMLTableRowElement)?.click();
+      app.render();
+      expect(container.querySelector('.lightdraw-table-row--selected')?.getAttribute('data-index')).toBe('1');
+      app.destroy();
+    });
+
+    it('tree renders indent guides and selected leaf', () => {
+      const container = createTestContainer();
+      const app = createTestApp(container, { renderer: 'html' });
+      app.loadJSON({
+        type: 'tree',
+        props: {
+          nodes: [{ label: 'src', children: [{ label: 'App.ts' }, { label: 'index.ts' }] }],
+          expanded: [0],
+          selectedNode: 'p0.c0',
+          width: 200,
+          x: 10,
+          y: 10,
+        },
+      });
+      app.render();
+      expect(container.querySelector('.lightdraw-tree-children')).not.toBeNull();
+      expect(container.querySelector('.lightdraw-tree-leaf--selected')?.textContent).toBe('App.ts');
+      app.destroy();
+    });
+
+    it('tree leaf click emits select', () => {
+      const container = createTestContainer();
+      const app = createTestApp(container, { renderer: 'html' });
+      const tree = createComponentFromJSON(
+        'tree',
+        {
+          nodes: [{ label: 'Root', children: [{ label: 'Leaf' }] }],
+          expanded: [0],
+          x: 10,
+          y: 10,
+        },
+        app
+      )!;
+      app.add(tree);
+      app.render();
+      let key: unknown;
+      tree.on('select', (e: { value?: unknown }) => {
+        key = e.value;
+      });
+      (container.querySelector('.lightdraw-tree-leaf') as HTMLButtonElement)?.click();
+      expect(key).toBe('p0.c0');
+      app.destroy();
+    });
+  });
+
+  describe('UI module integration (UI-5)', () => {
+    it('all 17 core component types register and create nodes', () => {
+      const container = createTestContainer();
+      const app = createTestApp(container, { renderer: 'html' });
+      for (const type of COMPONENT_TYPES) {
+        const node = createComponentFromJSON(type, { x: 0, y: 0 }, app);
+        expect(node, type).not.toBeNull();
+        expect(node!.metadata?.componentType ?? type).toBeTruthy();
+      }
+      app.destroy();
+    });
+
+    it('uiTheme JSON round-trip via export preserves component props', () => {
+      const container = createTestContainer();
+      const app = createTestApp(container, { renderer: 'html', uiTheme: { preset: 'ocean', radius: '10px' } });
+      const btn = createComponentFromJSON(
+        'button',
+        { label: 'Export', variant: 'primary', size: 'lg', x: 10, y: 10 },
+        app
+      )!;
+      app.add(btn);
+      const json = toJSON(btn);
+      expect(json.type).toBe('button');
+      expect(json.props?.label).toBe('Export');
+      expect(json.props?.variant).toBe('primary');
+      expect(json.props?.size).toBe('lg');
+      const restored = createComponentFromJSON(json.type, json.props ?? {}, app)!;
+      expect(restored.metadata.componentState?.label).toBe('Export');
+      app.destroy();
+    });
+
+    it('high contrast mode toggles on HTML renderer', () => {
+      const container = createTestContainer();
+      const app = createTestApp(container, { renderer: 'html' });
+      app.loadJSON({ type: 'input', props: { label: 'Email', x: 10, y: 10, width: 200 } });
+      app.render();
+      app.setHighContrast(true);
+      app.render();
+      expect(container.querySelector('[data-ld-high-contrast="true"]')).not.toBeNull();
+      app.setHighContrast(false);
+      app.render();
+      expect(container.querySelector('[data-ld-high-contrast="true"]')).toBeNull();
+      app.destroy();
+    });
+  });
 });
