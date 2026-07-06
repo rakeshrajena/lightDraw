@@ -47,7 +47,11 @@ export function buildDialGauge(
 ): DialGaugeParts {
   const size = opts.size;
   const cx = size / 2;
-  const r = size / 2 - 14;
+  const inset = Math.max(4, Math.min(14, size * 0.1));
+  const r = size / 2 - inset;
+  const tickOutset = Math.max(3, size * 0.04);
+  const majorLen = Math.max(5, size * 0.09);
+  const minorLen = Math.max(4, size * 0.06);
   const startAngle = opts.startAngle ?? DEFAULT_START;
   const sweep = opts.sweepAngle ?? DEFAULT_SWEEP;
   const endAngle = startAngle + sweep;
@@ -63,12 +67,12 @@ export function buildDialGauge(
 
   group.add(
     app.circle({
-      x: cx - r - 6,
-      y: cx - r - 6,
-      radius: r + 6,
+      x: cx - r - tickOutset,
+      y: cx - r - tickOutset,
+      radius: r + tickOutset,
       fill: style.faceColor ?? '#111827',
       stroke: style.bezelColor ?? style.trackColor,
-      strokeWidth: 2,
+      strokeWidth: Math.max(1, size * 0.03),
       shadow,
       listening: false,
     })
@@ -110,8 +114,8 @@ export function buildDialGauge(
     const cos = Math.cos(a);
     const sin = Math.sin(a);
     const major = i % 2 === 0;
-    const inner = r - (major ? 16 : 12);
-    const outer = r - 4;
+    const inner = r - (major ? majorLen * 2 : minorLen * 1.5);
+    const outer = r - tickOutset;
     group.add(
       app.line({
         x: cx + inner * cos,
@@ -119,24 +123,27 @@ export function buildDialGauge(
         x2: (outer - inner) * cos,
         y2: (outer - inner) * sin,
         stroke: tickColor,
-        strokeWidth: major ? 2 : 1,
+        strokeWidth: major ? Math.max(1, size * 0.02) : 1,
         lineCap: 'round',
         listening: false,
       })
     );
-    if (opts.showTickLabels && major) {
+    if (opts.showTickLabels && major && size >= 96) {
       const labelVal = Math.round(opts.max * t);
-      const lr = r - 28;
+      const lr = Math.max(r * 0.45, r - Math.max(8, size * 0.14));
+      const lx = cx + lr * cos;
+      const ly = cx + lr * sin;
       group.add(
         app.text({
           text: String(labelVal),
-          x: cx + lr * cos,
-          y: cx + lr * sin,
-          fontSize: 9,
+          x: lx,
+          y: ly,
+          fontSize: Math.max(7, size * 0.09),
           fontWeight: '500',
           fill: style.tickLabelColor ?? style.textMuted ?? style.textColor,
           textAlign: 'center',
           textBaseline: 'middle',
+          metadata: { textBoxWidth: Math.max(16, size * 0.2) },
           listening: false,
         })
       );
@@ -181,11 +188,12 @@ export function buildDialGauge(
     text: format(opts.value),
     x: cx,
     y: cx + r * 0.38,
-    fontSize: Math.max(16, size * 0.11),
+    fontSize: Math.max(11, size * 0.11),
     fontWeight: 'bold',
     fill: style.textColor,
     textAlign: 'center',
     textBaseline: 'middle',
+    metadata: { textBoxWidth: size },
     ...(opts.ariaLive ? { ariaLive: opts.ariaLive } : {}),
     listening: false,
   });

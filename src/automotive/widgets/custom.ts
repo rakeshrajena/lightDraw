@@ -22,7 +22,7 @@ import {
   digitalGaugeStyle,
   updateDigitalGauge,
 } from '../primitives/digitalGauge';
-import { centerInBounds, fluidFont, resolveBounds, resolveDisplay } from '../layout';
+import { autoCenteredText, centerInBounds, fluidFont, isCompactBounds, resolveBounds, resolveDisplay, resolveClusterLayout } from '../layout';
 
 function themedDial(
   app: import('../../App').App,
@@ -67,8 +67,9 @@ registerAutomotive('engineTemp', (props, app) => {
   const value = num(props, 'value', 90);
   const max = num(props, 'max', 130);
   const display = resolveDisplay(props, 'analog');
+  const useDigital = display === 'digital' || isCompactBounds(bounds);
 
-  if (display === 'digital') {
+  if (useDigital) {
     const group = createAutoGroup(app, 'engineTemp', { ...props, width: bounds.width, height: bounds.height, display: 'digital' }, 'engineTemp');
     const style = digitalGaugeStyle(theme);
     const parts = buildDigitalGauge(app, group, bounds, style, {
@@ -170,11 +171,13 @@ registerAutomotive('batteryVoltage', (props, app) => {
   );
   const label = app.text({
     text: `${value.toFixed(1)}V`,
-    x: ox + iconW + 8,
+    x: Math.min(ox + iconW + 6, w - 4),
     y: h / 2,
-    fontSize: fluidFont(14, bounds, 11, 16),
+    fontSize: fluidFont(14, bounds, 9, 14),
     fill: value < 11.5 ? '#ef4444' : '#22c55e',
+    textAlign: 'right',
     textBaseline: 'middle',
+    metadata: { textBoxWidth: Math.max(28, w - iconW - 12) },
     listening: false,
   });
   group.add(label);
@@ -195,17 +198,20 @@ registerAutomotive('tpms', (props, app) => {
   const group = createAutoGroup(app, 'tpms', { ...props, width: bounds.width, height: bounds.height }, 'tpms');
   const panelW = bounds.innerWidth;
   const panelH = bounds.innerHeight;
-  const cellW = panelW / 2 - 12;
-  const cellH = Math.max(24, (panelH - 28) / 2 - 4);
+  const titleH = Math.max(12, Math.min(18, panelH * 0.2));
+  const gap = 4;
+  const cellW = (panelW - gap * 3) / 2;
+  const cellH = Math.max(12, (panelH - titleH - gap * 3) / 2);
+  const gridTop = titleH + gap;
   group.add(
     app.roundedRect({ width: panelW, height: panelH, cornerRadius: 8, fill: '#111827', stroke: theme.dialStroke, strokeWidth: 1.5, listening: false }),
     app.text({ text: 'TIRE PRESSURE', x: 10, y: 6, fontSize: fluidFont(8, bounds, 7, 9), fontWeight: 'bold', fill: theme.textMuted, listening: false })
   );
   const positions = [
-    { x: 8, y: 22, label: 'FL' },
-    { x: panelW / 2 + 2, y: 22, label: 'FR' },
-    { x: 8, y: 22 + cellH + 8, label: 'RL' },
-    { x: panelW / 2 + 2, y: 22 + cellH + 8, label: 'RR' },
+    { x: gap, y: gridTop, label: 'FL' },
+    { x: gap * 2 + cellW, y: gridTop, label: 'FR' },
+    { x: gap, y: gridTop + cellH + gap, label: 'RL' },
+    { x: gap * 2 + cellW, y: gridTop + cellH + gap, label: 'RR' },
   ];
   const texts: TextNode[] = [];
   positions.forEach((pos, i) => {
@@ -223,15 +229,18 @@ registerAutomotive('tpms', (props, app) => {
         strokeWidth: 1,
         listening: false,
       }),
-      app.text({ text: pos.label, x: pos.x + 6, y: pos.y + 4, fontSize: 9, fontWeight: 'bold', fill: theme.textMuted, listening: false })
+      app.text({ text: pos.label, x: pos.x + 4, y: pos.y + 3, fontSize: Math.max(7, cellH * 0.28), fontWeight: 'bold', fill: theme.textMuted, listening: false })
     );
     const t = app.text({
       text: `${psi}`,
-      x: pos.x + 6,
-      y: pos.y + 14,
-      fontSize: 13,
+      x: pos.x + cellW / 2,
+      y: pos.y + cellH * 0.62,
+      fontSize: Math.max(9, cellH * 0.38),
       fontWeight: 'bold',
       fill: low ? theme.warning : theme.text,
+      textAlign: 'center',
+      textBaseline: 'middle',
+      metadata: { textBoxWidth: cellW },
       listening: false,
     });
     texts.push(t);
@@ -273,16 +282,10 @@ registerAutomotive('fuelGauge', (props, app) => {
     cornerRadius: trackH / 2,
     listening: false,
   });
-  const label = app.text({
-    text: `${value}%`,
-    x: w / 2,
-    y: h * 0.4,
-    fontSize: fluidFont(14, bounds, 11, 16),
+  const label = autoCenteredText(app, `${value}%`, w, h * 0.4, {
+    fontSize: fluidFont(14, bounds, 10, 16),
     fontWeight: 'bold',
     fill: theme.text,
-    textAlign: 'center',
-    textBaseline: 'middle',
-    listening: false,
   });
   group.add(fill, label);
   setParts(group, { fill, label });
@@ -306,16 +309,10 @@ registerAutomotive('gearIndicator', (props, app) => {
   group.add(
     app.roundedRect({ width: w, height: h, cornerRadius: 8, fill: '#111827', stroke: theme.dialStroke, strokeWidth: 2, listening: false })
   );
-  const label = app.text({
-    text: gear,
-    x: w / 2,
-    y: h / 2,
-    fontSize: fluidFont(36, bounds, 22, 40),
+  const label = autoCenteredText(app, gear, w, h / 2, {
+    fontSize: fluidFont(36, bounds, 18, 40),
     fontWeight: 'bold',
     fill: theme.text,
-    textAlign: 'center',
-    textBaseline: 'middle',
-    listening: false,
   });
   group.add(label);
   setParts(group, { label });
@@ -333,8 +330,20 @@ registerAutomotive('turnIndicators', (props, app) => {
   const group = createAutoGroup(app, 'turnIndicators', { ...props, width: bounds.width, height: bounds.height }, 'turnIndicators');
   const w = bounds.innerWidth;
   const h = bounds.innerHeight;
-  const arrowW = Math.max(12, w * 0.22);
-  const arrowH = Math.max(10, h * 0.55);
+  group.add(
+    app.roundedRect({
+      width: w,
+      height: h,
+      cornerRadius: Math.min(6, h * 0.2),
+      fill: '#111827',
+      stroke: '#374151',
+      strokeWidth: 1,
+      listening: false,
+    })
+  );
+  const arrowW = Math.max(10, Math.min(w * 0.2, (w - 12) / 2));
+  const arrowH = Math.max(8, h * 0.5);
+  const gap = 4;
   const onColor = '#f59e0b';
   const offColor = '#1f2937';
   const cy = h / 2;
@@ -353,7 +362,7 @@ registerAutomotive('turnIndicators', (props, app) => {
       listening: false,
     });
   const leftShape = arrow(0, left, false);
-  const rightShape = arrow(w / 2 + 4, right, true);
+  const rightShape = arrow(w - gap - arrowW, right, true);
   group.add(leftShape, rightShape);
   group.metadata.refresh = (l: boolean, r: boolean) => {
     const update = (shape: Node, x: number, on: boolean, flip: boolean) => {
@@ -369,7 +378,7 @@ registerAutomotive('turnIndicators', (props, app) => {
       shape.stroke = on ? '#fbbf24' : '#374151';
     };
     update(leftShape, 0, l, false);
-    update(rightShape, w / 2 + 4, r, true);
+    update(rightShape, w - gap - arrowW, r, true);
   };
   setState(group, { left, right, width: bounds.width, height: bounds.height });
   return group;
@@ -386,15 +395,10 @@ registerAutomotive('cruiseControl', (props, app) => {
   const w = bounds.innerWidth;
   const h = bounds.innerHeight;
   const bg = app.roundedRect({ width: w, height: h, cornerRadius: 4, fill: active ? '#1d4ed8' : '#333', listening: false });
-  const label = app.text({
-    text: active ? `SET ${Math.round(speed)}` : 'CRUISE',
-    x: w / 2,
-    y: h / 2,
-    fontSize: fluidFont(11, bounds, 9, 12),
+  const label = autoCenteredText(app, active ? `SET ${Math.round(speed)}` : 'CRUISE', w, h / 2, {
+    fontSize: fluidFont(11, bounds, 8, 12),
+    fontWeight: 'bold',
     fill: '#fff',
-    textAlign: 'center',
-    textBaseline: 'middle',
-    listening: false,
   });
   group.add(bg, label);
   setParts(group, { bg, label });
@@ -412,11 +416,20 @@ registerAutomotive('canViewer', (props, app) => {
   const bounds = resolveBounds(props, 220, 88);
   const group = createAutoGroup(app, 'canViewer', { ...props, width: bounds.width, height: bounds.height }, 'canViewer');
   const entries = Object.entries(signals).slice(0, num(props, 'maxRows', 20));
-  const rowH = Math.max(14, Math.floor((bounds.innerHeight - 8) / Math.max(entries.length, 1)));
+  const rowH = Math.max(11, Math.floor(bounds.innerHeight / Math.max(entries.length, 1)));
+  const maxRows = Math.max(1, Math.floor(bounds.innerHeight / rowH));
+  const visible = entries.slice(0, maxRows);
   group.add(app.rect({ width: bounds.innerWidth, height: bounds.innerHeight, fill: '#111827', stroke: '#374151', strokeWidth: 1, listening: false }));
   const rows: TextNode[] = [];
-  entries.forEach(([key, val], i) => {
-    const row = app.text({ text: `${key}: ${val}`, x: 6, y: 4 + i * rowH, fontSize: 10, fill: '#d1d5db', listening: false });
+  visible.forEach(([key, val], i) => {
+    const row = app.text({
+      text: `${key}: ${val}`.slice(0, Math.max(8, Math.floor(bounds.innerWidth / 6))),
+      x: 4,
+      y: 2 + i * rowH,
+      fontSize: Math.max(8, Math.min(10, rowH - 2)),
+      fill: '#d1d5db',
+      listening: false,
+    });
     rows.push(row);
     group.add(row);
   });
@@ -440,7 +453,17 @@ registerAutomotive('warningLamp', (props, app) => {
   const center = centerInBounds(bounds, radius * 2, radius * 2);
   group.add(
     app.circle({ radius, x: center.x, y: center.y, fill: active ? '#ef4444' : '#333', stroke: active ? '#fca5a5' : '#555', strokeWidth: 1, listening: false }),
-    app.text({ text: labelText, x: center.x + radius - fluidFont(10, bounds, 8, 10), y: center.y + radius - fluidFont(10, bounds, 8, 10) * 0.5, fontSize: fluidFont(10, bounds, 8, 10), fill: active ? '#fff' : '#666', listening: false })
+    app.text({
+      text: labelText,
+      x: center.x + radius,
+      y: center.y + radius,
+      fontSize: fluidFont(10, bounds, 8, 10),
+      fill: active ? '#fff' : '#666',
+      textAlign: 'center',
+      textBaseline: 'middle',
+      metadata: { textBoxWidth: radius * 2 },
+      listening: false,
+    })
   );
   setState(group, { label: labelText, active, width: bounds.width, height: bounds.height });
   return group;
@@ -455,7 +478,10 @@ registerAutomotive('adasStatus', (props, app) => {
   const h = bounds.innerHeight;
   group.add(
     app.rect({ width: w, height: h, fill: colors[status] ?? '#333', cornerRadius: 4, listening: false }),
-    app.text({ text: `ADAS ${status.toUpperCase()}`, x: w / 2, y: h / 2, fontSize: fluidFont(10, bounds, 8, 11), fill: '#fff', textAlign: 'center', textBaseline: 'middle', listening: false })
+    autoCenteredText(app, `ADAS ${status.toUpperCase()}`, w, h / 2, {
+      fontSize: fluidFont(10, bounds, 7, 11),
+      fill: '#fff',
+    })
   );
   group.metadata.textRefresh = (t: string) => {
     const bg = group.children[0] as { fill?: string };
@@ -470,16 +496,12 @@ function buildInstrumentCluster(props: Record<string, unknown>, app: import('../
   const w = num(props, 'width', 800);
   const h = num(props, 'height', 400);
   const group = createAutoGroup(app, type, props, type, { width: w, height: h });
-  const dialSize = Math.min(w * 0.22, h * 0.48, 200);
-  const smallDial = Math.min(w * 0.12, h * 0.24, 96);
-  const margin = Math.max(16, w * 0.028);
-  const bottomY = h - Math.max(56, h * 0.16);
   group.add(
     app.rect({
       width: w,
       height: h,
       fill: theme.background,
-      cornerRadius: 16,
+      cornerRadius: Math.min(16, h * 0.04),
       stroke: theme.dialStroke,
       strokeWidth: 2,
       listening: false,
@@ -488,24 +510,58 @@ function buildInstrumentCluster(props: Record<string, unknown>, app: import('../
   const themeName = str(props, 'theme', 'classic');
   const isDigital = themeName === 'digital';
   const gaugeDisplay = isDigital ? 'digital' : 'analog';
-  const widgets: [string, Record<string, unknown>][] = [
-    ['speedometer', { value: props.speed ?? 0, width: dialSize + 16, height: dialSize + 16, size: dialSize, display: gaugeDisplay, x: margin, y: margin, theme: themeName }],
-    ['tachometer', { value: props.rpm ?? 0, width: dialSize + 16, height: dialSize + 16, size: dialSize, display: gaugeDisplay, x: w - dialSize - margin - 16, y: margin, theme: themeName }],
-    ['gearIndicator', { gear: props.gear ?? 'P', width: 56, height: 60, x: w / 2 - 28, y: h / 2 - 36, theme: themeName }],
-    ['engineTemp', { value: props.engineTemp ?? 90, width: smallDial + 12, height: smallDial + 12, size: smallDial, display: gaugeDisplay, x: w / 2 - (smallDial + 12) / 2, y: margin + 8 }],
-    ['turnIndicators', { left: props.turnLeft ?? false, right: props.turnRight ?? false, width: 56, height: 28, x: w / 2 - 28, y: h / 2 + 36 }],
-    ['fuelGauge', { value: props.fuel ?? 75, width: 120, height: 56, x: margin, y: bottomY, theme: themeName }],
-    ['batteryVoltage', { value: props.batteryVoltage ?? 12.4, width: 100, height: 36, x: margin + 128, y: bottomY + 8 }],
-    ['tpms', { pressures: props.tpms ?? [32, 32, 32, 32], width: 148, height: 92, x: w / 2 - 74, y: bottomY - 36, theme: themeName }],
-    ['parkingBrake', { active: props.parkingBrake ?? false, width: 36, height: 36, x: w - margin - 280, y: bottomY + 8, theme: themeName }],
-    ['headlights', { active: props.headlights ?? false, width: 36, height: 36, x: w - margin - 228, y: bottomY + 8, theme: themeName }],
-    ['cruiseControl', { speed: props.cruiseSpeed ?? 0, width: 80, height: 32, x: w - margin - 158, y: bottomY + 10 }],
-    ['warningLamp', { label: 'ABS', active: props.absWarning ?? false, width: 36, height: 36, x: w - margin - 88, y: bottomY + 8 }],
-    ['adasStatus', { status: props.adasStatus ?? 'off', width: 96, height: 28, x: w - margin - 88, y: bottomY + 38 }],
-  ];
-  for (const [wt, wprops] of widgets) {
-    const node = createAutomotiveFromJSON(wt, wprops, app);
-    if (node) group.add(node);
+
+  const valueByType: Record<string, Record<string, unknown>> = {
+    speedometer: { value: props.speed ?? 0, display: gaugeDisplay },
+    tachometer: { value: props.rpm ?? 0, display: gaugeDisplay },
+    gearIndicator: { gear: props.gear ?? 'P' },
+    engineTemp: { value: props.engineTemp ?? 90, display: gaugeDisplay },
+    turnIndicators: { left: props.turnLeft ?? false, right: props.turnRight ?? false },
+    fuelGauge: { value: props.fuel ?? 75 },
+    batteryVoltage: { value: props.batteryVoltage ?? 12.4 },
+    tpms: { pressures: props.tpms ?? [32, 32, 32, 32] },
+    parkingBrake: { active: props.parkingBrake ?? false },
+    headlights: { active: props.headlights ?? false },
+    cruiseControl: { speed: props.cruiseSpeed ?? 0 },
+    warningLamp: { label: 'ABS', active: props.absWarning ?? false },
+    adasStatus: { status: props.adasStatus ?? 'off' },
+  };
+
+  for (const slot of resolveClusterLayout(w, h)) {
+    const { type: wt, size, width: slotW, height: slotH, x: slotX, y: slotY } = slot;
+    const slotDigital =
+      gaugeDisplay === 'digital' || slotW < 128 || slotH < 80 || (size !== undefined && size < 96);
+    const node = createAutomotiveFromJSON(
+      wt,
+      {
+        x: 0,
+        y: 0,
+        width: slotW,
+        height: slotH,
+        ...(size !== undefined ? { size: Math.min(size, Math.min(slotW, slotH) - 4) } : {}),
+        ...valueByType[wt],
+        theme: themeName,
+        display: wt === 'speedometer' || wt === 'tachometer' || wt === 'engineTemp'
+          ? slotDigital ? 'digital' : gaugeDisplay
+          : undefined,
+      },
+      app
+    );
+    if (node) {
+      const slotWrap = app.group({
+        x: slotX,
+        y: slotY,
+        clip: true,
+        metadata: {
+          autoSlot: wt,
+          autoState: { width: slotW, height: slotH },
+          autoWidth: slotW,
+          autoHeight: slotH,
+        },
+      }) as import('../../shapes/Group').Group;
+      slotWrap.add(node);
+      group.add(slotWrap);
+    }
   }
   setState(group, { width: w, height: h, theme: themeName, ...props });
   return group;

@@ -26,6 +26,7 @@ export {
   detachAutoWidgetResizeObserver,
   fitAutoWidgetToContainer,
 } from './responsive';
+export { updateAutoWidgetProps, installAutoWidgetRebuild } from './refresh';
 export { resolveBounds, fluidFont, centerInBounds } from './layout';
 export { getTheme, THEMES } from './themes';
 export type { ClusterTheme, ThemePalette } from './themes';

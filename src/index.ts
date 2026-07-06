@@ -59,6 +59,10 @@ import {
   sampleDriveFrames,
   animateAutoValue,
   setAutoValue,
+  installAutoWidgetResizeObserver,
+  detachAutoWidgetResizeObserver,
+  updateAutoWidgetProps,
+  listAutomotiveWidgets,
 } from './modules/automotive';
 import { diagramPlugin, Diagram } from './modules/diagram';
 import { applyUiTheme, resolveUiTheme, UI_PRESETS, UI_THEME_VAR_MAP } from './components/uiTheme';
@@ -92,6 +96,10 @@ export const LightDrawFull = Object.assign(LightDraw, {
   sampleDriveFrames,
   animateAutoValue,
   setAutoValue,
+  installAutoWidgetResizeObserver,
+  detachAutoWidgetResizeObserver,
+  updateAutoWidgetProps,
+  listAutomotiveWidgets,
   Diagram,
   applyUiTheme,
   resolveUiTheme,
@@ -151,6 +159,10 @@ export {
   sampleDriveFrames,
   animateAutoValue,
   setAutoValue,
+  installAutoWidgetResizeObserver,
+  detachAutoWidgetResizeObserver,
+  updateAutoWidgetProps,
+  listAutomotiveWidgets,
   animateLiveValue,
   setLiveValue,
   updateChartProps,

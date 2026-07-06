@@ -148,3 +148,13 @@ window.ldAutoProps = function ldAutoProps(type, w, h) {
   if (COMPACT_TYPES.has(type)) return base;
   return base;
 };
+
+/** Prefer live registry list when the full bundle is loaded. */
+function syncAutoCatalog() {
+  if (typeof window !== 'undefined' && window.LightDraw?.listAutomotiveWidgets) {
+    const live = window.LightDraw.listAutomotiveWidgets();
+    if (live?.length) window.LD_AUTO_WIDGET_CATALOG = live;
+  }
+}
+window.syncAutoCatalog = syncAutoCatalog;
+syncAutoCatalog();

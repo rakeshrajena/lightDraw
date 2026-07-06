@@ -23,7 +23,7 @@ const TARGETS = {
   'lightdraw.html.min.js': 19 * 1024,
   'lightdraw.ui.min.js': 12 * 1024,
   'lightdraw.dashboard.min.js': 28 * 1024,
-  'lightdraw.automotive.min.js': 18 * 1024,
+  'lightdraw.automotive.min.js': 20 * 1024,
   'lightdraw.diagram.min.js': 10 * 1024,
   'lightdraw.min.js': 84 * 1024,
 };

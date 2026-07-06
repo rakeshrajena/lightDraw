@@ -145,6 +145,11 @@ main {
   height: 520px;
 }
 
+.demo-frame--automotive {
+  height: 560px;
+  min-height: 480px;
+}
+
 .demo-frame--compact {
   height: 480px;
 }

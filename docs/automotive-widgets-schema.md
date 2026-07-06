@@ -66,6 +66,35 @@ setInterval(() => {
 }, 100);
 ```
 
+## Responsive layout
+
+Widgets rebuild from `autoState` when size props change — no manual destroy/remount needed.
+
+```javascript
+import {
+  createAutomotiveFromJSON,
+  installAutoWidgetResizeObserver,
+  detachAutoWidgetResizeObserver,
+  updateAutoWidgetProps,
+} from 'lightdraw/automotive';
+
+const root = createAutomotiveFromJSON('speedometer', { value: 72, width: 200, height: 160, x: 0, y: 0 }, app);
+app.add(root);
+
+// Option A: observe a container element (recommended)
+installAutoWidgetResizeObserver(root, containerElement, { padding: 8 });
+
+// Option B: patch props directly
+updateAutoWidgetProps(root, { width: 300, height: 180, value: 88 });
+
+// Cleanup
+detachAutoWidgetResizeObserver(root);
+```
+
+`display: 'analog' | 'digital'` on supported widgets switches needle dials vs LCD readouts (`resolveDisplay()` in builders).
+
+All widgets use `resolveBounds()` for fluid width/height/size. `fitAutoWidgetToContainer()` delegates to the same helper so resize observers and manual `updateAutoWidgetProps()` stay consistent across the full catalog (160+ types). Instrument cluster layouts scale proportionally via `resolveClusterLayout()`.
+
 ## JSON round-trip
 
 ```javascript

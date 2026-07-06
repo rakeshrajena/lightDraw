@@ -42,7 +42,13 @@ export function beginShapeClip(ctx: CanvasRenderingContext2D, node: Node): void 
     );
   } else if ('children' in node) {
     const g = node as Group;
-    if (g.children.length === 0) {
+    const meta = g.metadata ?? {};
+    const state = meta.autoState as { width?: number; height?: number } | undefined;
+    const aw = meta.autoWidth ?? state?.width;
+    const ah = meta.autoHeight ?? state?.height;
+    if (typeof aw === 'number' && typeof ah === 'number' && aw > 0 && ah > 0) {
+      ctx.rect(0, 0, aw, ah);
+    } else if (g.children.length === 0) {
       ctx.rect(0, 0, 0, 0);
     } else {
       let minX = Infinity;

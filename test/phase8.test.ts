@@ -6,6 +6,9 @@ import {
   sampleDriveFrames,
   automotiveToJSON,
   listAutomotiveWidgets,
+  updateAutoWidgetProps,
+  installAutoWidgetResizeObserver,
+  detachAutoWidgetResizeObserver,
 } from '../src/automotive/registry';
 import { setAutoValue } from '../src/automotive/helpers';
 import { getTheme, THEMES } from '../src/automotive/themes';
@@ -42,6 +45,50 @@ describe('Phase 8 — Automotive Module', () => {
     expect(parseInt(el!.style.width, 10)).toBeGreaterThan(0);
     expect(parseInt(el!.style.height, 10)).toBeGreaterThan(0);
     app.destroy();
+  });
+
+  it('updateAutoWidgetProps rebuilds widget dimensions', () => {
+    const container = createTestContainer(240, 140);
+    const app = createTestApp(container, { renderer: 'html', width: 240, height: 140, autoResize: false });
+    const gauge = createAutomotiveFromJSON(
+      'fuelGauge',
+      { value: 65, width: 200, height: 100, x: 0, y: 0 },
+      app
+    )!;
+    app.add(gauge);
+    app.render();
+    updateAutoWidgetProps(gauge, { width: 280, height: 120 });
+    app.render();
+    expect(gauge.metadata.chartWidth).toBe(280);
+    expect(gauge.metadata.chartHeight).toBe(120);
+    const el = container.querySelector(`#${gauge.id}`) as HTMLElement | null;
+    expect(parseInt(el!.style.width, 10)).toBe(280);
+    expect(parseInt(el!.style.height, 10)).toBe(120);
+    app.destroy();
+  });
+
+  it('installAutoWidgetResizeObserver attaches and resizes widget', () => {
+    const wrap = document.createElement('div');
+    wrap.style.width = '200px';
+    wrap.style.height = '120px';
+    document.body.appendChild(wrap);
+    const app = createTestApp(wrap, { renderer: 'html', width: 200, height: 120, autoResize: false });
+    const gauge = createAutomotiveFromJSON(
+      'speedometer',
+      { value: 42, width: 200, height: 120, x: 0, y: 0 },
+      app
+    )!;
+    app.add(gauge);
+    app.render();
+    expect(() => installAutoWidgetResizeObserver(gauge, wrap)).not.toThrow();
+    expect(gauge.metadata.resizeObserverAttached).toBe(true);
+    expect(gauge.metadata.chartWidth).toBe(200);
+    updateAutoWidgetProps(gauge, { width: 260, height: 150 });
+    expect(gauge.metadata.chartWidth).toBe(260);
+    expect(gauge.metadata.chartHeight).toBe(150);
+    detachAutoWidgetResizeObserver(gauge);
+    app.destroy();
+    wrap.remove();
   });
 
   for (const type of PHASE8_WIDGETS) {
@@ -143,7 +190,17 @@ describe('Phase 8 — Automotive Module', () => {
       turnLeft: true,
     });
     app.render();
-    const speedo = cluster.children.find((c) => c.metadata?.autoPart === 'speedometer');
+    const findAutoPart = (parent: import('../src/shapes/Group').Group, part: string): import('../src/Node').Node | undefined => {
+      for (const child of parent.children) {
+        if (child.metadata?.autoPart === part) return child;
+        if ('children' in child) {
+          const found = findAutoPart(child as import('../src/shapes/Group').Group, part);
+          if (found) return found;
+        }
+      }
+      return undefined;
+    };
+    const speedo = findAutoPart(cluster as import('../src/shapes/Group').Group, 'speedometer');
     expect(speedo?.metadata.autoState?.value).toBe(88);
     app.destroy();
   });

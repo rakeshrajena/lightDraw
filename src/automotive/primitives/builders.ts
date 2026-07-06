@@ -12,7 +12,7 @@ import {
   setState,
   str,
 } from '../helpers';
-import { centerInBounds, fluidFont, resolveBounds, resolveDisplay } from '../layout';
+import { autoCenteredText, centerInBounds, fluidFont, isCompactBounds, resolveBounds, resolveDisplay } from '../layout';
 import { getTheme } from '../themes';
 import { buildDialGauge, updateDialNeedle } from '../../primitives/dialGauge';
 import {
@@ -28,7 +28,7 @@ const DIAL_LABELS: Record<string, string> = {
   tachometer: 'RPM',
   turboBoostGauge: 'Boost',
   torqueMeter: 'Torque',
-  horsepowerMeter: 'Power',
+  horsepowerMeter: 'HP',
   engineLoad: 'Load',
   throttlePosition: 'Throttle',
   brakePressure: 'Brake',
@@ -36,7 +36,7 @@ const DIAL_LABELS: Record<string, string> = {
   yawRate: 'Yaw',
   altimeter: 'Alt',
   oilPressure: 'Oil',
-  powerMeter: 'Power',
+  powerMeter: 'kW',
   gForceMeter: 'G',
   engineTemp: 'Temp',
   engineTemperature: 'Engine',
@@ -45,7 +45,10 @@ const DIAL_LABELS: Record<string, string> = {
 };
 
 function dialLabel(type: string): string {
-  return DIAL_LABELS[type] ?? type.replace(/([A-Z])/g, ' $1').trim();
+  if (DIAL_LABELS[type]) return DIAL_LABELS[type];
+  const words = type.replace(/([A-Z])/g, ' $1').trim().split(/\s+/);
+  if (words.length <= 2) return words.join(' ');
+  return words.map((w) => w[0]?.toUpperCase() ?? '').join('');
 }
 
 export function formatValue(v: number, format: ValueFormat, unit = ''): string {
@@ -86,7 +89,8 @@ export function buildDialWidget(
   const value = num(props, 'value', 0);
   const max = num(props, 'max', options.max);
   const fmt = (v: number) => formatValue(v, options.format, options.unit);
-  const display = resolveDisplay(props, 'analog');
+  let display = resolveDisplay(props, 'analog');
+  if (display === 'analog' && isCompactBounds(bounds)) display = 'digital';
 
   if (display === 'digital') {
     const group = createAutoGroup(
@@ -97,7 +101,9 @@ export function buildDialWidget(
     );
     const style = digitalGaugeStyle(theme);
     const digitalFmt =
-      options.format === 'rpm' ? (v: number) => String(Math.round(v)) : fmt;
+      options.format === 'rpm'
+        ? (v: number) => String(Math.round(v))
+        : (v: number) => String(Math.round(v));
     const digitalUnit = options.format === 'rpm' ? 'RPM' : options.unit;
     const parts = buildDigitalGauge(app, group, bounds, style, {
       label: dialLabel(autoPart),
@@ -105,8 +111,8 @@ export function buildDialWidget(
       max,
       unit: digitalUnit,
       formatValue: digitalFmt,
-      showBar: true,
-      showSegments: autoPart === 'tachometer' || options.format === 'rpm',
+      showBar: !isCompactBounds(bounds),
+      showSegments: !isCompactBounds(bounds) && (autoPart === 'tachometer' || options.format === 'rpm'),
       segmentCount: 10,
     });
     const barW = bounds.innerWidth - bounds.pad;
@@ -128,7 +134,8 @@ export function buildDialWidget(
     autoPart
   );
   const cx = size / 2;
-  const r = size / 2 - Math.max(10, size * 0.07);
+  const inset = Math.max(4, Math.min(12, size * 0.1));
+  const r = size / 2 - inset;
   const origin = centerInBounds(bounds, size, size);
   const inner = app.group({ x: origin.x, y: origin.y, listening: false });
   group.add(inner);
@@ -150,8 +157,8 @@ export function buildDialWidget(
       value,
       max,
       formatValue: fmt,
-      tickCount: options.tickCount ?? (size < 100 ? 6 : 10),
-      showTickLabels: size >= 88,
+      tickCount: options.tickCount ?? (size < 100 ? 5 : 10),
+      showTickLabels: size >= 96,
       redlineFrom: options.redlineFrom,
     }
   );
@@ -222,16 +229,10 @@ export function buildBarWidget(
     cornerRadius: trackH / 2,
     listening: false,
   });
-  const label = app.text({
-    text: `${value}${options.unit ?? '%'}`,
-    x: w / 2,
-    y: h * 0.38,
+  const label = autoCenteredText(app, `${value}${options.unit ?? '%'}`, w, h * 0.4, {
     fontSize: valueSize,
     fontWeight: 'bold',
     fill: theme.text,
-    textAlign: 'center',
-    textBaseline: 'middle',
-    listening: false,
   });
   group.add(track, fill, label);
   setParts(group, { fill, label, track });
@@ -314,17 +315,13 @@ export function buildNumericWidget(
       listening: false,
     })
   );
-  const label = app.text({
-    text: text || `${value.toFixed(dec)}${options.unit ?? ''}`,
-    x: w / 2,
-    y: h * 0.58,
-    fontSize: valueSize,
-    fontWeight: 'bold',
-    fill: theme.text,
-    textAlign: 'center',
-    textBaseline: 'middle',
-    listening: false,
-  });
+  const label = autoCenteredText(
+    app,
+    text || `${value.toFixed(dec)}${options.unit ?? ''}`,
+    w,
+    h * 0.58,
+    { fontSize: valueSize, fontWeight: 'bold', fill: theme.text }
+  );
   group.add(label);
   setParts(group, { label });
   setRefresh(group, (v) => {
@@ -364,10 +361,13 @@ export function buildLampWidget(
   });
   const sym = app.text({
     text: symbol,
-    x: center.x + radius - fontSize * (symbol.length > 2 ? 1.2 : 0.55),
-    y: center.y + radius - fontSize * 0.55,
+    x: center.x + radius,
+    y: center.y + radius,
     fontSize,
     fill: active ? '#111' : '#666',
+    textAlign: 'center',
+    textBaseline: 'middle',
+    metadata: { textBoxWidth: radius * 2 },
     listening: false,
   });
   group.add(lamp, sym);
@@ -394,7 +394,8 @@ export function buildBadgeWidget(
   const bounds = resolveBounds(props, Math.min(168, title.length * 8 + 32), 44);
   const group = createAutoGroup(app, type, { ...props, width: bounds.width, height: bounds.height }, autoPart);
   const w = bounds.innerWidth;
-  const badgeH = Math.max(22, Math.round(bounds.innerHeight * 0.55));
+  const h = bounds.innerHeight;
+  const badgeH = Math.max(18, Math.round(h * 0.42));
   const colors: Record<string, string> = {
     off: '#333',
     on: theme.ok,
@@ -406,7 +407,24 @@ export function buildBadgeWidget(
     disconnected: '#333',
   };
   const key = status.toLowerCase();
-  const badgeY = bounds.pad + Math.max(10, bounds.innerHeight * 0.28);
+  const titleSize = fluidFont(8, bounds, 7, 9);
+  const capH = titleSize + 4;
+  const stackH = capH + badgeH + 4;
+  const stackY = bounds.pad + Math.max(0, (h - stackH) / 2);
+  const badgeY = stackY + capH;
+
+  group.add(
+    app.roundedRect({
+      width: w,
+      height: h,
+      cornerRadius: Math.min(8, h * 0.12),
+      fill: '#111827',
+      stroke: theme.dialStroke,
+      strokeWidth: 1,
+      listening: false,
+    })
+  );
+
   const bg = app.roundedRect({
     width: w,
     height: badgeH,
@@ -415,25 +433,14 @@ export function buildBadgeWidget(
     fill: active ? theme.ok : (colors[key] ?? '#333'),
     listening: false,
   });
-  const label = app.text({
-    text: status.toUpperCase(),
-    x: w / 2,
-    y: badgeY + badgeH / 2,
+  const label = autoCenteredText(app, status.toUpperCase(), w, badgeY + badgeH / 2, {
     fontSize: fluidFont(10, bounds, 8, 12),
     fontWeight: 'bold',
     fill: '#fff',
-    textAlign: 'center',
-    textBaseline: 'middle',
-    listening: false,
   });
-  const cap = app.text({
-    text: title,
-    x: w / 2,
-    y: bounds.pad,
-    fontSize: fluidFont(8, bounds, 7, 9),
+  const cap = autoCenteredText(app, title.length > 14 ? title.slice(0, 13) + '…' : title, w, stackY + capH / 2, {
+    fontSize: titleSize,
     fill: theme.textMuted,
-    textAlign: 'center',
-    listening: false,
   });
   group.add(cap, bg, label);
   setParts(group, { bg, label });
@@ -464,9 +471,12 @@ export function buildInfoPanel(
   const group = createAutoGroup(app, type, { ...props, width: bounds.width, height: bounds.height }, autoPart);
   const w = bounds.innerWidth;
   const h = bounds.innerHeight;
-  const rowH = Math.max(14, Math.floor((h - 28) / Math.max(lines.length, 1)));
-  const titleSize = fluidFont(9, bounds, 8, 11);
-  const rowSize = fluidFont(10, bounds, 8, 12);
+  const titleSize = fluidFont(9, bounds, 7, 11);
+  const rowSize = fluidFont(10, bounds, 7, 11);
+  const titleH = titleSize + 8;
+  const maxRows = Math.max(1, Math.floor((h - titleH - 4) / 11));
+  const visibleLines = lines.slice(0, maxRows);
+  const rowH = Math.max(11, Math.floor((h - titleH - 4) / Math.max(visibleLines.length, 1)));
 
   group.add(
     app.roundedRect({
@@ -489,11 +499,11 @@ export function buildInfoPanel(
     })
   );
   const rowNodes: TextNode[] = [];
-  lines.forEach((line, i) => {
+  visibleLines.forEach((line, i) => {
     const row = app.text({
-      text: line,
+      text: line.length > 22 ? line.slice(0, 21) + '…' : line,
       x: bounds.pad * 0.5,
-      y: 22 + i * rowH,
+      y: titleH + i * rowH,
       fontSize: rowSize,
       fill: theme.text,
       listening: false,

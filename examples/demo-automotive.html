@@ -60,32 +60,43 @@
       height: 420,
       background: '#0a0a0a',
       renderer: 'canvas',
-      autoResize: true,
+      autoResize: false,
     });
 
     const widgetMounts = [];
+    let lastClusterSize = { w: 0, h: 0 };
+    let clusterResizeTimer = 0;
 
     function clusterWrapSize() {
       const wrap = document.querySelector('#view-cluster .demo-canvas-wrap');
       if (!wrap) return { w: 920, h: 420 };
+      const w = wrap.clientWidth;
+      const h = wrap.clientHeight;
       return {
-        w: Math.max(320, wrap.clientWidth - 8),
-        h: Math.max(260, wrap.clientHeight - 8),
+        w: Math.max(320, w),
+        h: Math.max(200, h),
       };
     }
 
-    function loadCluster(theme) {
-      cluster = null;
-      const { w, h } = clusterWrapSize();
+    function applyClusterCanvasSize(w, h) {
+      const size = clusterApp.getSize?.() ?? { width: 0, height: 0 };
+      if (size.width === w && size.height === h) return;
       clusterApp.resize(w, h);
+    }
+
+    function loadCluster(theme) {
+      const { w, h } = clusterWrapSize();
+      if (w < 100 || h < 100) return;
+      lastClusterSize = { w, h };
+      applyClusterCanvasSize(w, h);
       clusterApp.loadJSON({
         type: 'instrumentCluster',
         props: {
           theme,
-          width: w - 20,
-          height: h - 20,
-          x: 10,
-          y: 10,
+          width: w,
+          height: h,
+          x: 0,
+          y: 0,
           speed: 0,
           rpm: 800,
           fuel: 75,
@@ -97,9 +108,50 @@
         },
       });
       cluster = clusterApp.stage.children[0];
+      clusterApp.render();
     }
 
-    loadCluster('classic');
+    function syncClusterSize() {
+      if (document.getElementById('view-cluster')?.hidden) return;
+      const { w, h } = clusterWrapSize();
+      if (w < 100 || h < 100) return;
+      if (Math.abs(lastClusterSize.w - w) < 2 && Math.abs(lastClusterSize.h - h) < 2) return;
+      lastClusterSize = { w, h };
+
+      const theme = document.getElementById('theme')?.value || 'classic';
+      if (!cluster) {
+        loadCluster(theme);
+        return;
+      }
+
+      applyClusterCanvasSize(w, h);
+      if (LightDraw.updateAutoWidgetProps) {
+        LightDraw.updateAutoWidgetProps(cluster, { width: w, height: h });
+      }
+      clusterApp.render();
+    }
+
+    function scheduleClusterResize() {
+      clearTimeout(clusterResizeTimer);
+      clusterResizeTimer = setTimeout(syncClusterSize, 120);
+    }
+
+    function initClusterLayoutWatch() {
+      const wrap = document.querySelector('#view-cluster .demo-canvas-wrap');
+      if (!wrap) return;
+      if (typeof ResizeObserver !== 'undefined') {
+        const ro = new ResizeObserver(scheduleClusterResize);
+        ro.observe(wrap);
+      }
+      window.addEventListener('resize', scheduleClusterResize);
+      window.addEventListener('load', () => {
+        lastClusterSize = { w: 0, h: 0 };
+        scheduleClusterResize();
+      });
+      scheduleClusterResize();
+    }
+
+    initClusterLayoutWatch();
 
     function applyFrame(state) {
       if (!cluster || !LightDraw.applyDriveState) return;
@@ -158,18 +210,16 @@
 
     function mountAutoWidget(type, container) {
       let app = null;
-      let lastKey = '';
-      const render = () => {
+      let root = null;
+      let layoutRo = null;
+
+      const init = () => {
         const cw = Math.max(container.clientWidth, 120);
         const ch = Math.max(container.clientHeight, 80);
         if (cw < 8 || ch < 8) return;
-        const key = `${cw}x${ch}`;
-        if (key === lastKey && app) return;
-        lastKey = key;
-        app?.destroy();
+        if (app) return;
+
         const props = window.ldAutoProps(type, cw, ch);
-        props.x = 0;
-        props.y = 0;
         app = LightDraw.createApp(container, {
           renderer: 'html',
           width: cw,
@@ -177,22 +227,29 @@
           background: '#0a0a0a',
           autoResize: false,
         });
-        app.loadJSON({ type, props });
+        root = app.loadJSON({ type, props: { ...props, x: 0, y: 0 } });
+        if (root && LightDraw.installAutoWidgetResizeObserver) {
+          LightDraw.installAutoWidgetResizeObserver(root, container);
+        }
         app.render();
       };
-      const ro = typeof ResizeObserver !== 'undefined'
-        ? new ResizeObserver(() => requestAnimationFrame(render))
+
+      layoutRo = typeof ResizeObserver !== 'undefined'
+        ? new ResizeObserver(() => requestAnimationFrame(init))
         : null;
-      ro?.observe(container);
-      requestAnimationFrame(render);
+      layoutRo?.observe(container);
+      requestAnimationFrame(init);
+
       const mount = {
         type,
-        container,
-        ro,
         destroy: () => {
-          ro?.disconnect();
+          layoutRo?.disconnect();
+          if (root && LightDraw.detachAutoWidgetResizeObserver) {
+            LightDraw.detachAutoWidgetResizeObserver(root);
+          }
           app?.destroy();
           app = null;
+          root = null;
         },
       };
       widgetMounts.push(mount);
@@ -202,8 +259,9 @@
     function buildWidgetGallery(filter = '') {
       const gallery = document.getElementById('widget-gallery');
       if (!gallery) return;
-      const q = filter.trim().toLowerCase();
+      if (typeof window.syncAutoCatalog === 'function') window.syncAutoCatalog();
       const catalog = window.LD_AUTO_WIDGET_CATALOG || [];
+      const q = filter.trim().toLowerCase();
       const types = catalog.filter((t) => !q || t.toLowerCase().includes(q));
       const countEl = document.getElementById('widget-count');
       if (countEl) {
@@ -251,6 +309,7 @@
         btn.classList.toggle('secondary', btn.dataset.view !== view);
       });
       if (!isCluster) buildWidgetGallery(document.getElementById('widget-search')?.value || '');
+      else scheduleClusterResize();
       if (!isEmbed()) {
         const url = new URL(location.href);
         if (view === 'widgets') url.hash = 'widgets';
@@ -271,23 +330,6 @@
     if (location.hash === '#widgets' && !isEmbed()) {
       setView('widgets');
     }
-
-    let clusterResizeTimer = null;
-    window.addEventListener('resize', () => {
-      clearTimeout(clusterResizeTimer);
-      clusterResizeTimer = setTimeout(() => {
-        if (!document.getElementById('view-cluster').hidden) {
-          const theme = document.getElementById('theme')?.value || 'classic';
-          const wasRunning = !!driveTimer;
-          const idx = frameIndex;
-          if (driveTimer) clearInterval(driveTimer);
-          driveTimer = null;
-          loadCluster(theme);
-          frameIndex = idx;
-          if (wasRunning) toggleDrive();
-        }
-      }, 150);
-    });
   </script>
 </body>
 </html>
