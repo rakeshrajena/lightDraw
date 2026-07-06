@@ -316,8 +316,8 @@ export class HTMLRenderer extends Renderer {
 
     if ('children' in node) {
       const bounds = (node as Group).getBounds();
-      const chartW = node.metadata?.chartWidth as number | undefined;
-      const chartH = node.metadata?.chartHeight as number | undefined;
+      const chartW = (node.metadata?.chartWidth ?? node.metadata?.autoWidth) as number | undefined;
+      const chartH = (node.metadata?.chartHeight ?? node.metadata?.autoHeight) as number | undefined;
       if (node.metadata?.componentType && bounds.width > 0) {
         el.style.width = `${bounds.width}px`;
         el.style.height = `${Math.max(bounds.height, 1)}px`;

@@ -16,6 +16,8 @@
     aside h2 { font-size: 1rem; margin-bottom: 0.75rem; }
     aside button { display: block; width: 100%; padding: 0.5rem; margin-bottom: 0.5rem; background: #2563eb; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
     aside button:hover { background: #1d4ed8; }
+    aside a.demo-link { display: block; font-size: 0.8rem; color: #93c5fd; text-decoration: none; margin: -0.25rem 0 0.5rem 0.25rem; }
+    aside a.demo-link:hover { text-decoration: underline; }
     pre { background: #0f172a; padding: 0.75rem; border-radius: 4px; font-size: 0.75rem; overflow: auto; max-height: 200px; }
   </style>
 </head>
@@ -31,7 +33,9 @@
       <button onclick="demoShapes()">Basic Shapes</button>
       <button onclick="demoAnimation()">Animation</button>
       <button onclick="demoDashboard()">Dashboard</button>
+      <a class="demo-link" href="demo-dashboard.html">Full dashboard demo →</a>
       <button onclick="demoAutomotive()">Automotive Cluster</button>
+      <a class="demo-link" href="demo-automotive.html">Full automotive demo →</a>
       <button onclick="demoTimeline()">Timeline</button>
       <h2 style="margin-top:1rem">Scene JSON</h2>
       <pre id="json-output"></pre>

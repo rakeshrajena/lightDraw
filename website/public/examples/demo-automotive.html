@@ -13,47 +13,77 @@
     <header class="demo-header">
       <span class="demo-badge">Automotive Module</span>
       <h1>Digital Instrument Cluster</h1>
-      <p>Full cockpit simulation with classic, sport, and digital themes — canvas renderer for crisp dials.</p>
+      <p>Full cockpit simulation plus a <strong>160-widget</strong> automotive catalog — dials, gauges, ADAS lamps, media panels, and EV charging.</p>
     </header>
     <main class="demo-main">
-      <div class="demo-toolbar">
-        <button class="demo-btn" onclick="toggleDrive()">Toggle drive simulation</button>
-        <button class="demo-btn secondary" onclick="randomFrame()">Random frame</button>
-        <label class="demo-label">Theme
-          <select class="demo-select" id="theme" onchange="setTheme(this.value)">
-            <option value="classic">Classic</option>
-            <option value="sport">Sport</option>
-            <option value="digital">Digital</option>
-          </select>
-        </label>
+      <div class="demo-view-tabs" id="view-tabs">
+        <button type="button" class="demo-btn is-active" data-view="cluster">Instrument cluster</button>
+        <button type="button" class="demo-btn secondary" data-view="widgets">Widget catalog (160)</button>
       </div>
-      <div class="demo-canvas-wrap">
-        <div id="app"></div>
+      <div id="view-cluster">
+        <div class="demo-toolbar">
+          <button class="demo-btn" onclick="toggleDrive()">Toggle drive simulation</button>
+          <button class="demo-btn secondary" onclick="randomFrame()">Random frame</button>
+          <label class="demo-label">Theme
+            <select class="demo-select" id="theme" onchange="setTheme(this.value)">
+              <option value="classic">Classic</option>
+              <option value="sport">Sport</option>
+              <option value="digital">Digital</option>
+            </select>
+          </label>
+        </div>
+        <div class="demo-canvas-wrap">
+          <div id="app"></div>
+        </div>
+      </div>
+      <div class="chart-catalog-wrap" id="view-widgets" hidden>
+        <div class="demo-toolbar">
+          <input type="search" id="widget-search" placeholder="Filter widgets…" aria-label="Filter widgets">
+          <span class="chart-count" id="widget-count"></span>
+        </div>
+        <div class="chart-gallery" id="widget-gallery"></div>
       </div>
     </main>
   </div>
   <script src="../lightdraw.min.js"></script>
+  <script src="demo-auto-catalog.js"></script>
   <script>
+    const isEmbed = () => document.documentElement.classList.contains('demo-embed');
+
     let driveTimer = null;
     let frameIndex = 0;
     let cluster = null;
     const frames = LightDraw.sampleDriveFrames ? LightDraw.sampleDriveFrames(120) : [];
 
-    const app = LightDraw.createApp('#app', {
+    const clusterApp = LightDraw.createApp('#app', {
       width: 920,
       height: 420,
       background: '#0a0a0a',
       renderer: 'canvas',
+      autoResize: true,
     });
+
+    const widgetMounts = [];
+
+    function clusterWrapSize() {
+      const wrap = document.querySelector('#view-cluster .demo-canvas-wrap');
+      if (!wrap) return { w: 920, h: 420 };
+      return {
+        w: Math.max(320, wrap.clientWidth - 8),
+        h: Math.max(260, wrap.clientHeight - 8),
+      };
+    }
 
     function loadCluster(theme) {
       cluster = null;
-      app.loadJSON({
+      const { w, h } = clusterWrapSize();
+      clusterApp.resize(w, h);
+      clusterApp.loadJSON({
         type: 'instrumentCluster',
         props: {
           theme,
-          width: 900,
-          height: 400,
+          width: w - 20,
+          height: h - 20,
           x: 10,
           y: 10,
           speed: 0,
@@ -66,7 +96,7 @@
           parkingBrake: true,
         },
       });
-      cluster = app.stage.children[0];
+      cluster = clusterApp.stage.children[0];
     }
 
     loadCluster('classic');
@@ -118,6 +148,146 @@
       loadCluster(theme);
       if (wasRunning) toggleDrive();
     }
+
+    function destroyWidgetGallery() {
+      widgetMounts.forEach((m) => m.destroy());
+      widgetMounts.length = 0;
+      const gallery = document.getElementById('widget-gallery');
+      if (gallery) gallery.innerHTML = '';
+    }
+
+    function mountAutoWidget(type, container) {
+      let app = null;
+      let lastKey = '';
+      const render = () => {
+        const cw = Math.max(container.clientWidth, 120);
+        const ch = Math.max(container.clientHeight, 80);
+        if (cw < 8 || ch < 8) return;
+        const key = `${cw}x${ch}`;
+        if (key === lastKey && app) return;
+        lastKey = key;
+        app?.destroy();
+        const props = window.ldAutoProps(type, cw, ch);
+        props.x = 0;
+        props.y = 0;
+        app = LightDraw.createApp(container, {
+          renderer: 'html',
+          width: cw,
+          height: ch,
+          background: '#0a0a0a',
+          autoResize: false,
+        });
+        app.loadJSON({ type, props });
+        app.render();
+      };
+      const ro = typeof ResizeObserver !== 'undefined'
+        ? new ResizeObserver(() => requestAnimationFrame(render))
+        : null;
+      ro?.observe(container);
+      requestAnimationFrame(render);
+      const mount = {
+        type,
+        container,
+        ro,
+        destroy: () => {
+          ro?.disconnect();
+          app?.destroy();
+          app = null;
+        },
+      };
+      widgetMounts.push(mount);
+      return mount;
+    }
+
+    function buildWidgetGallery(filter = '') {
+      const gallery = document.getElementById('widget-gallery');
+      if (!gallery) return;
+      const q = filter.trim().toLowerCase();
+      const catalog = window.LD_AUTO_WIDGET_CATALOG || [];
+      const types = catalog.filter((t) => !q || t.toLowerCase().includes(q));
+      const countEl = document.getElementById('widget-count');
+      if (countEl) {
+        countEl.textContent = `${types.length} widget${types.length === 1 ? '' : 's'}`;
+      }
+
+      destroyWidgetGallery();
+
+      let i = 0;
+      const batch = 6;
+      function renderBatch() {
+        const slice = types.slice(i, i + batch);
+        if (!slice.length) return;
+        slice.forEach((type) => {
+          const card = document.createElement('div');
+          card.className = 'chart-card';
+          card.innerHTML = `
+            <div class="chart-card-head">
+              <h3>${type}</h3>
+            </div>
+            <div class="mini-canvas"></div>`;
+          gallery.appendChild(card);
+          try {
+            mountAutoWidget(type, card.querySelector('.mini-canvas'));
+          } catch (err) {
+            console.warn('Widget failed:', type, err);
+            card.querySelector('.mini-canvas').innerHTML =
+              `<p style="color:#94a3b8;font-size:12px;padding:8px">${type}</p>`;
+          }
+        });
+        i += batch;
+        if (i < types.length) requestAnimationFrame(renderBatch);
+      }
+      renderBatch();
+    }
+
+    function setView(view) {
+      const clusterView = document.getElementById('view-cluster');
+      const widgetsView = document.getElementById('view-widgets');
+      const isCluster = view === 'cluster';
+      clusterView.hidden = !isCluster;
+      widgetsView.hidden = isCluster;
+      document.querySelectorAll('#view-tabs [data-view]').forEach((btn) => {
+        btn.classList.toggle('is-active', btn.dataset.view === view);
+        btn.classList.toggle('secondary', btn.dataset.view !== view);
+      });
+      if (!isCluster) buildWidgetGallery(document.getElementById('widget-search')?.value || '');
+      if (!isEmbed()) {
+        const url = new URL(location.href);
+        if (view === 'widgets') url.hash = 'widgets';
+        else url.hash = '';
+        history.replaceState(null, '', url);
+      }
+    }
+
+    document.getElementById('view-tabs').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-view]');
+      if (btn) setView(btn.dataset.view);
+    });
+
+    document.getElementById('widget-search').addEventListener('input', (e) => {
+      buildWidgetGallery(e.target.value);
+    });
+
+    if (location.hash === '#widgets' && !isEmbed()) {
+      setView('widgets');
+    }
+
+    let clusterResizeTimer = null;
+    window.addEventListener('resize', () => {
+      clearTimeout(clusterResizeTimer);
+      clusterResizeTimer = setTimeout(() => {
+        if (!document.getElementById('view-cluster').hidden) {
+          const theme = document.getElementById('theme')?.value || 'classic';
+          const wasRunning = !!driveTimer;
+          const idx = frameIndex;
+          if (driveTimer) clearInterval(driveTimer);
+          driveTimer = null;
+          loadCluster(theme);
+          frameIndex = idx;
+          if (wasRunning) toggleDrive();
+        }
+      }, 150);
+    });
   </script>
 </body>
 </html>

@@ -3205,6 +3205,7 @@ function createWidgetGroup(app, type, props, extra = {}) {
   const group = app.group({
     ...props,
     listening: true,
+    ...w > 0 && h > 0 ? { clip: true } : {},
     metadata: {
       widgetType: type,
       widgetState: { ...props },
@@ -3300,12 +3301,17 @@ function bindApp3(node, app) {
   }
 }
 function createAutoGroup(app, type, props, autoPart, extra = {}) {
+  const w = num3(props, "width", 0);
+  const h = num3(props, "height", 0);
   const group = app.group({
     ...props,
+    ...w > 0 && h > 0 ? { clip: true } : {},
     metadata: {
       autoType: type,
       autoPart: autoPart ?? type,
-      autoState: { ...props }
+      autoState: { ...props },
+      ...w > 0 ? { autoWidth: w, chartWidth: w } : {},
+      ...h > 0 ? { autoHeight: h, chartHeight: h } : {}
     },
     ...extra
   });
@@ -7319,8 +7325,8 @@ var HTMLRenderer = class extends Renderer {
     this.seenIds.add(node.id);
     if ("children" in node) {
       const bounds = node.getBounds();
-      const chartW = node.metadata?.chartWidth;
-      const chartH = node.metadata?.chartHeight;
+      const chartW = node.metadata?.chartWidth ?? node.metadata?.autoWidth;
+      const chartH = node.metadata?.chartHeight ?? node.metadata?.autoHeight;
       if (node.metadata?.componentType && bounds.width > 0) {
         el.style.width = `${bounds.width}px`;
         el.style.height = `${Math.max(bounds.height, 1)}px`;
@@ -8973,8 +8979,8 @@ function dataBounds(data, minY, maxY) {
     max = min + 1;
   return { min, max };
 }
-function defaultLayout(width, height, padding = 30, reserveLegend = false) {
-  const legendH = reserveLegend ? 22 : 0;
+function defaultLayout(width, height, padding = 30, legendHeight = 0) {
+  const legendH = Math.max(0, legendHeight);
   return {
     plotX: padding,
     plotY: 10,
@@ -10080,7 +10086,9 @@ function buildChartContext(props, series) {
   const minimal = props.minimalAxes === true;
   const showLegend = props.showLegend !== false && !minimal;
   const padding = minimal ? 4 : 30;
-  const layout = defaultLayout(width, height, padding, showLegend);
+  const legendRows = showLegend ? series.length : 0;
+  const legendH = legendRows > 0 ? legendRows * 18 + 8 : 0;
+  const layout = defaultLayout(width, height, padding, legendH);
   const minY = typeof props.minY === "number" ? props.minY : void 0;
   const maxY = typeof props.maxY === "number" ? props.maxY : void 0;
   const bounds = dataBounds(flattenSeriesData(series), minY, maxY);
@@ -13649,6 +13657,21 @@ registerDashboard("chartPanel", (props, app) => {
 });
 
 // src/dashboard/charts/core/responsive.ts
+function isChartAppRoot(chartNode) {
+  const app = chartNode.getApp();
+  if (!app)
+    return false;
+  return app.stage.children.length === 1 && app.stage.children[0] === chartNode;
+}
+function syncAppViewport(chartNode, width, height) {
+  const app = chartNode.getApp();
+  if (!app || !isChartAppRoot(chartNode))
+    return;
+  const size = app.getSize();
+  if (size.width !== width || size.height !== height) {
+    app.resize(width, height);
+  }
+}
 var observers = /* @__PURE__ */ new WeakMap();
 function createResizeObserver(callback) {
   if (typeof ResizeObserver !== "undefined") {
@@ -13707,8 +13730,11 @@ function applyChartContainerSize(chartNode, rawW, rawH, opts) {
   const w = Math.max(opts.minW, Math.floor(rawW - opts.pad));
   const h = Math.max(opts.minH, Math.floor(rawH - opts.pad));
   const last = chartNode.metadata._lastContainerSize;
-  if (last && last.w === w && last.h === h)
+  if (last && last.w === w && last.h === h) {
+    syncAppViewport(chartNode, w, h);
     return;
+  }
+  syncAppViewport(chartNode, w, h);
   const state = getState2(chartNode);
   const patch = {};
   const hasWidth = num2(state, "width", 0) > 0 || "width" in state;
@@ -13753,6 +13779,217 @@ function registerAutomotive(type, factory) {
 function createAutomotiveFromJSON(type, props, app) {
   const factory = registry3[type];
   return factory ? factory(props, app) : null;
+}
+
+// src/automotive/catalog.ts
+var DIAL_WIDGETS = [
+  { kind: "dial", type: "speedometer", max: 240, format: "int", tickCount: 12, redlineFrom: 0.82 },
+  { kind: "dial", type: "tachometer", max: 8e3, format: "rpm", tickCount: 8, redlineFrom: 0.75 },
+  { kind: "dial", type: "turboBoostGauge", max: 30, format: "int", unit: " PSI" },
+  { kind: "dial", type: "torqueMeter", max: 500, format: "int", unit: " Nm" },
+  { kind: "dial", type: "horsepowerMeter", max: 600, format: "int", unit: " HP" },
+  { kind: "dial", type: "engineLoad", max: 100, format: "percent" },
+  { kind: "dial", type: "throttlePosition", max: 100, format: "percent" },
+  { kind: "dial", type: "brakePressure", max: 200, format: "int", unit: " bar" },
+  { kind: "dial", type: "steeringAngle", max: 540, format: "deg" },
+  { kind: "dial", type: "yawRate", max: 45, format: "deg" },
+  { kind: "dial", type: "altimeter", max: 5e3, format: "int", unit: " m" },
+  { kind: "dial", type: "oilPressure", max: 100, format: "int", unit: " PSI" },
+  { kind: "dial", type: "powerMeter", max: 300, format: "int", unit: " kW" },
+  { kind: "dial", type: "gForceMeter", max: 2, format: "int", unit: " G" }
+];
+var BAR_WIDGETS = [
+  { kind: "bar", type: "fuelGauge", label: "Fuel" },
+  { kind: "bar", type: "batteryLevel", label: "Battery", warnBelow: 20 },
+  { kind: "bar", type: "stateOfCharge", label: "SoC", warnBelow: 15 },
+  { kind: "bar", type: "stateOfHealth", label: "SoH", warnBelow: 70 },
+  { kind: "bar", type: "energyConsumption", label: "Energy" },
+  { kind: "bar", type: "regenerativeBrakingMeter", label: "Regen" },
+  { kind: "bar", type: "fanSpeed", label: "Fan" },
+  { kind: "bar", type: "seatHeating", label: "Seat Heat" },
+  { kind: "bar", type: "seatVentilation", label: "Seat Vent" },
+  { kind: "bar", type: "volumeControl", label: "Volume" },
+  { kind: "bar", type: "chargingPower", label: "Charge kW" },
+  { kind: "bar", type: "suspensionHeight", label: "Ride Height" },
+  { kind: "bar", type: "washerFluidLevel", label: "Washer", warnBelow: 20 },
+  { kind: "bar", type: "brakeWearStatus", label: "Brake Wear", warnBelow: 25 },
+  { kind: "bar", type: "brakeFluidStatus", label: "Brake Fluid", warnBelow: 25 }
+];
+var NUMERIC_WIDGETS = [
+  { kind: "numeric", type: "odometer", title: "Odometer", unit: " km" },
+  { kind: "numeric", type: "tripMeter", title: "Trip", unit: " km" },
+  { kind: "numeric", type: "batteryVoltage", title: "Battery", unit: "V", decimals: 1 },
+  { kind: "numeric", type: "fuelEconomy", title: "Fuel Econ", unit: " L/100" },
+  { kind: "numeric", type: "averageFuelEconomy", title: "Avg Econ", unit: " L/100" },
+  { kind: "numeric", type: "instantFuelEconomy", title: "Inst Econ", unit: " L/100" },
+  { kind: "numeric", type: "remainingFuelRange", title: "Fuel Range", unit: " km" },
+  { kind: "numeric", type: "evRemainingRange", title: "EV Range", unit: " km" },
+  { kind: "numeric", type: "outsideTemperature", title: "Outside", unit: "\xB0C" },
+  { kind: "numeric", type: "cabinTemperature", title: "Cabin", unit: "\xB0C" },
+  { kind: "numeric", type: "oilTemperature", title: "Oil Temp", unit: "\xB0C" },
+  { kind: "numeric", type: "coolantTemperature", title: "Coolant", unit: "\xB0C" },
+  { kind: "numeric", type: "engineTemperature", title: "Engine", unit: "\xB0C" },
+  { kind: "numeric", type: "tireTemperature", title: "Tire Temp", unit: "\xB0C" },
+  { kind: "numeric", type: "eta", title: "ETA", unit: "" },
+  { kind: "numeric", type: "chargingTimer", title: "Charge Timer", unit: " min" },
+  { kind: "numeric", type: "performanceTimer", title: "Perf Timer", unit: " s" },
+  { kind: "numeric", type: "lapTimer", title: "Lap Timer", unit: " s", decimals: 2 },
+  { kind: "numeric", type: "accelerationTimer", title: "0-100", unit: " s", decimals: 1 },
+  { kind: "numeric", type: "compassHeading", title: "Heading", unit: "\xB0" },
+  { kind: "numeric", type: "pitchRollIndicator", title: "Pitch/Roll", unit: "\xB0" },
+  { kind: "numeric", type: "airQualityIndex", title: "AQI", unit: "" },
+  { kind: "numeric", type: "speedLimitRecognition", title: "Speed Limit", unit: "" },
+  { kind: "numeric", type: "digitalClock", title: "Clock", unit: "" },
+  { kind: "numeric", type: "dateDisplay", title: "Date", unit: "" }
+];
+var LAMP_WIDGETS = [
+  { kind: "lamp", type: "parkingBrake", symbol: "P" },
+  { kind: "lamp", type: "parkingBrakeStatus", symbol: "P" },
+  { kind: "lamp", type: "headlights", symbol: "HL" },
+  { kind: "lamp", type: "headlightStatus", symbol: "HL" },
+  { kind: "lamp", type: "highBeamStatus", symbol: "HB" },
+  { kind: "lamp", type: "fogLightStatus", symbol: "FG" },
+  { kind: "lamp", type: "hazardLights", symbol: "HZ" },
+  { kind: "lamp", type: "absStatus", symbol: "ABS" },
+  { kind: "lamp", type: "electronicStabilityControl", symbol: "ESC" },
+  { kind: "lamp", type: "tractionControl", symbol: "TC" },
+  { kind: "lamp", type: "airbagStatus", symbol: "AIR" },
+  { kind: "lamp", type: "seatBeltStatus", symbol: "BELT" },
+  { kind: "lamp", type: "doorOpenStatus", symbol: "DOOR" },
+  { kind: "lamp", type: "hoodOpenStatus", symbol: "HOOD" },
+  { kind: "lamp", type: "trunkTailgateStatus", symbol: "TRK" },
+  { kind: "lamp", type: "windowStatus", symbol: "WIN" },
+  { kind: "lamp", type: "wiperStatus", symbol: "WIP" },
+  { kind: "lamp", type: "rainSensor", symbol: "RAIN" },
+  { kind: "lamp", type: "autoHoldStatus", symbol: "HOLD" },
+  { kind: "lamp", type: "awdFourWdStatus", symbol: "AWD" },
+  { kind: "lamp", type: "differentialLock", symbol: "DIFF" },
+  { kind: "lamp", type: "trailerMode", symbol: "TOW" },
+  { kind: "lamp", type: "towAssist", symbol: "TOW+" },
+  { kind: "lamp", type: "laneKeepAssist", symbol: "LKA" },
+  { kind: "lamp", type: "laneDepartureWarning", symbol: "LDW" },
+  { kind: "lamp", type: "blindSpotMonitoring", symbol: "BSM" },
+  { kind: "lamp", type: "forwardCollisionWarning", symbol: "FCW" },
+  { kind: "lamp", type: "automaticEmergencyBraking", symbol: "AEB" },
+  { kind: "lamp", type: "parkingAssist", symbol: "PARK" },
+  { kind: "lamp", type: "driveModeIndicator", symbol: "MODE" },
+  { kind: "lamp", type: "steeringWheelHeater", symbol: "STR" }
+];
+var BADGE_WIDGETS = [
+  { kind: "badge", type: "cruiseControl", title: "Cruise" },
+  { kind: "badge", type: "cruiseControlStatus", title: "Cruise" },
+  { kind: "badge", type: "adaptiveCruiseControl", title: "ACC" },
+  { kind: "badge", type: "adasStatus", title: "ADAS" },
+  { kind: "badge", type: "chargingStatus", title: "Charging" },
+  { kind: "badge", type: "bluetoothStatus", title: "Bluetooth" },
+  { kind: "badge", type: "wifiStatus", title: "Wi-Fi" },
+  { kind: "badge", type: "mobileNetworkSignal", title: "Mobile" },
+  { kind: "badge", type: "phoneStatus", title: "Phone" },
+  { kind: "badge", type: "voiceAssistant", title: "Voice" },
+  { kind: "badge", type: "microphoneStatus", title: "Mic" },
+  { kind: "badge", type: "usbStatus", title: "USB" },
+  { kind: "badge", type: "appleCarPlay", title: "CarPlay" },
+  { kind: "badge", type: "androidAuto", title: "Android Auto" },
+  { kind: "badge", type: "remoteLockUnlock", title: "Remote Lock" },
+  { kind: "badge", type: "remoteStart", title: "Remote Start" },
+  { kind: "badge", type: "remoteClimateControl", title: "Remote HVAC" },
+  { kind: "badge", type: "remoteHornLights", title: "Horn/Lights" },
+  { kind: "badge", type: "suspensionMode", title: "Suspension" },
+  { kind: "badge", type: "ambientLightingControl", title: "Ambient" },
+  { kind: "badge", type: "driverProfile", title: "Profile" },
+  { kind: "badge", type: "userLogin", title: "User" },
+  { kind: "badge", type: "serviceReminder", title: "Service" },
+  { kind: "badge", type: "maintenanceSchedule", title: "Maint" },
+  { kind: "badge", type: "findMyVehicle", title: "Find Car" },
+  { kind: "badge", type: "vehicleLocation", title: "Location" }
+];
+var PANEL_WIDGETS = [
+  { kind: "panel", type: "climateControl", title: "Climate", rows: ["Auto", "22\xB0C", "Fan 3"] },
+  { kind: "panel", type: "hvacStatus", title: "HVAC", rows: ["Mode: Auto", "Sync: On"] },
+  { kind: "panel", type: "compass", title: "Compass", rows: ["N 000\xB0"] },
+  { kind: "panel", type: "gpsNavigationMap", title: "Navigation", rows: ["Map preview", "Searching GPS\u2026"] },
+  { kind: "panel", type: "turnByTurnNavigation", title: "Turn-by-Turn", rows: ["In 200 m", "Turn right"] },
+  { kind: "panel", type: "routeGuidance", title: "Route", rows: ["12.4 km", "18 min"] },
+  { kind: "panel", type: "trafficInformation", title: "Traffic", rows: ["Moderate ahead"] },
+  { kind: "panel", type: "calendar", title: "Calendar", rows: ["Mon 6 Jul", "No events"] },
+  { kind: "panel", type: "notificationCenter", title: "Notifications", rows: ["3 new alerts"] },
+  { kind: "panel", type: "callScreen", title: "Call", rows: ["Incoming\u2026", "Swipe to answer"] },
+  { kind: "panel", type: "contacts", title: "Contacts", rows: ["Recent", "Favorites"] },
+  { kind: "panel", type: "messages", title: "Messages", rows: ["2 unread"] },
+  { kind: "panel", type: "mediaPlayer", title: "Media", rows: ["Now playing", "Track \u2014 Artist"] },
+  { kind: "panel", type: "musicControls", title: "Music", rows: ["\u23EE  \u25B6  \u23ED"] },
+  { kind: "panel", type: "albumArt", title: "Album", rows: ["[ Artwork ]"] },
+  { kind: "panel", type: "radio", title: "Radio", rows: ["FM 98.5"] },
+  { kind: "panel", type: "podcastPlayer", title: "Podcast", rows: ["Episode 12"] },
+  { kind: "panel", type: "equalizer", title: "EQ", rows: ["Bass +2", "Treble 0"] },
+  { kind: "panel", type: "nowPlaying", title: "Now Playing", rows: ["Song Title", "Artist"] },
+  { kind: "panel", type: "navigationSearch", title: "Nav Search", rows: ["Search\u2026"] },
+  { kind: "panel", type: "favoriteDestinations", title: "Favorites", rows: ["Home", "Work"] },
+  { kind: "panel", type: "weatherWidget", title: "Weather", rows: ["22\xB0C Sunny"] },
+  { kind: "panel", type: "sunriseSunset", title: "Sun", rows: ["Rise 06:12", "Set 19:45"] },
+  { kind: "panel", type: "vehicleHealthMonitor", title: "Health", rows: ["All systems OK"] },
+  { kind: "panel", type: "diagnosticTroubleCodes", title: "DTC", rows: ["No codes"] },
+  { kind: "panel", type: "chargingHistory", title: "Charge History", rows: ["Last: 42 kWh"] },
+  { kind: "panel", type: "chargingStationFinder", title: "Chargers", rows: ["3 nearby"] },
+  { kind: "panel", type: "driveRecorder", title: "Dashcam", rows: ["Recording"] },
+  { kind: "panel", type: "surroundViewCamera", title: "360\xB0 View", rows: ["Cameras active"] },
+  { kind: "panel", type: "rearViewCamera", title: "Rear Cam", rows: ["Reverse view"] },
+  { kind: "panel", type: "parkingSensorDisplay", title: "Parking Sensors", rows: ["FL \u25A0\u25A0\u25A0", "FR \u25A0\u25A0\u25A1"] },
+  { kind: "panel", type: "cameraFeedWidget", title: "Camera", rows: ["Live feed"] },
+  { kind: "panel", type: "warningAlertPanel", title: "Warnings", rows: ["No warnings"] },
+  { kind: "panel", type: "sensorDashboard", title: "Sensors", rows: ["IMU OK", "GPS OK"] },
+  { kind: "panel", type: "canBusSignalMonitor", title: "CAN Bus", rows: ["engine.rpm: 0", "vehicle.speed: 0"] },
+  { kind: "panel", type: "vehicleCanLogger", title: "CAN Logger", rows: ["Logging\u2026"] },
+  { kind: "panel", type: "customWidgetPanel", title: "Custom", rows: ["Add widgets"] },
+  { kind: "panel", type: "splitScreenView", title: "Split View", rows: ["Left | Right"] },
+  { kind: "panel", type: "quickSettingsPanel", title: "Quick Settings", rows: ["Wi-Fi", "BT", "HVAC"] },
+  { kind: "panel", type: "vehicleAnimation", title: "Vehicle", rows: ["3D model"] },
+  { kind: "panel", type: "statusIndicatorIcons", title: "Status Icons", rows: ["\u25CF \u25CF \u25CF \u25CF"] }
+];
+var ALL_CATALOG_WIDGETS = [
+  ...DIAL_WIDGETS,
+  ...BAR_WIDGETS,
+  ...NUMERIC_WIDGETS,
+  ...LAMP_WIDGETS,
+  ...BADGE_WIDGETS,
+  ...PANEL_WIDGETS
+];
+var WIDGET_ALIASES = {
+  gearPositionIndicator: "gearIndicator",
+  tirePressureMonitoring: "tpms",
+  turnIndicator: "turnIndicators"
+};
+
+// src/automotive/layout.ts
+function resolveBounds(props, defaultWidth, defaultHeight, pad = 8) {
+  const width = Math.max(56, num3(props, "width", defaultWidth));
+  const height = Math.max(44, num3(props, "height", defaultHeight));
+  const innerWidth = Math.max(40, width - pad * 2);
+  const innerHeight = Math.max(36, height - pad * 2);
+  const explicit = num3(props, "size", 0);
+  const dialSize = explicit > 0 ? explicit : Math.max(52, Math.min(innerWidth, innerHeight));
+  return { width, height, pad, innerWidth, innerHeight, dialSize };
+}
+function fluidFont(base, bounds, min = 8, max = 24) {
+  const scale = Math.min(bounds.innerWidth, bounds.innerHeight) / 120;
+  return Math.round(Math.min(max, Math.max(min, base * scale)));
+}
+function centerInBounds(bounds, contentW, contentH) {
+  return {
+    x: bounds.pad + Math.max(0, (bounds.innerWidth - contentW) / 2),
+    y: bounds.pad + Math.max(0, (bounds.innerHeight - contentH) / 2)
+  };
+}
+function resolveDisplay(props, fallback = "analog") {
+  const mode = str3(props, "display", "").toLowerCase();
+  if (mode === "digital" || mode === "lcd")
+    return "digital";
+  if (mode === "analog")
+    return "analog";
+  if (str3(props, "theme", "") === "digital" && bool3(props, "digitalGauges", false)) {
+    return "digital";
+  }
+  return fallback;
 }
 
 // src/automotive/themes.ts
@@ -13801,54 +14038,428 @@ function getTheme(name) {
   return THEMES[name] ?? THEMES.classic;
 }
 
-// src/automotive/definitions.ts
-function dialGauge(app, props, autoPart, max, needleColor, format, options = {}) {
-  const size = num3(props, "size", 200);
+// src/automotive/primitives/digitalGauge.ts
+function digitalGaugeStyle(theme) {
+  const isDigital = theme.background === "#020617";
+  return {
+    panelFill: isDigital ? "#041018" : "#111827",
+    panelStroke: theme.dialStroke,
+    labelColor: theme.textMuted,
+    valueColor: theme.text,
+    unitColor: theme.accent,
+    barTrack: theme.lampOff,
+    barFill: theme.accent,
+    segmentOn: theme.accent,
+    segmentOff: "#1e293b"
+  };
+}
+function buildDigitalGauge(app, group, bounds, style, opts) {
+  const w = bounds.innerWidth;
+  const h = bounds.innerHeight;
+  const format = opts.formatValue ?? ((v) => String(Math.round(v)));
+  const pct = Math.min(1, Math.max(0, opts.value / Math.max(opts.max, 1)));
+  group.add(
+    app.roundedRect({
+      width: w,
+      height: h,
+      cornerRadius: Math.min(10, h * 0.12),
+      fill: style.panelFill,
+      stroke: style.panelStroke,
+      strokeWidth: 1.5,
+      listening: false
+    })
+  );
+  group.add(
+    app.text({
+      text: opts.label.toUpperCase(),
+      x: w / 2,
+      y: h * 0.18,
+      fontSize: fluidFont(9, bounds, 7, 10),
+      fontWeight: "600",
+      fill: style.labelColor,
+      textAlign: "center",
+      textBaseline: "middle",
+      listening: false
+    })
+  );
+  const valueText = app.text({
+    text: format(opts.value),
+    x: w / 2,
+    y: h * 0.48,
+    fontSize: fluidFont(28, bounds, 18, 36),
+    fontWeight: "bold",
+    fontFamily: 'ui-monospace, "SF Mono", Menlo, Consolas, monospace',
+    fill: style.valueColor,
+    textAlign: "center",
+    textBaseline: "middle",
+    listening: false
+  });
+  group.add(valueText);
+  if (opts.unit) {
+    group.add(
+      app.text({
+        text: opts.unit,
+        x: w / 2,
+        y: h * 0.68,
+        fontSize: fluidFont(10, bounds, 8, 12),
+        fontWeight: "600",
+        fill: style.unitColor,
+        textAlign: "center",
+        textBaseline: "middle",
+        listening: false
+      })
+    );
+  }
+  let barFill;
+  if (opts.showBar !== false) {
+    const barH = Math.max(4, Math.round(h * 0.06));
+    const barY = h - barH - Math.max(6, bounds.pad * 0.4);
+    const barW = w - bounds.pad;
+    const barX = bounds.pad * 0.5;
+    group.add(
+      app.roundedRect({
+        x: barX,
+        y: barY,
+        width: barW,
+        height: barH,
+        fill: style.barTrack,
+        cornerRadius: barH / 2,
+        listening: false
+      })
+    );
+    barFill = app.roundedRect({
+      x: barX,
+      y: barY,
+      width: barW * pct,
+      height: barH,
+      fill: style.barFill,
+      cornerRadius: barH / 2,
+      listening: false
+    });
+    group.add(barFill);
+  }
+  const segments = [];
+  if (opts.showSegments) {
+    const count = opts.segmentCount ?? 12;
+    const segW = Math.max(3, (w - bounds.pad * 2 - (count - 1) * 2) / count);
+    const segH = Math.max(4, h * 0.05);
+    const segY = h - segH - Math.max(8, bounds.pad * 0.5);
+    const lit = Math.round(pct * count);
+    for (let i = 0; i < count; i++) {
+      const seg = app.roundedRect({
+        x: bounds.pad * 0.5 + i * (segW + 2),
+        y: segY,
+        width: segW,
+        height: segH,
+        fill: i < lit ? style.segmentOn : style.segmentOff,
+        cornerRadius: 1,
+        listening: false
+      });
+      segments.push(seg);
+      group.add(seg);
+    }
+  }
+  return { valueText, barFill, segments, segmentOn: style.segmentOn, segmentOff: style.segmentOff };
+}
+function updateDigitalGauge(parts, value, max, format, barWidth, segmentCount) {
+  const pct = Math.min(1, Math.max(0, value / Math.max(max, 1)));
+  parts.valueText.text = format(value);
+  if (parts.barFill) {
+    parts.barFill.width = barWidth * pct;
+  }
+  if (parts.segments && segmentCount) {
+    const lit = Math.round(pct * segmentCount);
+    parts.segments.forEach((seg, i) => {
+      seg.fill = i < lit ? parts.segmentOn : parts.segmentOff;
+    });
+  }
+}
+
+// src/automotive/primitives/builders.ts
+var DIAL_LABELS = {
+  speedometer: "Speed",
+  tachometer: "RPM",
+  turboBoostGauge: "Boost",
+  torqueMeter: "Torque",
+  horsepowerMeter: "Power",
+  engineLoad: "Load",
+  throttlePosition: "Throttle",
+  brakePressure: "Brake",
+  steeringAngle: "Steer",
+  yawRate: "Yaw",
+  altimeter: "Alt",
+  oilPressure: "Oil",
+  powerMeter: "Power",
+  gForceMeter: "G",
+  engineTemp: "Temp",
+  engineTemperature: "Engine",
+  coolantTemperature: "Coolant",
+  oilTemperature: "Oil"
+};
+function dialLabel(type) {
+  return DIAL_LABELS[type] ?? type.replace(/([A-Z])/g, " $1").trim();
+}
+function formatValue(v, format, unit = "") {
+  switch (format) {
+    case "rpm":
+      return `${Math.round(v / 1e3)}k`;
+    case "percent":
+      return `${Math.round(v)}%`;
+    case "deg":
+      return `${Math.round(v)}\xB0`;
+    case "volt":
+      return `${v.toFixed(1)}V`;
+    case "psi":
+      return `${Math.round(v)} PSI`;
+    case "text":
+      return String(v);
+    default:
+      return unit ? `${Math.round(v)}${unit}` : String(Math.round(v));
+  }
+}
+function buildDialWidget(app, type, autoPart, props, options) {
+  const theme = getTheme(str3(props, "theme", "classic"));
+  const bounds = resolveBounds(props, 160, 160);
   const value = num3(props, "value", 0);
-  const needle = str3(props, "needleColor", needleColor);
-  const dialStroke = str3(props, "dialStroke", "#333");
-  const textColor = str3(props, "textColor", "#fff");
-  const group = createAutoGroup(app, autoPart, props, autoPart);
+  const max = num3(props, "max", options.max);
+  const fmt = (v) => formatValue(v, options.format, options.unit);
+  const display = resolveDisplay(props, "analog");
+  if (display === "digital") {
+    const group2 = createAutoGroup(
+      app,
+      type,
+      { ...props, width: bounds.width, height: bounds.height, display: "digital" },
+      autoPart
+    );
+    const style = digitalGaugeStyle(theme);
+    const digitalFmt = options.format === "rpm" ? (v) => String(Math.round(v)) : fmt;
+    const digitalUnit = options.format === "rpm" ? "RPM" : options.unit;
+    const parts2 = buildDigitalGauge(app, group2, bounds, style, {
+      label: dialLabel(autoPart),
+      value,
+      max,
+      unit: digitalUnit,
+      formatValue: digitalFmt,
+      showBar: true,
+      showSegments: autoPart === "tachometer" || options.format === "rpm",
+      segmentCount: 10
+    });
+    const barW = bounds.innerWidth - bounds.pad;
+    setParts3(group2, { valueText: parts2.valueText });
+    group2.metadata._digitalParts = parts2;
+    setRefresh2(group2, (v) => {
+      updateDigitalGauge(parts2, v, max, digitalFmt, barW, parts2.segments?.length);
+    });
+    setState3(group2, { width: bounds.width, height: bounds.height, value, max, display: "digital" });
+    return group2;
+  }
+  const size = bounds.dialSize;
+  const needleColor = str3(props, "needleColor", options.needleColor ?? theme.needleSpeed);
+  const group = createAutoGroup(
+    app,
+    type,
+    { ...props, width: bounds.width, height: bounds.height, size, display: "analog" },
+    autoPart
+  );
   const cx = size / 2;
-  const r = size / 2 - 14;
+  const r = size / 2 - Math.max(10, size * 0.07);
+  const origin = centerInBounds(bounds, size, size);
+  const inner = app.group({ x: origin.x, y: origin.y, listening: false });
+  group.add(inner);
   const parts = buildDialGauge(
     app,
-    group,
+    inner,
     {
-      trackColor: dialStroke,
-      needleColor: needle,
-      textColor,
-      textMuted: "#9ca3af",
+      trackColor: theme.dialStroke,
+      needleColor,
+      textColor: theme.text,
+      textMuted: theme.textMuted,
       faceColor: "#0a0a0a",
-      bezelColor: dialStroke,
-      redlineColor: "#ef4444"
+      bezelColor: theme.dialStroke,
+      redlineColor: theme.warning
     },
     {
       size,
       value,
       max,
-      formatValue: format,
-      tickCount: options.tickCount ?? 10,
-      showTickLabels: options.showTickLabels ?? true,
+      formatValue: fmt,
+      tickCount: options.tickCount ?? (size < 100 ? 6 : 10),
+      showTickLabels: size >= 88,
       redlineFrom: options.redlineFrom
     }
   );
-  setParts3(group, { needle: parts.needle, label: parts.valueText });
+  setParts3(group, { needle: parts.needle, label: parts.valueText, inner });
   setRefresh2(group, (v) => {
     updateDialNeedle(parts.needle, cx, v, max, r);
-    parts.valueText.text = format(v);
+    parts.valueText.text = fmt(v);
   });
-  setState3(group, { size, value, max, needleColor: needle });
+  setState3(group, { width: bounds.width, height: bounds.height, size, value, max, display: "analog" });
   return group;
 }
-function indicatorLamp(app, type, autoPart, props, symbol) {
+function buildBarWidget(app, type, autoPart, props, options) {
+  const theme = getTheme(str3(props, "theme", "classic"));
+  const value = clamp4(num3(props, "value", 50), 0, 100);
+  const bounds = resolveBounds(props, 120, 56);
+  const group = createAutoGroup(app, type, { ...props, width: bounds.width, height: bounds.height }, autoPart);
+  const w = bounds.innerWidth;
+  const h = bounds.innerHeight;
+  const titleSize = fluidFont(9, bounds, 7, 11);
+  const valueSize = fluidFont(14, bounds, 11, 18);
+  const trackH = Math.max(6, Math.round(h * 0.14));
+  const trackY = h - trackH - Math.max(6, bounds.pad * 0.5);
+  const trackW = w - bounds.pad;
+  group.add(
+    app.roundedRect({
+      width: w,
+      height: h,
+      cornerRadius: Math.min(10, h * 0.15),
+      fill: "#111827",
+      stroke: theme.dialStroke,
+      strokeWidth: 1,
+      listening: false
+    }),
+    app.text({
+      text: options.label.toUpperCase(),
+      fontSize: titleSize,
+      fontWeight: "600",
+      fill: theme.textMuted,
+      x: bounds.pad * 0.5,
+      y: bounds.pad * 0.4,
+      listening: false
+    })
+  );
+  const track = app.roundedRect({
+    x: bounds.pad * 0.5,
+    y: trackY,
+    width: trackW,
+    height: trackH,
+    fill: theme.lampOff,
+    cornerRadius: trackH / 2,
+    listening: false
+  });
+  const fill = app.roundedRect({
+    x: bounds.pad * 0.5,
+    y: trackY,
+    width: trackW * value / 100,
+    height: trackH,
+    fill: options.warnBelow !== void 0 && value < options.warnBelow ? theme.warning : theme.ok,
+    cornerRadius: trackH / 2,
+    listening: false
+  });
+  const label = app.text({
+    text: `${value}${options.unit ?? "%"}`,
+    x: w / 2,
+    y: h * 0.38,
+    fontSize: valueSize,
+    fontWeight: "bold",
+    fill: theme.text,
+    textAlign: "center",
+    textBaseline: "middle",
+    listening: false
+  });
+  group.add(track, fill, label);
+  setParts3(group, { fill, label, track });
+  setRefresh2(group, (v) => {
+    const lv = clamp4(v, 0, 100);
+    fill.width = trackW * lv / 100;
+    fill.fill = options.warnBelow !== void 0 && lv < options.warnBelow ? theme.warning : theme.ok;
+    label.text = `${Math.round(lv)}${options.unit ?? "%"}`;
+  });
+  setState3(group, { value, width: bounds.width, height: bounds.height });
+  return group;
+}
+function buildNumericWidget(app, type, autoPart, props, options) {
+  const theme = getTheme(str3(props, "theme", "classic"));
+  const value = num3(props, "value", 0);
+  const text = str3(props, "text", "");
+  const bounds = resolveBounds(props, options.width ?? 128, 60);
+  const group = createAutoGroup(app, type, { ...props, width: bounds.width, height: bounds.height }, autoPart);
+  const dec = options.decimals ?? (options.unit === "V" ? 1 : 0);
+  const isLcd = resolveDisplay(props, "analog") === "digital" || ["digitalClock", "dateDisplay", "odometer", "tripMeter", "eta", "lapTimer", "accelerationTimer"].includes(
+    type
+  );
+  if (isLcd) {
+    const style = digitalGaugeStyle(theme);
+    const displayText = text || `${value.toFixed(dec)}`;
+    const parts = buildDigitalGauge(app, group, bounds, style, {
+      label: options.title,
+      value,
+      max: Math.pow(10, Math.max(3, displayText.length)) - 1,
+      unit: options.unit,
+      formatValue: (v) => text ? text : `${v.toFixed(dec)}`,
+      showBar: false,
+      showSegments: false
+    });
+    if (text)
+      parts.valueText.text = text;
+    setParts3(group, { valueText: parts.valueText });
+    setRefresh2(group, (v) => {
+      parts.valueText.text = `${v.toFixed(dec)}${options.unit ?? ""}`;
+    });
+    group.metadata.textRefresh = (t) => {
+      parts.valueText.text = t;
+    };
+    setState3(group, { value, text, width: bounds.width, height: bounds.height, display: "digital" });
+    return group;
+  }
+  const w = bounds.innerWidth;
+  const h = bounds.innerHeight;
+  const titleSize = fluidFont(8, bounds, 7, 10);
+  const valueSize = fluidFont(18, bounds, 13, 22);
+  group.add(
+    app.roundedRect({
+      width: w,
+      height: h,
+      cornerRadius: Math.min(10, h * 0.14),
+      fill: "#111827",
+      stroke: theme.dialStroke,
+      strokeWidth: 1,
+      listening: false
+    }),
+    app.text({
+      text: options.title.toUpperCase(),
+      x: bounds.pad * 0.5,
+      y: bounds.pad * 0.35,
+      fontSize: titleSize,
+      fontWeight: "bold",
+      fill: theme.textMuted,
+      listening: false
+    })
+  );
+  const label = app.text({
+    text: text || `${value.toFixed(dec)}${options.unit ?? ""}`,
+    x: w / 2,
+    y: h * 0.58,
+    fontSize: valueSize,
+    fontWeight: "bold",
+    fill: theme.text,
+    textAlign: "center",
+    textBaseline: "middle",
+    listening: false
+  });
+  group.add(label);
+  setParts3(group, { label });
+  setRefresh2(group, (v) => {
+    label.text = `${v.toFixed(dec)}${options.unit ?? ""}`;
+  });
+  group.metadata.textRefresh = (t) => {
+    label.text = t;
+  };
+  setState3(group, { value, text, width: bounds.width, height: bounds.height });
+  return group;
+}
+function buildLampWidget(app, type, autoPart, props, symbol) {
   const active = bool3(props, "active", false);
   const theme = getTheme(str3(props, "theme", "classic"));
-  const group = createAutoGroup(app, type, props, autoPart);
+  const bounds = resolveBounds(props, 36, 36);
+  const group = createAutoGroup(app, type, { ...props, width: bounds.width, height: bounds.height }, autoPart);
+  const radius = Math.max(10, Math.min(bounds.innerWidth, bounds.innerHeight) / 2 - 2);
+  const fontSize = fluidFont(symbol.length > 3 ? 7 : 10, bounds, 6, 11);
+  const center = centerInBounds(bounds, radius * 2, radius * 2);
   const lamp = app.circle({
-    radius: 12,
-    x: 0,
-    y: 0,
+    radius,
+    x: center.x,
+    y: center.y,
     fill: active ? theme.lampOn : theme.lampOff,
     stroke: active ? "#fde047" : "#555",
     strokeWidth: 1,
@@ -13857,9 +14468,9 @@ function indicatorLamp(app, type, autoPart, props, symbol) {
   });
   const sym = app.text({
     text: symbol,
-    x: symbol.length > 2 ? 2 : 6,
-    y: 4,
-    fontSize: 10,
+    x: center.x + radius - fontSize * (symbol.length > 2 ? 1.2 : 0.55),
+    y: center.y + radius - fontSize * 0.55,
+    fontSize,
     fill: active ? "#111" : "#666",
     listening: false
   });
@@ -13870,64 +14481,268 @@ function indicatorLamp(app, type, autoPart, props, symbol) {
     lamp.stroke = on ? "#fde047" : "#555";
     sym.fill = on ? "#111" : "#666";
   });
-  setState3(group, { active });
+  setState3(group, { active, width: bounds.width, height: bounds.height });
   return group;
 }
-registerAutomotive("speedometer", (props, app) => {
+function buildBadgeWidget(app, type, autoPart, props, title) {
+  const status = str3(props, "status", str3(props, "text", "OFF"));
+  const active = bool3(props, "active", status.toLowerCase() === "on" || status.toLowerCase() === "active");
   const theme = getTheme(str3(props, "theme", "classic"));
-  return dialGauge(
-    app,
-    { ...props, needleColor: props.needleColor ?? theme.needleSpeed, dialStroke: props.dialStroke ?? theme.dialStroke, textColor: props.textColor ?? theme.text },
-    "speedometer",
-    num3(props, "max", 240),
-    theme.needleSpeed,
-    (v) => String(Math.round(v)),
-    { showTickLabels: true, redlineFrom: 0.82, tickCount: 12 }
-  );
-});
-registerAutomotive("tachometer", (props, app) => {
+  const bounds = resolveBounds(props, Math.min(168, title.length * 8 + 32), 44);
+  const group = createAutoGroup(app, type, { ...props, width: bounds.width, height: bounds.height }, autoPart);
+  const w = bounds.innerWidth;
+  const badgeH = Math.max(22, Math.round(bounds.innerHeight * 0.55));
+  const colors = {
+    off: "#333",
+    on: theme.ok,
+    active: theme.ok,
+    standby: theme.warning,
+    fault: theme.warning,
+    error: theme.warning,
+    connected: theme.ok,
+    disconnected: "#333"
+  };
+  const key = status.toLowerCase();
+  const badgeY = bounds.pad + Math.max(10, bounds.innerHeight * 0.28);
+  const bg = app.roundedRect({
+    width: w,
+    height: badgeH,
+    y: badgeY,
+    cornerRadius: 4,
+    fill: active ? theme.ok : colors[key] ?? "#333",
+    listening: false
+  });
+  const label = app.text({
+    text: status.toUpperCase(),
+    x: w / 2,
+    y: badgeY + badgeH / 2,
+    fontSize: fluidFont(10, bounds, 8, 12),
+    fontWeight: "bold",
+    fill: "#fff",
+    textAlign: "center",
+    textBaseline: "middle",
+    listening: false
+  });
+  const cap = app.text({
+    text: title,
+    x: w / 2,
+    y: bounds.pad,
+    fontSize: fluidFont(8, bounds, 7, 9),
+    fill: theme.textMuted,
+    textAlign: "center",
+    listening: false
+  });
+  group.add(cap, bg, label);
+  setParts3(group, { bg, label });
+  group.metadata.textRefresh = (t) => {
+    label.text = t.toUpperCase();
+    const k = t.toLowerCase();
+    bg.fill = colors[k] ?? (t ? theme.ok : "#333");
+  };
+  group.metadata.boolRefresh = (on) => {
+    bg.fill = on ? theme.ok : "#333";
+    label.text = on ? "ON" : "OFF";
+  };
+  setState3(group, { status, active, width: bounds.width, height: bounds.height });
+  return group;
+}
+function buildInfoPanel(app, type, autoPart, props, title, rows = []) {
   const theme = getTheme(str3(props, "theme", "classic"));
-  return dialGauge(
-    app,
-    { ...props, needleColor: props.needleColor ?? theme.needleTach, dialStroke: props.dialStroke ?? theme.dialStroke, textColor: props.textColor ?? theme.text },
-    "tachometer",
-    num3(props, "max", 8e3),
-    theme.needleTach,
-    (v) => `${Math.round(v / 1e3)}k`,
-    { showTickLabels: true, redlineFrom: 0.75, tickCount: 8 }
-  );
-});
-registerAutomotive("engineTemp", (props, app) => {
-  const theme = getTheme(str3(props, "theme", "classic"));
-  const size = num3(props, "size", 140);
-  const value = num3(props, "value", 90);
-  const max = num3(props, "max", 130);
-  const group = createAutoGroup(app, "engineTemp", props, "engineTemp");
-  const cx = size / 2;
-  const r = size / 2 - 14;
-  const sweep = Math.PI * 1.5;
-  const base = Math.PI * 0.75;
+  const lines = props.lines ?? rows;
+  const bounds = resolveBounds(props, 200, Math.max(72, lines.length * 18 + 32));
+  const group = createAutoGroup(app, type, { ...props, width: bounds.width, height: bounds.height }, autoPart);
+  const w = bounds.innerWidth;
+  const h = bounds.innerHeight;
+  const rowH = Math.max(14, Math.floor((h - 28) / Math.max(lines.length, 1)));
+  const titleSize = fluidFont(9, bounds, 8, 11);
+  const rowSize = fluidFont(10, bounds, 8, 12);
   group.add(
-    app.circle({
-      x: cx - r - 4,
-      y: cx - r - 4,
-      radius: r + 4,
-      fill: "#0a0a0a",
+    app.roundedRect({
+      width: w,
+      height: h,
+      cornerRadius: Math.min(10, h * 0.1),
+      fill: "#111827",
       stroke: theme.dialStroke,
-      strokeWidth: 2,
+      strokeWidth: 1,
+      listening: false
+    }),
+    app.text({
+      text: title.toUpperCase(),
+      x: bounds.pad * 0.5,
+      y: bounds.pad * 0.4,
+      fontSize: titleSize,
+      fontWeight: "bold",
+      fill: theme.textMuted,
       listening: false
     })
   );
-  group.add(
-    app.text({ text: "TEMP", x: cx - 16, y: 8, fontSize: 9, fontWeight: "bold", fill: theme.textMuted, listening: false })
+  const rowNodes = [];
+  lines.forEach((line, i) => {
+    const row = app.text({
+      text: line,
+      x: bounds.pad * 0.5,
+      y: 22 + i * rowH,
+      fontSize: rowSize,
+      fill: theme.text,
+      listening: false
+    });
+    rowNodes.push(row);
+    group.add(row);
+  });
+  group.metadata.linesRefresh = (next) => {
+    next.forEach((line, i) => {
+      if (rowNodes[i])
+        rowNodes[i].text = line;
+    });
+  };
+  setState3(group, { lines, width: bounds.width, height: bounds.height });
+  return group;
+}
+
+// src/automotive/widgets/registerCatalog.ts
+var registered = /* @__PURE__ */ new Set();
+function registerCatalogWidget(def) {
+  if (registered.has(def.type))
+    return;
+  registered.add(def.type);
+  switch (def.kind) {
+    case "dial":
+      registerAutomotive(
+        def.type,
+        (props, app) => buildDialWidget(app, def.type, def.type, props, {
+          max: num3(props, "max", def.max ?? 100),
+          format: def.format ?? "int",
+          unit: def.unit,
+          tickCount: def.tickCount,
+          redlineFrom: def.redlineFrom
+        })
+      );
+      break;
+    case "bar":
+      registerAutomotive(
+        def.type,
+        (props, app) => buildBarWidget(app, def.type, def.type, props, {
+          label: def.label,
+          unit: def.unit,
+          warnBelow: def.warnBelow
+        })
+      );
+      break;
+    case "numeric":
+      registerAutomotive(
+        def.type,
+        (props, app) => buildNumericWidget(app, def.type, def.type, props, {
+          title: def.title,
+          unit: def.unit,
+          decimals: def.decimals
+        })
+      );
+      break;
+    case "lamp":
+      registerAutomotive(
+        def.type,
+        (props, app) => buildLampWidget(app, def.type, def.type, props, def.symbol)
+      );
+      break;
+    case "badge":
+      registerAutomotive(def.type, (props, app) => {
+        const title = str3(props, "title", def.title);
+        if (def.type === "cruiseControl" || def.type === "cruiseControlStatus") {
+          return buildCruiseBadge(app, def.type, props);
+        }
+        return buildBadgeWidget(app, def.type, def.type, props, title);
+      });
+      break;
+    case "panel":
+      registerAutomotive(
+        def.type,
+        (props, app) => buildInfoPanel(app, def.type, def.type, props, def.title, def.rows)
+      );
+      break;
+  }
+}
+function buildCruiseBadge(app, type, props) {
+  const speed = num3(props, "speed", num3(props, "value", 0));
+  return buildBadgeWidget(app, type, type, { ...props, status: speed > 0 ? `SET ${Math.round(speed)}` : "OFF" }, "Cruise");
+}
+function registerCatalogWidgets() {
+  for (const def of ALL_CATALOG_WIDGETS) {
+    registerCatalogWidget(def);
+  }
+}
+registerCatalogWidgets();
+
+// src/automotive/widgets/custom.ts
+function themedDial(app, type, props, max, format, needleKey, options = {}) {
+  const theme = getTheme(str3(props, "theme", "classic"));
+  return buildDialWidget(app, type, type, { ...props, needleColor: props.needleColor ?? theme[needleKey] }, {
+    max: num3(props, "max", max),
+    format,
+    unit: options.unit,
+    tickCount: options.tickCount,
+    redlineFrom: options.redlineFrom,
+    needleColor: theme[needleKey]
+  });
+}
+registerAutomotive("speedometer", (props, app) => {
+  const theme = getTheme(str3(props, "theme", "classic"));
+  return themedDial(app, "speedometer", { ...props, needleColor: props.needleColor ?? theme.needleSpeed }, 240, "int", "needleSpeed", {
+    redlineFrom: 0.82,
+    tickCount: 12,
+    unit: " km/h"
+  });
+});
+registerAutomotive("tachometer", (props, app) => {
+  const theme = getTheme(str3(props, "theme", "classic"));
+  return themedDial(app, "tachometer", { ...props, needleColor: props.needleColor ?? theme.needleTach }, 8e3, "rpm", "needleTach", {
+    redlineFrom: 0.75,
+    tickCount: 8
+  });
+});
+registerAutomotive("engineTemp", (props, app) => {
+  const theme = getTheme(str3(props, "theme", "classic"));
+  const bounds = resolveBounds(props, 140, 140);
+  const value = num3(props, "value", 90);
+  const max = num3(props, "max", 130);
+  const display = resolveDisplay(props, "analog");
+  if (display === "digital") {
+    const group2 = createAutoGroup(app, "engineTemp", { ...props, width: bounds.width, height: bounds.height, display: "digital" }, "engineTemp");
+    const style = digitalGaugeStyle(theme);
+    const parts = buildDigitalGauge(app, group2, bounds, style, {
+      label: "Temp",
+      value,
+      max,
+      unit: "\xB0C",
+      formatValue: (v) => String(Math.round(v)),
+      showBar: true,
+      showSegments: false
+    });
+    const barW = bounds.innerWidth - bounds.pad;
+    setParts3(group2, { valueText: parts.valueText });
+    group2.metadata._digitalParts = parts;
+    setRefresh2(group2, (v) => updateDigitalGauge(parts, v, max, (x) => String(Math.round(x)), barW));
+    setState3(group2, { width: bounds.width, height: bounds.height, value, max, display: "digital" });
+    return group2;
+  }
+  const size = bounds.dialSize;
+  const group = createAutoGroup(app, "engineTemp", { ...props, width: bounds.width, height: bounds.height, size, display: "analog" }, "engineTemp");
+  const origin = centerInBounds(bounds, size, size);
+  const inner = app.group({ x: origin.x, y: origin.y, listening: false });
+  group.add(inner);
+  const cx = size / 2;
+  const r = size / 2 - Math.max(10, size * 0.07);
+  const sweep = Math.PI * 1.5;
+  const base = Math.PI * 0.75;
+  inner.add(
+    app.circle({ x: cx - r - 4, y: cx - r - 4, radius: r + 4, fill: "#0a0a0a", stroke: theme.dialStroke, strokeWidth: 2, listening: false }),
+    app.text({ text: "TEMP", x: cx - 16, y: 8, fontSize: fluidFont(9, bounds, 7, 10), fontWeight: "bold", fill: theme.textMuted, listening: false })
   );
-  const zones = [
+  [
     { start: 0, end: 0.4, color: "#3b82f6" },
     { start: 0.4, end: 0.75, color: theme.ok },
     { start: 0.75, end: 1, color: theme.warning }
-  ];
-  zones.forEach((z) => {
-    group.add(
+  ].forEach((z) => {
+    inner.add(
       new Arc({
         x: cx - r,
         y: cx - r,
@@ -13936,15 +14751,11 @@ registerAutomotive("engineTemp", (props, app) => {
         endAngle: base + z.end * sweep,
         fill: null,
         stroke: z.color,
-        strokeWidth: 8,
+        strokeWidth: Math.max(6, size * 0.06),
         listening: false
       })
     );
   });
-  group.add(
-    app.text({ text: "C", x: cx - r + 6, y: cx + r - 18, fontSize: 9, fontWeight: "600", fill: theme.textMuted, listening: false }),
-    app.text({ text: "H", x: cx + r - 14, y: cx + r - 18, fontSize: 9, fontWeight: "600", fill: theme.textMuted, listening: false })
-  );
   const angle = needleAngle(value, max);
   const needle = app.line({
     x: cx,
@@ -13952,7 +14763,7 @@ registerAutomotive("engineTemp", (props, app) => {
     x2: r * 0.72 * Math.cos(angle),
     y2: r * 0.72 * Math.sin(angle),
     stroke: theme.text,
-    strokeWidth: 2.5,
+    strokeWidth: Math.max(2, size * 0.018),
     lineCap: "round",
     listening: false
   });
@@ -13960,18 +14771,13 @@ registerAutomotive("engineTemp", (props, app) => {
     text: `${Math.round(value)}\xB0`,
     x: cx,
     y: cx + r * 0.42,
-    fontSize: 14,
+    fontSize: fluidFont(14, bounds, 11, 16),
     fontWeight: "bold",
     fill: theme.text,
     textAlign: "center",
     listening: false
   });
-  group.add(
-    needle,
-    app.circle({ x: cx - 5, y: cx - 5, radius: 5, fill: theme.dialStroke, listening: false }),
-    app.circle({ x: cx - 2, y: cx - 2, radius: 2, fill: theme.text, listening: false }),
-    label
-  );
+  inner.add(needle, label);
   setParts3(group, { needle, label });
   setRefresh2(group, (v) => {
     const a = needleAngle(v, max);
@@ -13979,22 +14785,30 @@ registerAutomotive("engineTemp", (props, app) => {
     needle.y2 = r * 0.72 * Math.sin(a);
     label.text = `${Math.round(v)}\xB0`;
   });
-  setState3(group, { size, value, max });
+  setState3(group, { width: bounds.width, height: bounds.height, size, value, max, display: "analog" });
   return group;
 });
 registerAutomotive("batteryVoltage", (props, app) => {
   const value = num3(props, "value", 12.4);
-  const group = createAutoGroup(app, "batteryVoltage", props, "batteryVoltage");
+  const bounds = resolveBounds(props, 100, 36);
+  const group = createAutoGroup(app, "batteryVoltage", { ...props, width: bounds.width, height: bounds.height }, "batteryVoltage");
+  const w = bounds.innerWidth;
+  const h = bounds.innerHeight;
+  const iconW = Math.min(32, w * 0.35);
+  const iconH = Math.min(16, h * 0.5);
+  const ox = bounds.pad;
+  const oy = (h - iconH) / 2;
   group.add(
-    app.rect({ width: 36, height: 18, fill: null, stroke: "#fff", strokeWidth: 2, listening: false }),
-    app.rect({ x: 36, y: 5, width: 4, height: 8, fill: "#fff", listening: false })
+    app.rect({ x: ox, y: oy, width: iconW, height: iconH, fill: null, stroke: "#fff", strokeWidth: 2, listening: false }),
+    app.rect({ x: ox + iconW, y: oy + iconH * 0.28, width: Math.max(3, iconW * 0.12), height: iconH * 0.45, fill: "#fff", listening: false })
   );
   const label = app.text({
     text: `${value.toFixed(1)}V`,
-    x: 44,
-    y: 2,
-    fontSize: 14,
+    x: ox + iconW + 8,
+    y: h / 2,
+    fontSize: fluidFont(14, bounds, 11, 16),
     fill: value < 11.5 ? "#ef4444" : "#22c55e",
+    textBaseline: "middle",
     listening: false
   });
   group.add(label);
@@ -14003,72 +14817,46 @@ registerAutomotive("batteryVoltage", (props, app) => {
     label.text = `${v.toFixed(1)}V`;
     label.fill = v < 11.5 ? "#ef4444" : "#22c55e";
   });
-  setState3(group, { value });
+  setState3(group, { value, width: bounds.width, height: bounds.height });
   return group;
 });
 registerAutomotive("tpms", (props, app) => {
   const theme = getTheme(str3(props, "theme", "classic"));
   const pressures = props.pressures ?? [32, 32, 32, 32];
   const lowThreshold = num3(props, "lowThreshold", 25);
-  const group = createAutoGroup(app, "tpms", props, "tpms");
-  const panelW = 148;
-  const panelH = 92;
+  const bounds = resolveBounds(props, 148, 92);
+  const group = createAutoGroup(app, "tpms", { ...props, width: bounds.width, height: bounds.height }, "tpms");
+  const panelW = bounds.innerWidth;
+  const panelH = bounds.innerHeight;
+  const cellW = panelW / 2 - 12;
+  const cellH = Math.max(24, (panelH - 28) / 2 - 4);
   group.add(
-    app.roundedRect({
-      width: panelW,
-      height: panelH,
-      cornerRadius: 8,
-      fill: "#111827",
-      stroke: theme.dialStroke,
-      strokeWidth: 1.5,
-      shadow: { color: "rgba(0,0,0,0.35)", blur: 6, offsetX: 0, offsetY: 2 },
-      listening: false
-    }),
-    app.text({
-      text: "TIRE PRESSURE",
-      x: 10,
-      y: 6,
-      fontSize: 8,
-      fontWeight: "bold",
-      letterSpacing: 0.06,
-      fill: theme.textMuted,
-      listening: false
-    }),
-    app.text({ text: "PSI", x: panelW - 30, y: 6, fontSize: 8, fill: theme.textMuted, listening: false })
+    app.roundedRect({ width: panelW, height: panelH, cornerRadius: 8, fill: "#111827", stroke: theme.dialStroke, strokeWidth: 1.5, listening: false }),
+    app.text({ text: "TIRE PRESSURE", x: 10, y: 6, fontSize: fluidFont(8, bounds, 7, 9), fontWeight: "bold", fill: theme.textMuted, listening: false })
   );
   const positions = [
-    { x: 10, y: 24, label: "FL" },
-    { x: panelW / 2 + 2, y: 24, label: "FR" },
-    { x: 10, y: 54, label: "RL" },
-    { x: panelW / 2 + 2, y: 54, label: "RR" }
+    { x: 8, y: 22, label: "FL" },
+    { x: panelW / 2 + 2, y: 22, label: "FR" },
+    { x: 8, y: 22 + cellH + 8, label: "RL" },
+    { x: panelW / 2 + 2, y: 22 + cellH + 8, label: "RR" }
   ];
   const texts = [];
-  const cells = [];
   positions.forEach((pos, i) => {
     const psi = pressures[i] ?? 32;
     const low = psi < lowThreshold;
-    const cell = app.roundedRect({
-      x: pos.x,
-      y: pos.y,
-      width: panelW / 2 - 16,
-      height: 26,
-      cornerRadius: 6,
-      fill: low ? "#450a0a" : "#1f2937",
-      stroke: low ? theme.warning : theme.dialStroke,
-      strokeWidth: 1,
-      listening: false
-    });
     group.add(
-      cell,
-      app.text({
-        text: pos.label,
-        x: pos.x + 6,
-        y: pos.y + 4,
-        fontSize: 9,
-        fontWeight: "bold",
-        fill: theme.textMuted,
+      app.roundedRect({
+        x: pos.x,
+        y: pos.y,
+        width: cellW,
+        height: cellH,
+        cornerRadius: 6,
+        fill: low ? "#450a0a" : "#1f2937",
+        stroke: low ? theme.warning : theme.dialStroke,
+        strokeWidth: 1,
         listening: false
-      })
+      }),
+      app.text({ text: pos.label, x: pos.x + 6, y: pos.y + 4, fontSize: 9, fontWeight: "bold", fill: theme.textMuted, listening: false })
     );
     const t = app.text({
       text: `${psi}`,
@@ -14080,7 +14868,6 @@ registerAutomotive("tpms", (props, app) => {
       listening: false
     });
     texts.push(t);
-    cells.push(cell);
     group.add(t);
   });
   group.metadata.refresh = (next) => {
@@ -14090,40 +14877,138 @@ registerAutomotive("tpms", (props, app) => {
         texts[i].text = `${psi}`;
         texts[i].fill = low ? theme.warning : theme.text;
       }
-      if (cells[i]) {
-        cells[i].fill = low ? "#450a0a" : "#1f2937";
-        cells[i].stroke = low ? theme.warning : theme.dialStroke;
-      }
     });
   };
-  setState3(group, { pressures, lowThreshold });
+  setState3(group, { pressures, lowThreshold, width: bounds.width, height: bounds.height });
   return group;
 });
-registerAutomotive(
-  "parkingBrake",
-  (props, app) => indicatorLamp(app, "parkingBrake", "parkingBrake", props, "P")
-);
-registerAutomotive(
-  "headlights",
-  (props, app) => indicatorLamp(app, "headlights", "headlights", props, "HL")
-);
-registerAutomotive("cruiseControl", (props, app) => {
-  const speed = num3(props, "speed", 0);
-  const active = bool3(props, "active", speed > 0);
-  const group = createAutoGroup(app, "cruiseControl", props, "cruiseControl");
-  const bg = app.roundedRect({
-    width: 72,
-    height: 28,
-    cornerRadius: 4,
-    fill: active ? "#1d4ed8" : "#333",
+registerAutomotive("fuelGauge", (props, app) => {
+  const value = clamp4(num3(props, "value", 50), 0, 100);
+  const theme = getTheme(str3(props, "theme", "classic"));
+  const bounds = resolveBounds(props, 120, 56);
+  const group = createAutoGroup(app, "fuelGauge", { ...props, width: bounds.width, height: bounds.height }, "fuelGauge");
+  const w = bounds.innerWidth;
+  const h = bounds.innerHeight;
+  const trackH = Math.max(6, Math.round(h * 0.14));
+  const trackY = h - trackH - 8;
+  const trackW = w - 16;
+  group.add(
+    app.roundedRect({ width: w, height: h, cornerRadius: 8, fill: "#111827", stroke: theme.dialStroke, strokeWidth: 1, listening: false }),
+    app.text({ text: "FUEL", fontSize: fluidFont(9, bounds, 7, 11), fontWeight: "600", fill: theme.textMuted, x: 8, y: 6, listening: false })
+  );
+  const fill = app.roundedRect({
+    x: 8,
+    y: trackY,
+    width: trackW * value / 100,
+    height: trackH,
+    fill: value < 15 ? theme.warning : theme.ok,
+    cornerRadius: trackH / 2,
     listening: false
   });
   const label = app.text({
+    text: `${value}%`,
+    x: w / 2,
+    y: h * 0.4,
+    fontSize: fluidFont(14, bounds, 11, 16),
+    fontWeight: "bold",
+    fill: theme.text,
+    textAlign: "center",
+    textBaseline: "middle",
+    listening: false
+  });
+  group.add(fill, label);
+  setParts3(group, { fill, label });
+  setRefresh2(group, (v) => {
+    const lv = clamp4(v, 0, 100);
+    fill.width = trackW * lv / 100;
+    fill.fill = lv < 15 ? theme.warning : theme.ok;
+    label.text = `${Math.round(lv)}%`;
+  });
+  setState3(group, { value, width: bounds.width, height: bounds.height });
+  return group;
+});
+registerAutomotive("gearIndicator", (props, app) => {
+  const gear = str3(props, "gear", "P");
+  const theme = getTheme(str3(props, "theme", "classic"));
+  const bounds = resolveBounds(props, 56, 60);
+  const group = createAutoGroup(app, "gearIndicator", { ...props, width: bounds.width, height: bounds.height }, "gearIndicator");
+  const w = bounds.innerWidth;
+  const h = bounds.innerHeight;
+  group.add(
+    app.roundedRect({ width: w, height: h, cornerRadius: 8, fill: "#111827", stroke: theme.dialStroke, strokeWidth: 2, listening: false })
+  );
+  const label = app.text({
+    text: gear,
+    x: w / 2,
+    y: h / 2,
+    fontSize: fluidFont(36, bounds, 22, 40),
+    fontWeight: "bold",
+    fill: theme.text,
+    textAlign: "center",
+    textBaseline: "middle",
+    listening: false
+  });
+  group.add(label);
+  setParts3(group, { label });
+  group.metadata.textRefresh = (t) => {
+    label.text = t;
+  };
+  setState3(group, { gear, width: bounds.width, height: bounds.height });
+  return group;
+});
+registerAutomotive("turnIndicators", (props, app) => {
+  const left = bool3(props, "left", false);
+  const right = bool3(props, "right", false);
+  const bounds = resolveBounds(props, 56, 28);
+  const group = createAutoGroup(app, "turnIndicators", { ...props, width: bounds.width, height: bounds.height }, "turnIndicators");
+  const w = bounds.innerWidth;
+  const h = bounds.innerHeight;
+  const arrowW = Math.max(12, w * 0.22);
+  const arrowH = Math.max(10, h * 0.55);
+  const onColor = "#f59e0b";
+  const offColor = "#1f2937";
+  const cy = h / 2;
+  const arrow = (x, on, flip) => app.polygon({
+    points: on ? flip ? [x, cy, x + arrowW, cy - arrowH / 2, x + arrowW, cy + arrowH / 2] : [x + arrowW, cy, x, cy - arrowH / 2, x, cy + arrowH / 2] : flip ? [x + arrowW * 0.15, cy, x + arrowW * 0.85, cy - arrowH * 0.4, x + arrowW * 0.85, cy + arrowH * 0.4] : [x + arrowW * 0.85, cy, x + arrowW * 0.15, cy - arrowH * 0.4, x + arrowW * 0.15, cy + arrowH * 0.4],
+    fill: on ? onColor : offColor,
+    stroke: on ? "#fbbf24" : "#374151",
+    strokeWidth: 1,
+    listening: false
+  });
+  const leftShape = arrow(0, left, false);
+  const rightShape = arrow(w / 2 + 4, right, true);
+  group.add(leftShape, rightShape);
+  group.metadata.refresh = (l, r) => {
+    const update = (shape, x, on, flip) => {
+      const pts = on ? flip ? [x, cy, x + arrowW, cy - arrowH / 2, x + arrowW, cy + arrowH / 2] : [x + arrowW, cy, x, cy - arrowH / 2, x, cy + arrowH / 2] : flip ? [x + arrowW * 0.15, cy, x + arrowW * 0.85, cy - arrowH * 0.4, x + arrowW * 0.85, cy + arrowH * 0.4] : [x + arrowW * 0.85, cy, x + arrowW * 0.15, cy - arrowH * 0.4, x + arrowW * 0.15, cy + arrowH * 0.4];
+      shape.points = pts;
+      shape.fill = on ? onColor : offColor;
+      shape.stroke = on ? "#fbbf24" : "#374151";
+    };
+    update(leftShape, 0, l, false);
+    update(rightShape, w / 2 + 4, r, true);
+  };
+  setState3(group, { left, right, width: bounds.width, height: bounds.height });
+  return group;
+});
+registerAutomotive("parkingBrake", (props, app) => buildLampWidget(app, "parkingBrake", "parkingBrake", props, "P"));
+registerAutomotive("headlights", (props, app) => buildLampWidget(app, "headlights", "headlights", props, "HL"));
+registerAutomotive("cruiseControl", (props, app) => {
+  const speed = num3(props, "speed", 0);
+  const active = bool3(props, "active", speed > 0);
+  const bounds = resolveBounds(props, 80, 32);
+  const group = createAutoGroup(app, "cruiseControl", { ...props, width: bounds.width, height: bounds.height }, "cruiseControl");
+  const w = bounds.innerWidth;
+  const h = bounds.innerHeight;
+  const bg = app.roundedRect({ width: w, height: h, cornerRadius: 4, fill: active ? "#1d4ed8" : "#333", listening: false });
+  const label = app.text({
     text: active ? `SET ${Math.round(speed)}` : "CRUISE",
-    x: 6,
-    y: 7,
-    fontSize: 11,
+    x: w / 2,
+    y: h / 2,
+    fontSize: fluidFont(11, bounds, 9, 12),
     fill: "#fff",
+    textAlign: "center",
+    textBaseline: "middle",
     listening: false
   });
   group.add(bg, label);
@@ -14133,20 +15018,16 @@ registerAutomotive("cruiseControl", (props, app) => {
     bg.fill = on ? "#1d4ed8" : "#333";
     label.text = on ? `SET ${Math.round(v)}` : "CRUISE";
   });
-  setState3(group, { speed, active });
+  setState3(group, { speed, active, width: bounds.width, height: bounds.height });
   return group;
 });
 registerAutomotive("canViewer", (props, app) => {
-  const signals = props.signals ?? {
-    "engine.rpm": 2500,
-    "vehicle.speed": 60
-  };
-  const group = createAutoGroup(app, "canViewer", props, "canViewer");
+  const signals = props.signals ?? { "engine.rpm": 2500, "vehicle.speed": 60 };
+  const bounds = resolveBounds(props, 220, 88);
+  const group = createAutoGroup(app, "canViewer", { ...props, width: bounds.width, height: bounds.height }, "canViewer");
   const entries = Object.entries(signals).slice(0, num3(props, "maxRows", 20));
-  const rowH = 16;
-  group.add(
-    app.rect({ width: num3(props, "width", 220), height: entries.length * rowH + 8, fill: "#111827", stroke: "#374151", strokeWidth: 1, listening: false })
-  );
+  const rowH = Math.max(14, Math.floor((bounds.innerHeight - 8) / Math.max(entries.length, 1)));
+  group.add(app.rect({ width: bounds.innerWidth, height: bounds.innerHeight, fill: "#111827", stroke: "#374151", strokeWidth: 1, listening: false }));
   const rows = [];
   entries.forEach(([key, val], i) => {
     const row = app.text({ text: `${key}: ${val}`, x: 6, y: 4 + i * rowH, fontSize: 10, fill: "#d1d5db", listening: false });
@@ -14159,191 +15040,114 @@ registerAutomotive("canViewer", (props, app) => {
         rows[i].text = `${key}: ${val}`;
     });
   };
-  setState3(group, { signals });
-  return group;
-});
-registerAutomotive("fuelGauge", (props, app) => {
-  const value = clamp4(num3(props, "value", 50), 0, 100);
-  const theme = getTheme(str3(props, "theme", "classic"));
-  const group = createAutoGroup(app, "fuelGauge", props, "fuelGauge");
-  const w = 110;
-  const h = 52;
-  group.add(
-    app.roundedRect({
-      width: w,
-      height: h,
-      cornerRadius: 8,
-      fill: "#111827",
-      stroke: theme.dialStroke,
-      strokeWidth: 1,
-      listening: false
-    }),
-    app.text({ text: "FUEL", fontSize: 9, fontWeight: "600", fill: theme.textMuted, x: 8, y: 6, listening: false }),
-    app.text({ text: "E", fontSize: 9, fill: theme.textMuted, x: 8, y: 34, listening: false }),
-    app.text({ text: "F", fontSize: 9, fill: theme.textMuted, x: w - 14, y: 34, listening: false })
-  );
-  const track = app.roundedRect({ x: 18, y: 32, width: w - 36, height: 8, fill: theme.lampOff, cornerRadius: 4, listening: false });
-  const fill = app.roundedRect({
-    x: 18,
-    y: 32,
-    width: (w - 36) * value / 100,
-    height: 8,
-    fill: value < 15 ? theme.warning : theme.ok,
-    cornerRadius: 4,
-    listening: false
-  });
-  const label = app.text({
-    text: `${value}%`,
-    x: w / 2 - 12,
-    y: 16,
-    fontSize: 14,
-    fontWeight: "bold",
-    fill: theme.text,
-    listening: false
-  });
-  group.add(track, fill, label);
-  setParts3(group, { fill, label });
-  setRefresh2(group, (v) => {
-    const lv = clamp4(v, 0, 100);
-    fill.width = (w - 36) * lv / 100;
-    fill.fill = lv < 15 ? "#ef4444" : "#22c55e";
-    label.text = `${Math.round(lv)}%`;
-  });
-  setState3(group, { value });
-  return group;
-});
-registerAutomotive("gearIndicator", (props, app) => {
-  const gear = str3(props, "gear", "P");
-  const theme = getTheme(str3(props, "theme", "classic"));
-  const group = createAutoGroup(app, "gearIndicator", props, "gearIndicator");
-  group.add(
-    app.roundedRect({
-      width: 52,
-      height: 56,
-      cornerRadius: 8,
-      fill: "#111827",
-      stroke: theme.dialStroke,
-      strokeWidth: 2,
-      shadow: { color: "rgba(0,0,0,0.4)", blur: 6, offsetX: 0, offsetY: 2 },
-      listening: false
-    })
-  );
-  const label = app.text({
-    text: gear,
-    x: 26,
-    y: 28,
-    fontSize: 36,
-    fontWeight: "bold",
-    fill: theme.text,
-    textAlign: "center",
-    textBaseline: "middle",
-    listening: false
-  });
-  group.add(label);
-  setParts3(group, { label });
-  setState3(group, { gear });
-  return group;
-});
-registerAutomotive("turnIndicators", (props, app) => {
-  const left = bool3(props, "left", false);
-  const right = bool3(props, "right", false);
-  const group = createAutoGroup(app, "turnIndicators", props, "turnIndicators");
-  const onColor = "#f59e0b";
-  const offColor = "#1f2937";
-  const arrow = (x, on) => app.polygon({
-    points: on ? [x + 14, 10, x, 4, x, 16] : [x + 12, 10, x + 2, 5, x + 2, 15],
-    fill: on ? onColor : offColor,
-    stroke: on ? "#fbbf24" : "#374151",
-    strokeWidth: 1,
-    listening: false
-  });
-  const rightArrow = (x, on) => app.polygon({
-    points: on ? [x, 10, x + 14, 4, x + 14, 16] : [x + 2, 10, x + 12, 5, x + 12, 15],
-    fill: on ? onColor : offColor,
-    stroke: on ? "#fbbf24" : "#374151",
-    strokeWidth: 1,
-    listening: false
-  });
-  const leftShape = arrow(0, left);
-  const rightShape = rightArrow(28, right);
-  group.add(leftShape, rightShape);
-  group.metadata.refresh = (l, r) => {
-    const update = (shape, x, on, flip) => {
-      const pts = on ? flip ? [x, 10, x + 14, 4, x + 14, 16] : [x + 14, 10, x, 4, x, 16] : flip ? [x + 2, 10, x + 12, 5, x + 12, 15] : [x + 12, 10, x + 2, 5, x + 2, 15];
-      shape.points = pts;
-      shape.fill = on ? onColor : offColor;
-      shape.stroke = on ? "#fbbf24" : "#374151";
-    };
-    update(leftShape, 0, l, false);
-    update(rightShape, 28, r, true);
-  };
-  setState3(group, { left, right });
+  setState3(group, { signals, width: bounds.width, height: bounds.height });
   return group;
 });
 registerAutomotive("warningLamp", (props, app) => {
-  const label = str3(props, "label", "!");
+  const labelText = str3(props, "label", "!");
   const active = bool3(props, "active", false);
-  const group = createAutoGroup(app, "warningLamp", props, "warningLamp");
+  const bounds = resolveBounds(props, 36, 36);
+  const group = createAutoGroup(app, "warningLamp", { ...props, width: bounds.width, height: bounds.height }, "warningLamp");
+  const radius = Math.min(bounds.innerWidth, bounds.innerHeight) / 2 - 2;
+  const center = centerInBounds(bounds, radius * 2, radius * 2);
   group.add(
-    app.circle({ radius: 14, x: 0, y: 0, fill: active ? "#ef4444" : "#333", stroke: active ? "#fca5a5" : "#555", strokeWidth: 1, listening: false }),
-    app.text({ text: label, x: label.length > 2 ? 2 : 8, y: 5, fontSize: 10, fill: active ? "#fff" : "#666", listening: false })
+    app.circle({ radius, x: center.x, y: center.y, fill: active ? "#ef4444" : "#333", stroke: active ? "#fca5a5" : "#555", strokeWidth: 1, listening: false }),
+    app.text({ text: labelText, x: center.x + radius - fluidFont(10, bounds, 8, 10), y: center.y + radius - fluidFont(10, bounds, 8, 10) * 0.5, fontSize: fluidFont(10, bounds, 8, 10), fill: active ? "#fff" : "#666", listening: false })
   );
-  setState3(group, { label, active });
+  setState3(group, { label: labelText, active, width: bounds.width, height: bounds.height });
   return group;
 });
 registerAutomotive("adasStatus", (props, app) => {
   const status = str3(props, "status", "off");
   const colors = { off: "#333", standby: "#f59e0b", active: "#22c55e", fault: "#ef4444" };
-  const group = createAutoGroup(app, "adasStatus", props, "adasStatus");
+  const bounds = resolveBounds(props, 96, 28);
+  const group = createAutoGroup(app, "adasStatus", { ...props, width: bounds.width, height: bounds.height }, "adasStatus");
+  const w = bounds.innerWidth;
+  const h = bounds.innerHeight;
   group.add(
-    app.rect({ width: 80, height: 24, fill: colors[status] ?? "#333", cornerRadius: 4, listening: false }),
-    app.text({ text: `ADAS ${status.toUpperCase()}`, x: 8, y: 5, fontSize: 10, fill: "#fff", listening: false })
+    app.rect({ width: w, height: h, fill: colors[status] ?? "#333", cornerRadius: 4, listening: false }),
+    app.text({ text: `ADAS ${status.toUpperCase()}`, x: w / 2, y: h / 2, fontSize: fluidFont(10, bounds, 8, 11), fill: "#fff", textAlign: "center", textBaseline: "middle", listening: false })
   );
-  setState3(group, { status });
+  group.metadata.textRefresh = (t) => {
+    const bg = group.children[0];
+    if (bg)
+      bg.fill = colors[t.toLowerCase()] ?? "#333";
+  };
+  setState3(group, { status, width: bounds.width, height: bounds.height });
   return group;
 });
-registerAutomotive("instrumentCluster", (props, app) => {
+function buildInstrumentCluster(props, app, type) {
   const theme = getTheme(str3(props, "theme", "classic"));
   const w = num3(props, "width", 800);
   const h = num3(props, "height", 400);
-  const group = createAutoGroup(app, "instrumentCluster", props, "instrumentCluster", { width: w, height: h });
-  group.add(app.rect({
-    width: w,
-    height: h,
-    fill: theme.background,
-    cornerRadius: 16,
-    stroke: theme.dialStroke,
-    strokeWidth: 2,
-    shadow: { color: "rgba(0,0,0,0.5)", blur: 16, offsetX: 0, offsetY: 4 },
-    listening: false
-  }));
+  const group = createAutoGroup(app, type, props, type, { width: w, height: h });
+  const dialSize = Math.min(w * 0.22, h * 0.48, 200);
+  const smallDial = Math.min(w * 0.12, h * 0.24, 96);
+  const margin = Math.max(16, w * 0.028);
+  const bottomY = h - Math.max(56, h * 0.16);
+  group.add(
+    app.rect({
+      width: w,
+      height: h,
+      fill: theme.background,
+      cornerRadius: 16,
+      stroke: theme.dialStroke,
+      strokeWidth: 2,
+      listening: false
+    })
+  );
   const themeName = str3(props, "theme", "classic");
+  const isDigital = themeName === "digital";
+  const gaugeDisplay = isDigital ? "digital" : "analog";
   const widgets = [
-    ["speedometer", { value: props.speed ?? 0, size: 200, x: 28, y: 28, theme: themeName, dialStroke: theme.dialStroke, textColor: theme.text, needleColor: theme.needleSpeed }],
-    ["tachometer", { value: props.rpm ?? 0, size: 200, x: w - 228, y: 28, theme: themeName, dialStroke: theme.dialStroke, textColor: theme.text, needleColor: theme.needleTach }],
-    ["gearIndicator", { gear: props.gear ?? "P", x: w / 2 - 26, y: h / 2 - 36, theme: themeName }],
-    ["engineTemp", { value: props.engineTemp ?? 90, size: 96, x: w / 2 - 48, y: 36 }],
-    ["turnIndicators", { left: props.turnLeft ?? false, right: props.turnRight ?? false, x: w / 2 - 30, y: h / 2 + 40 }],
-    ["fuelGauge", { value: props.fuel ?? 75, x: 28, y: h - 68, theme: themeName }],
-    ["batteryVoltage", { value: props.batteryVoltage ?? 12.4, x: 148, y: h - 64 }],
-    ["tpms", { pressures: props.tpms ?? [32, 32, 32, 32], x: w / 2 - 74, y: h - 100, theme: themeName }],
-    ["parkingBrake", { active: props.parkingBrake ?? false, x: w - 310, y: h - 64, theme: themeName }],
-    ["headlights", { active: props.headlights ?? false, x: w - 258, y: h - 64, theme: themeName }],
-    ["cruiseControl", { speed: props.cruiseSpeed ?? 0, x: w - 188, y: h - 64 }],
-    ["warningLamp", { label: "ABS", active: props.absWarning ?? false, x: w - 118, y: h - 64 }],
-    ["adasStatus", { status: props.adasStatus ?? "off", x: w - 118, y: h - 34 }]
+    ["speedometer", { value: props.speed ?? 0, width: dialSize + 16, height: dialSize + 16, size: dialSize, display: gaugeDisplay, x: margin, y: margin, theme: themeName }],
+    ["tachometer", { value: props.rpm ?? 0, width: dialSize + 16, height: dialSize + 16, size: dialSize, display: gaugeDisplay, x: w - dialSize - margin - 16, y: margin, theme: themeName }],
+    ["gearIndicator", { gear: props.gear ?? "P", width: 56, height: 60, x: w / 2 - 28, y: h / 2 - 36, theme: themeName }],
+    ["engineTemp", { value: props.engineTemp ?? 90, width: smallDial + 12, height: smallDial + 12, size: smallDial, display: gaugeDisplay, x: w / 2 - (smallDial + 12) / 2, y: margin + 8 }],
+    ["turnIndicators", { left: props.turnLeft ?? false, right: props.turnRight ?? false, width: 56, height: 28, x: w / 2 - 28, y: h / 2 + 36 }],
+    ["fuelGauge", { value: props.fuel ?? 75, width: 120, height: 56, x: margin, y: bottomY, theme: themeName }],
+    ["batteryVoltage", { value: props.batteryVoltage ?? 12.4, width: 100, height: 36, x: margin + 128, y: bottomY + 8 }],
+    ["tpms", { pressures: props.tpms ?? [32, 32, 32, 32], width: 148, height: 92, x: w / 2 - 74, y: bottomY - 36, theme: themeName }],
+    ["parkingBrake", { active: props.parkingBrake ?? false, width: 36, height: 36, x: w - margin - 280, y: bottomY + 8, theme: themeName }],
+    ["headlights", { active: props.headlights ?? false, width: 36, height: 36, x: w - margin - 228, y: bottomY + 8, theme: themeName }],
+    ["cruiseControl", { speed: props.cruiseSpeed ?? 0, width: 80, height: 32, x: w - margin - 158, y: bottomY + 10 }],
+    ["warningLamp", { label: "ABS", active: props.absWarning ?? false, width: 36, height: 36, x: w - margin - 88, y: bottomY + 8 }],
+    ["adasStatus", { status: props.adasStatus ?? "off", width: 96, height: 28, x: w - margin - 88, y: bottomY + 38 }]
   ];
-  for (const [type, wprops] of widgets) {
-    const node = createAutomotiveFromJSON(type, wprops, app);
+  for (const [wt, wprops] of widgets) {
+    const node = createAutomotiveFromJSON(wt, wprops, app);
     if (node)
       group.add(node);
   }
-  group.metadata.theme = theme;
-  setState3(group, { width: w, height: h, theme: str3(props, "theme", "classic"), ...props });
+  setState3(group, { width: w, height: h, theme: themeName, ...props });
   return group;
-});
+}
+registerAutomotive("instrumentCluster", (props, app) => buildInstrumentCluster(props, app, "instrumentCluster"));
+registerAutomotive(
+  "digitalInstrumentCluster",
+  (props, app) => buildInstrumentCluster({ ...props, theme: props.theme ?? "digital" }, app, "digitalInstrumentCluster")
+);
+
+// src/automotive/widgets/aliases.ts
+for (const [alias, canonical] of Object.entries(WIDGET_ALIASES)) {
+  if (registry3[alias])
+    continue;
+  const factory = registry3[canonical];
+  if (!factory)
+    continue;
+  registerAutomotive(alias, (props, app) => factory(props, app));
+}
 
 // src/automotive/simulation.ts
+var VALUE_KEY = {
+  speedometer: "speed",
+  tachometer: "rpm",
+  fuelGauge: "fuel",
+  engineTemp: "engineTemp",
+  batteryVoltage: "batteryVoltage",
+  cruiseControl: "cruiseSpeed",
+  gearIndicator: "gear"
+};
 function walkParts(node, fn) {
   fn(node);
   if ("children" in node) {
@@ -14357,57 +15161,47 @@ function applyDriveState(root, state) {
     const part = node.metadata?.autoPart;
     if (!part)
       return;
-    if (part === "speedometer" && state.speed !== void 0) {
-      setAutoValue(node, "value", state.speed);
-    }
-    if (part === "tachometer" && state.rpm !== void 0) {
-      setAutoValue(node, "value", state.rpm);
-    }
-    if (part === "fuelGauge" && state.fuel !== void 0) {
-      setAutoValue(node, "value", state.fuel);
-    }
-    if (part === "engineTemp" && state.engineTemp !== void 0) {
-      setAutoValue(node, "value", state.engineTemp);
-    }
-    if (part === "batteryVoltage" && state.batteryVoltage !== void 0) {
-      setAutoValue(node, "value", state.batteryVoltage);
-    }
     if (part === "tpms" && state.tpms) {
       setState3(node, { pressures: state.tpms });
       node.metadata.refresh?.(state.tpms);
+      return;
     }
-    if (part === "parkingBrake" && state.parkingBrake !== void 0) {
-      setState3(node, { active: state.parkingBrake });
-      node.metadata.boolRefresh?.(state.parkingBrake);
-    }
-    if (part === "headlights" && state.headlights !== void 0) {
-      setState3(node, { active: state.headlights });
-      node.metadata.boolRefresh?.(state.headlights);
-    }
-    if (part === "cruiseControl" && state.cruiseSpeed !== void 0) {
-      setState3(node, { speed: state.cruiseSpeed, active: state.cruiseSpeed > 0 });
-      node.metadata.refresh?.(state.cruiseSpeed);
-    }
-    if (part === "gearIndicator" && state.gear !== void 0) {
-      setState3(node, { gear: state.gear });
-      const label = getParts2(node).label;
-      if (label)
-        label.text = state.gear;
-    }
-    if (part === "turnIndicators") {
-      if (state.turnLeft !== void 0 || state.turnRight !== void 0) {
-        setState3(node, { left: state.turnLeft ?? false, right: state.turnRight ?? false });
-        node.metadata.refresh?.(
-          state.turnLeft ?? false,
-          state.turnRight ?? false
-        );
-      }
-    }
-    if (part === "canViewer" && state.signals) {
+    if ((part === "canViewer" || part === "canBusSignalMonitor") && state.signals) {
       setState3(node, { signals: state.signals });
-      node.metadata.refresh?.(
-        state.signals
-      );
+      node.metadata.refresh?.(state.signals);
+      return;
+    }
+    if (part === "turnIndicators" && (state.turnLeft !== void 0 || state.turnRight !== void 0)) {
+      const left = state.turnLeft ?? false;
+      const right = state.turnRight ?? false;
+      setState3(node, { left, right });
+      node.metadata.refresh?.(left, right);
+      return;
+    }
+    const mapped = VALUE_KEY[part] ?? part;
+    const raw = state[mapped] ?? state[part];
+    if (typeof raw === "number" && typeof node.metadata.refresh === "function") {
+      if (part === "cruiseControl") {
+        setState3(node, { speed: raw, active: raw > 0 });
+      } else {
+        setAutoValue(node, "value", raw);
+      }
+      node.metadata.refresh(raw);
+      return;
+    }
+    if (typeof raw === "boolean") {
+      setState3(node, { active: raw });
+      node.metadata.boolRefresh?.(raw);
+      return;
+    }
+    if (typeof raw === "string") {
+      setState3(node, { gear: raw, status: raw, text: raw });
+      node.metadata.textRefresh?.(raw);
+      if (part === "gearIndicator") {
+        const label = getParts2(node).label;
+        if (label)
+          label.text = raw;
+      }
     }
   });
   root.getApp()?.requestRender();
@@ -14422,13 +15216,15 @@ function sampleDriveFrames(count = 60) {
       fuel: Math.max(5, Math.round(80 - t * 40)),
       engineTemp: Math.round(70 + t * 40 + Math.sin(t * 10) * 5),
       batteryVoltage: Math.round((12.2 + Math.sin(t * 5) * 0.3) * 10) / 10,
+      stateOfCharge: Math.max(10, Math.round(85 - t * 30)),
       tpms: [32, 31, 33, 32].map((p, j) => i > 40 && j === 2 ? 22 : p),
       parkingBrake: i < 5,
       headlights: i > 10,
       cruiseSpeed: i > 20 && i < 50 ? 65 : 0,
-      gear: i < 5 ? "P" : i < 10 ? "D" : "D",
+      gear: i < 5 ? "P" : "D",
       turnLeft: i % 30 < 5,
       turnRight: i % 30 > 25,
+      adasStatus: i > 30 ? "active" : "standby",
       signals: {
         "engine.rpm": Math.round(1500 + t * 3e3),
         "vehicle.speed": Math.round(30 + t * 60),

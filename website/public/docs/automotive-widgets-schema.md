@@ -2,6 +2,28 @@
 
 Load widgets via `app.loadJSON({ type: '<widget>', props: { ... } })`.
 
+**160 widget types** are registered via the declarative catalog (`src/automotive/catalog.ts`) plus rich custom overrides (`src/automotive/widgets/custom.ts`). Use `listAutomotiveWidgets()` from `lightdraw/automotive` for the full sorted list.
+
+## Widget categories
+
+| Category | Examples | Key props |
+|----------|----------|-----------|
+| **Dials** | speedometer, tachometer, turboBoostGauge, oilPressure | value, max, size, theme |
+| **Bars** | fuelGauge, stateOfCharge, chargingPower | value (0–100) |
+| **Numeric** | odometer, outsideTemperature, eta | value, decimals |
+| **Lamps** | parkingBrake, absStatus, laneKeepAssist | active |
+| **Badges** | cruiseControl, bluetoothStatus, chargingStatus | status, active |
+| **Panels** | mediaPlayer, gpsNavigationMap, warningAlertPanel | title, rows |
+| **Composite** | instrumentCluster, digitalInstrumentCluster | theme, speed, rpm, fuel, … |
+
+### Aliases
+
+| Alias | Canonical |
+|-------|-----------|
+| gearPositionIndicator | gearIndicator |
+| tirePressureMonitoring | tpms |
+| turnIndicator | turnIndicators |
+
 ## Instrument cluster
 
 | Prop | Type | Default | Description |
@@ -22,28 +44,20 @@ Load widgets via `app.loadJSON({ type: '<widget>', props: { ... } })`.
 | turnLeft / turnRight | boolean | false | Turn indicators |
 | signals | object | sample | CAN viewer signal map |
 
-## Individual widgets
+## Live updates
 
-| Widget | Key props | Live update |
-|--------|-----------|-------------|
-| speedometer | value, max, size | `setAutoValue(node, 'value', n)` |
-| tachometer | value, max, size | same |
-| engineTemp | value, max, size | same (color zones on dial) |
-| batteryVoltage | value | same (red below 11.5 V) |
-| tpms | pressures[], lowThreshold | `applyDriveState` with `tpms` array |
-| parkingBrake / headlights | active | `applyDriveState` boolean props |
-| cruiseControl | speed, active | `applyDriveState` with `cruiseSpeed` |
-| canViewer | signals, maxRows, width | `applyDriveState` with `signals` |
-| fuelGauge | value | `setAutoValue` |
-| gearIndicator | gear | `applyDriveState` with `gear` |
-| turnIndicators | left, right | `applyDriveState` |
-| warningLamp | label, active | static |
-| adasStatus | status | `off`, `standby`, `active`, `fault` |
+`applyDriveState(cluster, state)` walks `autoPart` metadata and updates matching widgets:
 
-## JSON drive simulation
+- **Numbers** — `speed`, `rpm`, `fuel`, `engineTemp`, `batteryVoltage`, or any key matching `autoPart`
+- **Booleans** — `parkingBrake`, `headlights`, ADAS lamps, etc.
+- **Strings** — `gear`, `adasStatus`
+- **Arrays** — `tpms` pressures
+- **Objects** — `signals` for CAN viewer
 
 ```javascript
-import { applyDriveState, sampleDriveFrames } from 'lightdraw/automotive';
+import { applyDriveState, sampleDriveFrames, listAutomotiveWidgets } from 'lightdraw/automotive';
+
+console.log(listAutomotiveWidgets().length); // 160
 
 const frames = sampleDriveFrames(120);
 let i = 0;
@@ -62,5 +76,6 @@ const json = toJSON(speedoNode);
 
 ## Performance targets
 
-- Full cluster live update: ≤ 16 ms per frame (canvas)
+- Full cluster live update: ≤ 32 ms per frame (canvas, 20 frames)
 - CAN viewer 100 signals: update ≤ 16 ms
+- Automotive bundle: ~14.8 KB gzip (160 widgets)

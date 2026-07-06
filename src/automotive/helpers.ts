@@ -48,12 +48,17 @@ export function createAutoGroup(
   autoPart?: string,
   extra: Record<string, unknown> = {}
 ): Group {
+  const w = num(props, 'width', 0);
+  const h = num(props, 'height', 0);
   const group = app.group({
     ...(props as Record<string, unknown>),
+    ...(w > 0 && h > 0 ? { clip: true } : {}),
     metadata: {
       autoType: type,
       autoPart: autoPart ?? type,
       autoState: { ...props },
+      ...(w > 0 ? { autoWidth: w, chartWidth: w } : {}),
+      ...(h > 0 ? { autoHeight: h, chartHeight: h } : {}),
     },
     ...extra,
   }) as Group;

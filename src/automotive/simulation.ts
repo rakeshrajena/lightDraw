@@ -17,7 +17,20 @@ export interface DriveState {
   turnLeft?: boolean;
   turnRight?: boolean;
   signals?: Record<string, number | string>;
+  [key: string]: unknown;
 }
+
+const VALUE_KEY: Record<string, string> = {
+  speedometer: 'speed',
+  tachometer: 'rpm',
+  fuelGauge: 'fuel',
+  engineTemp: 'engineTemp',
+  batteryVoltage: 'batteryVoltage',
+  cruiseControl: 'cruiseSpeed',
+  gearIndicator: 'gear',
+};
+
+type RefreshFn = (v: number) => void;
 
 function walkParts(node: Node, fn: (part: Node) => void): void {
   fn(node);
@@ -34,62 +47,56 @@ export function applyDriveState(root: Node, state: DriveState): void {
     const part = node.metadata?.autoPart as string | undefined;
     if (!part) return;
 
-    if (part === 'speedometer' && state.speed !== undefined) {
-      setAutoValue(node, 'value', state.speed);
-    }
-    if (part === 'tachometer' && state.rpm !== undefined) {
-      setAutoValue(node, 'value', state.rpm);
-    }
-    if (part === 'fuelGauge' && state.fuel !== undefined) {
-      setAutoValue(node, 'value', state.fuel);
-    }
-    if (part === 'engineTemp' && state.engineTemp !== undefined) {
-      setAutoValue(node, 'value', state.engineTemp);
-    }
-    if (part === 'batteryVoltage' && state.batteryVoltage !== undefined) {
-      setAutoValue(node, 'value', state.batteryVoltage);
-    }
     if (part === 'tpms' && state.tpms) {
       setState(node, { pressures: state.tpms });
       (node.metadata.refresh as ((v: number[]) => void) | undefined)?.(state.tpms);
+      return;
     }
-    if (part === 'parkingBrake' && state.parkingBrake !== undefined) {
-      setState(node, { active: state.parkingBrake });
-      (node.metadata.boolRefresh as ((v: boolean) => void) | undefined)?.(state.parkingBrake);
-    }
-    if (part === 'headlights' && state.headlights !== undefined) {
-      setState(node, { active: state.headlights });
-      (node.metadata.boolRefresh as ((v: boolean) => void) | undefined)?.(state.headlights);
-    }
-    if (part === 'cruiseControl' && state.cruiseSpeed !== undefined) {
-      setState(node, { speed: state.cruiseSpeed, active: state.cruiseSpeed > 0 });
-      (node.metadata.refresh as RefreshFn | undefined)?.(state.cruiseSpeed);
-    }
-    if (part === 'gearIndicator' && state.gear !== undefined) {
-      setState(node, { gear: state.gear });
-      const label = getParts(node).label as TextNode | undefined;
-      if (label) label.text = state.gear;
-    }
-    if (part === 'turnIndicators') {
-      if (state.turnLeft !== undefined || state.turnRight !== undefined) {
-        setState(node, { left: state.turnLeft ?? false, right: state.turnRight ?? false });
-        (node.metadata.refresh as ((l: boolean, r: boolean) => void) | undefined)?.(
-          state.turnLeft ?? false,
-          state.turnRight ?? false
-        );
-      }
-    }
-    if (part === 'canViewer' && state.signals) {
+
+    if ((part === 'canViewer' || part === 'canBusSignalMonitor') && state.signals) {
       setState(node, { signals: state.signals });
-      (node.metadata.refresh as ((s: Record<string, number | string>) => void) | undefined)?.(
-        state.signals
-      );
+      (node.metadata.refresh as ((s: Record<string, number | string>) => void) | undefined)?.(state.signals);
+      return;
+    }
+
+    if (part === 'turnIndicators' && (state.turnLeft !== undefined || state.turnRight !== undefined)) {
+      const left = state.turnLeft ?? false;
+      const right = state.turnRight ?? false;
+      setState(node, { left, right });
+      (node.metadata.refresh as ((l: boolean, r: boolean) => void) | undefined)?.(left, right);
+      return;
+    }
+
+    const mapped = VALUE_KEY[part] ?? part;
+    const raw = state[mapped] ?? state[part];
+
+    if (typeof raw === 'number' && typeof node.metadata.refresh === 'function') {
+      if (part === 'cruiseControl') {
+        setState(node, { speed: raw, active: raw > 0 });
+      } else {
+        setAutoValue(node, 'value', raw);
+      }
+      (node.metadata.refresh as RefreshFn)(raw);
+      return;
+    }
+
+    if (typeof raw === 'boolean') {
+      setState(node, { active: raw });
+      (node.metadata.boolRefresh as ((v: boolean) => void) | undefined)?.(raw);
+      return;
+    }
+
+    if (typeof raw === 'string') {
+      setState(node, { gear: raw, status: raw, text: raw });
+      (node.metadata.textRefresh as ((t: string) => void) | undefined)?.(raw);
+      if (part === 'gearIndicator') {
+        const label = getParts(node).label as TextNode | undefined;
+        if (label) label.text = raw;
+      }
     }
   });
   root.getApp()?.requestRender();
 }
-
-type RefreshFn = (v: number) => void;
 
 /** Sample drive frames for simulation demos. */
 export function sampleDriveFrames(count = 60): DriveState[] {
@@ -102,13 +109,15 @@ export function sampleDriveFrames(count = 60): DriveState[] {
       fuel: Math.max(5, Math.round(80 - t * 40)),
       engineTemp: Math.round(70 + t * 40 + Math.sin(t * 10) * 5),
       batteryVoltage: Math.round((12.2 + Math.sin(t * 5) * 0.3) * 10) / 10,
+      stateOfCharge: Math.max(10, Math.round(85 - t * 30)),
       tpms: [32, 31, 33, 32].map((p, j) => (i > 40 && j === 2 ? 22 : p)),
       parkingBrake: i < 5,
       headlights: i > 10,
       cruiseSpeed: i > 20 && i < 50 ? 65 : 0,
-      gear: i < 5 ? 'P' : i < 10 ? 'D' : 'D',
+      gear: i < 5 ? 'P' : 'D',
       turnLeft: i % 30 < 5,
       turnRight: i % 30 > 25,
+      adasStatus: i > 30 ? 'active' : 'standby',
       signals: {
         'engine.rpm': Math.round(1500 + t * 3000),
         'vehicle.speed': Math.round(30 + t * 60),

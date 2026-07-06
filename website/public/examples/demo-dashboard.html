@@ -500,7 +500,6 @@
       chartApps.push(chartApp);
       return { app: chartApp, chart, type, container };
     }
-
     let maximizeMount = null;
 
     function openChartMaximize(type) {
@@ -509,19 +508,21 @@
       document.getElementById('chart-maximize-title').textContent = type;
       overlay.hidden = false;
       stage.innerHTML = '';
-      const rect = stage.getBoundingClientRect();
-      const w = Math.max(Math.floor(rect.width || stage.clientWidth || 800), 320);
-      const h = Math.max(Math.floor(rect.height || stage.clientHeight || 480), 240);
-      const chartApp = LightDraw.createApp(stage, { renderer: 'html', width: w, height: h, autoResize: true });
-      const props = window.ldChartProps(type, w, h);
-      const root = chartApp.loadJSON({ type, props });
-      chartApp.render();
-      const chart = root?.metadata?.widgetType ? root : root?.children?.find((n) => n.metadata?.widgetType);
-      if (chart && LightDraw.installChartResizeObserver) {
-        LightDraw.installChartResizeObserver(chart, stage, { minWidth: 200, minHeight: 160 });
-      }
-      maximizeMount = { app: chartApp, chart, type };
       document.body.style.overflow = 'hidden';
+
+      requestAnimationFrame(() => {
+        const w = Math.max(stage.clientWidth || 320, 320);
+        const h = Math.max(stage.clientHeight || 240, 240);
+        const chartApp = LightDraw.createApp(stage, { renderer: 'html', width: w, height: h, autoResize: true });
+        const props = window.ldChartProps(type, w, h);
+        const root = chartApp.loadJSON({ type, props });
+        chartApp.render();
+        const chart = root?.metadata?.widgetType ? root : root?.children?.find((n) => n.metadata?.widgetType);
+        if (chart && LightDraw.installChartResizeObserver) {
+          LightDraw.installChartResizeObserver(chart, stage, { minWidth: 200, minHeight: 160 });
+        }
+        maximizeMount = { app: chartApp, chart, type };
+      });
     }
 
     function closeChartMaximize() {

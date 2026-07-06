@@ -15,7 +15,7 @@ import { gzipSync } from 'zlib';
  *
  * Measured after professional UI/dashboard/automotive/diagram styling (2026-07):
  *   core 24.1 KB | svg 9.6 KB | html 15.6 KB | ui 9.7 KB
- *   dashboard 24.5 KB | automotive 10.8 KB | diagram 9.1 KB | full 69.0 KB
+ *   dashboard 24.5 KB | automotive 16.4 KB | diagram 9.1 KB | full 81.2 KB
  */
 const TARGETS = {
   'lightdraw.core.min.js': 26 * 1024,
@@ -23,9 +23,9 @@ const TARGETS = {
   'lightdraw.html.min.js': 19 * 1024,
   'lightdraw.ui.min.js': 12 * 1024,
   'lightdraw.dashboard.min.js': 28 * 1024,
-  'lightdraw.automotive.min.js': 12 * 1024,
+  'lightdraw.automotive.min.js': 18 * 1024,
   'lightdraw.diagram.min.js': 10 * 1024,
-  'lightdraw.min.js': 72 * 1024,
+  'lightdraw.min.js': 84 * 1024,
 };
 
 const LEGACY_BUNDLES = [

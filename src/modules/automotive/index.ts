@@ -18,6 +18,12 @@ export const automotivePlugin: Plugin = {
 };
 
 export { registerAutomotive, createAutomotiveFromJSON };
+export { listAutomotiveWidgets } from '../../automotive/registry';
+export {
+  installAutoWidgetResizeObserver,
+  detachAutoWidgetResizeObserver,
+  fitAutoWidgetToContainer,
+} from '../../automotive/responsive';
 export { applyDriveState, sampleDriveFrames } from '../../automotive/simulation';
 export { animateAutoValue, setAutoValue } from '../../automotive/helpers';
 export type { DriveState } from '../../automotive/simulation';
