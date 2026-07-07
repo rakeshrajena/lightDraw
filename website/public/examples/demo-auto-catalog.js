@@ -52,12 +52,7 @@ const BOOL_TYPES = new Set([
   'forwardCollisionWarning', 'automaticEmergencyBraking', 'parkingAssist', 'driveModeIndicator', 'steeringWheelHeater',
 ]);
 
-const COMPACT_TYPES = new Set([
-  'gearIndicator', 'gearPositionIndicator', 'turnIndicators', 'turnIndicator', 'cruiseControl', 'cruiseControlStatus',
-  'warningLamp', 'adasStatus', 'batteryVoltage',
-]);
-
-/** Props sized to fill a gallery card or cluster slot. */
+/** Props sized to fill a gallery card — widgets use full card width/height. */
 window.ldAutoProps = function ldAutoProps(type, w, h) {
   const width = Math.max(72, Math.floor(w));
   const height = Math.max(56, Math.floor(h));
@@ -75,6 +70,11 @@ window.ldAutoProps = function ldAutoProps(type, w, h) {
       batteryVoltage: 12.4,
       tpms: [32, 31, 33, 30],
       gear: 'D',
+      incomingCall: width >= 520 && height >= 220,
+      caller: 'Alex Morgan',
+      subtitle: 'Mobile',
+      callStatus: 'incoming',
+      callHint: 'Swipe to answer',
     };
   }
   if (type === 'digitalInstrumentCluster') {
@@ -92,10 +92,10 @@ window.ldAutoProps = function ldAutoProps(type, w, h) {
     };
   }
   if (type === 'tpms' || type === 'tirePressureMonitoring') {
-    return { ...base, width: Math.min(width, 180), height: Math.min(height, 110), pressures: [32, 31, 22, 33], lowThreshold: 25 };
+    return { ...base, pressures: [32, 31, 22, 33], lowThreshold: 25 };
   }
   if (type === 'canViewer' || type === 'canBusSignalMonitor') {
-    const rows = Math.max(3, Math.min(6, Math.floor((height - 12) / 16)));
+    const rows = Math.max(4, Math.min(8, Math.floor((height - 12) / 16)));
     return {
       ...base,
       signals: { 'engine.rpm': 2400, 'vehicle.speed': 65, 'battery.voltage': 12.4, 'coolant.temp': 92 },
@@ -103,17 +103,37 @@ window.ldAutoProps = function ldAutoProps(type, w, h) {
     };
   }
   if (type === 'turnIndicators' || type === 'turnIndicator') {
-    return { ...base, width: Math.min(width, 72), height: Math.min(height, 36), left: true, right: false };
+    return { ...base, left: true, right: false };
   }
   if (type === 'gearIndicator' || type === 'gearPositionIndicator') {
-    return { ...base, width: Math.min(width, 64), height: Math.min(height, 68), gear: 'D', theme: 'digital' };
+    return { ...base, gear: 'D', theme: 'digital' };
   }
   if (type === 'cruiseControl' || type === 'cruiseControlStatus') {
-    return { ...base, width: Math.min(width, 96), height: Math.min(height, 36), speed: 65, active: true };
+    return { ...base, speed: 65, active: true };
   }
-  if (type === 'adasStatus') return { ...base, width: Math.min(width, 120), height: Math.min(height, 32), status: 'active' };
-  if (type === 'warningLamp') return { ...base, width: Math.min(width, 40), height: Math.min(height, 40), label: 'ABS', active: true };
-  if (type === 'batteryVoltage') return { ...base, width: Math.min(width, 110), height: Math.min(height, 40), value: 12.4 };
+  if (type === 'adasStatus') return { ...base, status: 'active' };
+  if (type === 'warningLamp') return { ...base, label: 'ABS', active: true };
+  if (type === 'batteryVoltage') return { ...base, value: 12.4 };
+  if (type === 'calendar') {
+    const now = new Date();
+    return {
+      ...base,
+      year: now.getFullYear(),
+      month: now.getMonth(),
+      highlightDay: now.getDate(),
+      lines: ['No events today'],
+    };
+  }
+  if (type === 'callScreen') {
+    return {
+      ...base,
+      caller: 'Alex Morgan',
+      subtitle: 'Mobile',
+      status: 'incoming',
+      hint: 'Swipe to answer',
+      lines: ['Incoming…', 'Swipe to answer'],
+    };
+  }
   if (type === 'digitalClock') {
     return { ...base, theme: 'digital', display: 'digital', text: '14:32', value: 0 };
   }
@@ -141,12 +161,8 @@ window.ldAutoProps = function ldAutoProps(type, w, h) {
     return { ...base, theme: 'digital', display: 'digital', value: 42 };
   }
   if (BAR_TYPES.has(type)) return { ...base, value: 68 };
-  if (BOOL_TYPES.has(type)) {
-    const side = Math.min(width, height, 40);
-    return { ...base, width: side, height: side, active: true };
-  }
-  if (COMPACT_TYPES.has(type)) return base;
-  return base;
+  if (BOOL_TYPES.has(type)) return { ...base, active: true };
+  return { ...base, value: 42, active: true, status: 'on', gear: 'D' };
 };
 
 /** Prefer live registry list when the full bundle is loaded. */

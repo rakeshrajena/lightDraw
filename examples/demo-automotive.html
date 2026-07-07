@@ -13,7 +13,7 @@
     <header class="demo-header">
       <span class="demo-badge">Automotive Module</span>
       <h1>Digital Instrument Cluster</h1>
-      <p>Full cockpit simulation plus a <strong>160-widget</strong> automotive catalog — dials, gauges, ADAS lamps, media panels, and EV charging.</p>
+      <p>Live cockpit with speed, RPM, ADAS lamps, and an <strong>incoming-call overlay</strong> between the primary gauges — plus a <strong>160-widget</strong> automotive catalog.</p>
     </header>
     <main class="demo-main">
       <div class="demo-view-tabs" id="view-tabs">
@@ -21,9 +21,12 @@
         <button type="button" class="demo-btn secondary" data-view="widgets">Widget catalog (160)</button>
       </div>
       <div id="view-cluster">
-        <div class="demo-toolbar">
-          <button class="demo-btn" onclick="toggleDrive()">Toggle drive simulation</button>
-          <button class="demo-btn secondary" onclick="randomFrame()">Random frame</button>
+        <div class="demo-toolbar cluster-toolbar">
+          <div class="cluster-toolbar-group">
+            <button class="demo-btn" id="btn-drive" onclick="toggleDrive()">Start drive simulation</button>
+            <button class="demo-btn secondary" onclick="randomFrame()">Random frame</button>
+            <button class="demo-btn secondary" id="btn-call" onclick="toggleIncomingCall()">Dismiss call</button>
+          </div>
           <label class="demo-label">Theme
             <select class="demo-select" id="theme" onchange="setTheme(this.value)">
               <option value="classic">Classic</option>
@@ -32,7 +35,11 @@
             </select>
           </label>
         </div>
-        <div class="demo-canvas-wrap">
+        <div class="cluster-status" id="cluster-status" aria-live="polite">
+          <span class="cluster-status-dot is-active" id="call-dot"></span>
+          <span id="cluster-status-text">Incoming call · Alex Morgan · Mobile</span>
+        </div>
+        <div class="demo-canvas-wrap cluster-canvas-wrap">
           <div id="app"></div>
         </div>
       </div>
@@ -53,7 +60,15 @@
     let driveTimer = null;
     let frameIndex = 0;
     let cluster = null;
+    let incomingCallActive = true;
     const frames = LightDraw.sampleDriveFrames ? LightDraw.sampleDriveFrames(120) : [];
+
+    const CALL_DEMO = {
+      caller: 'Alex Morgan',
+      subtitle: 'Mobile',
+      callStatus: 'incoming',
+      callHint: 'Swipe to answer',
+    };
 
     const clusterApp = LightDraw.createApp('#app', {
       width: 920,
@@ -84,6 +99,19 @@
       clusterApp.resize(w, h);
     }
 
+    function syncCallChrome() {
+      const dot = document.getElementById('call-dot');
+      const text = document.getElementById('cluster-status-text');
+      const btn = document.getElementById('btn-call');
+      if (dot) dot.classList.toggle('is-active', incomingCallActive);
+      if (text) {
+        text.textContent = incomingCallActive
+          ? `Incoming call · ${CALL_DEMO.caller} · ${CALL_DEMO.subtitle}`
+          : 'No active calls';
+      }
+      if (btn) btn.textContent = incomingCallActive ? 'Dismiss call' : 'Simulate incoming call';
+    }
+
     function loadCluster(theme) {
       const { w, h } = clusterWrapSize();
       if (w < 100 || h < 100) return;
@@ -105,10 +133,30 @@
           tpms: [32, 32, 32, 32],
           gear: 'P',
           parkingBrake: true,
+          incomingCall: incomingCallActive,
+          ...CALL_DEMO,
         },
       });
       cluster = clusterApp.stage.children[0];
       clusterApp.render();
+      syncCallChrome();
+    }
+
+    function toggleIncomingCall() {
+      incomingCallActive = !incomingCallActive;
+      if (!cluster) {
+        syncCallChrome();
+        return;
+      }
+      if (LightDraw.updateAutoWidgetProps) {
+        LightDraw.updateAutoWidgetProps(cluster, {
+          incomingCall: incomingCallActive,
+          ...CALL_DEMO,
+          callStatus: incomingCallActive ? 'incoming' : 'ended',
+        });
+      }
+      clusterApp.render();
+      syncCallChrome();
     }
 
     function syncClusterSize() {
@@ -139,31 +187,47 @@
     function initClusterLayoutWatch() {
       const wrap = document.querySelector('#view-cluster .demo-canvas-wrap');
       if (!wrap) return;
+
+      const bootCluster = () => {
+        const theme = document.getElementById('theme')?.value || 'classic';
+        if (!cluster) loadCluster(theme);
+      };
+
       if (typeof ResizeObserver !== 'undefined') {
-        const ro = new ResizeObserver(scheduleClusterResize);
+        const ro = new ResizeObserver(() => {
+          if (!cluster) return;
+          scheduleClusterResize();
+        });
         ro.observe(wrap);
       }
+
       window.addEventListener('resize', scheduleClusterResize);
-      window.addEventListener('load', () => {
-        lastClusterSize = { w: 0, h: 0 };
-        scheduleClusterResize();
-      });
-      scheduleClusterResize();
+
+      const start = () => setTimeout(bootCluster, 160);
+      if (document.readyState === 'complete') start();
+      else window.addEventListener('load', start, { once: true });
     }
 
     initClusterLayoutWatch();
 
     function applyFrame(state) {
       if (!cluster || !LightDraw.applyDriveState) return;
+      if (state.incomingCall !== undefined && state.incomingCall !== incomingCallActive) {
+        incomingCallActive = !!state.incomingCall;
+        syncCallChrome();
+      }
       LightDraw.applyDriveState(cluster, state);
     }
 
     function toggleDrive() {
+      const btn = document.getElementById('btn-drive');
       if (driveTimer) {
         clearInterval(driveTimer);
         driveTimer = null;
+        if (btn) btn.textContent = 'Start drive simulation';
         return;
       }
+      if (btn) btn.textContent = 'Stop drive simulation';
       driveTimer = setInterval(() => {
         if (!frames.length) return;
         applyFrame(frames[frameIndex % frames.length]);
@@ -197,9 +261,13 @@
       const wasRunning = !!driveTimer;
       if (driveTimer) clearInterval(driveTimer);
       driveTimer = null;
+      const btn = document.getElementById('btn-drive');
+      if (btn) btn.textContent = 'Start drive simulation';
       loadCluster(theme);
       if (wasRunning) toggleDrive();
     }
+
+    syncCallChrome();
 
     function destroyWidgetGallery() {
       widgetMounts.forEach((m) => m.destroy());

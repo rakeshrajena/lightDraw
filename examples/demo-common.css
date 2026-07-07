@@ -250,6 +250,10 @@ html.demo-embed .demo-toolbar {
   display: none;
 }
 
+html.demo-embed .cluster-status {
+  display: none;
+}
+
 #view-dashboard,
 #view-cluster {
   flex: 1;
@@ -262,9 +266,73 @@ html.demo-embed .demo-toolbar {
 #view-cluster .demo-canvas-wrap {
   flex: 0 0 auto;
   width: 100%;
-  height: clamp(360px, calc(100vh - 240px), 640px);
+  height: clamp(360px, calc(100vh - 280px), 640px);
   min-height: 360px;
   max-height: 640px;
+}
+
+.cluster-toolbar {
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.cluster-toolbar-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.cluster-status {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.55rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(28, 39, 64, 0.9) 0%, rgba(21, 29, 46, 0.95) 100%);
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.cluster-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #475569;
+  flex-shrink: 0;
+}
+
+.cluster-status-dot.is-active {
+  background: #22c55e;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2);
+  animation: cluster-pulse 2s ease-in-out infinite;
+}
+
+@keyframes cluster-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+.cluster-canvas-wrap {
+  border: 1px solid #1f2a44;
+  border-radius: 14px;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(59, 130, 246, 0.08) 0%, transparent 55%),
+    #06080f;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 12px 40px rgba(0, 0, 0, 0.45);
+  padding: 10px;
+}
+
+.cluster-canvas-wrap #app {
+  width: 100%;
+  height: 100%;
+  border-radius: 10px;
+  overflow: hidden;
 }
 
 #view-dashboard[hidden],

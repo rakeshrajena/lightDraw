@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><link rel="stylesheet" href="/dist/lightdraw.min.css">
+<style>
+  body { margin: 0; background: #0a0a0a; }
+  #host { width: 260px; height: 168px; overflow: hidden; }
+</style></head>
+<body><div id="host"></div>
+<script src="/dist/lightdraw.min.js"></script>
+<script src="/examples/demo-auto-catalog.js"></script>
+<script>
+  window.renderWidget = function(type) {
+    const host = document.getElementById('host');
+    host.innerHTML = '';
+    const props = window.ldAutoProps(type, 260, 168);
+    const app = LightDraw.createApp(host, {
+      renderer: 'canvas',
+      width: 260,
+      height: 168,
+      background: '#0a0a0a',
+      autoResize: false,
+    });
+    app.loadJSON({ type, props: { ...props, x: 0, y: 0 } });
+    app.render();
+    window.__auditApp = app;
+  };
+</script></body></html>

@@ -20,6 +20,6 @@ registerRenderer('svg', () => new SVGRenderer());
 registerRenderer('html', () => new HTMLRenderer());
 
 registerJSONResolver((type, props, app) => createComponentFromJSON(type, props, app));
-registerJSONResolver((type, props, app) => createDashboardFromJSON(type, props, app));
 registerJSONResolver((type, props, app) => createAutomotiveFromJSON(type, props, app));
+registerJSONResolver((type, props, app) => createDashboardFromJSON(type, props, app));
 registerJSONResolver((type, props, app) => createDiagramFromJSON(type, props, app));

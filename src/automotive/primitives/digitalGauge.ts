@@ -2,7 +2,7 @@ import type { App } from '../../App';
 import type { Group } from '../../shapes/Group';
 import type { RoundedRect, TextNode } from '../../shapes/index';
 import type { WidgetBounds } from '../layout';
-import { fitTextX, fluidFont } from '../layout';
+import { estimateTextWidth, fitFontSizeToWidth, fitTextX, fluidFont, textYForBaseline } from '../layout';
 import type { ThemePalette } from '../themes';
 
 export interface DigitalGaugeStyle {
@@ -51,6 +51,28 @@ export interface DigitalGaugeParts {
   segmentOff: string;
 }
 
+function formatCompactDigitalValue(
+  value: number,
+  unit: string | undefined,
+  format: (v: number) => string,
+  boxW: number,
+  maxFont: number
+): string {
+  if (!unit) return format(value);
+  const rounded = format(value);
+  const full = unit === 'RPM' ? `${rounded}${unit}` : `${rounded} ${unit}`;
+  if (estimateTextWidth(full, maxFont) <= boxW) return full;
+  if (unit === 'RPM' && value >= 1000) {
+    const short = `${(value / 1000).toFixed(1)}k`;
+    if (estimateTextWidth(short, maxFont) <= boxW) return short;
+    return rounded;
+  }
+  if (unit === 'km/h' || unit === 'mph' || unit === '°C' || unit === '°F') {
+    return rounded;
+  }
+  return full;
+}
+
 /** LCD-style digital gauge — large readout, label, optional bar/segments. */
 export function buildDigitalGauge(
   app: App,
@@ -62,8 +84,12 @@ export function buildDigitalGauge(
   const w = bounds.innerWidth;
   const h = bounds.innerHeight;
   const compact = h < 72 || w < 96;
+  const micro = compact && (h < 56 || w < 60);
   const format = opts.formatValue ?? ((v: number) => String(Math.round(v)));
   const pct = Math.min(1, Math.max(0, opts.value / Math.max(opts.max, 1)));
+
+  const abbrev: Record<string, string> = { SPEED: 'SPD', TEMPERATURE: 'TMP', TEMP: 'TMP' };
+  const labelText = (micro ? abbrev[opts.label.toUpperCase()] ?? opts.label.slice(0, 3) : opts.label).toUpperCase();
 
   group.add(
     app.roundedRect({
@@ -77,36 +103,41 @@ export function buildDigitalGauge(
     })
   );
 
-  const labelY = compact ? h * 0.22 : h * 0.18;
-  const valueY = compact ? h * 0.52 : h * 0.48;
+  const labelY = micro ? h * 0.2 : compact ? h * 0.22 : h * 0.18;
+  const valueY = micro ? h * 0.58 : compact ? h * 0.52 : h * 0.48;
   const unitY = compact ? h * 0.78 : h * 0.68;
 
-  group.add(
-    app.text({
-      text: opts.label.toUpperCase(),
-      x: fitTextX(opts.label.toUpperCase(), fluidFont(9, bounds, 6, 10), w),
-      y: labelY,
-      fontSize: fluidFont(9, bounds, 6, 10),
-      fontWeight: '600',
-      fill: style.labelColor,
-      textAlign: 'left',
-      textBaseline: 'middle',
-      listening: false,
-    })
-  );
+  if (!micro) {
+    const labelSize = fluidFont(9, bounds, 6, 10);
+    group.add(
+      app.text({
+        text: labelText,
+        x: fitTextX(labelText, labelSize, w),
+        y: textYForBaseline(labelY, labelSize, 'middle'),
+        fontSize: labelSize,
+        fontWeight: '600',
+        fill: style.labelColor,
+        textAlign: 'left',
+        listening: false,
+      })
+    );
+  }
 
-  const displayVal = compact && opts.unit ? `${format(opts.value)}${opts.unit}` : format(opts.value);
-  const valueSize = fluidFont(compact ? 20 : 28, bounds, 12, 36);
+  let displayVal = format(opts.value);
+  const valueMax = fluidFont(compact ? 20 : 28, bounds, micro ? 8 : 12, 36);
+  if (compact && opts.unit) {
+    displayVal = formatCompactDigitalValue(opts.value, opts.unit, format, w, valueMax);
+  }
+  const fitted = fitFontSizeToWidth(displayVal, w, valueMax, micro ? 7 : 9);
   const valueText = app.text({
     text: displayVal,
-    x: fitTextX(displayVal, valueSize, w),
-    y: valueY,
-    fontSize: valueSize,
+    x: fitted.x,
+    y: textYForBaseline(valueY, fitted.fontSize, 'middle'),
+    fontSize: fitted.fontSize,
     fontWeight: 'bold',
     fontFamily: 'ui-monospace, "SF Mono", Menlo, Consolas, monospace',
     fill: style.valueColor,
     textAlign: 'left',
-    textBaseline: 'middle',
     listening: false,
   });
   group.add(valueText);
@@ -117,12 +148,11 @@ export function buildDigitalGauge(
       app.text({
         text: opts.unit,
         x: fitTextX(opts.unit, unitSize, w),
-        y: unitY,
+        y: textYForBaseline(unitY, unitSize, 'middle'),
         fontSize: unitSize,
         fontWeight: '600',
         fill: style.unitColor,
         textAlign: 'left',
-        textBaseline: 'middle',
         listening: false,
       })
     );

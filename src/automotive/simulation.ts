@@ -1,7 +1,8 @@
 import type { Node } from '../Node';
 import type { Group } from '../shapes/Group';
 import { TextNode } from '../shapes/index';
-import { getParts, setAutoValue, setState } from './helpers';
+import { getParts, setAutoValue, setState, getState } from './helpers';
+import { updateAutoWidgetProps } from './refresh';
 
 export interface DriveState {
   speed?: number;
@@ -16,6 +17,10 @@ export interface DriveState {
   gear?: string;
   turnLeft?: boolean;
   turnRight?: boolean;
+  incomingCall?: boolean;
+  caller?: string;
+  callStatus?: string;
+  subtitle?: string;
   signals?: Record<string, number | string>;
   [key: string]: unknown;
 }
@@ -43,6 +48,18 @@ function walkParts(node: Node, fn: (part: Node) => void): void {
 
 /** Apply a JSON drive feed to all autoPart nodes in a cluster tree. */
 export function applyDriveState(root: Node, state: DriveState): void {
+  if ('children' in root && state.incomingCall !== undefined) {
+    const prev = getState(root).incomingCall;
+    if (prev !== state.incomingCall) {
+      updateAutoWidgetProps(root, {
+        incomingCall: state.incomingCall,
+        ...(state.caller !== undefined ? { caller: state.caller } : {}),
+        ...(state.callStatus !== undefined ? { callStatus: state.callStatus } : {}),
+        ...(state.subtitle !== undefined ? { subtitle: state.subtitle } : {}),
+      });
+    }
+  }
+
   walkParts(root, (node) => {
     const part = node.metadata?.autoPart as string | undefined;
     if (!part) return;
@@ -64,6 +81,23 @@ export function applyDriveState(root: Node, state: DriveState): void {
       const right = state.turnRight ?? false;
       setState(node, { left, right });
       (node.metadata.refresh as ((l: boolean, r: boolean) => void) | undefined)?.(left, right);
+      return;
+    }
+
+    if (part === 'callScreen') {
+      if (state.caller !== undefined) {
+        (node.metadata.refresh as ((name: string, status?: string) => void) | undefined)?.(
+          String(state.caller),
+          state.callStatus !== undefined ? String(state.callStatus) : undefined
+        );
+      }
+      if (state.subtitle !== undefined) {
+        setState(node, { subtitle: state.subtitle });
+        (node.metadata.linesRefresh as ((lines: string[]) => void) | undefined)?.([
+          String(state.callStatus ?? 'incoming'),
+          String(state.subtitle),
+        ]);
+      }
       return;
     }
 
@@ -117,6 +151,10 @@ export function sampleDriveFrames(count = 60): DriveState[] {
       gear: i < 5 ? 'P' : 'D',
       turnLeft: i % 30 < 5,
       turnRight: i % 30 > 25,
+      incomingCall: i >= 35 && i < 55,
+      caller: 'Alex Morgan',
+      callStatus: i >= 35 && i < 55 ? 'incoming' : 'ended',
+      subtitle: 'Mobile',
       adasStatus: i > 30 ? 'active' : 'standby',
       signals: {
         'engine.rpm': Math.round(1500 + t * 3000),

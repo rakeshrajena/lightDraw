@@ -3331,9 +3331,6 @@ function setRefresh2(node, fn) {
 function setBoolRefresh(node, fn) {
   node.metadata.boolRefresh = fn;
 }
-function needleAngle(value, max) {
-  return Math.PI * 0.75 + clamp4(value, 0, max) / max * (Math.PI * 1.5);
-}
 function animateAutoValue(node, key, toValue, duration = 300) {
   const app = node.getApp();
   if (!app)
@@ -7463,10 +7460,16 @@ var HTMLRenderer = class extends Renderer {
   }
   applyTextBoxPosition(node, el) {
     const boxW = node.metadata?.textBoxWidth;
+    const centerY = node.metadata?.textBoxCenterY;
     if (boxW && boxW > 0 && node.textAlign === "center") {
       el.style.width = `${boxW}px`;
       el.style.textAlign = "center";
       el.style.left = `${node.x - boxW / 2}px`;
+      if (centerY !== void 0) {
+        el.style.top = `${centerY - node.fontSize / 2}px`;
+        el.style.height = `${node.fontSize}px`;
+        el.style.lineHeight = `${node.fontSize}px`;
+      }
       el.style.zIndex = String(Math.max(node.zIndex, 902));
       return;
     }
@@ -9501,174 +9504,282 @@ function wireStackedHorizontalBarChartInteraction(group, seriesList, layout, bou
 // src/primitives/dialGauge.ts
 var DEFAULT_START = Math.PI * 0.75;
 var DEFAULT_SWEEP = Math.PI * 1.5;
+function textTopY(y, fontSize) {
+  return y - fontSize * 0.5;
+}
+function withAlpha(color, alpha) {
+  if (color.startsWith("#") && color.length === 7) {
+    const r = parseInt(color.slice(1, 3), 16);
+    const g = parseInt(color.slice(3, 5), 16);
+    const b = parseInt(color.slice(5, 7), 16);
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
+  return color;
+}
 function buildDialGauge(app, group, style, opts) {
   const size = opts.size;
   const cx = size / 2;
   const inset = Math.max(4, Math.min(14, size * 0.1));
   const r = size / 2 - inset;
-  const tickOutset = Math.max(3, size * 0.04);
-  const majorLen = Math.max(5, size * 0.09);
-  const minorLen = Math.max(4, size * 0.06);
+  const tickOutset = Math.max(3, size * 0.035);
+  const majorLen = Math.max(5, size * 0.085);
+  const minorLen = Math.max(3, size * 0.05);
   const startAngle = opts.startAngle ?? DEFAULT_START;
   const sweep = opts.sweepAngle ?? DEFAULT_SWEEP;
   const endAngle = startAngle + sweep;
-  const trackW = style.trackWidth ?? 10;
-  const tickColor = style.tickColor ?? style.bezelColor ?? style.trackColor;
+  const trackW = style.trackWidth ?? Math.max(6, size * 0.055);
+  const tickColor = style.tickColor ?? "#cbd5e1";
+  const face = style.faceColor ?? "#0a0a0a";
+  const bezel = style.bezelColor ?? style.trackColor;
+  const accent = style.accentColor ?? style.needleColor;
   const format = opts.formatValue ?? ((v) => String(Math.round(v)));
+  const formatTick = opts.formatTickLabel ?? ((v) => String(Math.round(v)));
   const tickCount = opts.tickCount ?? 8;
-  const shadow = size >= 130 ? { color: "rgba(0,0,0,0.4)", blur: Math.min(10, size / 14), offsetX: 0, offsetY: Math.min(3, size / 36) } : void 0;
+  const hubOuter = Math.max(5, size * 0.065);
+  const hubInner = Math.max(2.5, size * 0.032);
+  const needleW = Math.max(2, size * 0.014);
+  const shadow = size >= 120 ? { color: "rgba(0,0,0,0.45)", blur: Math.min(12, size / 12), offsetX: 0, offsetY: Math.min(4, size / 30) } : void 0;
   group.add(
     app.circle({
-      x: cx - r - tickOutset,
-      y: cx - r - tickOutset,
-      radius: r + tickOutset,
-      fill: style.faceColor ?? "#111827",
-      stroke: style.bezelColor ?? style.trackColor,
-      strokeWidth: Math.max(1, size * 0.03),
+      x: cx - r - tickOutset - 2,
+      y: cx - r - tickOutset - 2,
+      radius: r + tickOutset + 2,
+      fill: "#050505",
+      stroke: bezel,
+      strokeWidth: Math.max(1.5, size * 0.018),
       shadow,
+      listening: false
+    }),
+    app.circle({
+      x: cx - r - tickOutset + 1,
+      y: cx - r - tickOutset + 1,
+      radius: r + tickOutset - 1,
+      fill: face,
+      stroke: withAlpha(bezel, 0.55),
+      strokeWidth: 1,
       listening: false
     })
   );
-  if (opts.redlineFrom !== void 0 && opts.redlineFrom < 1) {
-    group.add(
-      new Arc({
-        x: cx - r,
-        y: cx - r,
-        radius: r,
-        startAngle: startAngle + sweep * opts.redlineFrom,
-        endAngle,
-        fill: null,
-        stroke: style.redlineColor ?? "#ef4444",
-        strokeWidth: trackW,
-        listening: false
-      })
-    );
-  }
   group.add(
     new Arc({
       x: cx - r,
       y: cx - r,
       radius: r,
       startAngle,
-      endAngle: opts.redlineFrom !== void 0 ? startAngle + sweep * opts.redlineFrom : endAngle,
+      endAngle,
       fill: null,
-      stroke: style.trackColor,
-      strokeWidth: trackW,
+      stroke: "#1a1f2e",
+      strokeWidth: trackW + 2,
       listening: false
     })
   );
+  if (opts.colorZones?.length) {
+    for (const zone of opts.colorZones) {
+      group.add(
+        new Arc({
+          x: cx - r,
+          y: cx - r,
+          radius: r,
+          startAngle: startAngle + sweep * zone.from,
+          endAngle: startAngle + sweep * zone.to,
+          fill: null,
+          stroke: zone.color,
+          strokeWidth: trackW,
+          listening: false
+        })
+      );
+    }
+  } else {
+    const redlineStart = opts.redlineFrom;
+    if (redlineStart !== void 0 && redlineStart < 1) {
+      group.add(
+        new Arc({
+          x: cx - r,
+          y: cx - r,
+          radius: r,
+          startAngle: startAngle + sweep * redlineStart,
+          endAngle,
+          fill: null,
+          stroke: style.redlineColor ?? "#ef4444",
+          strokeWidth: trackW,
+          listening: false
+        })
+      );
+    }
+    group.add(
+      new Arc({
+        x: cx - r,
+        y: cx - r,
+        radius: r,
+        startAngle,
+        endAngle: redlineStart !== void 0 ? startAngle + sweep * redlineStart : endAngle,
+        fill: null,
+        stroke: style.trackColor,
+        strokeWidth: trackW,
+        listening: false
+      })
+    );
+  }
+  const valueAngle = startAngle + opts.value / Math.max(opts.max, 1) * sweep;
+  const valueArc = opts.value > 0 && size >= 96 ? new Arc({
+    x: cx - r,
+    y: cx - r,
+    radius: r,
+    startAngle,
+    endAngle: valueAngle,
+    fill: null,
+    stroke: withAlpha(accent, 0.32),
+    strokeWidth: Math.max(2, trackW * 0.38),
+    listening: false
+  }) : void 0;
+  if (valueArc)
+    group.add(valueArc);
   for (let i = 0; i <= tickCount; i++) {
     const t = i / tickCount;
     const a = startAngle + sweep * t;
     const cos = Math.cos(a);
     const sin = Math.sin(a);
     const major = i % 2 === 0;
-    const inner = r - (major ? majorLen * 2 : minorLen * 1.5);
-    const outer = r - tickOutset;
+    const outer = r - tickOutset * 0.35;
+    const inner = outer - (major ? majorLen : minorLen);
+    const dx = (outer - inner) * cos;
+    const dy = (outer - inner) * sin;
     group.add(
       app.line({
         x: cx + inner * cos,
         y: cx + inner * sin,
-        x2: (outer - inner) * cos,
-        y2: (outer - inner) * sin,
-        stroke: tickColor,
-        strokeWidth: major ? Math.max(1, size * 0.02) : 1,
+        x2: dx,
+        y2: dy,
+        stroke: major ? tickColor : withAlpha(tickColor, 0.55),
+        strokeWidth: major ? Math.max(1.5, size * 0.016) : 1,
         lineCap: "round",
         listening: false
       })
     );
     if (opts.showTickLabels && major && size >= 96) {
-      const labelVal = Math.round(opts.max * t);
-      const lr = Math.max(r * 0.45, r - Math.max(8, size * 0.14));
+      const labelVal = formatTick(opts.max * t);
+      const lr = r - Math.max(majorLen + 6, size * 0.16);
       const lx = cx + lr * cos;
       const ly = cx + lr * sin;
+      const skipTop = sin < -0.35 && Math.abs(cos) < 0.55;
+      if (skipTop)
+        continue;
+      const labelSize = Math.max(7, size * 0.085);
       group.add(
         app.text({
-          text: String(labelVal),
+          text: labelVal,
           x: lx,
-          y: ly,
-          fontSize: Math.max(7, size * 0.09),
+          y: textTopY(ly, labelSize),
+          fontSize: labelSize,
           fontWeight: "500",
           fill: style.tickLabelColor ?? style.textMuted ?? style.textColor,
           textAlign: "center",
-          textBaseline: "middle",
-          metadata: { textBoxWidth: Math.max(16, size * 0.2) },
+          metadata: { textBoxWidth: Math.max(18, size * 0.22), textBoxCenterY: ly },
           listening: false
         })
       );
     }
   }
-  const angle = startAngle + opts.value / Math.max(opts.max, 1) * sweep;
-  const needleLen = r * 0.78;
+  if (opts.title && size >= 72) {
+    const titleSize = Math.max(7, size * 0.068);
+    const titleY = cx - r * 0.5;
+    group.add(
+      app.text({
+        text: opts.title.toUpperCase(),
+        x: cx,
+        y: textTopY(titleY, titleSize),
+        fontSize: titleSize,
+        fontWeight: "600",
+        fill: style.textMuted ?? style.tickLabelColor ?? style.textColor,
+        textAlign: "center",
+        metadata: { textBoxWidth: size, textBoxCenterY: titleY },
+        listening: false
+      })
+    );
+  }
+  const angle = valueAngle;
+  const needleLen = r * 0.76;
   const needle = app.line({
     x: cx,
     y: cx,
     x2: needleLen * Math.cos(angle),
     y2: needleLen * Math.sin(angle),
     stroke: style.needleColor,
-    strokeWidth: 3,
+    strokeWidth: needleW,
     lineCap: "round",
-    shadow: { color: "rgba(0,0,0,0.35)", blur: 4, offsetX: 1, offsetY: 2 },
+    shadow: { color: "rgba(0,0,0,0.4)", blur: 4, offsetX: 1, offsetY: 2 },
     listening: false
   });
+  group.add(needle);
   group.add(
     app.circle({
-      x: cx - 8,
-      y: cx - 8,
-      radius: 8,
-      fill: style.bezelColor ?? "#374151",
-      stroke: style.trackColor,
+      x: cx - hubOuter,
+      y: cx - hubOuter,
+      radius: hubOuter,
+      fill: "#1f2937",
+      stroke: bezel,
       strokeWidth: 1,
       listening: false
     }),
     app.circle({
-      x: cx - 4,
-      y: cx - 4,
-      radius: 4,
+      x: cx - hubInner,
+      y: cx - hubInner,
+      radius: hubInner,
       fill: style.needleColor,
       listening: false
-    }),
-    needle
+    })
   );
+  const valueSize = Math.max(11, size * 0.115);
+  const valueY = cx + r * 0.08;
   const valueText = app.text({
     text: format(opts.value),
     x: cx,
-    y: cx + r * 0.38,
-    fontSize: Math.max(11, size * 0.11),
+    y: textTopY(valueY, valueSize),
+    fontSize: valueSize,
     fontWeight: "bold",
     fill: style.textColor,
     textAlign: "center",
-    textBaseline: "middle",
-    metadata: { textBoxWidth: size },
+    metadata: { textBoxWidth: size, textBoxCenterY: valueY },
     ...opts.ariaLive ? { ariaLive: opts.ariaLive } : {},
     listening: false
   });
   group.add(valueText);
   let unitText;
   if (opts.unit) {
+    const unitSize = Math.max(8, size * 0.072);
+    const unitY = cx + r * 0.26;
     unitText = app.text({
-      text: opts.unit,
+      text: opts.unit.trim(),
       x: cx,
-      y: cx + r * 0.55,
-      fontSize: 10,
+      y: textTopY(unitY, unitSize),
+      fontSize: unitSize,
       fontWeight: "500",
       fill: style.textMuted ?? style.textColor,
       textAlign: "center",
-      textBaseline: "middle",
+      metadata: { textBoxWidth: size, textBoxCenterY: unitY },
       listening: false
     });
     group.add(unitText);
   }
-  return { needle, valueText, unitText };
+  return { needle, valueArc, valueText, unitText };
 }
 function dialNeedleAngle(value, max, start = DEFAULT_START, sweep = DEFAULT_SWEEP) {
   return start + value / Math.max(max, 1) * sweep;
 }
-function updateDialNeedle(needle, _cx, value, max, r, start = DEFAULT_START, sweep = DEFAULT_SWEEP) {
+function updateDialNeedle(needle, _cx, value, max, r, start = DEFAULT_START, sweep = DEFAULT_SWEEP, counterweight, valueArc) {
   const angle = dialNeedleAngle(value, max, start, sweep);
-  const len = r * 0.78;
+  const len = r * 0.76;
   needle.x2 = len * Math.cos(angle);
   needle.y2 = len * Math.sin(angle);
+  if (counterweight) {
+    const counterLen = r * 0.11;
+    counterweight.x2 = -counterLen * Math.cos(angle);
+    counterweight.y2 = -counterLen * Math.sin(angle);
+  }
+  if (valueArc) {
+    valueArc.endAngle = angle;
+    valueArc.visible = value > 0;
+  }
 }
 
 // src/dashboard/charts/core/interaction.ts
@@ -13789,33 +13900,55 @@ var dashboardPlugin = {
 function resolveBounds(props, defaultWidth, defaultHeight, pad = 8) {
   const width = "width" in props && typeof props.width === "number" ? Math.max(24, props.width) : Math.max(56, num3(props, "width", defaultWidth));
   const height = "height" in props && typeof props.height === "number" ? Math.max(20, props.height) : Math.max(44, num3(props, "height", defaultHeight));
-  const innerWidth = Math.max(24, width - pad * 2);
-  const innerHeight = Math.max(20, height - pad * 2);
+  const adaptivePad = Math.min(pad, Math.max(2, Math.round(Math.min(width, height) * 0.1)));
+  const innerWidth = Math.max(16, width - adaptivePad * 2);
+  const innerHeight = Math.max(12, height - adaptivePad * 2);
   const maxDial = Math.min(innerWidth, innerHeight);
   const explicit = num3(props, "size", 0);
   const dialSize = explicit > 0 ? Math.min(explicit, maxDial) : Math.max(28, maxDial);
-  return { width, height, pad, innerWidth, innerHeight, dialSize };
+  return { width, height, pad: adaptivePad, innerWidth, innerHeight, dialSize };
 }
 function isCompactBounds(bounds) {
   return bounds.innerWidth < 112 || bounds.innerHeight < 76;
 }
+function estimateTextWidth(text, fontSize) {
+  return Math.max(fontSize, text.length * fontSize * 0.55);
+}
 function fitTextX(text, fontSize, boxW, pad = 0) {
-  const estW = Math.min(boxW - pad * 2, Math.max(fontSize, text.length * fontSize * 0.55));
+  const estW = Math.min(boxW - pad * 2, estimateTextWidth(text, fontSize));
   return pad + Math.max(0, (boxW - pad * 2 - estW) / 2);
+}
+function fitFontSizeToWidth(text, boxW, maxSize, minSize = 6, pad = 0) {
+  const available = Math.max(8, boxW - pad * 2);
+  let fontSize = maxSize;
+  while (fontSize > minSize && estimateTextWidth(text, fontSize) > available) {
+    fontSize -= 1;
+  }
+  const estW = Math.min(available, estimateTextWidth(text, fontSize));
+  return { fontSize, x: pad + Math.max(0, (available - estW) / 2) };
+}
+function textYForBaseline(y, fontSize, baseline = "middle") {
+  if (baseline === "middle")
+    return y - fontSize * 0.5;
+  if (baseline === "bottom" || baseline === "ideographic")
+    return y - fontSize;
+  return y;
 }
 function autoCenteredText(app, text, boxW, y, options = {}) {
   const fontSize = options.fontSize ?? 12;
+  const insetX = options.insetX ?? 0;
+  const insetY = options.insetY ?? 0;
+  const baseline = options.textBaseline ?? "middle";
   return app.text({
     text,
-    x: fitTextX(text, fontSize, boxW),
-    y,
+    x: insetX + boxW / 2,
+    y: insetY + textYForBaseline(y, fontSize, baseline),
     fontSize,
     fontWeight: options.fontWeight ?? "normal",
     fill: options.fill ?? "#fff",
     fontFamily: options.fontFamily,
-    textAlign: "left",
-    textBaseline: options.textBaseline ?? "middle",
-    metadata: { textBoxWidth: boxW },
+    textAlign: "center",
+    metadata: { textBoxWidth: boxW, textBoxCenterY: insetY + y },
     listening: false
   });
 }
@@ -13840,43 +13973,55 @@ function resolveDisplay(props, fallback = "analog") {
   }
   return fallback;
 }
-function resolveClusterLayout(w, h) {
+function resolveClusterLayout(w, h, options = {}) {
   const tiny = w < 140 || h < 90;
+  const compact = h < 200;
   const margin = Math.max(tiny ? 4 : 6, Math.min(w, h) * (tiny ? 0.014 : 0.018));
   const short = h < 240;
   const bottomBand = Math.max(short ? 22 : 26, Math.round(h * (short ? 0.12 : 0.14)));
   const bottomY = h - bottomBand - margin * 0.5;
   const topSpace = Math.max(36, bottomY - margin);
   const cx = w / 2;
-  const dialSize = Math.max(36, Math.min(w * 0.18, topSpace * (short ? 0.38 : 0.44)));
-  let dialBox = dialSize + Math.max(6, dialSize * 0.08);
-  const maxDialBox = Math.max(40, (w - margin * 3) / 2);
+  const dialSize = Math.max(compact ? 32 : 36, Math.min(w * 0.18, topSpace * (short ? 0.36 : 0.44)));
+  let dialBox = dialSize + Math.max(compact ? 4 : 6, dialSize * 0.08);
+  const maxDialBox = Math.max(compact ? 36 : 40, (w - margin * 3) / 2);
   if (dialBox > maxDialBox) {
     dialBox = maxDialBox;
   }
-  const fittedDialSize = Math.max(40, dialBox - Math.max(6, dialBox * 0.08));
-  const smallDial = Math.max(28, Math.min(dialSize * 0.48, w * 0.09, topSpace * 0.2));
-  const smallBox = smallDial + Math.max(5, smallDial * 0.08);
-  const gearW = Math.max(34, w * 0.065);
-  const gearH = Math.max(30, Math.min(h * 0.13, topSpace * 0.2));
-  const turnW = Math.max(36, w * 0.065);
-  const turnH = Math.max(14, h * 0.055);
+  const fittedDialSize = Math.max(compact ? 28 : 40, dialBox - Math.max(compact ? 4 : 6, dialBox * 0.08));
+  const smallDial = Math.max(compact ? 22 : 28, Math.min(dialSize * 0.48, w * 0.09, topSpace * 0.2));
+  const smallBox = smallDial + Math.max(compact ? 4 : 5, smallDial * 0.08);
+  const gearW = Math.max(compact ? 30 : 34, w * 0.065);
+  let gearH = compact ? Math.max(20, Math.min(24, h * 0.11)) : Math.max(30, Math.min(h * 0.13, topSpace * 0.2));
+  const turnW = Math.max(compact ? 32 : 36, w * 0.065);
+  let turnH = compact ? Math.max(11, h * 0.042) : Math.max(14, h * 0.055);
   const fuelW = Math.max(52, w * 0.13);
-  const fuelH = Math.max(26, bottomBand * 0.86);
+  const fuelH = Math.max(compact ? 22 : 26, bottomBand * 0.86);
   const batW = Math.max(44, w * 0.1);
-  const batH = Math.max(18, bottomBand * 0.55);
-  const tpmsW = Math.max(68, w * 0.17);
-  const tpmsH = Math.max(36, Math.min(h * 0.18, topSpace * 0.26));
-  let lampSize = Math.max(18, Math.min(bottomBand * 0.75, w * 0.036));
-  let cruiseW = Math.max(40, w * 0.085);
-  let cruiseH = Math.max(16, bottomBand * 0.48);
-  let adasW = Math.max(48, w * 0.1);
-  let adasH = Math.max(12, bottomBand * 0.4);
-  const dialBottom = margin + dialBox;
-  const midGap = Math.max(3, (bottomY - dialBottom - gearH - turnH) / 3);
-  const gearY = dialBottom + midGap;
-  const turnY = gearY + gearH + Math.max(2, midGap * 0.35);
-  const tpmsY = Math.min(turnY + turnH + midGap, bottomY - tpmsH - 2);
+  const batH = Math.max(16, bottomBand * 0.55);
+  const tpmsW = Math.max(compact ? 64 : 68, w * 0.17);
+  let tpmsH = compact ? Math.max(22, Math.min(28, h * 0.14)) : Math.max(36, Math.min(h * 0.18, topSpace * 0.26));
+  let lampSize = Math.max(compact ? 14 : 18, Math.min(bottomBand * 0.75, w * 0.036));
+  let cruiseW = Math.max(36, w * 0.085);
+  let cruiseH = Math.max(compact ? 13 : 16, bottomBand * 0.48);
+  let adasW = Math.max(40, w * 0.1);
+  let adasH = Math.max(10, bottomBand * 0.4);
+  const centerTop = margin + smallBox + (compact ? 2 : 4);
+  const centerBottom = bottomY - (compact ? 2 : 4);
+  const centerGap = compact ? 3 : 4;
+  let centerNeed = gearH + turnH + tpmsH + centerGap * 2;
+  const centerAvail = Math.max(24, centerBottom - centerTop);
+  if (centerNeed > centerAvail) {
+    const scale = centerAvail / centerNeed;
+    gearH = Math.max(18, gearH * scale);
+    turnH = Math.max(10, turnH * scale);
+    tpmsH = Math.max(18, tpmsH * scale);
+    centerNeed = gearH + turnH + tpmsH + centerGap * 2;
+  }
+  const centerSlack = Math.max(0, centerAvail - centerNeed);
+  const gearY = centerTop + centerSlack * 0.12;
+  const turnY = gearY + gearH + centerGap;
+  const tpmsY = turnY + turnH + centerGap;
   const centerY = (boxH) => Math.min(bottomY + (bottomBand - boxH) / 2, h - margin - boxH);
   const leftUsed = margin + fuelW + margin * 0.35 + batW + margin;
   const rightNeeded = lampSize * 3 + cruiseW + adasW + margin * 1.4;
@@ -13897,26 +14042,62 @@ function resolveClusterLayout(w, h) {
     rx = x - margin * 0.28;
     return slot;
   };
-  const slots = [
-    { type: "speedometer", x: margin, y: margin, width: dialBox, height: dialBox, size: fittedDialSize },
-    { type: "tachometer", x: w - margin - dialBox, y: margin, width: dialBox, height: dialBox, size: fittedDialSize },
-    { type: "engineTemp", x: cx - smallBox / 2, y: margin + 3, width: smallBox, height: smallBox, size: smallDial },
-    { type: "gearIndicator", x: cx - gearW / 2, y: gearY, width: gearW, height: gearH },
-    { type: "turnIndicators", x: cx - turnW / 2, y: turnY, width: turnW, height: turnH },
-    {
-      type: "tpms",
-      x: cx - tpmsW / 2,
-      y: Math.max(margin + smallBox + 2, tpmsY),
-      width: tpmsW,
-      height: tpmsH
-    },
-    { type: "fuelGauge", x: margin, y: centerY(fuelH), width: fuelW, height: fuelH },
-    { type: "batteryVoltage", x: margin + fuelW + margin * 0.35, y: centerY(batH), width: batW, height: batH },
+  const compactRight = compact && w < 320;
+  const rightSlots = compactRight ? [placeRight("cruiseControl", cruiseW, cruiseH), placeRight("adasStatus", adasW, adasH)] : [
     placeRight("adasStatus", adasW, adasH),
     placeRight("warningLamp", lampSize, lampSize),
     placeRight("cruiseControl", cruiseW, cruiseH),
     placeRight("headlights", lampSize, lampSize),
     placeRight("parkingBrake", lampSize, lampSize)
+  ];
+  const interGap = Math.max(6, margin * 0.45);
+  const callBandW = w - margin * 2 - dialBox * 2 - interGap * 2;
+  const showCall = !!options.callScreen && w >= 520 && h >= 220 && callBandW >= 120;
+  const centerSlots = [];
+  if (showCall) {
+    const callH = Math.max(72, Math.min(h * 0.36, dialBox * 1.02, topSpace * 0.58));
+    const callY = margin + Math.max(0, (dialBox - callH) * 0.42) + (compact && h < 176 ? 0 : smallBox * 0.12);
+    centerSlots.push({
+      type: "callScreen",
+      x: margin + dialBox + interGap,
+      y: callY,
+      width: callBandW,
+      height: callH
+    });
+    const bottomGearY = bottomY + (bottomBand - gearH) / 2;
+    const gearX = Math.max(margin + dialBox + interGap, cx - gearW - turnW / 2 - 4);
+    centerSlots.push(
+      { type: "gearIndicator", x: gearX, y: bottomGearY, width: gearW, height: gearH },
+      {
+        type: "turnIndicators",
+        x: Math.min(w - margin - dialBox - interGap - turnW, cx - turnW / 2),
+        y: bottomGearY + (gearH - turnH) / 2,
+        width: turnW,
+        height: turnH
+      }
+    );
+    if (h >= 340) {
+      const tpmsStripH = Math.max(22, Math.min(30, tpmsH));
+      const tpmsY2 = callY + callH + 6;
+      if (tpmsY2 + tpmsStripH <= bottomY - 4) {
+        centerSlots.push({ type: "tpms", x: cx - tpmsW / 2, y: tpmsY2, width: tpmsW, height: tpmsStripH });
+      }
+    }
+  } else {
+    centerSlots.push(
+      { type: "gearIndicator", x: cx - gearW / 2, y: gearY, width: gearW, height: gearH },
+      { type: "turnIndicators", x: cx - turnW / 2, y: turnY, width: turnW, height: turnH },
+      { type: "tpms", x: cx - tpmsW / 2, y: tpmsY, width: tpmsW, height: tpmsH }
+    );
+  }
+  const slots = [
+    { type: "speedometer", x: margin, y: margin, width: dialBox, height: dialBox, size: fittedDialSize },
+    { type: "tachometer", x: w - margin - dialBox, y: margin, width: dialBox, height: dialBox, size: fittedDialSize },
+    ...compact && h < 176 || showCall ? [] : [{ type: "engineTemp", x: cx - smallBox / 2, y: margin + 3, width: smallBox, height: smallBox, size: smallDial }],
+    ...centerSlots,
+    { type: "fuelGauge", x: margin, y: centerY(fuelH), width: fuelW, height: fuelH },
+    { type: "batteryVoltage", x: margin + fuelW + margin * 0.35, y: centerY(batH), width: batW, height: batH },
+    ...rightSlots
   ];
   return slots.map((slot) => ({
     ...slot,
@@ -13976,6 +14157,10 @@ function installAutoWidgetRebuild(group, app, autoType) {
     }
     group.metadata.autoRebuild = rebuild;
     app.requestRender();
+    const renderer = app.getRenderer?.();
+    if (renderer && typeof renderer.forceFullRedraw === "function") {
+      renderer.forceFullRedraw();
+    }
   };
   group.metadata.autoRebuild = rebuild;
 }
@@ -14287,12 +14472,33 @@ function digitalGaugeStyle(theme) {
     segmentOff: "#1e293b"
   };
 }
+function formatCompactDigitalValue(value, unit, format, boxW, maxFont) {
+  if (!unit)
+    return format(value);
+  const rounded = format(value);
+  const full = unit === "RPM" ? `${rounded}${unit}` : `${rounded} ${unit}`;
+  if (estimateTextWidth(full, maxFont) <= boxW)
+    return full;
+  if (unit === "RPM" && value >= 1e3) {
+    const short = `${(value / 1e3).toFixed(1)}k`;
+    if (estimateTextWidth(short, maxFont) <= boxW)
+      return short;
+    return rounded;
+  }
+  if (unit === "km/h" || unit === "mph" || unit === "\xB0C" || unit === "\xB0F") {
+    return rounded;
+  }
+  return full;
+}
 function buildDigitalGauge(app, group, bounds, style, opts) {
   const w = bounds.innerWidth;
   const h = bounds.innerHeight;
   const compact = h < 72 || w < 96;
+  const micro = compact && (h < 56 || w < 60);
   const format = opts.formatValue ?? ((v) => String(Math.round(v)));
   const pct = Math.min(1, Math.max(0, opts.value / Math.max(opts.max, 1)));
+  const abbrev = { SPEED: "SPD", TEMPERATURE: "TMP", TEMP: "TMP" };
+  const labelText = (micro ? abbrev[opts.label.toUpperCase()] ?? opts.label.slice(0, 3) : opts.label).toUpperCase();
   group.add(
     app.roundedRect({
       width: w,
@@ -14304,34 +14510,39 @@ function buildDigitalGauge(app, group, bounds, style, opts) {
       listening: false
     })
   );
-  const labelY = compact ? h * 0.22 : h * 0.18;
-  const valueY = compact ? h * 0.52 : h * 0.48;
+  const labelY = micro ? h * 0.2 : compact ? h * 0.22 : h * 0.18;
+  const valueY = micro ? h * 0.58 : compact ? h * 0.52 : h * 0.48;
   const unitY = compact ? h * 0.78 : h * 0.68;
-  group.add(
-    app.text({
-      text: opts.label.toUpperCase(),
-      x: fitTextX(opts.label.toUpperCase(), fluidFont(9, bounds, 6, 10), w),
-      y: labelY,
-      fontSize: fluidFont(9, bounds, 6, 10),
-      fontWeight: "600",
-      fill: style.labelColor,
-      textAlign: "left",
-      textBaseline: "middle",
-      listening: false
-    })
-  );
-  const displayVal = compact && opts.unit ? `${format(opts.value)}${opts.unit}` : format(opts.value);
-  const valueSize = fluidFont(compact ? 20 : 28, bounds, 12, 36);
+  if (!micro) {
+    const labelSize = fluidFont(9, bounds, 6, 10);
+    group.add(
+      app.text({
+        text: labelText,
+        x: fitTextX(labelText, labelSize, w),
+        y: textYForBaseline(labelY, labelSize, "middle"),
+        fontSize: labelSize,
+        fontWeight: "600",
+        fill: style.labelColor,
+        textAlign: "left",
+        listening: false
+      })
+    );
+  }
+  let displayVal = format(opts.value);
+  const valueMax = fluidFont(compact ? 20 : 28, bounds, micro ? 8 : 12, 36);
+  if (compact && opts.unit) {
+    displayVal = formatCompactDigitalValue(opts.value, opts.unit, format, w, valueMax);
+  }
+  const fitted = fitFontSizeToWidth(displayVal, w, valueMax, micro ? 7 : 9);
   const valueText = app.text({
     text: displayVal,
-    x: fitTextX(displayVal, valueSize, w),
-    y: valueY,
-    fontSize: valueSize,
+    x: fitted.x,
+    y: textYForBaseline(valueY, fitted.fontSize, "middle"),
+    fontSize: fitted.fontSize,
     fontWeight: "bold",
     fontFamily: 'ui-monospace, "SF Mono", Menlo, Consolas, monospace',
     fill: style.valueColor,
     textAlign: "left",
-    textBaseline: "middle",
     listening: false
   });
   group.add(valueText);
@@ -14341,12 +14552,11 @@ function buildDigitalGauge(app, group, bounds, style, opts) {
       app.text({
         text: opts.unit,
         x: fitTextX(opts.unit, unitSize, w),
-        y: unitY,
+        y: textYForBaseline(unitY, unitSize, "middle"),
         fontSize: unitSize,
         fontWeight: "600",
         fill: style.unitColor,
         textAlign: "left",
-        textBaseline: "middle",
         listening: false
       })
     );
@@ -14468,7 +14678,7 @@ function buildDialWidget(app, type, autoPart, props, options) {
   const bounds = resolveBounds(props, 160, 160);
   const value = num3(props, "value", 0);
   const max = num3(props, "max", options.max);
-  const fmt = (v) => formatValue(v, options.format, options.unit);
+  const fmt = (v) => formatValue(v, options.format);
   let display = resolveDisplay(props, "analog");
   if (display === "analog" && isCompactBounds(bounds))
     display = "digital";
@@ -14501,8 +14711,9 @@ function buildDialWidget(app, type, autoPart, props, options) {
     setState3(group2, { width: bounds.width, height: bounds.height, value, max, display: "digital" });
     return group2;
   }
-  const size = bounds.dialSize;
-  const needleColor = str3(props, "needleColor", options.needleColor ?? theme.needleSpeed);
+  const maxFit = Math.min(bounds.innerWidth, bounds.innerHeight) - 6;
+  const size = Math.min(bounds.dialSize, maxFit);
+  const needleColor = str3(props, "needleColor", options.needleColor ?? theme.accent);
   const group = createAutoGroup(
     app,
     type,
@@ -14521,17 +14732,23 @@ function buildDialWidget(app, type, autoPart, props, options) {
     {
       trackColor: theme.dialStroke,
       needleColor,
+      accentColor: needleColor,
       textColor: theme.text,
       textMuted: theme.textMuted,
       faceColor: "#0a0a0a",
       bezelColor: theme.dialStroke,
-      redlineColor: theme.warning
+      redlineColor: theme.warning,
+      tickColor: theme.textMuted,
+      tickLabelColor: theme.textMuted
     },
     {
       size,
       value,
       max,
+      title: dialLabel(autoPart),
       formatValue: fmt,
+      formatTickLabel: options.format === "rpm" ? (v) => String(Math.round(v / 1e3)) : options.format === "percent" ? (v) => String(Math.round(v)) : (v) => String(Math.round(v)),
+      unit: options.unit,
       tickCount: options.tickCount ?? (size < 100 ? 5 : 10),
       showTickLabels: size >= 96,
       redlineFrom: options.redlineFrom
@@ -14539,7 +14756,7 @@ function buildDialWidget(app, type, autoPart, props, options) {
   );
   setParts3(group, { needle: parts.needle, label: parts.valueText, inner });
   setRefresh2(group, (v) => {
-    updateDialNeedle(parts.needle, cx, v, max, r);
+    updateDialNeedle(parts.needle, cx, v, max, r, void 0, void 0, void 0, parts.valueArc);
     parts.valueText.text = fmt(v);
   });
   setState3(group, { width: bounds.width, height: bounds.height, size, value, max, display: "analog" });
@@ -14692,9 +14909,11 @@ function buildLampWidget(app, type, autoPart, props, symbol) {
   const theme = getTheme(str3(props, "theme", "classic"));
   const bounds = resolveBounds(props, 36, 36);
   const group = createAutoGroup(app, type, { ...props, width: bounds.width, height: bounds.height }, autoPart);
-  const radius = Math.max(10, Math.min(bounds.innerWidth, bounds.innerHeight) / 2 - 2);
-  const fontSize = fluidFont(symbol.length > 3 ? 7 : 10, bounds, 6, 11);
+  const maxR = Math.min(bounds.innerWidth, bounds.innerHeight) / 2 - 3;
+  const radius = Math.max(10, Math.min(maxR, 48));
+  const fontSize = fluidFont(symbol.length > 3 ? 7 : 10, bounds, 6, 12);
   const center = centerInBounds(bounds, radius * 2, radius * 2);
+  const symW = radius * 2;
   const lamp = app.circle({
     radius,
     x: center.x,
@@ -14707,13 +14926,12 @@ function buildLampWidget(app, type, autoPart, props, symbol) {
   });
   const sym = app.text({
     text: symbol,
-    x: center.x + radius,
+    x: center.x + fitTextX(symbol, fontSize, symW),
     y: center.y + radius,
     fontSize,
     fill: active ? "#111" : "#666",
-    textAlign: "center",
+    textAlign: "left",
     textBaseline: "middle",
-    metadata: { textBoxWidth: radius * 2 },
     listening: false
   });
   group.add(lamp, sym);
@@ -14730,11 +14948,11 @@ function buildBadgeWidget(app, type, autoPart, props, title) {
   const status = str3(props, "status", str3(props, "text", "OFF"));
   const active = bool3(props, "active", status.toLowerCase() === "on" || status.toLowerCase() === "active");
   const theme = getTheme(str3(props, "theme", "classic"));
-  const bounds = resolveBounds(props, Math.min(168, title.length * 8 + 32), 44);
+  const bounds = resolveBounds(props, 168, 52);
   const group = createAutoGroup(app, type, { ...props, width: bounds.width, height: bounds.height }, autoPart);
   const w = bounds.innerWidth;
   const h = bounds.innerHeight;
-  const badgeH = Math.max(18, Math.round(h * 0.42));
+  const badgeH = Math.max(22, Math.round(h * 0.36));
   const colors = {
     off: "#333",
     on: theme.ok,
@@ -14746,11 +14964,11 @@ function buildBadgeWidget(app, type, autoPart, props, title) {
     disconnected: "#333"
   };
   const key = status.toLowerCase();
-  const titleSize = fluidFont(8, bounds, 7, 9);
-  const capH = titleSize + 4;
-  const stackH = capH + badgeH + 4;
+  const titleSize = fluidFont(9, bounds, 7, 10);
+  const titleH = titleSize + 8;
+  const stackH = titleH + 6 + badgeH;
   const stackY = bounds.pad + Math.max(0, (h - stackH) / 2);
-  const badgeY = stackY + capH;
+  const badgeY = stackY + titleH + 4;
   group.add(
     app.roundedRect({
       width: w,
@@ -14775,7 +14993,7 @@ function buildBadgeWidget(app, type, autoPart, props, title) {
     fontWeight: "bold",
     fill: "#fff"
   });
-  const cap = autoCenteredText(app, title.length > 14 ? title.slice(0, 13) + "\u2026" : title, w, stackY + capH / 2, {
+  const cap = autoCenteredText(app, title.length > 18 ? title.slice(0, 17) + "\u2026" : title, w, stackY + titleH / 2, {
     fontSize: titleSize,
     fill: theme.textMuted
   });
@@ -14959,7 +15177,7 @@ registerAutomotive("engineTemp", (props, app) => {
   if (useDigital) {
     const group2 = createAutoGroup(app, "engineTemp", { ...props, width: bounds.width, height: bounds.height, display: "digital" }, "engineTemp");
     const style = digitalGaugeStyle(theme);
-    const parts = buildDigitalGauge(app, group2, bounds, style, {
+    const parts2 = buildDigitalGauge(app, group2, bounds, style, {
       label: "Temp",
       value,
       max,
@@ -14969,108 +15187,475 @@ registerAutomotive("engineTemp", (props, app) => {
       showSegments: false
     });
     const barW = bounds.innerWidth - bounds.pad;
-    setParts3(group2, { valueText: parts.valueText });
-    group2.metadata._digitalParts = parts;
-    setRefresh2(group2, (v) => updateDigitalGauge(parts, v, max, (x) => String(Math.round(x)), barW));
+    setParts3(group2, { valueText: parts2.valueText });
+    group2.metadata._digitalParts = parts2;
+    setRefresh2(group2, (v) => updateDigitalGauge(parts2, v, max, (x) => String(Math.round(x)), barW));
     setState3(group2, { width: bounds.width, height: bounds.height, value, max, display: "digital" });
     return group2;
   }
-  const size = bounds.dialSize;
+  const size = Math.min(bounds.dialSize, Math.min(bounds.innerWidth, bounds.innerHeight) - 6);
   const group = createAutoGroup(app, "engineTemp", { ...props, width: bounds.width, height: bounds.height, size, display: "analog" }, "engineTemp");
   const origin = centerInBounds(bounds, size, size);
   const inner = app.group({ x: origin.x, y: origin.y, listening: false });
   group.add(inner);
   const cx = size / 2;
-  const r = size / 2 - Math.max(10, size * 0.07);
-  const sweep = Math.PI * 1.5;
-  const base = Math.PI * 0.75;
-  inner.add(
-    app.circle({ x: cx - r - 4, y: cx - r - 4, radius: r + 4, fill: "#0a0a0a", stroke: theme.dialStroke, strokeWidth: 2, listening: false }),
-    app.text({ text: "TEMP", x: cx - 16, y: 8, fontSize: fluidFont(9, bounds, 7, 10), fontWeight: "bold", fill: theme.textMuted, listening: false })
+  const inset = Math.max(4, Math.min(12, size * 0.1));
+  const r = size / 2 - inset;
+  const parts = buildDialGauge(
+    app,
+    inner,
+    {
+      trackColor: theme.dialStroke,
+      needleColor: theme.text,
+      accentColor: theme.ok,
+      textColor: theme.text,
+      textMuted: theme.textMuted,
+      faceColor: "#0a0a0a",
+      bezelColor: theme.dialStroke,
+      tickColor: theme.textMuted
+    },
+    {
+      size,
+      value,
+      max,
+      title: "TEMP",
+      unit: "\xB0C",
+      formatValue: (v) => String(Math.round(v)),
+      tickCount: size < 100 ? 5 : 8,
+      showTickLabels: size >= 96,
+      colorZones: [
+        { from: 0, to: 0.4, color: "#3b82f6" },
+        { from: 0.4, to: 0.75, color: theme.ok },
+        { from: 0.75, to: 1, color: theme.warning }
+      ]
+    }
   );
-  [
-    { start: 0, end: 0.4, color: "#3b82f6" },
-    { start: 0.4, end: 0.75, color: theme.ok },
-    { start: 0.75, end: 1, color: theme.warning }
-  ].forEach((z) => {
-    inner.add(
-      new Arc({
-        x: cx - r,
-        y: cx - r,
-        radius: r,
-        startAngle: base + z.start * sweep,
-        endAngle: base + z.end * sweep,
-        fill: null,
-        stroke: z.color,
-        strokeWidth: Math.max(6, size * 0.06),
-        listening: false
-      })
-    );
-  });
-  const angle = needleAngle(value, max);
-  const needle = app.line({
-    x: cx,
-    y: cx,
-    x2: r * 0.72 * Math.cos(angle),
-    y2: r * 0.72 * Math.sin(angle),
-    stroke: theme.text,
-    strokeWidth: Math.max(2, size * 0.018),
-    lineCap: "round",
-    listening: false
-  });
-  const label = app.text({
-    text: `${Math.round(value)}\xB0`,
-    x: cx,
-    y: cx + r * 0.42,
-    fontSize: fluidFont(14, bounds, 11, 16),
-    fontWeight: "bold",
-    fill: theme.text,
-    textAlign: "center",
-    listening: false
-  });
-  inner.add(needle, label);
-  setParts3(group, { needle, label });
+  setParts3(group, { needle: parts.needle, label: parts.valueText, inner });
   setRefresh2(group, (v) => {
-    const a = needleAngle(v, max);
-    needle.x2 = r * 0.72 * Math.cos(a);
-    needle.y2 = r * 0.72 * Math.sin(a);
-    label.text = `${Math.round(v)}\xB0`;
+    updateDialNeedle(parts.needle, cx, v, max, r, void 0, void 0, void 0, parts.valueArc);
+    parts.valueText.text = `${Math.round(v)}`;
   });
   setState3(group, { width: bounds.width, height: bounds.height, size, value, max, display: "analog" });
   return group;
 });
+function voltageFillLevel(value) {
+  return clamp4((value - 11) / (14.2 - 11), 0, 1);
+}
+function buildAutomotiveCalendar(app, group, bounds, theme, props) {
+  const year = num3(props, "year", (/* @__PURE__ */ new Date()).getFullYear());
+  const month = num3(props, "month", (/* @__PURE__ */ new Date()).getMonth());
+  const now2 = /* @__PURE__ */ new Date();
+  const highlightDay = "highlightDay" in props ? num3(props, "highlightDay", -1) : year === now2.getFullYear() && month === now2.getMonth() ? now2.getDate() : -1;
+  const lines = props.lines ?? ["No events"];
+  const eventLine = str3(props, "event", lines[0] ?? "No events");
+  const pad = bounds.pad;
+  const panelW = bounds.innerWidth;
+  const panelH = bounds.innerHeight;
+  const compact = panelH < 120 || panelW < 160;
+  const showEvents = panelH >= 72;
+  const eventH = showEvents ? Math.max(compact ? 12 : 16, Math.round(panelH * 0.13)) : 0;
+  const headerH = Math.max(compact ? 11 : 14, Math.round(panelH * 0.1));
+  const weekdayH = Math.max(compact ? 9 : 11, Math.round(panelH * 0.07));
+  const gridTop = headerH + weekdayH + 2;
+  const gridH = Math.max(24, panelH - gridTop - (showEvents ? eventH + 4 : 0));
+  const first = new Date(year, month, 1);
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const startDay = first.getDay();
+  const numRows = Math.ceil((startDay + daysInMonth) / 7);
+  const cell = Math.max(compact ? 9 : 12, Math.min(Math.floor(panelW / 7), Math.floor(gridH / numRows)));
+  const gridW = cell * 7;
+  const gridX = pad + Math.max(0, (panelW - gridW) / 2);
+  group.add(
+    app.roundedRect({
+      x: pad,
+      y: pad,
+      width: panelW,
+      height: panelH,
+      cornerRadius: Math.min(8, panelH * 0.08),
+      fill: "#111827",
+      stroke: theme.dialStroke,
+      strokeWidth: compact ? 1 : 1.5,
+      listening: false
+    })
+  );
+  const monthLabel = first.toLocaleString("default", {
+    month: compact ? "short" : "long",
+    year: "numeric"
+  });
+  const headerSize = fluidFont(10, bounds, compact ? 7 : 8, 12);
+  group.add(
+    app.text({
+      text: monthLabel,
+      x: pad + fitTextX(monthLabel, headerSize, panelW),
+      y: pad + textYForBaseline(headerH / 2, headerSize),
+      fontSize: headerSize,
+      fontWeight: "bold",
+      fill: theme.text,
+      textAlign: "left",
+      listening: false
+    })
+  );
+  const weekdaySize = fluidFont(8, bounds, compact ? 6 : 7, 9);
+  const weekdays = compact ? ["S", "M", "T", "W", "T", "F", "S"] : ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+  weekdays.forEach((label, i) => {
+    const cx = gridX + i * cell + cell / 2;
+    group.add(
+      app.text({
+        text: label,
+        x: cx,
+        y: pad + headerH + textYForBaseline(weekdayH / 2, weekdaySize),
+        fontSize: weekdaySize,
+        fontWeight: "600",
+        fill: theme.textMuted,
+        textAlign: "center",
+        metadata: { textBoxWidth: cell, textBoxCenterY: pad + headerH + weekdayH / 2 },
+        listening: false
+      })
+    );
+  });
+  const daySize = Math.max(compact ? 7 : 8, Math.min(11, Math.floor(cell * 0.42)));
+  for (let day = 1; day <= daysInMonth; day++) {
+    const cellIdx = startDay + day - 1;
+    const col = cellIdx % 7;
+    const row = Math.floor(cellIdx / 7);
+    const cellX = gridX + col * cell;
+    const cellY = pad + gridTop + row * cell;
+    const isToday = day === highlightDay;
+    if (isToday) {
+      group.add(
+        app.roundedRect({
+          x: cellX + Math.max(1, cell * 0.12),
+          y: cellY + Math.max(1, cell * 0.1),
+          width: Math.max(6, cell * 0.76),
+          height: Math.max(6, cell * 0.8),
+          cornerRadius: Math.max(2, cell * 0.18),
+          fill: theme.accent,
+          listening: false
+        })
+      );
+    }
+    group.add(
+      app.text({
+        text: String(day),
+        x: cellX + cell / 2,
+        y: cellY + textYForBaseline(cell / 2, daySize),
+        fontSize: daySize,
+        fontWeight: isToday ? "bold" : "500",
+        fill: isToday ? "#fff" : theme.text,
+        textAlign: "center",
+        metadata: { textBoxWidth: cell, textBoxCenterY: cellY + cell / 2 },
+        listening: false
+      })
+    );
+  }
+  if (showEvents) {
+    const eventSize = fluidFont(9, bounds, compact ? 6 : 7, 10);
+    const eventText = eventLine.length > 28 ? `${eventLine.slice(0, 27)}\u2026` : eventLine;
+    const eventY = pad + panelH - eventH / 2;
+    group.add(
+      app.text({
+        text: eventText,
+        x: pad + fitTextX(eventText, eventSize, panelW),
+        y: textYForBaseline(eventY, eventSize),
+        fontSize: eventSize,
+        fill: theme.textMuted,
+        textAlign: "left",
+        listening: false
+      })
+    );
+  }
+}
+registerAutomotive("calendar", (props, app) => {
+  const theme = getTheme(str3(props, "theme", "classic"));
+  const bounds = resolveBounds(props, 200, 140);
+  const group = createAutoGroup(app, "calendar", { ...props, width: bounds.width, height: bounds.height }, "calendar");
+  buildAutomotiveCalendar(app, group, bounds, theme, props);
+  const year = num3(props, "year", (/* @__PURE__ */ new Date()).getFullYear());
+  const month = num3(props, "month", (/* @__PURE__ */ new Date()).getMonth());
+  const lines = props.lines ?? ["No events"];
+  group.metadata.linesRefresh = (next) => {
+    setState3(group, { lines: next });
+  };
+  setState3(group, {
+    year,
+    month,
+    highlightDay: num3(props, "highlightDay", -1),
+    lines,
+    width: bounds.width,
+    height: bounds.height
+  });
+  return group;
+});
+function callerInitials(name) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2)
+    return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
+  return (name.slice(0, 2) || "?").toUpperCase();
+}
+registerAutomotive("callScreen", (props, app) => {
+  const theme = getTheme(str3(props, "theme", "classic"));
+  const lines = props.lines ?? ["Incoming\u2026", "Swipe to answer"];
+  const caller = str3(props, "caller", str3(props, "name", "Alex Morgan"));
+  const status = str3(props, "status", "incoming").toLowerCase();
+  const subtitle = str3(props, "subtitle", str3(props, "phone", "Mobile"));
+  const hint = str3(props, "hint", lines[1] ?? "Swipe to answer");
+  const bounds = resolveBounds(props, 220, 130);
+  const group = createAutoGroup(app, "callScreen", { ...props, width: bounds.width, height: bounds.height }, "callScreen");
+  const pad = bounds.pad;
+  const panelW = bounds.innerWidth;
+  const panelH = bounds.innerHeight;
+  const compact = panelH < 88 || panelW < 140;
+  const statusLabel = status === "active" ? "ON CALL" : status === "ended" ? "CALL ENDED" : "INCOMING CALL";
+  group.add(
+    app.roundedRect({
+      x: pad,
+      y: pad,
+      width: panelW,
+      height: panelH,
+      cornerRadius: Math.min(10, panelH * 0.1),
+      fill: "#111827",
+      stroke: theme.dialStroke,
+      strokeWidth: compact ? 1 : 1.5,
+      listening: false
+    })
+  );
+  const statusSize = fluidFont(8, bounds, 6, 9);
+  group.add(
+    app.text({
+      text: statusLabel,
+      x: pad + fitTextX(statusLabel, statusSize, panelW),
+      y: pad + textYForBaseline(compact ? 10 : 12, statusSize),
+      fontSize: statusSize,
+      fontWeight: "bold",
+      fill: theme.textMuted,
+      textAlign: "left",
+      listening: false
+    })
+  );
+  const avatarSize = Math.max(compact ? 26 : 34, Math.min(panelH * 0.36, panelW * 0.2));
+  const avatarX = pad + Math.max(4, panelW * 0.03);
+  const avatarY = pad + (compact ? 16 : 20);
+  group.add(
+    app.circle({
+      x: avatarX,
+      y: avatarY,
+      radius: avatarSize / 2,
+      fill: theme.accent,
+      opacity: 0.85,
+      listening: false
+    })
+  );
+  const initials = callerInitials(caller);
+  const initialsSize = Math.max(compact ? 9 : 11, Math.floor(avatarSize * 0.3));
+  group.add(
+    autoCenteredText(app, initials, avatarSize, avatarSize / 2, {
+      fontSize: initialsSize,
+      fontWeight: "bold",
+      fill: "#fff",
+      insetX: avatarX,
+      insetY: avatarY
+    })
+  );
+  const textX0 = avatarX + avatarSize + Math.max(6, panelW * 0.03);
+  const textW = Math.max(40, pad + panelW + pad - textX0 - 4);
+  const callerMax = fluidFont(14, bounds, compact ? 10 : 11, 16);
+  const callerFit = fitFontSizeToWidth(caller, textW, callerMax, 8);
+  const nameY = avatarY + avatarSize * 0.22;
+  const nameText = app.text({
+    text: caller,
+    x: textX0 + callerFit.x,
+    y: textYForBaseline(nameY, callerFit.fontSize),
+    fontSize: callerFit.fontSize,
+    fontWeight: "bold",
+    fill: theme.text,
+    textAlign: "left",
+    listening: false
+  });
+  const subSize = fluidFont(9, bounds, 7, 10);
+  const subText = app.text({
+    text: subtitle,
+    x: textX0 + fitTextX(subtitle, subSize, textW),
+    y: textYForBaseline(nameY + callerFit.fontSize * 0.95, subSize),
+    fontSize: subSize,
+    fill: theme.textMuted,
+    textAlign: "left",
+    listening: false
+  });
+  group.add(nameText, subText);
+  const btnH = Math.max(compact ? 18 : 22, Math.min(28, panelH * 0.16));
+  const btnGap = Math.max(6, panelW * 0.04);
+  const btnW = Math.max(compact ? 44 : 56, (panelW - btnGap) / 2);
+  const btnY = pad + panelH - btnH - (compact ? 8 : 10);
+  const declineX = pad + Math.max(0, (panelW - btnW * 2 - btnGap) / 2);
+  const answerX = declineX + btnW + btnGap;
+  group.add(
+    app.roundedRect({
+      x: declineX,
+      y: btnY,
+      width: btnW,
+      height: btnH,
+      cornerRadius: Math.min(8, btnH / 2),
+      fill: theme.warning,
+      listening: false
+    }),
+    app.roundedRect({
+      x: answerX,
+      y: btnY,
+      width: btnW,
+      height: btnH,
+      cornerRadius: Math.min(8, btnH / 2),
+      fill: theme.ok,
+      listening: false
+    })
+  );
+  const btnLabel = compact ? { decline: "End", answer: "Ans" } : { decline: "Decline", answer: "Answer" };
+  const btnFont = fluidFont(9, bounds, compact ? 7 : 8, 10);
+  group.add(
+    autoCenteredText(app, btnLabel.decline, btnW, btnH / 2, {
+      fontSize: btnFont,
+      fontWeight: "bold",
+      fill: "#fff",
+      insetX: declineX,
+      insetY: btnY
+    }),
+    autoCenteredText(app, btnLabel.answer, btnW, btnH / 2, {
+      fontSize: btnFont,
+      fontWeight: "bold",
+      fill: "#fff",
+      insetX: answerX,
+      insetY: btnY
+    })
+  );
+  const hintSize = fluidFont(8, bounds, 6, 9);
+  const hintText = hint.length > 24 ? `${hint.slice(0, 23)}\u2026` : hint;
+  const hintY = Math.max(avatarY + avatarSize + 4, btnY - hintSize - (compact ? 4 : 6));
+  const hintNode = app.text({
+    text: hintText,
+    x: pad + fitTextX(hintText, hintSize, panelW),
+    y: textYForBaseline(hintY, hintSize),
+    fontSize: hintSize,
+    fill: theme.textMuted,
+    textAlign: "left",
+    listening: false
+  });
+  group.add(hintNode);
+  setParts3(group, { nameText, subText, hintNode });
+  group.metadata.linesRefresh = (next) => {
+    if (next[0])
+      subText.text = next[0];
+    if (next[1]) {
+      const nextHint = next[1].length > 24 ? `${next[1].slice(0, 23)}\u2026` : next[1];
+      hintNode.text = nextHint;
+    }
+  };
+  group.metadata.refresh = (nextCaller, nextStatus) => {
+    const fit = fitFontSizeToWidth(nextCaller, textW, callerMax, 8);
+    nameText.text = nextCaller;
+    nameText.fontSize = fit.fontSize;
+    nameText.x = textX0 + fit.x;
+    if (nextStatus)
+      setState3(group, { status: nextStatus });
+  };
+  setState3(group, { caller, status, subtitle, hint, lines, width: bounds.width, height: bounds.height });
+  return group;
+});
 registerAutomotive("batteryVoltage", (props, app) => {
   const value = num3(props, "value", 12.4);
+  const lowThreshold = num3(props, "lowThreshold", 11.5);
+  const theme = getTheme(str3(props, "theme", "classic"));
   const bounds = resolveBounds(props, 100, 36);
   const group = createAutoGroup(app, "batteryVoltage", { ...props, width: bounds.width, height: bounds.height }, "batteryVoltage");
-  const w = bounds.innerWidth;
-  const h = bounds.innerHeight;
-  const iconW = Math.min(32, w * 0.35);
-  const iconH = Math.min(16, h * 0.5);
-  const ox = bounds.pad;
-  const oy = (h - iconH) / 2;
+  const pad = bounds.pad;
+  const panelW = bounds.innerWidth;
+  const panelH = bounds.innerHeight;
+  const compact = panelW < 56 || panelH < 22;
+  const low = value < lowThreshold;
+  const levelColor = low ? theme.warning : theme.ok;
   group.add(
-    app.rect({ x: ox, y: oy, width: iconW, height: iconH, fill: null, stroke: "#fff", strokeWidth: 2, listening: false }),
-    app.rect({ x: ox + iconW, y: oy + iconH * 0.28, width: Math.max(3, iconW * 0.12), height: iconH * 0.45, fill: "#fff", listening: false })
+    app.roundedRect({
+      x: pad,
+      y: pad,
+      width: panelW,
+      height: panelH,
+      cornerRadius: Math.min(6, panelH * 0.2),
+      fill: "#111827",
+      stroke: theme.dialStroke,
+      strokeWidth: compact ? 1 : 1.5,
+      listening: false
+    })
   );
+  const bodyW = Math.max(compact ? 10 : 18, Math.min(panelW * 0.28, panelH * 0.65));
+  const bodyH = Math.max(compact ? 7 : 11, Math.min(panelH * 0.5, bodyW * 0.48));
+  const nubW = Math.max(2, bodyW * 0.12);
+  const iconX = pad + Math.max(compact ? 3 : 6, panelW * 0.05);
+  const iconY = pad + (panelH - bodyH) / 2;
+  const inset = Math.max(1.5, bodyW * 0.1);
+  const innerFillW = Math.max(0, bodyW - inset * 2);
+  group.add(
+    app.roundedRect({
+      x: iconX,
+      y: iconY,
+      width: bodyW,
+      height: bodyH,
+      cornerRadius: Math.min(2, bodyH * 0.2),
+      fill: null,
+      stroke: theme.textMuted,
+      strokeWidth: compact ? 1 : 1.5,
+      listening: false
+    })
+  );
+  const fill = app.roundedRect({
+    x: iconX + inset,
+    y: iconY + inset,
+    width: innerFillW * voltageFillLevel(value),
+    height: bodyH - inset * 2,
+    cornerRadius: 1,
+    fill: levelColor,
+    listening: false
+  });
+  group.add(
+    fill,
+    app.rect({
+      x: iconX + bodyW,
+      y: iconY + bodyH * 0.22,
+      width: nubW,
+      height: bodyH * 0.56,
+      fill: theme.textMuted,
+      listening: false
+    })
+  );
+  const textGap = Math.max(3, panelW * 0.04);
+  const textX0 = iconX + bodyW + nubW + textGap;
+  const textW = Math.max(18, pad + panelW + pad - textX0 - (compact ? 2 : 4));
+  const val = `${value.toFixed(1)}V`;
+  const maxFs = fluidFont(14, bounds, compact ? 8 : 10, 16);
+  const fitted = fitFontSizeToWidth(val, textW, maxFs, compact ? 7 : 8);
   const label = app.text({
-    text: `${value.toFixed(1)}V`,
-    x: Math.min(ox + iconW + 6, w - 4),
-    y: h / 2,
-    fontSize: fluidFont(14, bounds, 9, 14),
-    fill: value < 11.5 ? "#ef4444" : "#22c55e",
-    textAlign: "right",
-    textBaseline: "middle",
-    metadata: { textBoxWidth: Math.max(28, w - iconW - 12) },
+    text: val,
+    x: textX0 + fitted.x,
+    y: pad + textYForBaseline(panelH / 2, fitted.fontSize),
+    fontSize: fitted.fontSize,
+    fontWeight: "bold",
+    fill: levelColor,
+    textAlign: "left",
     listening: false
   });
   group.add(label);
-  setParts3(group, { label });
+  setParts3(group, { label, fill });
   setRefresh2(group, (v) => {
-    label.text = `${v.toFixed(1)}V`;
-    label.fill = v < 11.5 ? "#ef4444" : "#22c55e";
+    const isLow = v < lowThreshold;
+    const color = isLow ? theme.warning : theme.ok;
+    const next = `${v.toFixed(1)}V`;
+    const nextFit = fitFontSizeToWidth(next, textW, maxFs, compact ? 7 : 8);
+    label.text = next;
+    label.fontSize = nextFit.fontSize;
+    label.x = textX0 + nextFit.x;
+    label.y = pad + textYForBaseline(panelH / 2, nextFit.fontSize);
+    label.fill = color;
+    fill.width = innerFillW * voltageFillLevel(v);
+    fill.fill = color;
   });
-  setState3(group, { value, width: bounds.width, height: bounds.height });
+  setState3(group, { value, lowThreshold, width: bounds.width, height: bounds.height });
   return group;
 });
 registerAutomotive("tpms", (props, app) => {
@@ -15081,16 +15666,33 @@ registerAutomotive("tpms", (props, app) => {
   const group = createAutoGroup(app, "tpms", { ...props, width: bounds.width, height: bounds.height }, "tpms");
   const panelW = bounds.innerWidth;
   const panelH = bounds.innerHeight;
-  const titleH = Math.max(12, Math.min(18, panelH * 0.2));
-  const gap = 4;
-  const cellW = (panelW - gap * 3) / 2;
-  const cellH = Math.max(12, (panelH - titleH - gap * 3) / 2);
+  const compact = panelH < 48 || panelW < 88;
+  const title = compact ? "TPMS" : "TIRE PRESSURE";
+  const titleSize = fluidFont(compact ? 7 : 8, bounds, 6, 9);
+  const titleH = Math.max(compact ? 10 : 12, Math.min(18, panelH * 0.2));
+  const gap = compact ? 2 : 4;
+  const rowLayout = compact && panelW >= panelH * 1.4;
+  const cellW = rowLayout ? (panelW - gap * 5) / 4 : (panelW - gap * 3) / 2;
+  const cellH = rowLayout ? Math.max(10, panelH - titleH - gap * 2) : Math.max(10, (panelH - titleH - gap * 3) / 2);
   const gridTop = titleH + gap;
   group.add(
     app.roundedRect({ width: panelW, height: panelH, cornerRadius: 8, fill: "#111827", stroke: theme.dialStroke, strokeWidth: 1.5, listening: false }),
-    app.text({ text: "TIRE PRESSURE", x: 10, y: 6, fontSize: fluidFont(8, bounds, 7, 9), fontWeight: "bold", fill: theme.textMuted, listening: false })
+    app.text({
+      text: title,
+      x: fitTextX(title, titleSize, panelW),
+      y: compact ? 4 : 6,
+      fontSize: titleSize,
+      fontWeight: "bold",
+      fill: theme.textMuted,
+      listening: false
+    })
   );
-  const positions = [
+  const positions = rowLayout ? [
+    { x: gap, y: gridTop, label: "FL" },
+    { x: gap * 2 + cellW, y: gridTop, label: "FR" },
+    { x: gap * 3 + cellW * 2, y: gridTop, label: "RL" },
+    { x: gap * 4 + cellW * 3, y: gridTop, label: "RR" }
+  ] : [
     { x: gap, y: gridTop, label: "FL" },
     { x: gap * 2 + cellW, y: gridTop, label: "FR" },
     { x: gap, y: gridTop + cellH + gap, label: "RL" },
@@ -15116,14 +15718,13 @@ registerAutomotive("tpms", (props, app) => {
     );
     const t = app.text({
       text: `${psi}`,
-      x: pos.x + cellW / 2,
+      x: pos.x + fitTextX(`${psi}`, Math.max(9, cellH * 0.38), cellW),
       y: pos.y + cellH * 0.62,
       fontSize: Math.max(9, cellH * 0.38),
       fontWeight: "bold",
       fill: low ? theme.warning : theme.text,
-      textAlign: "center",
+      textAlign: "left",
       textBaseline: "middle",
-      metadata: { textBoxWidth: cellW },
       listening: false
     });
     texts.push(t);
@@ -15188,12 +15789,24 @@ registerAutomotive("gearIndicator", (props, app) => {
   const w = bounds.innerWidth;
   const h = bounds.innerHeight;
   group.add(
-    app.roundedRect({ width: w, height: h, cornerRadius: 8, fill: "#111827", stroke: theme.dialStroke, strokeWidth: 2, listening: false })
+    app.roundedRect({
+      x: bounds.pad,
+      y: bounds.pad,
+      width: w,
+      height: h,
+      cornerRadius: 8,
+      fill: "#111827",
+      stroke: theme.dialStroke,
+      strokeWidth: 2,
+      listening: false
+    })
   );
   const label = autoCenteredText(app, gear, w, h / 2, {
     fontSize: fluidFont(36, bounds, 18, 40),
     fontWeight: "bold",
-    fill: theme.text
+    fill: theme.text,
+    insetX: bounds.pad,
+    insetY: bounds.pad
   });
   group.add(label);
   setParts3(group, { label });
@@ -15206,47 +15819,63 @@ registerAutomotive("gearIndicator", (props, app) => {
 registerAutomotive("turnIndicators", (props, app) => {
   const left = bool3(props, "left", false);
   const right = bool3(props, "right", false);
+  const theme = getTheme(str3(props, "theme", "classic"));
   const bounds = resolveBounds(props, 56, 28);
   const group = createAutoGroup(app, "turnIndicators", { ...props, width: bounds.width, height: bounds.height }, "turnIndicators");
-  const w = bounds.innerWidth;
-  const h = bounds.innerHeight;
+  const pad = bounds.pad;
+  const panelW = bounds.innerWidth;
+  const panelH = bounds.innerHeight;
+  const compact = panelH < 18 || panelW < 40;
+  const innerPad = Math.max(compact ? 2 : 4, Math.round(Math.min(panelW, panelH) * 0.1));
+  const availW = panelW - innerPad * 2;
+  const gap = Math.max(compact ? 3 : 5, availW * 0.14);
+  const arrowW = Math.max(compact ? 7 : 10, (availW - gap) / 2);
+  const arrowH = Math.max(compact ? 5 : 8, Math.min(panelH - innerPad * 2, panelH * (compact ? 0.62 : 0.52)));
+  const totalW = arrowW * 2 + gap;
+  const startX = pad + innerPad + Math.max(0, (panelW - innerPad * 2 - totalW) / 2);
+  const cy = pad + panelH / 2;
+  const leftX = startX;
+  const rightX = startX + arrowW + gap;
+  const onColor = theme.lampOn;
+  const offColor = theme.lampOff;
+  const onStroke = "#fbbf24";
+  const offStroke = theme.dialStroke;
+  const arrowPoints = (x, flip) => flip ? [x, cy, x + arrowW, cy - arrowH / 2, x + arrowW, cy + arrowH / 2] : [x + arrowW, cy, x, cy - arrowH / 2, x, cy + arrowH / 2];
+  const arrowStyle = (on) => ({
+    fill: on ? onColor : offColor,
+    stroke: on ? onStroke : offStroke,
+    strokeWidth: 1,
+    shadow: on ? { color: "rgba(251,191,36,0.4)", blur: compact ? 4 : 6, offsetX: 0, offsetY: 0 } : void 0,
+    listening: false
+  });
   group.add(
     app.roundedRect({
-      width: w,
-      height: h,
-      cornerRadius: Math.min(6, h * 0.2),
+      x: pad,
+      y: pad,
+      width: panelW,
+      height: panelH,
+      cornerRadius: Math.min(6, panelH * 0.2),
       fill: "#111827",
-      stroke: "#374151",
-      strokeWidth: 1,
+      stroke: theme.dialStroke,
+      strokeWidth: compact ? 1 : 1.5,
       listening: false
     })
   );
-  const arrowW = Math.max(10, Math.min(w * 0.2, (w - 12) / 2));
-  const arrowH = Math.max(8, h * 0.5);
-  const gap = 4;
-  const onColor = "#f59e0b";
-  const offColor = "#1f2937";
-  const cy = h / 2;
-  const arrow = (x, on, flip) => app.polygon({
-    points: on ? flip ? [x, cy, x + arrowW, cy - arrowH / 2, x + arrowW, cy + arrowH / 2] : [x + arrowW, cy, x, cy - arrowH / 2, x, cy + arrowH / 2] : flip ? [x + arrowW * 0.15, cy, x + arrowW * 0.85, cy - arrowH * 0.4, x + arrowW * 0.85, cy + arrowH * 0.4] : [x + arrowW * 0.85, cy, x + arrowW * 0.15, cy - arrowH * 0.4, x + arrowW * 0.15, cy + arrowH * 0.4],
-    fill: on ? onColor : offColor,
-    stroke: on ? "#fbbf24" : "#374151",
-    strokeWidth: 1,
-    listening: false
-  });
-  const leftShape = arrow(0, left, false);
-  const rightShape = arrow(w - gap - arrowW, right, true);
+  const leftShape = app.polygon({ points: arrowPoints(leftX, false), ...arrowStyle(left) });
+  const rightShape = app.polygon({ points: arrowPoints(rightX, true), ...arrowStyle(right) });
   group.add(leftShape, rightShape);
-  group.metadata.refresh = (l, r) => {
-    const update = (shape, x, on, flip) => {
-      const pts = on ? flip ? [x, cy, x + arrowW, cy - arrowH / 2, x + arrowW, cy + arrowH / 2] : [x + arrowW, cy, x, cy - arrowH / 2, x, cy + arrowH / 2] : flip ? [x + arrowW * 0.15, cy, x + arrowW * 0.85, cy - arrowH * 0.4, x + arrowW * 0.85, cy + arrowH * 0.4] : [x + arrowW * 0.85, cy, x + arrowW * 0.15, cy - arrowH * 0.4, x + arrowW * 0.15, cy + arrowH * 0.4];
-      shape.points = pts;
-      shape.fill = on ? onColor : offColor;
-      shape.stroke = on ? "#fbbf24" : "#374151";
-    };
-    update(leftShape, 0, l, false);
-    update(rightShape, w - gap - arrowW, r, true);
+  const applyState = (l, r) => {
+    leftShape.fill = l ? onColor : offColor;
+    rightShape.fill = r ? onColor : offColor;
+    leftShape.stroke = l ? onStroke : offStroke;
+    rightShape.stroke = r ? onStroke : offStroke;
+    leftShape.shadow = l ? { color: "rgba(251,191,36,0.4)", blur: compact ? 4 : 6, offsetX: 0, offsetY: 0 } : null;
+    rightShape.shadow = r ? { color: "rgba(251,191,36,0.4)", blur: compact ? 4 : 6, offsetX: 0, offsetY: 0 } : null;
+    leftShape.markDirty();
+    rightShape.markDirty();
   };
+  group.metadata.refresh = (l, r) => applyState(l, r);
+  setParts3(group, { leftShape, rightShape });
   setState3(group, { left, right, width: bounds.width, height: bounds.height });
   return group;
 });
@@ -15311,19 +15940,20 @@ registerAutomotive("warningLamp", (props, app) => {
   const active = bool3(props, "active", false);
   const bounds = resolveBounds(props, 36, 36);
   const group = createAutoGroup(app, "warningLamp", { ...props, width: bounds.width, height: bounds.height }, "warningLamp");
-  const radius = Math.min(bounds.innerWidth, bounds.innerHeight) / 2 - 2;
-  const center = centerInBounds(bounds, radius * 2, radius * 2);
+  const radius = Math.min(bounds.innerWidth, bounds.innerHeight) / 2 - 3;
+  const maxR = Math.max(12, Math.min(radius, 56));
+  const center = centerInBounds(bounds, maxR * 2, maxR * 2);
+  const symSize = fluidFont(10, bounds, 8, 12);
   group.add(
-    app.circle({ radius, x: center.x, y: center.y, fill: active ? "#ef4444" : "#333", stroke: active ? "#fca5a5" : "#555", strokeWidth: 1, listening: false }),
+    app.circle({ radius: maxR, x: center.x, y: center.y, fill: active ? "#ef4444" : "#333", stroke: active ? "#fca5a5" : "#555", strokeWidth: 1, listening: false }),
     app.text({
       text: labelText,
-      x: center.x + radius,
-      y: center.y + radius,
-      fontSize: fluidFont(10, bounds, 8, 10),
+      x: center.x + fitTextX(labelText, symSize, maxR * 2),
+      y: center.y + maxR,
+      fontSize: symSize,
       fill: active ? "#fff" : "#666",
-      textAlign: "center",
+      textAlign: "left",
       textBaseline: "middle",
-      metadata: { textBoxWidth: radius * 2 },
       listening: false
     })
   );
@@ -15337,9 +15967,11 @@ registerAutomotive("adasStatus", (props, app) => {
   const group = createAutoGroup(app, "adasStatus", { ...props, width: bounds.width, height: bounds.height }, "adasStatus");
   const w = bounds.innerWidth;
   const h = bounds.innerHeight;
+  const compact = w < 56;
+  const label = compact ? `ADAS ${status === "off" ? "\u2014" : status[0]?.toUpperCase() ?? "?"}` : `ADAS ${status.toUpperCase()}`;
   group.add(
     app.rect({ width: w, height: h, fill: colors[status] ?? "#333", cornerRadius: 4, listening: false }),
-    autoCenteredText(app, `ADAS ${status.toUpperCase()}`, w, h / 2, {
+    autoCenteredText(app, label, w, h / 2, {
       fontSize: fluidFont(10, bounds, 7, 11),
       fill: "#fff"
     })
@@ -15356,6 +15988,7 @@ function buildInstrumentCluster(props, app, type) {
   const theme = getTheme(str3(props, "theme", "classic"));
   const w = num3(props, "width", 800);
   const h = num3(props, "height", 400);
+  const incomingCall = bool3(props, "incomingCall", false) || bool3(props, "showCall", false);
   const group = createAutoGroup(app, type, props, type, { width: w, height: h });
   group.add(
     app.rect({
@@ -15384,9 +16017,16 @@ function buildInstrumentCluster(props, app, type) {
     headlights: { active: props.headlights ?? false },
     cruiseControl: { speed: props.cruiseSpeed ?? 0 },
     warningLamp: { label: "ABS", active: props.absWarning ?? false },
-    adasStatus: { status: props.adasStatus ?? "off" }
+    adasStatus: { status: props.adasStatus ?? "off" },
+    callScreen: {
+      caller: str3(props, "caller", "Alex Morgan"),
+      subtitle: str3(props, "subtitle", str3(props, "phone", "Mobile")),
+      status: str3(props, "callStatus", str3(props, "status", "incoming")),
+      hint: str3(props, "callHint", str3(props, "hint", "Swipe to answer")),
+      lines: props.lines ?? ["Incoming\u2026", "Swipe to answer"]
+    }
   };
-  for (const slot of resolveClusterLayout(w, h)) {
+  for (const slot of resolveClusterLayout(w, h, { callScreen: incomingCall })) {
     const { type: wt, size, width: slotW, height: slotH, x: slotX, y: slotY } = slot;
     const slotDigital = gaugeDisplay === "digital" || slotW < 128 || slotH < 80 || size !== void 0 && size < 96;
     const node = createAutomotiveFromJSON(
@@ -15457,6 +16097,17 @@ function walkParts(node, fn) {
   }
 }
 function applyDriveState(root, state) {
+  if ("children" in root && state.incomingCall !== void 0) {
+    const prev = getState3(root).incomingCall;
+    if (prev !== state.incomingCall) {
+      updateAutoWidgetProps(root, {
+        incomingCall: state.incomingCall,
+        ...state.caller !== void 0 ? { caller: state.caller } : {},
+        ...state.callStatus !== void 0 ? { callStatus: state.callStatus } : {},
+        ...state.subtitle !== void 0 ? { subtitle: state.subtitle } : {}
+      });
+    }
+  }
   walkParts(root, (node) => {
     const part = node.metadata?.autoPart;
     if (!part)
@@ -15476,6 +16127,22 @@ function applyDriveState(root, state) {
       const right = state.turnRight ?? false;
       setState3(node, { left, right });
       node.metadata.refresh?.(left, right);
+      return;
+    }
+    if (part === "callScreen") {
+      if (state.caller !== void 0) {
+        node.metadata.refresh?.(
+          String(state.caller),
+          state.callStatus !== void 0 ? String(state.callStatus) : void 0
+        );
+      }
+      if (state.subtitle !== void 0) {
+        setState3(node, { subtitle: state.subtitle });
+        node.metadata.linesRefresh?.([
+          String(state.callStatus ?? "incoming"),
+          String(state.subtitle)
+        ]);
+      }
       return;
     }
     const mapped = VALUE_KEY[part] ?? part;
@@ -15524,6 +16191,10 @@ function sampleDriveFrames(count = 60) {
       gear: i < 5 ? "P" : "D",
       turnLeft: i % 30 < 5,
       turnRight: i % 30 > 25,
+      incomingCall: i >= 35 && i < 55,
+      caller: "Alex Morgan",
+      callStatus: i >= 35 && i < 55 ? "incoming" : "ended",
+      subtitle: "Mobile",
       adasStatus: i > 30 ? "active" : "standby",
       signals: {
         "engine.rpm": Math.round(1500 + t * 3e3),
@@ -16664,8 +17335,8 @@ var diagramPlugin = {
 use(svgPlugin);
 use(htmlPlugin);
 use(uiPlugin);
-use(dashboardPlugin);
 use(automotivePlugin);
+use(dashboardPlugin);
 use(diagramPlugin);
 var LightDrawFull = Object.assign(LightDraw, {
   SVGRenderer,

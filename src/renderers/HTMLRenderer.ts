@@ -466,10 +466,16 @@ export class HTMLRenderer extends Renderer {
 
   private applyTextBoxPosition(node: TextNode, el: HTMLElement): void {
     const boxW = node.metadata?.textBoxWidth as number | undefined;
+    const centerY = node.metadata?.textBoxCenterY as number | undefined;
     if (boxW && boxW > 0 && node.textAlign === 'center') {
       el.style.width = `${boxW}px`;
       el.style.textAlign = 'center';
       el.style.left = `${node.x - boxW / 2}px`;
+      if (centerY !== undefined) {
+        el.style.top = `${centerY - node.fontSize / 2}px`;
+        el.style.height = `${node.fontSize}px`;
+        el.style.lineHeight = `${node.fontSize}px`;
+      }
       el.style.zIndex = String(Math.max(node.zIndex, 902));
       return;
     }

@@ -73,8 +73,8 @@ export { VERSION };
 use(svgPlugin);
 use(htmlPlugin);
 use(uiPlugin);
-use(dashboardPlugin);
 use(automotivePlugin);
+use(dashboardPlugin);
 use(diagramPlugin);
 
 export const LightDrawFull = Object.assign(LightDraw, {

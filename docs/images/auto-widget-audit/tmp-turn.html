@@ -1,0 +1,5 @@
+<!DOCTYPE html><html><head><link rel=stylesheet href=http://127.0.0.1:4182/dist/lightdraw.min.css><style>body{margin:0;background:#0a0a0a;display:flex;gap:12px;padding:12px}.c{width:80px;height:32px}</style></head><body>
+<div class=c id=a></div><div class=c id=b></div><script src=http://127.0.0.1:4182/dist/lightdraw.min.js></script><script src=http://127.0.0.1:4182/examples/demo-auto-catalog.js></script><script>
+function boot(id,left,right){const el=document.getElementById(id);const app=LightDraw.createApp(el,{renderer:'canvas',width:80,height:32,background:'#0a0a0a',autoResize:false});app.loadJSON({type:'turnIndicators',props:{x:0,y:0,width:80,height:32,left,right}});app.render();}
+boot('a',true,false); boot('b',false,true);
+</script></body></html>

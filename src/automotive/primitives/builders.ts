@@ -12,7 +12,7 @@ import {
   setState,
   str,
 } from '../helpers';
-import { autoCenteredText, centerInBounds, fluidFont, isCompactBounds, resolveBounds, resolveDisplay } from '../layout';
+import { autoCenteredText, centerInBounds, fitTextX, fluidFont, isCompactBounds, resolveBounds, resolveDisplay } from '../layout';
 import { getTheme } from '../themes';
 import { buildDialGauge, updateDialNeedle } from '../../primitives/dialGauge';
 import {
@@ -88,7 +88,7 @@ export function buildDialWidget(
   const bounds = resolveBounds(props, 160, 160);
   const value = num(props, 'value', 0);
   const max = num(props, 'max', options.max);
-  const fmt = (v: number) => formatValue(v, options.format, options.unit);
+  const fmt = (v: number) => formatValue(v, options.format);
   let display = resolveDisplay(props, 'analog');
   if (display === 'analog' && isCompactBounds(bounds)) display = 'digital';
 
@@ -125,8 +125,9 @@ export function buildDialWidget(
     return group;
   }
 
-  const size = bounds.dialSize;
-  const needleColor = str(props, 'needleColor', options.needleColor ?? theme.needleSpeed);
+  const maxFit = Math.min(bounds.innerWidth, bounds.innerHeight) - 6;
+  const size = Math.min(bounds.dialSize, maxFit);
+  const needleColor = str(props, 'needleColor', options.needleColor ?? theme.accent);
   const group = createAutoGroup(
     app,
     type,
@@ -146,17 +147,28 @@ export function buildDialWidget(
     {
       trackColor: theme.dialStroke,
       needleColor,
+      accentColor: needleColor,
       textColor: theme.text,
       textMuted: theme.textMuted,
       faceColor: '#0a0a0a',
       bezelColor: theme.dialStroke,
       redlineColor: theme.warning,
+      tickColor: theme.textMuted,
+      tickLabelColor: theme.textMuted,
     },
     {
       size,
       value,
       max,
+      title: dialLabel(autoPart),
       formatValue: fmt,
+      formatTickLabel:
+        options.format === 'rpm'
+          ? (v) => String(Math.round(v / 1000))
+          : options.format === 'percent'
+            ? (v) => String(Math.round(v))
+            : (v) => String(Math.round(v)),
+      unit: options.unit,
       tickCount: options.tickCount ?? (size < 100 ? 5 : 10),
       showTickLabels: size >= 96,
       redlineFrom: options.redlineFrom,
@@ -165,7 +177,7 @@ export function buildDialWidget(
 
   setParts(group, { needle: parts.needle, label: parts.valueText, inner });
   setRefresh(group, (v) => {
-    updateDialNeedle(parts.needle, cx, v, max, r);
+    updateDialNeedle(parts.needle, cx, v, max, r, undefined, undefined, undefined, parts.valueArc);
     parts.valueText.text = fmt(v);
   });
   setState(group, { width: bounds.width, height: bounds.height, size, value, max, display: 'analog' });
@@ -345,9 +357,11 @@ export function buildLampWidget(
   const theme = getTheme(str(props, 'theme', 'classic'));
   const bounds = resolveBounds(props, 36, 36);
   const group = createAutoGroup(app, type, { ...props, width: bounds.width, height: bounds.height }, autoPart);
-  const radius = Math.max(10, Math.min(bounds.innerWidth, bounds.innerHeight) / 2 - 2);
-  const fontSize = fluidFont(symbol.length > 3 ? 7 : 10, bounds, 6, 11);
+  const maxR = Math.min(bounds.innerWidth, bounds.innerHeight) / 2 - 3;
+  const radius = Math.max(10, Math.min(maxR, 48));
+  const fontSize = fluidFont(symbol.length > 3 ? 7 : 10, bounds, 6, 12);
   const center = centerInBounds(bounds, radius * 2, radius * 2);
+  const symW = radius * 2;
 
   const lamp = app.circle({
     radius,
@@ -361,13 +375,12 @@ export function buildLampWidget(
   });
   const sym = app.text({
     text: symbol,
-    x: center.x + radius,
+    x: center.x + fitTextX(symbol, fontSize, symW),
     y: center.y + radius,
     fontSize,
     fill: active ? '#111' : '#666',
-    textAlign: 'center',
+    textAlign: 'left',
     textBaseline: 'middle',
-    metadata: { textBoxWidth: radius * 2 },
     listening: false,
   });
   group.add(lamp, sym);
@@ -391,11 +404,11 @@ export function buildBadgeWidget(
   const status = str(props, 'status', str(props, 'text', 'OFF'));
   const active = bool(props, 'active', status.toLowerCase() === 'on' || status.toLowerCase() === 'active');
   const theme = getTheme(str(props, 'theme', 'classic'));
-  const bounds = resolveBounds(props, Math.min(168, title.length * 8 + 32), 44);
+  const bounds = resolveBounds(props, 168, 52);
   const group = createAutoGroup(app, type, { ...props, width: bounds.width, height: bounds.height }, autoPart);
   const w = bounds.innerWidth;
   const h = bounds.innerHeight;
-  const badgeH = Math.max(18, Math.round(h * 0.42));
+  const badgeH = Math.max(22, Math.round(h * 0.36));
   const colors: Record<string, string> = {
     off: '#333',
     on: theme.ok,
@@ -407,11 +420,11 @@ export function buildBadgeWidget(
     disconnected: '#333',
   };
   const key = status.toLowerCase();
-  const titleSize = fluidFont(8, bounds, 7, 9);
-  const capH = titleSize + 4;
-  const stackH = capH + badgeH + 4;
+  const titleSize = fluidFont(9, bounds, 7, 10);
+  const titleH = titleSize + 8;
+  const stackH = titleH + 6 + badgeH;
   const stackY = bounds.pad + Math.max(0, (h - stackH) / 2);
-  const badgeY = stackY + capH;
+  const badgeY = stackY + titleH + 4;
 
   group.add(
     app.roundedRect({
@@ -438,7 +451,7 @@ export function buildBadgeWidget(
     fontWeight: 'bold',
     fill: '#fff',
   });
-  const cap = autoCenteredText(app, title.length > 14 ? title.slice(0, 13) + '…' : title, w, stackY + capH / 2, {
+  const cap = autoCenteredText(app, title.length > 18 ? title.slice(0, 17) + '…' : title, w, stackY + titleH / 2, {
     fontSize: titleSize,
     fill: theme.textMuted,
   });

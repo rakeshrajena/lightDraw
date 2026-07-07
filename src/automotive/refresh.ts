@@ -60,6 +60,10 @@ export function installAutoWidgetRebuild(group: Group, app: App, autoType?: stri
 
     group.metadata.autoRebuild = rebuild;
     app.requestRender();
+    const renderer = app.getRenderer?.();
+    if (renderer && typeof renderer.forceFullRedraw === 'function') {
+      renderer.forceFullRedraw();
+    }
   };
 
   group.metadata.autoRebuild = rebuild;

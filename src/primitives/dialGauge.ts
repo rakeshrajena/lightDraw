@@ -8,6 +8,7 @@ export interface DialGaugeStyle {
   faceColor?: string;
   bezelColor?: string;
   needleColor: string;
+  accentColor?: string;
   tickColor?: string;
   tickLabelColor?: string;
   textColor: string;
@@ -15,15 +16,24 @@ export interface DialGaugeStyle {
   redlineColor?: string;
 }
 
+export interface DialColorZone {
+  from: number;
+  to: number;
+  color: string;
+}
+
 export interface DialGaugeBuildOptions {
   size: number;
   value: number;
   max: number;
   unit?: string;
+  title?: string;
   formatValue?: (v: number) => string;
+  formatTickLabel?: (v: number) => string;
   tickCount?: number;
   showTickLabels?: boolean;
   redlineFrom?: number;
+  colorZones?: DialColorZone[];
   startAngle?: number;
   sweepAngle?: number;
   ariaLive?: 'polite' | 'assertive' | 'off';
@@ -31,6 +41,7 @@ export interface DialGaugeBuildOptions {
 
 export interface DialGaugeParts {
   needle: Line;
+  valueArc?: Arc;
   valueText: TextNode;
   unitText?: TextNode;
 }
@@ -38,7 +49,21 @@ export interface DialGaugeParts {
 const DEFAULT_START = Math.PI * 0.75;
 const DEFAULT_SWEEP = Math.PI * 1.5;
 
-/** Professional semicircular dial — bezel, ticks, layered needle hub */
+function textTopY(y: number, fontSize: number): number {
+  return y - fontSize * 0.5;
+}
+
+function withAlpha(color: string, alpha: number): string {
+  if (color.startsWith('#') && color.length === 7) {
+    const r = parseInt(color.slice(1, 3), 16);
+    const g = parseInt(color.slice(3, 5), 16);
+    const b = parseInt(color.slice(5, 7), 16);
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
+  return color;
+}
+
+/** Professional semicircular dial — layered bezel, ticks, value arc, needle hub */
 export function buildDialGauge(
   app: App,
   group: Group,
@@ -49,50 +74,50 @@ export function buildDialGauge(
   const cx = size / 2;
   const inset = Math.max(4, Math.min(14, size * 0.1));
   const r = size / 2 - inset;
-  const tickOutset = Math.max(3, size * 0.04);
-  const majorLen = Math.max(5, size * 0.09);
-  const minorLen = Math.max(4, size * 0.06);
+  const tickOutset = Math.max(3, size * 0.035);
+  const majorLen = Math.max(5, size * 0.085);
+  const minorLen = Math.max(3, size * 0.05);
   const startAngle = opts.startAngle ?? DEFAULT_START;
   const sweep = opts.sweepAngle ?? DEFAULT_SWEEP;
   const endAngle = startAngle + sweep;
-  const trackW = style.trackWidth ?? 10;
-  const tickColor = style.tickColor ?? style.bezelColor ?? style.trackColor;
+  const trackW = style.trackWidth ?? Math.max(6, size * 0.055);
+  const tickColor = style.tickColor ?? '#cbd5e1';
+  const face = style.faceColor ?? '#0a0a0a';
+  const bezel = style.bezelColor ?? style.trackColor;
+  const accent = style.accentColor ?? style.needleColor;
   const format = opts.formatValue ?? ((v: number) => String(Math.round(v)));
+  const formatTick = opts.formatTickLabel ?? ((v: number) => String(Math.round(v)));
   const tickCount = opts.tickCount ?? 8;
+  const hubOuter = Math.max(5, size * 0.065);
+  const hubInner = Math.max(2.5, size * 0.032);
+  const needleW = Math.max(2, size * 0.014);
 
   const shadow =
-    size >= 130
-      ? { color: 'rgba(0,0,0,0.4)', blur: Math.min(10, size / 14), offsetX: 0, offsetY: Math.min(3, size / 36) }
+    size >= 120
+      ? { color: 'rgba(0,0,0,0.45)', blur: Math.min(12, size / 12), offsetX: 0, offsetY: Math.min(4, size / 30) }
       : undefined;
 
   group.add(
     app.circle({
-      x: cx - r - tickOutset,
-      y: cx - r - tickOutset,
-      radius: r + tickOutset,
-      fill: style.faceColor ?? '#111827',
-      stroke: style.bezelColor ?? style.trackColor,
-      strokeWidth: Math.max(1, size * 0.03),
+      x: cx - r - tickOutset - 2,
+      y: cx - r - tickOutset - 2,
+      radius: r + tickOutset + 2,
+      fill: '#050505',
+      stroke: bezel,
+      strokeWidth: Math.max(1.5, size * 0.018),
       shadow,
+      listening: false,
+    }),
+    app.circle({
+      x: cx - r - tickOutset + 1,
+      y: cx - r - tickOutset + 1,
+      radius: r + tickOutset - 1,
+      fill: face,
+      stroke: withAlpha(bezel, 0.55),
+      strokeWidth: 1,
       listening: false,
     })
   );
-
-  if (opts.redlineFrom !== undefined && opts.redlineFrom < 1) {
-    group.add(
-      new Arc({
-        x: cx - r,
-        y: cx - r,
-        radius: r,
-        startAngle: startAngle + sweep * opts.redlineFrom,
-        endAngle,
-        fill: null,
-        stroke: style.redlineColor ?? '#ef4444',
-        strokeWidth: trackW,
-        listening: false,
-      })
-    );
-  }
 
   group.add(
     new Arc({
@@ -100,13 +125,78 @@ export function buildDialGauge(
       y: cx - r,
       radius: r,
       startAngle,
-      endAngle: opts.redlineFrom !== undefined ? startAngle + sweep * opts.redlineFrom : endAngle,
+      endAngle,
       fill: null,
-      stroke: style.trackColor,
-      strokeWidth: trackW,
+      stroke: '#1a1f2e',
+      strokeWidth: trackW + 2,
       listening: false,
     })
   );
+
+  if (opts.colorZones?.length) {
+    for (const zone of opts.colorZones) {
+      group.add(
+        new Arc({
+          x: cx - r,
+          y: cx - r,
+          radius: r,
+          startAngle: startAngle + sweep * zone.from,
+          endAngle: startAngle + sweep * zone.to,
+          fill: null,
+          stroke: zone.color,
+          strokeWidth: trackW,
+          listening: false,
+        })
+      );
+    }
+  } else {
+    const redlineStart = opts.redlineFrom;
+    if (redlineStart !== undefined && redlineStart < 1) {
+      group.add(
+        new Arc({
+          x: cx - r,
+          y: cx - r,
+          radius: r,
+          startAngle: startAngle + sweep * redlineStart,
+          endAngle,
+          fill: null,
+          stroke: style.redlineColor ?? '#ef4444',
+          strokeWidth: trackW,
+          listening: false,
+        })
+      );
+    }
+    group.add(
+      new Arc({
+        x: cx - r,
+        y: cx - r,
+        radius: r,
+        startAngle,
+        endAngle: redlineStart !== undefined ? startAngle + sweep * redlineStart : endAngle,
+        fill: null,
+        stroke: style.trackColor,
+        strokeWidth: trackW,
+        listening: false,
+      })
+    );
+  }
+
+  const valueAngle = startAngle + (opts.value / Math.max(opts.max, 1)) * sweep;
+  const valueArc =
+    opts.value > 0 && size >= 96
+      ? new Arc({
+          x: cx - r,
+          y: cx - r,
+          radius: r,
+          startAngle,
+          endAngle: valueAngle,
+          fill: null,
+          stroke: withAlpha(accent, 0.32),
+          strokeWidth: Math.max(2, trackW * 0.38),
+          listening: false,
+        })
+      : undefined;
+  if (valueArc) group.add(valueArc);
 
   for (let i = 0; i <= tickCount; i++) {
     const t = i / tickCount;
@@ -114,86 +204,109 @@ export function buildDialGauge(
     const cos = Math.cos(a);
     const sin = Math.sin(a);
     const major = i % 2 === 0;
-    const inner = r - (major ? majorLen * 2 : minorLen * 1.5);
-    const outer = r - tickOutset;
+    const outer = r - tickOutset * 0.35;
+    const inner = outer - (major ? majorLen : minorLen);
+    const dx = (outer - inner) * cos;
+    const dy = (outer - inner) * sin;
     group.add(
       app.line({
         x: cx + inner * cos,
         y: cx + inner * sin,
-        x2: (outer - inner) * cos,
-        y2: (outer - inner) * sin,
-        stroke: tickColor,
-        strokeWidth: major ? Math.max(1, size * 0.02) : 1,
+        x2: dx,
+        y2: dy,
+        stroke: major ? tickColor : withAlpha(tickColor, 0.55),
+        strokeWidth: major ? Math.max(1.5, size * 0.016) : 1,
         lineCap: 'round',
         listening: false,
       })
     );
     if (opts.showTickLabels && major && size >= 96) {
-      const labelVal = Math.round(opts.max * t);
-      const lr = Math.max(r * 0.45, r - Math.max(8, size * 0.14));
+      const labelVal = formatTick(opts.max * t);
+      const lr = r - Math.max(majorLen + 6, size * 0.16);
       const lx = cx + lr * cos;
       const ly = cx + lr * sin;
+      const skipTop = sin < -0.35 && Math.abs(cos) < 0.55;
+      if (skipTop) continue;
+      const labelSize = Math.max(7, size * 0.085);
       group.add(
         app.text({
-          text: String(labelVal),
+          text: labelVal,
           x: lx,
-          y: ly,
-          fontSize: Math.max(7, size * 0.09),
+          y: textTopY(ly, labelSize),
+          fontSize: labelSize,
           fontWeight: '500',
           fill: style.tickLabelColor ?? style.textMuted ?? style.textColor,
           textAlign: 'center',
-          textBaseline: 'middle',
-          metadata: { textBoxWidth: Math.max(16, size * 0.2) },
+          metadata: { textBoxWidth: Math.max(18, size * 0.22), textBoxCenterY: ly },
           listening: false,
         })
       );
     }
   }
 
-  const angle = startAngle + (opts.value / Math.max(opts.max, 1)) * sweep;
-  const needleLen = r * 0.78;
+  if (opts.title && size >= 72) {
+    const titleSize = Math.max(7, size * 0.068);
+    const titleY = cx - r * 0.5;
+    group.add(
+      app.text({
+        text: opts.title.toUpperCase(),
+        x: cx,
+        y: textTopY(titleY, titleSize),
+        fontSize: titleSize,
+        fontWeight: '600',
+        fill: style.textMuted ?? style.tickLabelColor ?? style.textColor,
+        textAlign: 'center',
+        metadata: { textBoxWidth: size, textBoxCenterY: titleY },
+        listening: false,
+      })
+    );
+  }
+
+  const angle = valueAngle;
+  const needleLen = r * 0.76;
   const needle = app.line({
     x: cx,
     y: cx,
     x2: needleLen * Math.cos(angle),
     y2: needleLen * Math.sin(angle),
     stroke: style.needleColor,
-    strokeWidth: 3,
+    strokeWidth: needleW,
     lineCap: 'round',
-    shadow: { color: 'rgba(0,0,0,0.35)', blur: 4, offsetX: 1, offsetY: 2 },
+    shadow: { color: 'rgba(0,0,0,0.4)', blur: 4, offsetX: 1, offsetY: 2 },
     listening: false,
   });
 
+  group.add(needle);
   group.add(
     app.circle({
-      x: cx - 8,
-      y: cx - 8,
-      radius: 8,
-      fill: style.bezelColor ?? '#374151',
-      stroke: style.trackColor,
+      x: cx - hubOuter,
+      y: cx - hubOuter,
+      radius: hubOuter,
+      fill: '#1f2937',
+      stroke: bezel,
       strokeWidth: 1,
       listening: false,
     }),
     app.circle({
-      x: cx - 4,
-      y: cx - 4,
-      radius: 4,
+      x: cx - hubInner,
+      y: cx - hubInner,
+      radius: hubInner,
       fill: style.needleColor,
       listening: false,
     }),
-    needle
   );
 
+  const valueSize = Math.max(11, size * 0.115);
+  const valueY = cx + r * 0.08;
   const valueText = app.text({
     text: format(opts.value),
     x: cx,
-    y: cx + r * 0.38,
-    fontSize: Math.max(11, size * 0.11),
+    y: textTopY(valueY, valueSize),
+    fontSize: valueSize,
     fontWeight: 'bold',
     fill: style.textColor,
     textAlign: 'center',
-    textBaseline: 'middle',
-    metadata: { textBoxWidth: size },
+    metadata: { textBoxWidth: size, textBoxCenterY: valueY },
     ...(opts.ariaLive ? { ariaLive: opts.ariaLive } : {}),
     listening: false,
   });
@@ -201,21 +314,23 @@ export function buildDialGauge(
 
   let unitText: TextNode | undefined;
   if (opts.unit) {
+    const unitSize = Math.max(8, size * 0.072);
+    const unitY = cx + r * 0.26;
     unitText = app.text({
-      text: opts.unit,
+      text: opts.unit.trim(),
       x: cx,
-      y: cx + r * 0.55,
-      fontSize: 10,
+      y: textTopY(unitY, unitSize),
+      fontSize: unitSize,
       fontWeight: '500',
       fill: style.textMuted ?? style.textColor,
       textAlign: 'center',
-      textBaseline: 'middle',
+      metadata: { textBoxWidth: size, textBoxCenterY: unitY },
       listening: false,
     });
     group.add(unitText);
   }
 
-  return { needle, valueText, unitText };
+  return { needle, valueArc, valueText, unitText };
 }
 
 export function dialNeedleAngle(value: number, max: number, start = DEFAULT_START, sweep = DEFAULT_SWEEP): number {
@@ -229,10 +344,21 @@ export function updateDialNeedle(
   max: number,
   r: number,
   start = DEFAULT_START,
-  sweep = DEFAULT_SWEEP
+  sweep = DEFAULT_SWEEP,
+  counterweight?: Line,
+  valueArc?: Arc
 ): void {
   const angle = dialNeedleAngle(value, max, start, sweep);
-  const len = r * 0.78;
+  const len = r * 0.76;
   (needle as { x2: number; y2: number }).x2 = len * Math.cos(angle);
   (needle as { y2: number }).y2 = len * Math.sin(angle);
+  if (counterweight) {
+    const counterLen = r * 0.11;
+    (counterweight as { x2: number; y2: number }).x2 = -counterLen * Math.cos(angle);
+    (counterweight as { y2: number }).y2 = -counterLen * Math.sin(angle);
+  }
+  if (valueArc) {
+    valueArc.endAngle = angle;
+    valueArc.visible = value > 0;
+  }
 }
