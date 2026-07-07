@@ -177,17 +177,147 @@ Each bundle also ships an ES5 `.legacy.js` variant for embedded browsers.
 </script>
 ```
 
-### AI JSON Integration
+## AI & LLM Integration
+
+LightDraw is **JSON-first**: an LLM outputs a scene tree, you validate it, call `app.loadJSON()`, and get a live dashboard, form, diagram, or HMI — no React/Vue code generation required.
+
+```
+User prompt  →  LLM (with schema docs)  →  scene JSON  →  validateSceneJSON  →  app.loadJSON()  →  canvas / HTML UI
+```
+
+### Drop-in host page
+
+Give agents a minimal HTML shell; they only need to produce the JSON payload:
+
+```html
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lightdraw/dist/lightdraw.min.css">
+<div id="app"></div>
+<script src="https://cdn.jsdelivr.net/npm/lightdraw/dist/lightdraw.min.js"></script>
+<script>
+  const app = LightDraw.createApp('#app', {
+    width: 960,
+    height: 540,
+    renderer: 'html',
+    background: '#0d1322',
+  });
+
+  // Replace with LLM-generated scene (or fetch from your API)
+  const scene = {
+    type: 'group',
+    children: [
+      { type: 'card', props: { title: 'Server health', x: 16, y: 16, width: 420, height: 200 } },
+      { type: 'lineChart', props: { data: [22, 35, 28, 48, 41, 55], x: 32, y: 56, width: 380, height: 140 } },
+      { type: 'gauge', props: { value: 68, size: 120, x: 480, y: 40 } },
+      { type: 'button', props: { label: 'Acknowledge', variant: 'primary', x: 480, y: 200 } },
+    ],
+  };
+
+  const result = LightDraw.validateSceneJSON(scene);
+  if (!result.valid) {
+    console.error(result.errors);
+  } else {
+    app.loadJSON(scene);
+    app.setUiTheme({ preset: 'dark' });
+  }
+</script>
+```
+
+### Example scenes by domain
+
+**Dashboard** — gauges, charts, clocks ([schema](./docs/dashboard-widgets-schema.md)):
 
 ```javascript
 app.loadJSON({
-  type: 'dashboard',
+  type: 'group',
   children: [
-    { type: 'speedometer', props: { value: 82, x: 50, y: 50 } },
-    { type: 'fuelGauge', props: { value: 64, x: 300, y: 50 } },
-    { type: 'lineChart', props: { data: [10, 30, 45, 25, 60], x: 50, y: 280 } }
-  ]
+    { type: 'speedometer', props: { value: 95, size: 160, x: 40, y: 40 } },
+    { type: 'lineChart', props: { data: [20, 45, 30, 60, 55, 80], width: 320, height: 140, x: 240, y: 50 } },
+    { type: 'battery', props: { value: 82, x: 600, y: 80 } },
+  ],
 });
+```
+
+**UI form** — buttons, inputs, toggles ([schema](./docs/ui-components-schema.md)):
+
+```javascript
+app.loadJSON({
+  type: 'group',
+  children: [
+    { type: 'input', props: { label: 'Email', placeholder: 'you@example.com', fullWidth: true, x: 24, y: 24, width: 320 } },
+    { type: 'checkbox', props: { label: 'Subscribe to updates', checked: true, x: 24, y: 88 } },
+    { type: 'button', props: { label: 'Submit', variant: 'primary', x: 24, y: 132 } },
+  ],
+});
+```
+
+**Diagram** — flowcharts, state machines, networks ([schema](./docs/diagram-module-schema.md)):
+
+```javascript
+app.loadJSON({
+  type: 'flowchart',
+  props: {
+    data: {
+      nodes: [
+        { id: 'start', label: 'Start', type: 'start' },
+        { id: 'check', label: 'Valid?', type: 'decision' },
+        { id: 'end', label: 'Done', type: 'end' },
+      ],
+      edges: [
+        { from: 'start', to: 'check' },
+        { from: 'check', to: 'end', label: 'yes' },
+      ],
+    },
+  },
+});
+```
+
+### Prompt the model
+
+Attach the relevant schema doc to context, then use a system rule like:
+
+```
+You generate LightDraw scene JSON only.
+- Root: { "type": "group", "children": [...] } unless a single diagram widget is requested.
+- Each child: { "type": "<widget>", "props": { "x", "y", ... } }
+- Use only types from the provided schema catalog.
+- Colors as #rrggbb hex. No JavaScript. No markdown fences in the JSON output.
+```
+
+Validate, render, and round-trip:
+
+```javascript
+const json = app.exportJSON();
+app.clear();
+app.loadJSON(json);
+LightDraw.scenesEqual(json, app.exportJSON()); // stable widgets round-trip
+```
+
+Export for review or sharing: `app.export({ format: 'html' })` or `app.export({ format: 'json', validate: true })`.
+
+### Schema catalogs (give these to your LLM)
+
+| Domain | Types | Schema |
+|--------|-------|--------|
+| UI | 17 components (button, slider, dialog, table, …) | [ui-components-schema.md](./docs/ui-components-schema.md) |
+| Dashboard | Gauges, charts, clock, thermometer, … | [dashboard-widgets-schema.md](./docs/dashboard-widgets-schema.md) |
+| Automotive | Cluster, TPMS, CAN, ADAS, … | [automotive-widgets-schema.md](./docs/automotive-widgets-schema.md) |
+| Diagram | Flowchart, state machine, UML, network, … | [diagram-module-schema.md](./docs/diagram-module-schema.md) |
+
+Full guide: **[docs/ai-integration-guide.md](./docs/ai-integration-guide.md)** — prompt templates, validation, export pipeline.
+
+### Try it live
+
+| Demo | What to explore |
+|------|-----------------|
+| [examples/demo-dashboard.html](./examples/demo-dashboard.html) | Live widgets + 82 chart types |
+| [examples/demo-ui.html](./examples/demo-ui.html) | All 17 UI components + themes |
+| [examples/demo-ui-catalog.html](./examples/demo-ui-catalog.html) | Variant gallery for prompting |
+| [examples/demo-diagram.html](./examples/demo-diagram.html) | 9 diagram types |
+| [examples/demo-automotive.html](./examples/demo-automotive.html) | Instrument cluster + widgets |
+| Playground `npm run dev:website` | All demos embedded at http://localhost:5173 |
+
+```bash
+npm run build && npm run dev:website   # local playground
 ```
 
 ## Build Outputs
@@ -214,6 +344,7 @@ app.loadJSON({
 |----------|------|
 | **Docs index** | [docs/README.md](./docs/README.md) |
 | Getting started | [docs/getting-started.md](./docs/getting-started.md) |
+| **AI integration** | [docs/ai-integration-guide.md](./docs/ai-integration-guide.md) |
 | UI theme / responsive / legacy UI | [docs/ui-theme-guide.md](./docs/ui-theme-guide.md) · [responsive](./docs/responsive-guide.md) · [legacy UI](./docs/legacy-ui-guide.md) |
 | Animation / Plugins / Performance | [docs/](./docs/) |
 | API reference | `npm run docs:api` → `docs/api/` |
