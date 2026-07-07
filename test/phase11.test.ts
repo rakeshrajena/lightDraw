@@ -13,6 +13,9 @@ describe('Phase 11 — Documentation & Playground', () => {
       'docs/plugin-guide.md',
       'docs/performance-guide.md',
       'docs/legacy-browser-guide.md',
+      'docs/ui-theme-guide.md',
+      'docs/responsive-guide.md',
+      'docs/legacy-ui-guide.md',
       'docs/automotive-examples.md',
       'docs/ai-integration-guide.md',
     ];
@@ -40,6 +43,7 @@ describe('Phase 11 — Documentation & Playground', () => {
       'demo.html',
       'demo-animation.html',
       'demo-ui.html',
+      'demo-ui-catalog.html',
       'demo-dashboard.html',
       'demo-automotive.html',
       'demo-diagram.html',

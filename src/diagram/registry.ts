@@ -32,7 +32,8 @@ export {
 export { routeConnector, collectObstacles, getAnchor } from './router';
 export type { RouteStyle } from './router';
 export { createSymbol, buildSchematic, Symbols } from './symbols';
-export { diagramToJSON } from './helpers';
+export { diagramToJSON, fitDiagramToBounds, resolveGridLayout, readCanvasSize } from './helpers';
+export { installDiagramEditor, uninstallDiagramEditor, DiagramEditor } from './editor';
 
 export type {
   DiagramNode,

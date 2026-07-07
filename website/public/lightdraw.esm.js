@@ -1575,7 +1575,7 @@ var Arc = class extends Node {
     const dist = Math.hypot(dx, dy);
     if (dist > this.radius || dist < this.innerRadius)
       return false;
-    let angle = Math.atan2(dy, dx);
+    const angle = Math.atan2(dy, dx);
     const start = this.startAngle;
     const end = this.endAngle;
     if (this.counterClockwise) {
@@ -2747,6 +2747,35 @@ var EventManager = class {
       this.element.removeEventListener(type, this.boundHandlers[type]);
     }
   }
+  resolveDraggableNode(node) {
+    let cur = node;
+    while (cur) {
+      if (cur.draggable)
+        return cur;
+      cur = cur.parent;
+    }
+    return null;
+  }
+  /** Map world-space pointer delta into the dragged node's parent local space. */
+  dragPositionFromWorld(node, startWorldX, startWorldY, worldX, worldY, nodeStartX, nodeStartY) {
+    const parent = node.parent;
+    if (!parent) {
+      return {
+        x: nodeStartX + (worldX - startWorldX),
+        y: nodeStartY + (worldY - startWorldY)
+      };
+    }
+    const inv = parent.getWorldMatrix().invert();
+    if (!inv) {
+      return {
+        x: nodeStartX + (worldX - startWorldX),
+        y: nodeStartY + (worldY - startWorldY)
+      };
+    }
+    const p0 = inv.transformPoint(startWorldX, startWorldY);
+    const p1 = inv.transformPoint(worldX, worldY);
+    return { x: nodeStartX + (p1.x - p0.x), y: nodeStartY + (p1.y - p0.y) };
+  }
   getPointerCoords(e) {
     const rect = this.element.getBoundingClientRect();
     if ("touches" in e && e.touches.length > 0) {
@@ -2766,10 +2795,17 @@ var EventManager = class {
     const { x, y } = this.getPointerCoords(originalEvent);
     const world = this.app.camera.screenToWorld(x, y);
     if (this.dragState && (type === "mousemove" || type === "touchmove")) {
-      const dx = world.x - this.dragState.startX;
-      const dy = world.y - this.dragState.startY;
-      this.dragState.node.x = this.dragState.nodeStartX + dx;
-      this.dragState.node.y = this.dragState.nodeStartY + dy;
+      const pos = this.dragPositionFromWorld(
+        this.dragState.node,
+        this.dragState.startX,
+        this.dragState.startY,
+        world.x,
+        world.y,
+        this.dragState.nodeStartX,
+        this.dragState.nodeStartY
+      );
+      this.dragState.node.x = pos.x;
+      this.dragState.node.y = pos.y;
       this.dispatchBubble(
         this.dragState.node,
         "dragmove",
@@ -2839,18 +2875,19 @@ var EventManager = class {
       }
       this.dispatchBubble(target, type, originalEvent, x, y, world.x, world.y);
       if (type === "mousedown" || type === "touchstart") {
-        if (target.draggable) {
+        const dragNode = this.resolveDraggableNode(target);
+        if (dragNode) {
           this.dragState = {
-            node: target,
+            node: dragNode,
             startX: world.x,
             startY: world.y,
-            nodeStartX: target.x,
-            nodeStartY: target.y,
-            payload: target.dragPayload ?? target.metadata?.dragPayload,
+            nodeStartX: dragNode.x,
+            nodeStartY: dragNode.y,
+            payload: dragNode.dragPayload ?? dragNode.metadata?.dragPayload,
             overNode: null
           };
           this.dispatchBubble(
-            target,
+            dragNode,
             "dragstart",
             originalEvent,
             x,
@@ -3414,6 +3451,15 @@ var DIAGRAM = {
     offsetX: 0,
     offsetY: 2
   },
+  shadowElevated: {
+    color: "rgba(0,0,0,0.42)",
+    blur: 14,
+    offsetX: 0,
+    offsetY: 4
+  },
+  sheen: "rgba(255,255,255,0.08)",
+  sheenStrong: "rgba(255,255,255,0.12)",
+  cardInnerBorder: "rgba(255,255,255,0.05)",
   canvasBg: "#0d1322",
   surface: "#151d2e",
   surfaceElevated: "#1c2740",
@@ -3421,17 +3467,25 @@ var DIAGRAM = {
   nodeStroke: "#3b82f6",
   nodeText: "#f1f5f9",
   nodeTextMuted: "#94a3b8",
-  edge: "#5b8fd9",
-  edgeMuted: "#475569",
-  edgeLabel: "#cbd5e1",
-  labelPillFill: "#1e293b",
-  labelPillStroke: "#334155",
-  decisionFill: "#1e3a5f",
-  decisionStroke: "#60a5fa",
-  terminalFill: "#172554",
-  terminalStroke: "#3b82f6",
+  /** Connector palette */
+  edge: "#60a5fa",
+  edgeGlow: "rgba(96,165,250,0.18)",
+  edgeMuted: "#64748b",
+  edgeMutedGlow: "rgba(100,116,139,0.14)",
+  edgeLabel: "#e2e8f0",
+  labelPillFill: "#1a2336",
+  labelPillStroke: "#3b4f6b",
+  /** Flowchart semantic colors */
+  flowchartStart: { fill: "#14532d", stroke: "#22c55e", accent: "#4ade80" },
+  flowchartEnd: { fill: "#1e1b4b", stroke: "#818cf8", accent: "#a5b4fc" },
+  flowchartProcess: { fill: "#1c2740", stroke: "#3b82f6", accent: "#60a5fa" },
+  flowchartDecision: { fill: "#422006", stroke: "#f59e0b", accent: "#fbbf24" },
+  decisionFill: "#422006",
+  decisionStroke: "#f59e0b",
+  terminalFill: "#14532d",
+  terminalStroke: "#22c55e",
   stateFill: "#1c2740",
-  stateStroke: "#6366f1",
+  stateStroke: "#818cf8",
   stateInitialFill: "#422006",
   stateInitialStroke: "#f59e0b",
   stateFinalFill: "#14532d",
@@ -3442,33 +3496,183 @@ var DIAGRAM = {
   classHeader: "#f1f5f9",
   classBody: "#94a3b8",
   classDivider: "#334155",
-  networkRouter: { fill: "#1e3a5f", stroke: "#3b82f6", glyph: "#60a5fa" },
-  networkServer: { fill: "#14532d", stroke: "#22c55e", glyph: "#4ade80" },
-  networkSwitch: { fill: "#422006", stroke: "#f59e0b", glyph: "#fbbf24" },
-  networkClient: { fill: "#3b0764", stroke: "#a855f7", glyph: "#c084fc" },
-  networkDefault: { fill: "#1c2740", stroke: "#64748b", glyph: "#94a3b8" },
+  /** UML relation edge colors */
+  umlInheritance: "#f59e0b",
+  umlAssociation: "#60a5fa",
+  umlImplements: "#a78bfa",
+  umlComposition: "#f472b6",
+  networkRouter: { fill: "#1e3a5f", stroke: "#3b82f6", glyph: "#60a5fa", edge: "#60a5fa" },
+  networkServer: { fill: "#14532d", stroke: "#22c55e", glyph: "#4ade80", edge: "#4ade80" },
+  networkSwitch: { fill: "#422006", stroke: "#f59e0b", glyph: "#fbbf24", edge: "#fbbf24" },
+  networkClient: { fill: "#3b0764", stroke: "#a855f7", glyph: "#c084fc", edge: "#c084fc" },
+  networkDefault: { fill: "#1c2740", stroke: "#64748b", glyph: "#94a3b8", edge: "#94a3b8" },
   pipelineDone: "#22c55e",
   pipelineActive: "#3b82f6",
-  pipelinePending: "#475569",
+  pipelinePending: "#64748b",
   pipelinePendingFill: "#1c2740",
   pipelineActiveFill: "#1e3a5f",
   pipelineDoneFill: "#14532d",
   pipelineErrorFill: "#450a0a",
   pipelineErrorStroke: "#ef4444",
-  mindCenter: { fill: "#422006", stroke: "#f59e0b" },
-  mindBranch: { fill: "#1e3a5f", stroke: "#0ea5e9" },
-  mindLeaf: { fill: "#1c2740", stroke: "#64748b" },
-  orgToggle: "#94a3b8",
+  mindCenter: { fill: "#422006", stroke: "#f59e0b", accent: "#fbbf24" },
+  mindBranch: { fill: "#1e3a5f", stroke: "#0ea5e9", accent: "#38bdf8" },
+  mindLeaf: { fill: "#1c2740", stroke: "#64748b", accent: "#94a3b8" },
+  mindBranchPalette: [
+    { fill: "#1e3a5f", stroke: "#0ea5e9", accent: "#38bdf8", glow: "rgba(14,165,233,0.22)" },
+    { fill: "#1e1b4b", stroke: "#818cf8", accent: "#a5b4fc", glow: "rgba(129,140,248,0.2)" },
+    { fill: "#14532d", stroke: "#22c55e", accent: "#4ade80", glow: "rgba(34,197,94,0.2)" },
+    { fill: "#3b0764", stroke: "#a855f7", accent: "#c084fc", glow: "rgba(168,85,247,0.2)" }
+  ],
+  orgTier: [
+    { fill: "#1c2740", stroke: "#3b82f6", accent: "#60a5fa" },
+    { fill: "#1e293b", stroke: "#6366f1", accent: "#818cf8" },
+    { fill: "#1a2332", stroke: "#64748b", accent: "#94a3b8" }
+  ],
+  orgToggle: "#cbd5e1",
   orgToggleBg: "#243044",
-  orgRole: "#64748b",
+  orgRole: "#94a3b8",
   canBus: "#3b82f6",
+  canBusGlow: "rgba(59,130,246,0.25)",
   canTermination: "#22c55e",
-  schematicStroke: "#94a3b8",
-  schematicFill: "#1e293b",
+  canEcuPalette: ["#3b82f6", "#6366f1", "#0ea5e9", "#22c55e", "#a855f7"],
+  schematicStroke: "#cbd5e1",
+  schematicWire: "#60a5fa",
+  schematicWireGlow: "rgba(96,165,250,0.2)",
+  schematicFill: "#1a2336",
   schematicLedFill: "#fde047",
   schematicLedStroke: "#eab308",
-  schematicLabel: "#94a3b8"
+  schematicLabel: "#94a3b8",
+  schematicBattery: "#22c55e",
+  schematicResistor: "#f59e0b",
+  schematicSwitch: "#60a5fa",
+  /** Stroke widths — screen defaults; use resolveStrokeWidth for print/compact */
+  stroke: {
+    node: 1.5,
+    nodeEmphasis: 2,
+    edge: 2,
+    edgeThin: 1.5,
+    edgeGlow: 5,
+    label: 1,
+    arrow: 1.25
+  }
 };
+function resolveStrokeWidth(base, context = "screen") {
+  if (context === "print")
+    return Math.max(1.25, base * 0.92);
+  if (context === "compact")
+    return Math.max(1.25, base * 0.88);
+  return base;
+}
+function strokeContextForCanvas(width, height) {
+  const minDim = Math.min(width, height);
+  if (minDim < 360)
+    return "compact";
+  return "screen";
+}
+
+// src/diagram/chrome.ts
+function addTopSheen(app, parent, width, cornerRadius = DIAGRAM.radii.md) {
+  if (cornerRadius >= DIAGRAM.radii.pill)
+    return;
+  const inset = Math.min(10, cornerRadius + 2);
+  parent.add(
+    app.line({
+      x: inset,
+      y: 1,
+      x2: width - inset,
+      y2: 1,
+      stroke: DIAGRAM.sheen,
+      strokeWidth: 1,
+      lineCap: "round",
+      listening: false
+    })
+  );
+}
+function addAccentBar(app, parent, width, color, height = 3) {
+  parent.add(
+    app.rect({
+      x: 0,
+      y: 0,
+      width,
+      height,
+      fill: color,
+      stroke: null,
+      listening: false
+    })
+  );
+}
+function addLeftStripe(app, parent, height, color, width = 4) {
+  parent.add(
+    app.rect({
+      x: 0,
+      y: 0,
+      width,
+      height,
+      fill: color,
+      stroke: null,
+      listening: false
+    })
+  );
+}
+function addCardChrome(app, parent, opts) {
+  const radius = opts.cornerRadius ?? DIAGRAM.radii.md;
+  const strokeWidth = opts.strokeWidth ?? DIAGRAM.stroke.node;
+  parent.add(
+    app.roundedRect({
+      width: opts.width,
+      height: opts.height,
+      cornerRadius: radius,
+      fill: opts.fill,
+      stroke: opts.stroke,
+      strokeWidth,
+      ...opts.shadow !== null && (opts.shadow ?? DIAGRAM.shadowSoft) ? { shadow: opts.shadow ?? DIAGRAM.shadowSoft } : {},
+      listening: false
+    })
+  );
+  if (opts.accentColor) {
+    addAccentBar(app, parent, opts.width, opts.accentColor, opts.accentHeight ?? 3);
+  }
+  if (opts.sheen !== false) {
+    addTopSheen(app, parent, opts.width, radius);
+  }
+}
+function addCaptionPill(app, parent, textWidth, x, y, accent = DIAGRAM.labelPillStroke) {
+  const fontSize = DIAGRAM.fontSize.sm;
+  const padX = 6;
+  const pw = Math.max(textWidth + padX * 2, 24);
+  const ph = fontSize + 6;
+  parent.add(
+    app.roundedRect({
+      x: x + (textWidth - pw) / 2,
+      y: y - 2,
+      width: pw,
+      height: ph,
+      cornerRadius: DIAGRAM.radii.sm,
+      fill: DIAGRAM.labelPillFill,
+      stroke: accent,
+      strokeWidth: DIAGRAM.stroke.label,
+      opacity: 0.92,
+      listening: false
+    })
+  );
+}
+function addEmphasisRing(app, parent, width, height, color, cornerRadius) {
+  const radius = cornerRadius ?? DIAGRAM.radii.md;
+  parent.add(
+    app.roundedRect({
+      x: -3,
+      y: -3,
+      width: width + 6,
+      height: height + 6,
+      cornerRadius: radius + 3,
+      fill: null,
+      stroke: color,
+      strokeWidth: 1.5,
+      opacity: 0.4,
+      listening: false
+    })
+  );
+}
 
 // src/diagram/primitives.ts
 var measureCtx = null;
@@ -3493,25 +3697,24 @@ function centerTextX(label, boxWidth, fontSize = DIAGRAM.fontSize.base, fontWeig
   return Math.max(DIAGRAM.spacing.sm, (boxWidth - w) / 2);
 }
 var defaultBoxStyle = () => ({
-  strokeWidth: 1.5,
+  strokeWidth: DIAGRAM.stroke.node,
   shadow: DIAGRAM.shadowSoft
 });
 function createLabeledBox(app, label, width, height, style = {}, textOpts = {}) {
   const { strokeWidth, shadow } = defaultBoxStyle();
   const node = app.group();
   const fontSize = textOpts.fontSize ?? DIAGRAM.fontSize.base;
-  node.add(
-    app.roundedRect({
-      width,
-      height,
-      cornerRadius: style.cornerRadius ?? DIAGRAM.radii.md,
-      fill: style.fill ?? DIAGRAM.nodeFill,
-      stroke: style.stroke ?? DIAGRAM.nodeStroke,
-      strokeWidth: style.strokeWidth ?? strokeWidth,
-      ...style.shadow !== null && (style.shadow ?? shadow) ? { shadow: style.shadow ?? shadow } : {},
-      listening: false
-    })
-  );
+  const radius = style.cornerRadius ?? DIAGRAM.radii.md;
+  addCardChrome(app, node, {
+    width,
+    height,
+    cornerRadius: radius,
+    fill: style.fill ?? DIAGRAM.nodeFill,
+    stroke: style.stroke ?? DIAGRAM.nodeStroke,
+    strokeWidth: style.strokeWidth ?? strokeWidth,
+    shadow: style.shadow !== null ? style.shadow ?? shadow : null,
+    accentColor: style.accentColor
+  });
   node.add(
     app.text({
       text: label,
@@ -3527,19 +3730,31 @@ function createLabeledBox(app, label, width, height, style = {}, textOpts = {}) 
   return node;
 }
 function createFlowchartNode(app, label, type) {
-  const width = 128;
-  const height = 44;
-  const isTerminal = type === "start" || type === "end";
+  const width = 132;
+  const height = 46;
+  const isStart = type === "start";
+  const isEnd = type === "end";
+  const isTerminal = isStart || isEnd;
   const isDecision = type === "decision";
   const node = app.group();
+  const palette = isStart ? DIAGRAM.flowchartStart : isEnd ? DIAGRAM.flowchartEnd : isDecision ? DIAGRAM.flowchartDecision : DIAGRAM.flowchartProcess;
   if (isDecision) {
     node.add(
       app.polygon({
-        points: [64, 2, 126, 22, 64, 42, 2, 22],
-        fill: DIAGRAM.decisionFill,
-        stroke: DIAGRAM.decisionStroke,
-        strokeWidth: 2,
-        shadow: DIAGRAM.shadowSoft,
+        points: [66, 2, 130, 23, 66, 44, 2, 23],
+        fill: palette.stroke,
+        stroke: null,
+        opacity: 0.12,
+        listening: false
+      })
+    );
+    node.add(
+      app.polygon({
+        points: [66, 2, 130, 23, 66, 44, 2, 23],
+        fill: palette.fill,
+        stroke: palette.stroke,
+        strokeWidth: DIAGRAM.stroke.nodeEmphasis,
+        shadow: DIAGRAM.shadowElevated,
         listening: false
       })
     );
@@ -3547,8 +3762,8 @@ function createFlowchartNode(app, label, type) {
     node.add(
       app.text({
         text: label,
-        x: centerTextX(label, 128, fs),
-        y: 22 - fs / 2 - 1,
+        x: centerTextX(label, width, fs),
+        y: 23 - fs / 2 - 1,
         fontSize: fs,
         fontWeight: "600",
         fontFamily: DIAGRAM.fontFamily,
@@ -3563,13 +3778,32 @@ function createFlowchartNode(app, label, type) {
       width,
       height,
       cornerRadius: isTerminal ? DIAGRAM.radii.pill : DIAGRAM.radii.md,
-      fill: isTerminal ? DIAGRAM.terminalFill : DIAGRAM.nodeFill,
-      stroke: isTerminal ? DIAGRAM.terminalStroke : DIAGRAM.nodeStroke,
-      strokeWidth: 1.5,
-      shadow: DIAGRAM.shadowSoft,
+      fill: palette.fill,
+      stroke: palette.stroke,
+      strokeWidth: DIAGRAM.stroke.nodeEmphasis,
+      shadow: isTerminal ? DIAGRAM.shadowElevated : DIAGRAM.shadowSoft,
       listening: false
     })
   );
+  if (!isTerminal) {
+    addAccentBar(app, node, width, palette.accent, 3);
+    addTopSheen(app, node, width, DIAGRAM.radii.md);
+  } else {
+    node.add(
+      app.roundedRect({
+        x: 2,
+        y: 2,
+        width: width - 4,
+        height: height - 4,
+        cornerRadius: isTerminal ? DIAGRAM.radii.pill - 2 : DIAGRAM.radii.md,
+        fill: null,
+        stroke: palette.accent,
+        strokeWidth: 1,
+        opacity: 0.35,
+        listening: false
+      })
+    );
+  }
   if (isTerminal) {
     node.add(
       app.text({
@@ -3578,9 +3812,9 @@ function createFlowchartNode(app, label, type) {
         y: height / 2 - 6,
         fontSize: DIAGRAM.fontSize.sm,
         fontWeight: "700",
-        letterSpacing: 0.04,
+        letterSpacing: 0.06,
         fontFamily: DIAGRAM.fontFamily,
-        fill: DIAGRAM.nodeText,
+        fill: isStart ? palette.accent : DIAGRAM.nodeText,
         listening: false
       })
     );
@@ -3589,7 +3823,7 @@ function createFlowchartNode(app, label, type) {
       app.text({
         text: label,
         x: centerTextX(label, width),
-        y: height / 2 - 7,
+        y: height / 2 - 6,
         fontSize: DIAGRAM.fontSize.base,
         fontWeight: "600",
         fontFamily: DIAGRAM.fontFamily,
@@ -3607,18 +3841,17 @@ function createClassNode(app, name, attributes, methods) {
   const bodyLines = attributes.length + methods.length;
   const height = headerH + bodyLines * lineH + (methods.length > 0 && attributes.length > 0 ? 8 : 4);
   const node = app.group();
-  node.add(
-    app.roundedRect({
-      width,
-      height,
-      cornerRadius: DIAGRAM.radii.md,
-      fill: DIAGRAM.classFill,
-      stroke: DIAGRAM.classStroke,
-      strokeWidth: 1.5,
-      shadow: DIAGRAM.shadowSoft,
-      listening: false
-    })
-  );
+  addCardChrome(app, node, {
+    width,
+    height,
+    cornerRadius: DIAGRAM.radii.md,
+    fill: DIAGRAM.classFill,
+    stroke: DIAGRAM.classStroke,
+    strokeWidth: DIAGRAM.stroke.node,
+    shadow: DIAGRAM.shadowElevated,
+    accentColor: DIAGRAM.umlInheritance,
+    sheen: false
+  });
   node.add(
     app.rect({
       x: 1,
@@ -3630,13 +3863,15 @@ function createClassNode(app, name, attributes, methods) {
       listening: false
     })
   );
+  addTopSheen(app, node, width, DIAGRAM.radii.md);
   node.add(
     app.text({
       text: name,
       x: DIAGRAM.spacing.sm,
-      y: 9,
+      y: 10,
       fontSize: DIAGRAM.fontSize.lg,
       fontWeight: "bold",
+      fontStyle: "italic",
       fontFamily: DIAGRAM.fontFamily,
       fill: DIAGRAM.classHeader,
       listening: false
@@ -3649,7 +3884,7 @@ function createClassNode(app, name, attributes, methods) {
       x2: width,
       y2: 0,
       stroke: DIAGRAM.classDivider,
-      strokeWidth: 1,
+      strokeWidth: DIAGRAM.stroke.label,
       listening: false
     })
   );
@@ -3676,7 +3911,7 @@ function createClassNode(app, name, attributes, methods) {
         x2: width,
         y2: 0,
         stroke: DIAGRAM.classDivider,
-        strokeWidth: 1,
+        strokeWidth: DIAGRAM.stroke.label,
         listening: false
       })
     );
@@ -3796,20 +4031,33 @@ function createNetworkNode(app, label, type) {
   const style = NETWORK_STYLES[netType];
   const size = netType === "router" ? 52 : 44;
   const node = app.group();
+  addCardChrome(app, node, {
+    width: size,
+    height: size,
+    cornerRadius: netType === "server" ? DIAGRAM.radii.sm : size / 2,
+    fill: style.fill,
+    stroke: style.stroke,
+    strokeWidth: DIAGRAM.stroke.nodeEmphasis,
+    shadow: DIAGRAM.shadowElevated,
+    sheen: netType === "server"
+  });
   node.add(
-    app.roundedRect({
-      width: size,
-      height: size,
-      cornerRadius: netType === "server" ? DIAGRAM.radii.sm : size / 2,
-      fill: style.fill,
+    app.circle({
+      x: size / 2,
+      y: size / 2,
+      radius: size / 2 - 5,
+      fill: null,
       stroke: style.stroke,
-      strokeWidth: 2,
-      shadow: DIAGRAM.shadowSoft,
+      strokeWidth: 1,
+      opacity: 0.35,
       listening: false
     })
   );
   addNetworkGlyph(app, node, netType, size, style.glyph);
-  const labelW = Math.max(size, measureTextWidth(label, DIAGRAM.fontSize.sm) + 8);
+  const labelW = Math.max(size, measureTextWidth(label, DIAGRAM.fontSize.sm) + 16);
+  const labelX = centerTextX(label, labelW, DIAGRAM.fontSize.sm);
+  const tw = measureTextWidth(label, DIAGRAM.fontSize.sm);
+  addCaptionPill(app, node, tw, labelX, size + DIAGRAM.spacing.xs - 2, style.stroke);
   node.add(
     app.text({
       text: label,
@@ -3824,30 +4072,30 @@ function createNetworkNode(app, label, type) {
   );
   return node;
 }
-function createOrgNode(app, name, role, childCount = 0, collapsed = false) {
-  const width = 152;
-  const height = role ? 58 : 50;
+function createOrgNode(app, name, role, childCount = 0, collapsed = false, depth = 0) {
+  const tier = DIAGRAM.orgTier[Math.min(depth, DIAGRAM.orgTier.length - 1)];
+  const width = 156;
+  const height = role ? 60 : 52;
   const node = app.group();
-  node.add(
-    app.roundedRect({
-      width,
-      height,
-      cornerRadius: DIAGRAM.radii.md,
-      fill: DIAGRAM.nodeFill,
-      stroke: DIAGRAM.nodeStroke,
-      strokeWidth: 1.5,
-      shadow: DIAGRAM.shadowSoft,
-      listening: false
-    })
-  );
+  addCardChrome(app, node, {
+    width,
+    height,
+    cornerRadius: DIAGRAM.radii.md,
+    fill: tier.fill,
+    stroke: tier.stroke,
+    strokeWidth: DIAGRAM.stroke.node,
+    shadow: DIAGRAM.shadowElevated,
+    accentColor: tier.accent
+  });
   node.add(
     app.line({
-      x: 0,
-      y: 0,
-      x2: 4,
-      y2: height,
-      stroke: DIAGRAM.nodeStroke,
-      strokeWidth: 3,
+      x: 3,
+      y: 3,
+      x2: 3,
+      y2: height - 3,
+      stroke: tier.accent,
+      strokeWidth: 2,
+      opacity: 0.5,
       lineCap: "round",
       listening: false
     })
@@ -3888,7 +4136,7 @@ function createOrgNode(app, name, role, childCount = 0, collapsed = false) {
         cornerRadius: DIAGRAM.radii.sm,
         fill: DIAGRAM.orgToggleBg,
         stroke: DIAGRAM.labelPillStroke,
-        strokeWidth: 1,
+        strokeWidth: DIAGRAM.stroke.label,
         listening: false
       })
     );
@@ -3913,47 +4161,60 @@ function createPipelineStage(app, label, status) {
     error: { fill: DIAGRAM.pipelineErrorFill, stroke: DIAGRAM.pipelineErrorStroke }
   };
   const c = colors[status] ?? colors.pending;
-  const width = 112;
-  const height = 48;
+  const width = 118;
+  const height = 50;
   const node = app.group();
+  const statusLabels = {
+    pending: "WAIT",
+    active: "RUN",
+    done: "DONE",
+    error: "FAIL"
+  };
+  if (status === "active") {
+    addEmphasisRing(app, node, width, height, c.stroke, DIAGRAM.radii.md);
+  }
+  addCardChrome(app, node, {
+    width,
+    height,
+    cornerRadius: DIAGRAM.radii.md,
+    fill: c.fill,
+    stroke: c.stroke,
+    strokeWidth: DIAGRAM.stroke.node,
+    shadow: status === "active" ? DIAGRAM.shadowElevated : DIAGRAM.shadowSoft,
+    sheen: false
+  });
+  addLeftStripe(app, node, height, c.stroke, 4);
+  const badgeW = 34;
   node.add(
     app.roundedRect({
-      width,
-      height,
-      cornerRadius: DIAGRAM.radii.md,
-      fill: c.fill,
-      stroke: c.stroke,
-      strokeWidth: 1.5,
-      shadow: DIAGRAM.shadowSoft,
-      listening: false
-    })
-  );
-  node.add(
-    app.rect({
-      x: 0,
-      y: 0,
-      width: 4,
-      height,
+      x: DIAGRAM.spacing.sm,
+      y: height / 2 - 9,
+      width: badgeW,
+      height: 18,
+      cornerRadius: DIAGRAM.radii.sm,
       fill: c.stroke,
       stroke: null,
+      opacity: status === "pending" ? 0.35 : 0.9,
       listening: false
     })
   );
-  const icons = { pending: "\u25CB", active: "\u25C9", done: "\u2713", error: "\u2715" };
   node.add(
     app.text({
-      text: icons[status] ?? "\u25CB",
-      x: DIAGRAM.spacing.sm,
-      y: height / 2 - 8,
-      fontSize: DIAGRAM.fontSize.xl,
-      fill: c.stroke,
+      text: statusLabels[status] ?? "WAIT",
+      x: DIAGRAM.spacing.sm + 5,
+      y: height / 2 - 7,
+      fontSize: DIAGRAM.fontSize.xs,
+      fontWeight: "700",
+      letterSpacing: 0.04,
+      fontFamily: DIAGRAM.fontFamily,
+      fill: status === "pending" ? DIAGRAM.nodeTextMuted : "#fff",
       listening: false
     })
   );
   node.add(
     app.text({
       text: label,
-      x: DIAGRAM.spacing.lg + 4,
+      x: DIAGRAM.spacing.sm + badgeW + 6,
       y: height / 2 - 7,
       fontSize: DIAGRAM.fontSize.base,
       fontWeight: "600",
@@ -3974,11 +4235,23 @@ function createStateNode(app, label, type) {
       app.circle({
         x: radius - 6,
         y: radius - 6,
+        radius: radius + 1,
+        fill: null,
+        stroke: DIAGRAM.stateFinalStroke,
+        strokeWidth: 1,
+        opacity: 0.35,
+        listening: false
+      })
+    );
+    node.add(
+      app.circle({
+        x: radius - 6,
+        y: radius - 6,
         radius: radius - 2,
         fill: DIAGRAM.stateFinalFill,
         stroke: DIAGRAM.stateFinalStroke,
-        strokeWidth: 2.5,
-        shadow: DIAGRAM.shadowSoft,
+        strokeWidth: DIAGRAM.stroke.nodeEmphasis,
+        shadow: DIAGRAM.shadowElevated,
         listening: false
       })
     );
@@ -3989,29 +4262,69 @@ function createStateNode(app, label, type) {
         radius: radius - 9,
         fill: null,
         stroke: DIAGRAM.stateFinalStroke,
-        strokeWidth: 2,
+        strokeWidth: DIAGRAM.stroke.node,
+        listening: false
+      })
+    );
+    if (label) {
+      const fs2 = DIAGRAM.fontSize.sm;
+      node.add(
+        app.text({
+          text: label,
+          x: centerTextX(label, radius * 2 - 4, fs2),
+          y: radius * 2 - 6,
+          fontSize: fs2,
+          fontWeight: "600",
+          fontFamily: DIAGRAM.fontFamily,
+          fill: DIAGRAM.stateFinalStroke,
+          listening: false
+        })
+      );
+    }
+    return node;
+  }
+  if (isInitial) {
+    const w = radius * 2 - 4;
+    const h = radius * 2 - 4;
+    addCardChrome(app, node, {
+      width: w,
+      height: h,
+      cornerRadius: h / 2,
+      fill: DIAGRAM.stateInitialFill,
+      stroke: DIAGRAM.stateInitialStroke,
+      strokeWidth: DIAGRAM.stroke.nodeEmphasis,
+      shadow: DIAGRAM.shadowElevated,
+      sheen: false
+    });
+    node.add(
+      app.circle({
+        x: 14,
+        y: h / 2,
+        radius: 6,
+        fill: DIAGRAM.stateInitialStroke,
+        stroke: null,
         listening: false
       })
     );
   } else {
-    node.add(
-      app.roundedRect({
-        width: radius * 2 - 4,
-        height: radius * 2 - 4,
-        cornerRadius: isInitial ? radius : DIAGRAM.radii.lg,
-        fill: isInitial ? DIAGRAM.stateInitialFill : DIAGRAM.stateFill,
-        stroke: isInitial ? DIAGRAM.stateInitialStroke : DIAGRAM.stateStroke,
-        strokeWidth: 2,
-        shadow: DIAGRAM.shadowSoft,
-        listening: false
-      })
-    );
+    const w = radius * 2 - 4;
+    addCardChrome(app, node, {
+      width: w,
+      height: w,
+      cornerRadius: DIAGRAM.radii.lg,
+      fill: DIAGRAM.stateFill,
+      stroke: DIAGRAM.stateStroke,
+      strokeWidth: DIAGRAM.stroke.nodeEmphasis,
+      shadow: DIAGRAM.shadowSoft,
+      accentColor: DIAGRAM.stateStroke
+    });
   }
   const fs = DIAGRAM.fontSize.md;
+  const boxW = radius * 2 - 4;
   node.add(
     app.text({
       text: label,
-      x: centerTextX(label, radius * 2 - 4, fs),
+      x: isInitial ? 26 : centerTextX(label, boxW, fs),
       y: radius - fs / 2 - 3,
       fontSize: fs,
       fontWeight: "600",
@@ -4022,9 +4335,73 @@ function createStateNode(app, label, type) {
   );
   return node;
 }
-function createEdgeLabel(app, text, x, y) {
+function createCanEcuNode(app, label, address, color, strokeWidth = DIAGRAM.stroke.node) {
+  const width = 88;
+  const height = 56;
+  const ecuGroup = app.group();
+  addCardChrome(app, ecuGroup, {
+    width,
+    height,
+    cornerRadius: DIAGRAM.radii.md,
+    fill: DIAGRAM.nodeFill,
+    stroke: color,
+    strokeWidth,
+    shadow: DIAGRAM.shadowElevated,
+    accentColor: color
+  });
+  ecuGroup.add(
+    app.text({
+      text: label,
+      x: DIAGRAM.spacing.sm,
+      y: 12,
+      fontSize: DIAGRAM.fontSize.md,
+      fill: DIAGRAM.nodeText,
+      fontWeight: "bold",
+      fontFamily: DIAGRAM.fontFamily,
+      listening: false
+    })
+  );
+  if (address) {
+    ecuGroup.add(
+      app.text({
+        text: address,
+        x: DIAGRAM.spacing.sm,
+        y: 30,
+        fontSize: DIAGRAM.fontSize.xs,
+        fontFamily: DIAGRAM.fontMono,
+        fill: DIAGRAM.edgeLabel,
+        listening: false
+      })
+    );
+  }
+  ecuGroup.add(
+    app.circle({
+      x: 44,
+      y: 0,
+      radius: 3,
+      fill: color,
+      stroke: DIAGRAM.surface,
+      strokeWidth: 1,
+      listening: false
+    })
+  );
+  ecuGroup.add(
+    app.line({
+      x: 44,
+      y: 0,
+      x2: 0,
+      y2: -14,
+      stroke: color,
+      strokeWidth: 2.5,
+      lineCap: "round",
+      listening: false
+    })
+  );
+  return ecuGroup;
+}
+function createEdgeLabel(app, text, x, y, accentStroke = DIAGRAM.edge) {
   const fontSize = DIAGRAM.fontSize.sm;
-  const tw = measureTextWidth(text, fontSize, "500");
+  const tw = measureTextWidth(text, fontSize, "600");
   const padX = 8;
   const padY = 4;
   const pw = tw + padX * 2;
@@ -4038,8 +4415,9 @@ function createEdgeLabel(app, text, x, y) {
       height: ph,
       cornerRadius: DIAGRAM.radii.sm,
       fill: DIAGRAM.labelPillFill,
-      stroke: DIAGRAM.labelPillStroke,
-      strokeWidth: 1,
+      stroke: accentStroke,
+      strokeWidth: DIAGRAM.stroke.label,
+      shadow: DIAGRAM.shadowSoft,
       listening: false
     })
   );
@@ -4049,7 +4427,7 @@ function createEdgeLabel(app, text, x, y) {
       x: x - tw / 2,
       y: y - fontSize / 2 - 1,
       fontSize,
-      fontWeight: "500",
+      fontWeight: "600",
       fontFamily: DIAGRAM.fontFamily,
       fill: DIAGRAM.edgeLabel,
       listening: false
@@ -4103,16 +4481,102 @@ function seededRandom(seed) {
     return s / 4294967295;
   };
 }
-function autoLayoutNodes(nodes, cols = 3, cellW = 150, cellH = 80, paddingX = 24, paddingY = 24) {
+function readCanvasSize(options, fallbackW = 800, fallbackH = 500) {
+  return {
+    width: typeof options.width === "number" ? options.width : fallbackW,
+    height: typeof options.height === "number" ? options.height : fallbackH
+  };
+}
+function resolveGridLayout(nodeCount, canvasW, canvasH, nodeW = 130, nodeH = 80, minPadding = 16) {
+  const tight = canvasW < 520 || canvasH < 360;
+  const maxCols = tight ? Math.max(1, Math.floor((canvasW - minPadding * 2) / (nodeW * 0.9))) : Math.max(2, Math.ceil(Math.sqrt(nodeCount * (canvasW / Math.max(canvasH, 1)))));
+  const cols = Math.max(1, Math.min(maxCols, nodeCount));
+  const rows = Math.ceil(nodeCount / cols);
+  const paddingX = Math.max(minPadding, Math.round(canvasW * 0.04));
+  const paddingY = Math.max(minPadding, Math.round(canvasH * 0.05));
+  const availW = Math.max(nodeW, canvasW - paddingX * 2);
+  const availH = Math.max(nodeH, canvasH - paddingY * 2);
+  const cellW = cols <= 1 ? nodeW : Math.max(nodeW * 0.72, (availW - nodeW) / Math.max(cols - 1, 1));
+  const cellH = rows <= 1 ? nodeH : Math.max(nodeH * 0.72, (availH - nodeH) / Math.max(rows - 1, 1));
+  return { cols, cellW, cellH, paddingX, paddingY };
+}
+function autoLayoutNodesResponsive(nodes, canvasW, canvasH, nodeW = 130, nodeH = 80) {
   const needs = nodes.some((n) => n.x === void 0 || n.y === void 0);
   if (!needs)
     return;
+  const { cols, cellW, cellH, paddingX, paddingY } = resolveGridLayout(
+    nodes.length,
+    canvasW,
+    canvasH,
+    nodeW,
+    nodeH
+  );
   nodes.forEach((n, i) => {
     if (n.x === void 0)
       n.x = paddingX + i % cols * cellW;
     if (n.y === void 0)
       n.y = paddingY + Math.floor(i / cols) * cellH;
   });
+}
+function diagramContentBounds(group) {
+  const nodes = [];
+  const walk2 = (parent) => {
+    for (const child of parent.children) {
+      if (child.metadata?.diagramId || child.metadata?.orgNode || child.metadata?.symbolType || child.metadata?.pipelineStatus !== void 0) {
+        nodes.push(child);
+      }
+      if ("children" in child && child.children?.length) {
+        walk2(child);
+      }
+    }
+  };
+  walk2(group);
+  const sources = nodes.length > 0 ? nodes : group.children.filter((c) => c.zIndex >= 0);
+  if (sources.length === 0)
+    return group.getBounds();
+  const posInRoot = (node) => {
+    let x = 0;
+    let y = 0;
+    let cur = node;
+    while (cur && cur !== group) {
+      x += cur.x;
+      y += cur.y;
+      cur = cur.parent;
+    }
+    return { x, y };
+  };
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const child of sources) {
+    const b = child.getBounds();
+    const p = posInRoot(child);
+    minX = Math.min(minX, p.x + b.x);
+    minY = Math.min(minY, p.y + b.y);
+    maxX = Math.max(maxX, p.x + b.x + b.width);
+    maxY = Math.max(maxY, p.y + b.y + b.height);
+  }
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+}
+function fitDiagramToBounds(group, canvasW, canvasH, padding = 20, options = {}) {
+  const allowScaleUp = options.allowScaleUp ?? true;
+  const maxScaleUp = options.maxScaleUp ?? 2.1;
+  const b = diagramContentBounds(group);
+  const contentW = Math.max(b.width, 1);
+  const contentH = Math.max(b.height, 1);
+  const availW = canvasW - padding * 2;
+  const availH = canvasH - padding * 2;
+  let scale = Math.min(availW / contentW, availH / contentH);
+  if (scale > 1 && allowScaleUp)
+    scale = Math.min(scale, maxScaleUp);
+  else if (scale > 1)
+    scale = 1;
+  const offsetX = padding + (availW - contentW * scale) / 2 - b.x * scale;
+  const offsetY = padding + (availH - contentH * scale) / 2 - b.y * scale;
+  group.scaleX = scale;
+  group.scaleY = scale;
+  group.x = offsetX;
+  group.y = offsetY;
+  group.markDirty();
+  return { scale, offsetX, offsetY };
 }
 function createNodeBox(app, label, width, height, style = {}) {
   return createLabeledBox(app, label, width, height, style);
@@ -9148,13 +9612,13 @@ var CHART_TOOLTIP_PAD_Y = 5;
 var CHART_TOOLTIP_LINE_H = 13;
 var CHART_TOOLTIP_MAX_W = 200;
 function chartTooltipSize(label) {
-  const lines = label.split("\n");
-  const maxLen = Math.max(...lines.map((l) => l.length), 1);
+  const lines2 = label.split("\n");
+  const maxLen = Math.max(...lines2.map((l) => l.length), 1);
   const width = Math.min(
     CHART_TOOLTIP_MAX_W,
     Math.max(40, Math.ceil(maxLen * 6.2) + CHART_TOOLTIP_PAD_X * 2)
   );
-  const height = Math.max(22, lines.length * CHART_TOOLTIP_LINE_H + CHART_TOOLTIP_PAD_Y * 2);
+  const height = Math.max(22, lines2.length * CHART_TOOLTIP_LINE_H + CHART_TOOLTIP_PAD_Y * 2);
   return { width, height };
 }
 function positionChartTooltip(tooltip, tooltipLabel, centerX, topY, label, chartBounds) {
@@ -9178,8 +9642,8 @@ function positionChartTooltip(tooltip, tooltipLabel, centerX, topY, label, chart
   tooltipLabel.text = trimmed;
   tooltipLabel.textAlign = "center";
   tooltipLabel.x = x + tw / 2;
-  const lines = trimmed.split("\n");
-  const textBlockH = lines.length * CHART_TOOLTIP_LINE_H;
+  const lines2 = trimmed.split("\n");
+  const textBlockH = lines2.length * CHART_TOOLTIP_LINE_H;
   tooltipLabel.y = y + Math.max(CHART_TOOLTIP_PAD_Y, (th - textBlockH) / 2);
   tooltipLabel.visible = true;
   tooltipLabel.zIndex = Math.max(tooltipLabel.zIndex, 902);
@@ -10230,7 +10694,6 @@ function stepPoints(data, toXY) {
     if (i === 0) {
       pts.push(x, y);
     } else {
-      const [px] = toXY(i - 1, data[i - 1]);
       pts.push(x, data[i - 1] !== void 0 ? toXY(i - 1, data[i - 1])[1] : y);
       pts.push(x, y);
     }
@@ -11242,7 +11705,7 @@ function inverseErf(x) {
   const t = 2 / (Math.PI * a) + ln / 2;
   return s * Math.sqrt(Math.sqrt(t * t - ln / a) - t);
 }
-function hexbinCenters(points, width, height, radius) {
+function hexbinCenters(points, _width, _height, radius) {
   const bins = /* @__PURE__ */ new Map();
   const dx = radius * 1.5;
   const dy = radius * Math.sqrt(3);
@@ -11799,14 +12262,12 @@ registerDashboard("bubbleChart", (props, app) => {
 // src/dashboard/charts/core/financial.ts
 function toHeikinAshi(bars) {
   const out = [];
-  let prevClose = bars[0]?.close ?? 0;
   for (const b of bars) {
     const close = (b.open + b.high + b.low + b.close) / 4;
     const open = out.length ? (out[out.length - 1].open + out[out.length - 1].close) / 2 : (b.open + b.close) / 2;
     const high = Math.max(b.high, open, close);
     const low = Math.min(b.low, open, close);
     out.push({ time: b.time, open, high, low, close, volume: b.volume });
-    prevClose = close;
   }
   return out;
 }
@@ -12720,14 +13181,18 @@ function radialLayout(group, cx, cy, innerRadius, outerRadius) {
 function layoutDiagram(group, levelGap = 80, siblingGap = 40) {
   treeLayout(group, levelGap, siblingGap);
 }
-function pipelineLayout(group, gap = 40, padding = 10) {
+function pipelineLayout(group, gap = 40, padding = 10, canvasH) {
+  const stageH = 50;
   let x = padding;
-  const y = padding;
+  const y = canvasH ? Math.max(padding, (canvasH - stageH) / 2) : padding;
   for (const child of group.children) {
+    if (child.metadata?.diagramId === void 0 && child.metadata?.pipelineStatus === void 0) {
+      continue;
+    }
     child.x = x;
     child.y = y;
     child.markDirty();
-    x += child.getBounds().width + gap;
+    x += 118 + gap;
   }
 }
 
@@ -13757,7 +14222,12 @@ registerDashboard("chartPanel", (props, app) => {
       })
     );
   }
-  const { chartType: _ct, title: _t, width: _w, height: _h, maximizable: _m, ...chartProps } = props;
+  const chartProps = { ...props };
+  delete chartProps.chartType;
+  delete chartProps.title;
+  delete chartProps.width;
+  delete chartProps.height;
+  delete chartProps.maximizable;
   const chart = createDashboardFromJSON(
     chartType,
     {
@@ -14370,7 +14840,7 @@ var PANEL_WIDGETS = [
   { kind: "panel", type: "mediaPlayer", title: "Media", rows: ["Now playing", "Track \u2014 Artist"] },
   { kind: "panel", type: "musicControls", title: "Music", rows: ["\u23EE  \u25B6  \u23ED"] },
   { kind: "panel", type: "albumArt", title: "Album", rows: ["[ Artwork ]"] },
-  { kind: "panel", type: "radio", title: "Radio", rows: ["FM 98.5"] },
+  { kind: "panel", type: "fmRadio", title: "Radio", rows: ["FM 98.5"] },
   { kind: "panel", type: "podcastPlayer", title: "Podcast", rows: ["Episode 12"] },
   { kind: "panel", type: "equalizer", title: "EQ", rows: ["Bass +2", "Treble 0"] },
   { kind: "panel", type: "nowPlaying", title: "Now Playing", rows: ["Song Title", "Artist"] },
@@ -14408,7 +14878,8 @@ var ALL_CATALOG_WIDGETS = [
 var WIDGET_ALIASES = {
   gearPositionIndicator: "gearIndicator",
   tirePressureMonitoring: "tpms",
-  turnIndicator: "turnIndicators"
+  turnIndicator: "turnIndicators",
+  radio: "fmRadio"
 };
 
 // src/automotive/themes.ts
@@ -15013,8 +15484,8 @@ function buildBadgeWidget(app, type, autoPart, props, title) {
 }
 function buildInfoPanel(app, type, autoPart, props, title, rows = []) {
   const theme = getTheme(str3(props, "theme", "classic"));
-  const lines = props.lines ?? rows;
-  const bounds = resolveBounds(props, 200, Math.max(72, lines.length * 18 + 32));
+  const lines2 = props.lines ?? rows;
+  const bounds = resolveBounds(props, 200, Math.max(72, lines2.length * 18 + 32));
   const group = createAutoGroup(app, type, { ...props, width: bounds.width, height: bounds.height }, autoPart);
   const w = bounds.innerWidth;
   const h = bounds.innerHeight;
@@ -15022,7 +15493,7 @@ function buildInfoPanel(app, type, autoPart, props, title, rows = []) {
   const rowSize = fluidFont(10, bounds, 7, 11);
   const titleH = titleSize + 8;
   const maxRows = Math.max(1, Math.floor((h - titleH - 4) / 11));
-  const visibleLines = lines.slice(0, maxRows);
+  const visibleLines = lines2.slice(0, maxRows);
   const rowH = Math.max(11, Math.floor((h - titleH - 4) / Math.max(visibleLines.length, 1)));
   group.add(
     app.roundedRect({
@@ -15063,7 +15534,7 @@ function buildInfoPanel(app, type, autoPart, props, title, rows = []) {
         rowNodes[i].text = line;
     });
   };
-  setState3(group, { lines, width: bounds.width, height: bounds.height });
+  setState3(group, { lines: lines2, width: bounds.width, height: bounds.height });
   return group;
 }
 
@@ -15246,8 +15717,8 @@ function buildAutomotiveCalendar(app, group, bounds, theme, props) {
   const month = num3(props, "month", (/* @__PURE__ */ new Date()).getMonth());
   const now2 = /* @__PURE__ */ new Date();
   const highlightDay = "highlightDay" in props ? num3(props, "highlightDay", -1) : year === now2.getFullYear() && month === now2.getMonth() ? now2.getDate() : -1;
-  const lines = props.lines ?? ["No events"];
-  const eventLine = str3(props, "event", lines[0] ?? "No events");
+  const lines2 = props.lines ?? ["No events"];
+  const eventLine = str3(props, "event", lines2[0] ?? "No events");
   const pad = bounds.pad;
   const panelW = bounds.innerWidth;
   const panelH = bounds.innerHeight;
@@ -15372,7 +15843,7 @@ registerAutomotive("calendar", (props, app) => {
   buildAutomotiveCalendar(app, group, bounds, theme, props);
   const year = num3(props, "year", (/* @__PURE__ */ new Date()).getFullYear());
   const month = num3(props, "month", (/* @__PURE__ */ new Date()).getMonth());
-  const lines = props.lines ?? ["No events"];
+  const lines2 = props.lines ?? ["No events"];
   group.metadata.linesRefresh = (next) => {
     setState3(group, { lines: next });
   };
@@ -15380,7 +15851,7 @@ registerAutomotive("calendar", (props, app) => {
     year,
     month,
     highlightDay: num3(props, "highlightDay", -1),
-    lines,
+    lines: lines2,
     width: bounds.width,
     height: bounds.height
   });
@@ -15394,11 +15865,11 @@ function callerInitials(name) {
 }
 registerAutomotive("callScreen", (props, app) => {
   const theme = getTheme(str3(props, "theme", "classic"));
-  const lines = props.lines ?? ["Incoming\u2026", "Swipe to answer"];
+  const lines2 = props.lines ?? ["Incoming\u2026", "Swipe to answer"];
   const caller = str3(props, "caller", str3(props, "name", "Alex Morgan"));
   const status = str3(props, "status", "incoming").toLowerCase();
   const subtitle = str3(props, "subtitle", str3(props, "phone", "Mobile"));
-  const hint = str3(props, "hint", lines[1] ?? "Swipe to answer");
+  const hint = str3(props, "hint", lines2[1] ?? "Swipe to answer");
   const bounds = resolveBounds(props, 220, 130);
   const group = createAutoGroup(app, "callScreen", { ...props, width: bounds.width, height: bounds.height }, "callScreen");
   const pad = bounds.pad;
@@ -15556,7 +16027,7 @@ registerAutomotive("callScreen", (props, app) => {
     if (nextStatus)
       setState3(group, { status: nextStatus });
   };
-  setState3(group, { caller, status, subtitle, hint, lines, width: bounds.width, height: bounds.height });
+  setState3(group, { caller, status, subtitle, hint, lines: lines2, width: bounds.width, height: bounds.height });
   return group;
 });
 registerAutomotive("batteryVoltage", (props, app) => {
@@ -16068,6 +16539,1260 @@ registerAutomotive(
   (props, app) => buildInstrumentCluster({ ...props, theme: props.theme ?? "digital" }, app, "digitalInstrumentCluster")
 );
 
+// src/automotive/widgets/panelPrimitives.ts
+function panelTheme(props) {
+  return getTheme(str3(props, "theme", "classic"));
+}
+function panelBounds(props, dw = 220, dh = 130) {
+  return resolveBounds(props, dw, dh);
+}
+function panelGroup(app, type, props, bounds) {
+  return createAutoGroup(app, type, { ...props, width: bounds.width, height: bounds.height }, type);
+}
+function addPanelFrame(group, app, bounds, theme, compact = false) {
+  const { pad, innerWidth: w, innerHeight: h } = bounds;
+  group.add(
+    app.roundedRect({
+      x: pad,
+      y: pad,
+      width: w,
+      height: h,
+      cornerRadius: Math.min(10, h * 0.1),
+      fill: "#111827",
+      stroke: theme.dialStroke,
+      strokeWidth: compact ? 1 : 1.5,
+      listening: false
+    })
+  );
+}
+function textAt(anchorY, fontSize) {
+  return textYForBaseline(anchorY, fontSize);
+}
+function addPanelTitle(group, app, bounds, theme, title) {
+  const { pad } = bounds;
+  const size = fluidFont(8, bounds, 6, 9);
+  const ty = pad + (bounds.innerHeight < 72 ? 8 : 10);
+  group.add(
+    app.text({
+      text: title.toUpperCase(),
+      x: pad + 2,
+      y: textAt(ty, size),
+      fontSize: size,
+      fontWeight: "bold",
+      fill: theme.textMuted,
+      textAlign: "left",
+      listening: false
+    })
+  );
+  return ty + size + 6;
+}
+function addProgressBar(group, app, x, y, w, h, progress, theme) {
+  const p = Math.max(0, Math.min(1, progress));
+  group.add(
+    app.roundedRect({
+      x,
+      y,
+      width: w,
+      height: h,
+      cornerRadius: h / 2,
+      fill: "#1f2937",
+      listening: false
+    }),
+    app.roundedRect({
+      x,
+      y,
+      width: Math.max(h, w * p),
+      height: h,
+      cornerRadius: h / 2,
+      fill: theme.accent,
+      listening: false
+    })
+  );
+}
+function addIconTile(group, app, x, y, size, icon, active, theme, label) {
+  group.add(
+    app.roundedRect({
+      x,
+      y,
+      width: size,
+      height: size,
+      cornerRadius: Math.min(8, size * 0.22),
+      fill: active ? theme.accent : "#1f2937",
+      stroke: active ? theme.accent : theme.dialStroke,
+      strokeWidth: 1,
+      listening: false
+    })
+  );
+  const iconSize = Math.max(7, Math.floor(size * (label ? 0.28 : 0.36)));
+  const iconY = label ? size * 0.32 : size * 0.5;
+  group.add(
+    autoCenteredText(app, icon, size, iconY, {
+      fontSize: iconSize,
+      fontWeight: "bold",
+      fill: active ? "#fff" : theme.textMuted,
+      insetX: x,
+      insetY: y
+    })
+  );
+  if (label) {
+    const labelSize = Math.max(5, Math.floor(size * 0.16));
+    group.add(
+      autoCenteredText(app, label, size, size * 0.76, {
+        fontSize: labelSize,
+        fill: active ? "#dbeafe" : theme.textMuted,
+        insetX: x,
+        insetY: y
+      })
+    );
+  }
+}
+function addSkipPrev(group, app, x, y, size, theme) {
+  group.add(
+    app.roundedRect({
+      x,
+      y,
+      width: size,
+      height: size,
+      cornerRadius: Math.min(8, size * 0.22),
+      fill: "#1f2937",
+      stroke: theme.dialStroke,
+      strokeWidth: 1,
+      listening: false
+    }),
+    app.path({
+      d: `M ${x + size * 0.28} ${y + size * 0.35} L ${x + size * 0.18} ${y + size * 0.5} L ${x + size * 0.28} ${y + size * 0.65}`,
+      stroke: theme.text,
+      strokeWidth: 1.5,
+      lineCap: "round",
+      lineJoin: "round",
+      listening: false
+    }),
+    app.path({
+      d: `M ${x + size * 0.42} ${y + size * 0.35} L ${x + size * 0.32} ${y + size * 0.5} L ${x + size * 0.42} ${y + size * 0.65}`,
+      stroke: theme.text,
+      strokeWidth: 1.5,
+      lineCap: "round",
+      lineJoin: "round",
+      listening: false
+    })
+  );
+}
+function addSkipNext(group, app, x, y, size, theme) {
+  group.add(
+    app.roundedRect({
+      x,
+      y,
+      width: size,
+      height: size,
+      cornerRadius: Math.min(8, size * 0.22),
+      fill: "#1f2937",
+      stroke: theme.dialStroke,
+      strokeWidth: 1,
+      listening: false
+    }),
+    app.path({
+      d: `M ${x + size * 0.58} ${y + size * 0.35} L ${x + size * 0.68} ${y + size * 0.5} L ${x + size * 0.58} ${y + size * 0.65}`,
+      stroke: theme.text,
+      strokeWidth: 1.5,
+      lineCap: "round",
+      lineJoin: "round",
+      listening: false
+    }),
+    app.path({
+      d: `M ${x + size * 0.72} ${y + size * 0.35} L ${x + size * 0.82} ${y + size * 0.5} L ${x + size * 0.72} ${y + size * 0.65}`,
+      stroke: theme.text,
+      strokeWidth: 1.5,
+      lineCap: "round",
+      lineJoin: "round",
+      listening: false
+    })
+  );
+}
+function addTransportRow(group, app, cx, y, w, h, theme, playing = true) {
+  const btn = Math.max(22, Math.min(h - 2, w * 0.14));
+  const gap = Math.max(10, w * 0.06);
+  const playSize = Math.min(Math.max(btn, 28), h, w * 0.18);
+  const left = cx - playSize / 2 - gap - btn;
+  const btnY = y + (h - btn) / 2;
+  const playX = cx - playSize / 2;
+  const playY = y + (h - playSize) / 2;
+  addSkipPrev(group, app, left, btnY, btn, theme);
+  group.add(
+    app.circle({
+      x: playX,
+      y: playY,
+      radius: playSize / 2,
+      fill: theme.accent,
+      listening: false
+    })
+  );
+  if (playing) {
+    const barW = Math.max(2, playSize * 0.1);
+    const barH = playSize * 0.28;
+    const mid = playX + playSize / 2;
+    const midY = playY + playSize / 2;
+    group.add(
+      app.roundedRect({
+        x: mid - barW - 2,
+        y: midY - barH / 2,
+        width: barW,
+        height: barH,
+        cornerRadius: 1,
+        fill: "#fff",
+        listening: false
+      }),
+      app.roundedRect({
+        x: mid + 2,
+        y: midY - barH / 2,
+        width: barW,
+        height: barH,
+        cornerRadius: 1,
+        fill: "#fff",
+        listening: false
+      })
+    );
+  } else {
+    group.add(
+      app.path({
+        d: `M ${playX + playSize * 0.38} ${playY + playSize * 0.3} L ${playX + playSize * 0.38} ${playY + playSize * 0.7} L ${playX + playSize * 0.68} ${playY + playSize * 0.5} Z`,
+        fill: "#fff",
+        listening: false
+      })
+    );
+  }
+  addSkipNext(group, app, cx + playSize / 2 + gap, btnY, btn, theme);
+}
+function addAlbumPlaceholder(group, app, x, y, size, accent = "#6366f1") {
+  group.add(
+    app.roundedRect({
+      x,
+      y,
+      width: size,
+      height: size,
+      cornerRadius: Math.min(10, size * 0.1),
+      fill: accent,
+      stroke: "rgba(255,255,255,0.12)",
+      strokeWidth: 1,
+      listening: false
+    })
+  );
+  const note = Math.max(10, size * 0.28);
+  group.add(
+    autoCenteredText(app, "\u266A", size, size / 2, {
+      fontSize: note,
+      fontWeight: "bold",
+      fill: "rgba(255,255,255,0.9)",
+      insetX: x,
+      insetY: y
+    })
+  );
+}
+function addMediaArtAndMeta(group, app, bounds, theme, top, title, artist, accent) {
+  const { pad, innerWidth: w, innerHeight: h } = bounds;
+  const art = Math.max(40, Math.min(w * 0.32, h * 0.48, 72));
+  addAlbumPlaceholder(group, app, pad, top, art, accent);
+  const tx = pad + art + 10;
+  const tw = w - art - 14;
+  const titleSize = fluidFont(12, bounds, 9, 14);
+  const titleFit = fitFontSizeToWidth(title, tw, titleSize, 8);
+  group.add(
+    app.text({
+      text: title,
+      x: tx,
+      y: textAt(top + 4, titleFit.fontSize),
+      fontSize: titleFit.fontSize,
+      fontWeight: "bold",
+      fill: theme.text,
+      textAlign: "left",
+      listening: false
+    })
+  );
+  const subSize = fluidFont(9, bounds, 7, 10);
+  group.add(
+    app.text({
+      text: artist,
+      x: tx,
+      y: textAt(top + titleFit.fontSize + 8, subSize),
+      fontSize: subSize,
+      fill: theme.textMuted,
+      textAlign: "left",
+      listening: false
+    })
+  );
+  return { artSize: art, bottom: top + art };
+}
+function addListRow(group, app, x, y, w, h, icon, text, meta, theme, accent = false) {
+  group.add(
+    app.roundedRect({
+      x,
+      y,
+      width: w,
+      height: h,
+      cornerRadius: 6,
+      fill: "#1a2332",
+      listening: false
+    })
+  );
+  const iconBox = Math.max(18, h - 8);
+  addIconTile(group, app, x + 4, y + (h - iconBox) / 2, iconBox, icon, accent, theme);
+  const textX = x + iconBox + 10;
+  const textW = w - iconBox - (meta ? 30 : 14);
+  const row = fitLabel(app, text, textX, y + h * 0.28, textW, 9, theme, accent);
+  if (accent)
+    row.fill = theme.warning;
+  group.add(row);
+  if (meta) {
+    group.add(
+      app.text({
+        text: meta,
+        x: x + w - 26,
+        y: textAt(y + h * 0.62, 8),
+        fontSize: 8,
+        fill: theme.textMuted,
+        textAlign: "left",
+        listening: false
+      })
+    );
+  }
+}
+function lonLatToTile(lon, lat, zoom) {
+  const n = 2 ** zoom;
+  const x = Math.floor((lon + 180) / 360 * n);
+  const latRad = lat * Math.PI / 180;
+  const y = Math.floor((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * n);
+  return { x, y };
+}
+function osmTileUrl(zoom, x, y) {
+  return `https://tile.openstreetmap.org/${zoom}/${x}/${y}.png`;
+}
+function addOsmMapLayer(group, app, x, y, w, h, theme, options = {}) {
+  const lat = options.lat ?? 51.505;
+  const lon = options.lon ?? -0.09;
+  const zoom = options.zoom ?? 14;
+  group.add(
+    app.roundedRect({
+      x,
+      y,
+      width: w,
+      height: h,
+      cornerRadius: Math.min(8, h * 0.12),
+      fill: "#16231b",
+      stroke: theme.dialStroke,
+      strokeWidth: 1,
+      listening: false
+    })
+  );
+  group.add(
+    app.roundedRect({
+      x: x + w * 0.06,
+      y: y + h * 0.1,
+      width: w * 0.24,
+      height: h * 0.22,
+      cornerRadius: 3,
+      fill: "#1f3d2e",
+      listening: false
+    }),
+    app.roundedRect({
+      x: x + w * 0.66,
+      y: y + h * 0.55,
+      width: w * 0.26,
+      height: h * 0.2,
+      cornerRadius: 3,
+      fill: "#1a3350",
+      listening: false
+    })
+  );
+  const roads = [
+    { d: `M ${x + 6} ${y + h * 0.52} L ${x + w - 6} ${y + h * 0.46}`, w: 3, c: "#5c6b7a" },
+    { d: `M ${x + w * 0.22} ${y + 6} L ${x + w * 0.3} ${y + h - 6}`, w: 2, c: "#4a5568" },
+    { d: `M ${x + w * 0.64} ${y + 6} L ${x + w * 0.56} ${y + h - 6}`, w: 2, c: "#4a5568" },
+    { d: `M ${x + 6} ${y + h * 0.26} L ${x + w - 6} ${y + h * 0.3}`, w: 1.5, c: "#3d4a57" }
+  ];
+  for (const r of roads) {
+    group.add(
+      app.path({
+        d: r.d,
+        stroke: r.c,
+        strokeWidth: r.w,
+        lineCap: "round",
+        listening: false
+      })
+    );
+  }
+  if (options.route !== false) {
+    const routeD = `M ${x + w * 0.14} ${y + h * 0.76} Q ${x + w * 0.44} ${y + h * 0.34} ${x + w * 0.84} ${y + h * 0.2}`;
+    group.add(
+      app.path({
+        d: routeD,
+        stroke: "rgba(37,99,235,0.35)",
+        strokeWidth: Math.max(5, w * 0.028),
+        lineCap: "round",
+        listening: false
+      }),
+      app.path({
+        d: routeD,
+        stroke: theme.accent,
+        strokeWidth: Math.max(2.5, w * 0.014),
+        lineCap: "round",
+        listening: false
+      })
+    );
+  }
+  if (options.marker !== false) {
+    const mx = x + w * 0.74;
+    const my = y + h * 0.24;
+    group.add(
+      app.circle({
+        x: mx - 5,
+        y: my - 5,
+        radius: 5,
+        fill: theme.accent,
+        stroke: "#fff",
+        strokeWidth: 1.5,
+        listening: false
+      })
+    );
+  }
+  if (options.useTile !== false && w >= 48 && h >= 36) {
+    const tile = lonLatToTile(lon, lat, zoom);
+    const img = app.image({
+      x,
+      y,
+      width: w,
+      height: h,
+      src: osmTileUrl(zoom, tile.x, tile.y),
+      opacity: 0.5,
+      listening: false
+    });
+    group.add(img);
+    img.load().then(() => app.requestRender()).catch(() => void 0);
+  }
+  group.add(
+    app.text({
+      text: "\xA9 OSM",
+      x: x + w - 28,
+      y: y + h - 11,
+      fontSize: 7,
+      fill: "rgba(255,255,255,0.5)",
+      listening: false
+    })
+  );
+}
+function addCompassRose(group, app, cx, cy, radius, heading, theme) {
+  group.add(
+    app.circle({
+      x: cx - radius,
+      y: cy - radius,
+      radius,
+      fill: "#0f172a",
+      stroke: theme.dialStroke,
+      strokeWidth: 1.5,
+      listening: false
+    })
+  );
+  for (let deg = 0; deg < 360; deg += 30) {
+    const rad2 = (deg - 90) * Math.PI / 180;
+    const inner = radius * (deg % 90 === 0 ? 0.78 : 0.86);
+    const outer = radius * 0.94;
+    const ix = Math.cos(rad2) * inner;
+    const iy = Math.sin(rad2) * inner;
+    const ox = Math.cos(rad2) * outer;
+    const oy = Math.sin(rad2) * outer;
+    group.add(
+      app.line({
+        x: cx + ix,
+        y: cy + iy,
+        x2: ox - ix,
+        y2: oy - iy,
+        stroke: "#334155",
+        strokeWidth: deg % 90 === 0 ? 1.5 : 0.8,
+        listening: false
+      })
+    );
+  }
+  const labels = [
+    { t: "N", deg: 0, c: theme.warning },
+    { t: "E", deg: 90, c: theme.textMuted },
+    { t: "S", deg: 180, c: theme.textMuted },
+    { t: "W", deg: 270, c: theme.textMuted }
+  ];
+  const labelSize = Math.max(7, radius * 0.2);
+  for (const { t, deg, c } of labels) {
+    const rad2 = (deg - 90) * Math.PI / 180;
+    const lx = cx + Math.cos(rad2) * (radius * 0.68);
+    const ly = cy + Math.sin(rad2) * (radius * 0.68);
+    group.add(
+      app.text({
+        text: t,
+        x: lx,
+        y: textAt(ly, labelSize),
+        fontSize: labelSize,
+        fontWeight: t === "N" ? "bold" : "normal",
+        fill: c,
+        textAlign: "center",
+        listening: false
+      })
+    );
+  }
+  const needleLen = radius * 0.58;
+  const rad = (heading - 90) * Math.PI / 180;
+  group.add(
+    app.line({
+      x: cx,
+      y: cy,
+      x2: Math.cos(rad) * needleLen,
+      y2: Math.sin(rad) * needleLen,
+      stroke: theme.accent,
+      strokeWidth: Math.max(2.5, radius * 0.09),
+      lineCap: "round",
+      listening: false
+    })
+  );
+  group.add(
+    app.circle({
+      x: cx - 3,
+      y: cy - 3,
+      radius: 3,
+      fill: theme.text,
+      listening: false
+    })
+  );
+}
+function finishPanel(group, props, bounds, extra = {}) {
+  setState3(group, { ...props, ...extra, width: bounds.width, height: bounds.height });
+  return group;
+}
+function fitLabel(app, text, x, y, maxW, maxSize, theme, bold = false) {
+  const fit = fitFontSizeToWidth(text, maxW, maxSize, 7);
+  return app.text({
+    text,
+    x: x + fit.x,
+    y: textAt(y, fit.fontSize),
+    fontSize: fit.fontSize,
+    fontWeight: bold ? "bold" : "normal",
+    fill: theme.text,
+    textAlign: "left",
+    listening: false
+  });
+}
+function addTurnArrow(group, app, x, y, size, theme) {
+  group.add(
+    app.roundedRect({
+      x,
+      y,
+      width: size,
+      height: size,
+      cornerRadius: 8,
+      fill: theme.accent,
+      listening: false
+    }),
+    app.path({
+      d: `M ${x + size * 0.28} ${y + size * 0.32} L ${x + size * 0.62} ${y + size * 0.5} L ${x + size * 0.28} ${y + size * 0.68} M ${x + size * 0.62} ${y + size * 0.5} L ${x + size * 0.62} ${y + size * 0.32} L ${x + size * 0.78} ${y + size * 0.5} L ${x + size * 0.62} ${y + size * 0.68}`,
+      stroke: "#fff",
+      strokeWidth: 2.2,
+      lineCap: "round",
+      lineJoin: "round",
+      listening: false
+    })
+  );
+}
+
+// src/automotive/widgets/panels.ts
+function lines(props, fallback) {
+  return props.lines ?? fallback;
+}
+registerAutomotive("climateControl", (props, app) => {
+  const theme = panelTheme(props);
+  const bounds = panelBounds(props, 220, 130);
+  const group = panelGroup(app, "climateControl", props, bounds);
+  const { pad, innerWidth: w, innerHeight: h } = bounds;
+  const compact = h < 88 || w < 140;
+  addPanelFrame(group, app, bounds, theme, compact);
+  const contentY = addPanelTitle(group, app, bounds, theme, "Climate");
+  const temp = str3(props, "temp", lines(props, ["Auto", "22\xB0C", "Fan 3"])[1] ?? "22\xB0C");
+  const fan = num3(props, "fan", 3);
+  const autoOn = str3(props, "mode", lines(props, ["Auto", "22\xB0C", "Fan 3"])[0] ?? "Auto").toLowerCase() === "auto";
+  const tempSize = fluidFont(compact ? 20 : 26, bounds, 14, 30);
+  const tempFit = fitFontSizeToWidth(temp, w * 0.38, tempSize, 12);
+  group.add(
+    app.text({
+      text: temp,
+      x: pad + 2,
+      y: textAt(contentY + 4, tempFit.fontSize),
+      fontSize: tempFit.fontSize,
+      fontWeight: "bold",
+      fill: theme.text,
+      listening: false
+    })
+  );
+  const iconSize = Math.max(compact ? 24 : 30, Math.min(w * 0.12, 34));
+  const gap = 5;
+  const iconsX = pad + Math.max(w * 0.38, w - (iconSize * 3 + gap * 2));
+  const iconY = contentY + 2;
+  addIconTile(group, app, iconsX, iconY, iconSize, "\u2744", true, theme);
+  addIconTile(group, app, iconsX + iconSize + gap, iconY, iconSize, "\u2668", false, theme);
+  addIconTile(group, app, iconsX + (iconSize + gap) * 2, iconY, iconSize, "A", autoOn, theme, autoOn ? "AUTO" : "");
+  const fanBarY = iconY + iconSize + 10;
+  const fanLabel = `Fan ${fan}`;
+  group.add(
+    app.text({
+      text: fanLabel,
+      x: pad + 2,
+      y: textAt(fanBarY, 9),
+      fontSize: fluidFont(9, bounds, 7, 10),
+      fill: theme.textMuted,
+      listening: false
+    })
+  );
+  addProgressBar(group, app, pad, fanBarY + 12, w, compact ? 5 : 6, fan / 5, theme);
+  return finishPanel(group, props, bounds, { temp, fan, mode: autoOn ? "auto" : "manual" });
+});
+registerAutomotive("quickSettingsPanel", (props, app) => {
+  const theme = panelTheme(props);
+  const bounds = panelBounds(props, 220, 120);
+  const group = panelGroup(app, "quickSettingsPanel", props, bounds);
+  const { pad, innerWidth: w, innerHeight: h } = bounds;
+  addPanelFrame(group, app, bounds, theme, true);
+  const startY = addPanelTitle(group, app, bounds, theme, "Quick Settings");
+  const items = props.items ?? [
+    { icon: "Wi", label: "Wi-Fi", on: true },
+    { icon: "BT", label: "BT", on: true },
+    { icon: "AC", label: "HVAC", on: false },
+    { icon: "\u2600", label: "Dim", on: true },
+    { icon: "\u266A", label: "Vol", on: true },
+    { icon: "\u238B", label: "Disp", on: false }
+  ];
+  const cols = 3;
+  const rows = 2;
+  const gap = 6;
+  const availH = pad + h - startY;
+  const tile = Math.min((w - gap * (cols - 1)) / cols, (availH - gap) / rows - 2);
+  items.slice(0, 6).forEach((item, i) => {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    addIconTile(
+      group,
+      app,
+      pad + col * (tile + gap),
+      startY + row * (tile + gap),
+      tile,
+      item.icon,
+      !!item.on,
+      theme,
+      tile >= 34 ? item.label : void 0
+    );
+  });
+  return finishPanel(group, props, bounds, { items });
+});
+registerAutomotive("compass", (props, app) => {
+  const theme = panelTheme(props);
+  const bounds = panelBounds(props, 140, 140);
+  const group = panelGroup(app, "compass", props, bounds);
+  const { pad, innerWidth: w, innerHeight: h } = bounds;
+  addPanelFrame(group, app, bounds, theme);
+  const heading = num3(props, "heading", num3(props, "value", 45));
+  const radius = Math.max(22, Math.min(w, h) * 0.32);
+  const cx = pad + w / 2;
+  const cy = pad + h / 2 - 4;
+  addCompassRose(group, app, cx, cy, radius, heading, theme);
+  const label = `${["N", "NE", "E", "SE", "S", "SW", "W", "NW"][Math.round(heading / 45) % 8]} ${String(Math.round(heading)).padStart(3, "0")}\xB0`;
+  const labelSize = fluidFont(11, bounds, 8, 13);
+  group.add(
+    app.text({
+      text: label,
+      x: pad + w / 2,
+      y: textAt(pad + h - 10, labelSize),
+      fontSize: labelSize,
+      fontWeight: "bold",
+      fill: theme.text,
+      textAlign: "center",
+      listening: false
+    })
+  );
+  group.metadata.refresh = (v) => setState3(group, { heading: v, value: v });
+  return finishPanel(group, props, bounds, { heading, value: heading });
+});
+registerAutomotive("gpsNavigationMap", (props, app) => {
+  const theme = panelTheme(props);
+  const bounds = panelBounds(props, 240, 160);
+  const group = panelGroup(app, "gpsNavigationMap", props, bounds);
+  const { pad, innerWidth: w, innerHeight: h } = bounds;
+  addPanelFrame(group, app, bounds, theme);
+  const contentY = addPanelTitle(group, app, bounds, theme, "Navigation");
+  addOsmMapLayer(group, app, pad, contentY, w, h - (contentY - pad) - 4, theme, {
+    lat: num3(props, "lat", 51.505),
+    lon: num3(props, "lon", -0.09),
+    zoom: num3(props, "zoom", 14),
+    route: true,
+    marker: true,
+    useTile: bool3(props, "useOsmTiles", true)
+  });
+  return finishPanel(group, props, bounds);
+});
+registerAutomotive("navigationSearch", (props, app) => {
+  const theme = panelTheme(props);
+  const bounds = panelBounds(props, 220, 130);
+  const group = panelGroup(app, "navigationSearch", props, bounds);
+  const { pad, innerWidth: w, innerHeight: h } = bounds;
+  addPanelFrame(group, app, bounds, theme, true);
+  const query = str3(props, "query", lines(props, ["Search\u2026"])[0] ?? "Search\u2026");
+  const fieldH = Math.max(22, h * 0.15);
+  const fieldY = pad + 10;
+  group.add(
+    app.roundedRect({
+      x: pad,
+      y: fieldY,
+      width: w,
+      height: fieldH,
+      cornerRadius: fieldH / 2,
+      fill: "#1f2937",
+      stroke: theme.dialStroke,
+      strokeWidth: 1,
+      listening: false
+    }),
+    app.text({
+      text: "\u2315",
+      x: pad + 10,
+      y: textAt(fieldY + fieldH / 2, 12),
+      fontSize: 12,
+      fill: theme.textMuted,
+      listening: false
+    })
+  );
+  group.add(fitLabel(app, query, pad + 28, fieldY + fieldH * 0.28, w - 36, fluidFont(10, bounds, 8, 11), theme));
+  const mapY = fieldY + fieldH + 8;
+  addOsmMapLayer(group, app, pad, mapY, w, pad + h - mapY - 4, theme, {
+    lat: num3(props, "lat", 51.51),
+    lon: num3(props, "lon", -0.12),
+    zoom: 13,
+    route: false,
+    marker: false,
+    useTile: bool3(props, "useOsmTiles", true)
+  });
+  return finishPanel(group, props, bounds, { query });
+});
+registerAutomotive("routeGuidance", (props, app) => {
+  const theme = panelTheme(props);
+  const bounds = panelBounds(props, 220, 130);
+  const group = panelGroup(app, "routeGuidance", props, bounds);
+  const { pad, innerWidth: w, innerHeight: h } = bounds;
+  const rowLines = lines(props, ["12.4 km", "18 min"]);
+  const distance = str3(props, "distance", rowLines[0] ?? "12.4 km");
+  const eta = str3(props, "eta", rowLines[1] ?? "18 min");
+  const instruction = str3(props, "instruction", "Turn right onto Main St");
+  addPanelFrame(group, app, bounds, theme);
+  const mapH = Math.max(48, h * 0.4);
+  addOsmMapLayer(group, app, pad, pad + 4, w, mapH, theme, {
+    lat: num3(props, "lat", 51.505),
+    lon: num3(props, "lon", -0.09),
+    zoom: 15,
+    route: true,
+    marker: true,
+    useTile: bool3(props, "useOsmTiles", true)
+  });
+  const infoY = pad + mapH + 12;
+  const infoH = pad + h - infoY;
+  const arrowSize = Math.min(infoH, w * 0.22);
+  addTurnArrow(group, app, pad, infoY, arrowSize, theme);
+  const textX = pad + arrowSize + 8;
+  const textW = w - arrowSize - 12;
+  group.add(
+    fitLabel(app, instruction, textX, infoY + 4, textW, fluidFont(10, bounds, 8, 11), theme, true),
+    app.text({
+      text: `${distance} \xB7 ${eta}`,
+      x: textX,
+      y: textAt(infoY + infoH - 12, 9),
+      fontSize: fluidFont(9, bounds, 7, 10),
+      fill: theme.textMuted,
+      listening: false
+    })
+  );
+  return finishPanel(group, props, bounds, { distance, eta, instruction });
+});
+registerAutomotive("warningAlertPanel", (props, app) => {
+  const theme = panelTheme(props);
+  const bounds = panelBounds(props, 220, 120);
+  const group = panelGroup(app, "warningAlertPanel", props, bounds);
+  const { pad, innerWidth: w, innerHeight: h } = bounds;
+  const alerts = props.alerts ?? lines(props, ["No warnings"]);
+  const hasAlert = alerts.length > 0 && alerts[0].toLowerCase() !== "no warnings";
+  addPanelFrame(group, app, bounds, theme);
+  const startY = addPanelTitle(group, app, bounds, theme, "Warnings");
+  const rowH = Math.max(24, (pad + h - startY - 4) / Math.min(2, alerts.length));
+  alerts.slice(0, 2).forEach((alert, i) => {
+    addListRow(group, app, pad, startY + i * (rowH + 4), w, rowH, "\u26A0", alert, void 0, theme, hasAlert && i === 0);
+  });
+  return finishPanel(group, props, bounds, { alerts });
+});
+registerAutomotive("nowPlaying", (props, app) => {
+  const theme = panelTheme(props);
+  const bounds = panelBounds(props, 240, 130);
+  const group = panelGroup(app, "nowPlaying", props, bounds);
+  const { pad, innerWidth: w, innerHeight: h } = bounds;
+  const rowLines = lines(props, ["Song Title", "Artist"]);
+  const title = str3(props, "title", rowLines[0] ?? "Song Title");
+  const artist = str3(props, "artist", rowLines[1] ?? "Artist");
+  const progress = num3(props, "progress", 0.42);
+  addPanelFrame(group, app, bounds, theme);
+  const top = addPanelTitle(group, app, bounds, theme, "Now Playing");
+  addMediaArtAndMeta(group, app, bounds, theme, top, title, artist, "#7c3aed");
+  const barY = pad + h - 44;
+  addProgressBar(group, app, pad, barY, w, 5, progress, theme);
+  addTransportRow(group, app, pad + w / 2, barY + 10, w, pad + h - barY - 12, theme);
+  return finishPanel(group, props, bounds, { title, artist, progress });
+});
+registerAutomotive("mediaPlayer", (props, app) => {
+  const theme = panelTheme(props);
+  const bounds = panelBounds(props, 260, 168);
+  const group = panelGroup(app, "mediaPlayer", props, bounds);
+  const { pad, innerWidth: w, innerHeight: h } = bounds;
+  const rowLines = lines(props, ["Now playing", "Track \u2014 Artist"]);
+  const title = str3(props, "title", rowLines[1]?.split("\u2014")[0]?.trim() ?? "Midnight Drive");
+  const artist = str3(props, "artist", rowLines[1]?.split("\u2014")[1]?.trim() ?? "Neon Wave");
+  const progress = num3(props, "progress", 0.36);
+  addPanelFrame(group, app, bounds, theme);
+  const top = addPanelTitle(group, app, bounds, theme, "Media");
+  const { bottom } = addMediaArtAndMeta(group, app, bounds, theme, top, title, artist, "#db2777");
+  const barY = bottom + 10;
+  addProgressBar(group, app, pad, barY, w, 6, progress, theme);
+  group.add(
+    app.text({ text: "1:24", x: pad, y: textAt(barY - 8, 8), fontSize: 8, fill: theme.textMuted, listening: false }),
+    app.text({ text: "3:42", x: pad + w - 24, y: textAt(barY - 8, 8), fontSize: 8, fill: theme.textMuted, listening: false })
+  );
+  addTransportRow(group, app, pad + w / 2, barY + 12, w, pad + h - barY - 14, theme);
+  return finishPanel(group, props, bounds, { title, artist, progress });
+});
+registerAutomotive("musicControls", (props, app) => {
+  const theme = panelTheme(props);
+  const bounds = panelBounds(props, 180, 72);
+  const group = panelGroup(app, "musicControls", props, bounds);
+  const { pad, innerWidth: w, innerHeight: h } = bounds;
+  addPanelFrame(group, app, bounds, theme, true);
+  addTransportRow(group, app, pad + w / 2, pad + 10, w, h - 20, theme, bool3(props, "playing", true));
+  return finishPanel(group, props, bounds, { playing: bool3(props, "playing", true) });
+});
+registerAutomotive("albumArt", (props, app) => {
+  const theme = panelTheme(props);
+  const bounds = panelBounds(props, 180, 180);
+  const group = panelGroup(app, "albumArt", props, bounds);
+  const { pad, innerWidth: w, innerHeight: h } = bounds;
+  const rowLines = lines(props, ["[ Artwork ]"]);
+  const album = str3(props, "album", rowLines[0] ?? "Night Roads");
+  const artist = str3(props, "artist", "Neon Wave");
+  addPanelFrame(group, app, bounds, theme);
+  const art = Math.max(56, Math.min(w, h * 0.58));
+  const artX = pad + (w - art) / 2;
+  addAlbumPlaceholder(group, app, artX, pad + 8, art, "#4f46e5");
+  const metaY = pad + 8 + art + 10;
+  group.add(
+    app.text({
+      text: album,
+      x: pad + w / 2,
+      y: textAt(metaY, fluidFont(11, bounds, 9, 13)),
+      fontSize: fluidFont(11, bounds, 9, 13),
+      fontWeight: "bold",
+      fill: theme.text,
+      textAlign: "center",
+      listening: false
+    }),
+    app.text({
+      text: artist,
+      x: pad + w / 2,
+      y: textAt(metaY + 16, 9),
+      fontSize: fluidFont(9, bounds, 7, 10),
+      fill: theme.textMuted,
+      textAlign: "center",
+      listening: false
+    })
+  );
+  return finishPanel(group, props, bounds, { album, artist });
+});
+registerAutomotive("fmRadio", (props, app) => {
+  const theme = panelTheme(props);
+  const bounds = panelBounds(props, 220, 120);
+  const group = panelGroup(app, "fmRadio", props, bounds);
+  const { pad, innerWidth: w, innerHeight: h } = bounds;
+  const station = str3(props, "station", lines(props, ["FM 98.5"])[0] ?? "FM 98.5");
+  const band = str3(props, "band", station.startsWith("AM") ? "AM" : "FM");
+  const freq = str3(props, "frequency", station.replace(/^(FM|AM)\s*/, "") || "98.5");
+  const stationName = str3(props, "stationName", str3(props, "name", "Classic Hits"));
+  const rds = str3(props, "rds", str3(props, "subtitle", "Neon Wave \u2014 Midnight Drive"));
+  const stereo = bool3(props, "stereo", true);
+  const presets = props.presets ?? ["88.1", "92.3", "98.5", "101.2"];
+  const compact = h < 100;
+  addPanelFrame(group, app, bounds, theme, compact);
+  const top = addPanelTitle(group, app, bounds, theme, "Radio");
+  if (stereo) {
+    group.add(
+      app.text({
+        text: "ST",
+        x: pad + w - 18,
+        y: textAt(pad + 9, 7),
+        fontSize: 7,
+        fontWeight: "bold",
+        fill: theme.ok,
+        listening: false
+      }),
+      app.circle({
+        x: pad + w - 24,
+        y: pad + 9,
+        radius: 2,
+        fill: theme.ok,
+        listening: false
+      })
+    );
+  }
+  const displayY = top + 2;
+  const presetH = Math.max(compact ? 18 : 22, Math.min(28, (pad + h - top) * 0.18));
+  const presetY = pad + h - presetH;
+  const rdsBand = 12;
+  const displayH = Math.max(compact ? 58 : 68, presetY - displayY - rdsBand - 6);
+  group.add(
+    app.roundedRect({
+      x: pad,
+      y: displayY,
+      width: w,
+      height: displayH,
+      cornerRadius: 8,
+      fill: "#0b1220",
+      stroke: theme.dialStroke,
+      strokeWidth: 1,
+      listening: false
+    })
+  );
+  const seek = Math.max(20, Math.min(26, displayH * 0.38));
+  const seekY = displayY + (displayH - seek) / 2 - 4;
+  const seekL = pad + 6;
+  const seekR = pad + w - seek - 6;
+  for (const [sx, path] of [
+    [seekL, `M ${seekL + seek * 0.62} ${seekY + seek * 0.32} L ${seekL + seek * 0.28} ${seekY + seek / 2} L ${seekL + seek * 0.62} ${seekY + seek * 0.68}`],
+    [seekR, `M ${seekR + seek * 0.38} ${seekY + seek * 0.32} L ${seekR + seek * 0.72} ${seekY + seek / 2} L ${seekR + seek * 0.38} ${seekY + seek * 0.68}`]
+  ]) {
+    group.add(
+      app.roundedRect({
+        x: sx,
+        y: seekY,
+        width: seek,
+        height: seek,
+        cornerRadius: 6,
+        fill: "#1f2937",
+        stroke: theme.dialStroke,
+        strokeWidth: 1,
+        listening: false
+      }),
+      app.path({
+        d: path,
+        stroke: theme.textMuted,
+        strokeWidth: 1.8,
+        lineCap: "round",
+        lineJoin: "round",
+        listening: false
+      })
+    );
+  }
+  const dialX = pad + w / 2;
+  const freqSize = fluidFont(compact ? 22 : 28, bounds, 18, 32);
+  const freqY = displayY + displayH * 0.24;
+  group.add(
+    app.text({
+      text: freq,
+      x: dialX,
+      y: textAt(freqY, freqSize),
+      fontSize: freqSize,
+      fontWeight: "bold",
+      fill: theme.text,
+      textAlign: "center",
+      listening: false
+    }),
+    app.text({
+      text: band,
+      x: pad + w - 20,
+      y: textAt(displayY + 10, 8),
+      fontSize: 8,
+      fontWeight: "bold",
+      fill: theme.accent,
+      listening: false
+    })
+  );
+  const nameSize = fluidFont(9, bounds, 7, 10);
+  const nameFit = fitFontSizeToWidth(stationName, w - seek * 2 - 24, nameSize, 7);
+  group.add(
+    app.text({
+      text: stationName,
+      x: dialX,
+      y: textAt(displayY + displayH * 0.54, nameFit.fontSize),
+      fontSize: nameFit.fontSize,
+      fontWeight: "bold",
+      fill: theme.textMuted,
+      textAlign: "center",
+      listening: false
+    })
+  );
+  const scaleY = displayY + displayH - 6;
+  const scaleW = w - 24;
+  const scaleX = pad + 12;
+  group.add(
+    app.line({
+      x: scaleX,
+      y: scaleY,
+      x2: scaleW,
+      y2: 0,
+      stroke: "#334155",
+      strokeWidth: 1,
+      listening: false
+    })
+  );
+  for (let i = 0; i <= 10; i++) {
+    const tx = scaleX + scaleW * i / 10;
+    const tall = i % 5 === 0;
+    group.add(
+      app.line({
+        x: tx,
+        y: scaleY,
+        x2: 0,
+        y2: tall ? -4 : -2,
+        stroke: i === 6 ? theme.accent : "#475569",
+        strokeWidth: tall ? 1.2 : 0.8,
+        listening: false
+      })
+    );
+  }
+  const rdsSize = fluidFont(8, bounds, 6, 9);
+  const rdsText = rds.length > 34 ? `${rds.slice(0, 33)}\u2026` : rds;
+  group.add(
+    app.text({
+      text: rdsText,
+      x: pad + 4,
+      y: textAt(displayY + displayH + 8, rdsSize),
+      fontSize: rdsSize,
+      fill: theme.textMuted,
+      listening: false
+    })
+  );
+  const pGap = 4;
+  const pW = (w - pGap * (presets.length - 1)) / presets.length;
+  presets.forEach((p, i) => {
+    const active = p === freq;
+    const px = pad + i * (pW + pGap);
+    group.add(
+      app.roundedRect({
+        x: px,
+        y: presetY,
+        width: pW,
+        height: presetH,
+        cornerRadius: 5,
+        fill: active ? theme.accent : "#1f2937",
+        stroke: active ? theme.accent : theme.dialStroke,
+        strokeWidth: 1,
+        listening: false
+      }),
+      app.text({
+        text: p,
+        x: px + pW / 2,
+        y: textAt(presetY + presetH / 2, Math.max(8, Math.min(10, pW * 0.28))),
+        fontSize: Math.max(8, Math.min(10, pW * 0.28)),
+        fontWeight: active ? "bold" : "normal",
+        fill: active ? "#fff" : theme.textMuted,
+        textAlign: "center",
+        listening: false
+      })
+    );
+  });
+  group.metadata.refresh = (nextFreq) => {
+    setState3(group, { frequency: String(nextFreq) });
+  };
+  group.metadata.textRefresh = (name) => setState3(group, { stationName: name });
+  return finishPanel(group, props, bounds, {
+    station,
+    band,
+    frequency: freq,
+    stationName,
+    rds,
+    stereo,
+    presets
+  });
+});
+registerAutomotive("podcastPlayer", (props, app) => {
+  const theme = panelTheme(props);
+  const bounds = panelBounds(props, 240, 130);
+  const group = panelGroup(app, "podcastPlayer", props, bounds);
+  const { pad, innerWidth: w, innerHeight: h } = bounds;
+  const episode = str3(props, "episode", lines(props, ["Episode 12"])[0] ?? "Episode 12");
+  const show = str3(props, "show", "Tech Drive Podcast");
+  const progress = num3(props, "progress", 0.58);
+  addPanelFrame(group, app, bounds, theme);
+  const top = addPanelTitle(group, app, bounds, theme, "Podcast");
+  addMediaArtAndMeta(group, app, bounds, theme, top, show, episode, "#ea580c");
+  group.add(
+    app.text({
+      text: "1.2\xD7",
+      x: pad + w - 28,
+      y: textAt(top + 4, 9),
+      fontSize: 9,
+      fontWeight: "bold",
+      fill: theme.accent,
+      listening: false
+    })
+  );
+  const barY = pad + h - 44;
+  addProgressBar(group, app, pad, barY, w, 5, progress, theme);
+  addTransportRow(group, app, pad + w / 2, barY + 10, w, pad + h - barY - 12, theme);
+  return finishPanel(group, props, bounds, { episode, show, progress });
+});
+registerAutomotive("notificationCenter", (props, app) => {
+  const theme = panelTheme(props);
+  const bounds = panelBounds(props, 220, 140);
+  const group = panelGroup(app, "notificationCenter", props, bounds);
+  const { pad, innerWidth: w, innerHeight: h } = bounds;
+  const items = props.notifications ?? [
+    { icon: "\u26A0", text: "Tire pressure low \u2014 FL", time: "2m" },
+    { icon: "\u266A", text: "Bluetooth connected", time: "8m" },
+    { icon: "\u2601", text: "Weather alert nearby", time: "15m" }
+  ];
+  addPanelFrame(group, app, bounds, theme);
+  const startY = addPanelTitle(group, app, bounds, theme, `Notifications (${items.length})`);
+  const rowH = Math.max(28, (pad + h - startY - 4) / Math.min(3, items.length) - 4);
+  items.slice(0, 3).forEach((item, i) => {
+    addListRow(group, app, pad, startY + i * (rowH + 4), w, rowH, item.icon, item.text, item.time, theme, i === 0);
+  });
+  return finishPanel(group, props, bounds, { notifications: items });
+});
+registerAutomotive("rearViewCamera", (props, app) => {
+  const theme = panelTheme(props);
+  const bounds = panelBounds(props, 220, 140);
+  const group = panelGroup(app, "rearViewCamera", props, bounds);
+  const { pad, innerWidth: w, innerHeight: h } = bounds;
+  addPanelFrame(group, app, bounds, theme);
+  const viewY = addPanelTitle(group, app, bounds, theme, "Rear Camera");
+  const viewH = pad + h - viewY - 4;
+  group.add(
+    app.roundedRect({
+      x: pad,
+      y: viewY,
+      width: w,
+      height: viewH,
+      cornerRadius: 8,
+      fill: "#020617",
+      stroke: theme.ok,
+      strokeWidth: 1.5,
+      listening: false
+    })
+  );
+  const cx = pad + w / 2;
+  const cy = viewY + viewH / 2 - 6;
+  const camR = Math.max(18, Math.min(w, viewH) * 0.14);
+  group.add(
+    app.circle({
+      x: cx - camR,
+      y: cy - camR,
+      radius: camR,
+      fill: "#1e293b",
+      stroke: theme.textMuted,
+      strokeWidth: 1.5,
+      listening: false
+    }),
+    app.roundedRect({
+      x: cx - camR * 0.55,
+      y: cy - camR * 0.35,
+      width: camR * 1.1,
+      height: camR * 0.7,
+      cornerRadius: 4,
+      fill: "#334155",
+      listening: false
+    }),
+    app.circle({
+      x: cx - camR * 0.2,
+      y: cy - camR * 0.05,
+      radius: camR * 0.22,
+      fill: theme.accent,
+      opacity: 0.8,
+      listening: false
+    })
+  );
+  const bx = pad + w * 0.18;
+  const by = viewY + viewH * 0.72;
+  group.add(
+    app.path({
+      d: `M ${bx} ${viewY + viewH - 8} L ${cx - 18} ${by} L ${cx + 18} ${by} L ${pad + w * 0.82} ${viewY + viewH - 8}`,
+      stroke: theme.ok,
+      strokeWidth: 2,
+      listening: false
+    })
+  );
+  group.add(
+    app.text({
+      text: "REVERSE",
+      x: pad + w / 2,
+      y: textAt(viewY + viewH - 10, 8),
+      fontSize: 8,
+      fontWeight: "bold",
+      fill: theme.ok,
+      textAlign: "center",
+      listening: false
+    })
+  );
+  return finishPanel(group, props, bounds, { active: bool3(props, "active", true) });
+});
+registerAutomotive("sunriseSunset", (props, app) => {
+  const theme = panelTheme(props);
+  const bounds = panelBounds(props, 180, 100);
+  const group = panelGroup(app, "sunriseSunset", props, bounds);
+  const { pad, innerWidth: w, innerHeight: h } = bounds;
+  const rowLines = lines(props, ["Rise 06:12", "Set 19:45"]);
+  const sunrise = str3(props, "sunrise", rowLines[0]?.replace(/^Rise\s*/, "") ?? "06:12");
+  const sunset = str3(props, "sunset", rowLines[1]?.replace(/^Set\s*/, "") ?? "19:45");
+  addPanelFrame(group, app, bounds, theme);
+  const top = addPanelTitle(group, app, bounds, theme, "Sun");
+  const horizonY = top + (pad + h - top) * 0.42;
+  group.add(
+    app.line({
+      x: pad + 6,
+      y: horizonY,
+      x2: w - 12,
+      y2: 0,
+      stroke: theme.dialStroke,
+      strokeWidth: 1,
+      listening: false
+    }),
+    app.path({
+      d: `M ${pad + 6} ${horizonY} Q ${pad + w / 2} ${top + 8} ${pad + w - 6} ${horizonY}`,
+      stroke: "rgba(251,191,36,0.25)",
+      strokeWidth: 1,
+      listening: false
+    })
+  );
+  const sunX = pad + w * 0.68;
+  group.add(
+    app.circle({
+      x: sunX - 9,
+      y: horizonY - 18,
+      radius: 9,
+      fill: "#fbbf24",
+      opacity: 0.95,
+      listening: false
+    })
+  );
+  group.add(
+    app.text({
+      text: `\u2191 ${sunrise}`,
+      x: pad + 4,
+      y: textAt(pad + h - 10, 10),
+      fontSize: fluidFont(10, bounds, 8, 11),
+      fill: theme.text,
+      listening: false
+    }),
+    app.text({
+      text: `\u2193 ${sunset}`,
+      x: pad + w - 48,
+      y: textAt(pad + h - 10, 10),
+      fontSize: fluidFont(10, bounds, 8, 11),
+      fill: theme.textMuted,
+      listening: false
+    })
+  );
+  return finishPanel(group, props, bounds, { sunrise, sunset });
+});
+
 // src/automotive/widgets/aliases.ts
 for (const [alias, canonical] of Object.entries(WIDGET_ALIASES)) {
   if (registry3[alias])
@@ -16546,10 +18271,11 @@ function pathMidpoint(points) {
 }
 function createConnector(app, x1, y1, x2, y2, options = {}) {
   const stroke = options.stroke ?? DIAGRAM.edge;
-  const strokeWidth = options.strokeWidth ?? 2;
+  const strokeWidth = options.strokeWidth ?? DIAGRAM.stroke.edge;
+  const glowColor = options.glowColor ?? DIAGRAM.edgeGlow;
   const arrowEnd = options.arrowEnd ?? "filled";
   const arrowStart = options.arrowStart ?? "none";
-  const arrowSize = 10;
+  const arrowSize = 11;
   const style = options.style ?? "smart";
   const obstacles = options.obstacles ?? [];
   const points = computeRoutePoints(x1, y1, x2, y2, style, obstacles);
@@ -16569,6 +18295,18 @@ function createConnector(app, x1, y1, x2, y2, options = {}) {
     display[0] = x0 + (x1s - x0) * t;
     display[1] = y0 + (y1s - y0) * t;
   }
+  group.add(
+    app.polyline({
+      points: display,
+      fill: null,
+      stroke: glowColor,
+      strokeWidth: strokeWidth + DIAGRAM.stroke.edgeGlow,
+      lineJoin: "round",
+      lineCap: "round",
+      opacity: 0.85,
+      listening: false
+    })
+  );
   group.add(
     app.polyline({
       points: display,
@@ -16594,7 +18332,7 @@ function createConnector(app, x1, y1, x2, y2, options = {}) {
         points: arrowHeadPoints(x2, y2, endAngle, arrowSize),
         fill: stroke,
         stroke,
-        strokeWidth: 1,
+        strokeWidth: DIAGRAM.stroke.arrow,
         listening: false
       })
     );
@@ -16616,7 +18354,7 @@ function createConnector(app, x1, y1, x2, y2, options = {}) {
         points: arrowHeadPoints(x2, y2, endAngle, arrowSize + 2),
         fill: DIAGRAM.classFill,
         stroke,
-        strokeWidth: 1.5,
+        strokeWidth: DIAGRAM.stroke.node,
         listening: false
       })
     );
@@ -16627,15 +18365,31 @@ function createConnector(app, x1, y1, x2, y2, options = {}) {
         points: arrowHeadPoints(x1, y1, startAngle + Math.PI, arrowSize),
         fill: stroke,
         stroke,
-        strokeWidth: 1,
+        strokeWidth: DIAGRAM.stroke.arrow,
         listening: false
       })
     );
   }
   if (options.label) {
     const mid = pathMidpoint(points);
-    group.add(createEdgeLabel(app, options.label, mid.x, mid.y - 6));
+    group.add(createEdgeLabel(app, options.label, mid.x, mid.y - 6, stroke));
   }
+  if (options.edgeId)
+    group.metadata.edgeId = options.edgeId;
+  if (options.fromId)
+    group.metadata.edgeFrom = options.fromId;
+  if (options.toId)
+    group.metadata.edgeTo = options.toId;
+  if (options.label)
+    group.metadata.edgeLabel = options.label;
+  group.metadata.edgeStroke = stroke;
+  group.metadata.edgeStrokeWidth = strokeWidth;
+  group.metadata.edgeGlow = glowColor;
+  group.metadata.edgeStyle = style;
+  group.metadata.edgeArrowEnd = arrowEnd;
+  group.metadata.edgeArrowStart = arrowStart;
+  if (options.dash)
+    group.metadata.edgeDash = options.dash;
   return group;
 }
 function connectNodes(app, from, to, obstacles, options = {}) {
@@ -16661,12 +18415,68 @@ function connectNodes(app, from, to, obstacles, options = {}) {
     x2 = toAnchor.x;
     y2 = toAnchor.y;
   }
-  return createConnector(app, x1, y1, x2, y2, { style: "smart", ...options, obstacles: routeObstacles });
+  return createConnector(app, x1, y1, x2, y2, {
+    style: "smart",
+    fromId: options.fromId ?? from.metadata?.diagramId,
+    toId: options.toId ?? to.metadata?.diagramId,
+    edgeId: options.edgeId ?? `${options.fromId ?? from.metadata?.diagramId ?? "a"}-${options.toId ?? to.metadata?.diagramId ?? "b"}`,
+    ...options,
+    obstacles: routeObstacles
+  });
 }
 function wireOrgChartConnectors(app, root) {
-  const edges = app.group({ listening: false, zIndex: -10 });
-  walkOrgEdges(app, root, root, edges);
-  root.add(edges);
+  let edgeLayer = root.children.find((c) => c.metadata?.diagramEdgeLayer);
+  if (edgeLayer) {
+    for (const child of [...edgeLayer.children]) {
+      edgeLayer.remove(child);
+      child.destroy();
+    }
+  } else {
+    edgeLayer = app.group({ listening: false, zIndex: -10 });
+    edgeLayer.metadata.diagramEdgeLayer = true;
+    root.add(edgeLayer);
+  }
+  const obstacles = collectObstacles(collectOrgChartNodes(root));
+  walkOrgEdgesConnect(app, root, root, edgeLayer, obstacles);
+}
+function collectOrgChartNodes(root) {
+  const out = [];
+  const walk2 = (group) => {
+    for (const child of group.children) {
+      if (child.metadata?.orgNode)
+        out.push(child);
+      if ("children" in child && child.children?.length) {
+        walk2(child);
+      }
+    }
+  };
+  walk2(root);
+  return out;
+}
+function walkOrgEdgesConnect(app, root, node, edgeLayer, obstacles) {
+  const children = node.children.filter(
+    (c) => c.metadata?.orgNode && c !== node.metadata?.collapseIndicator
+  );
+  for (const child of children) {
+    if (!child.visible)
+      continue;
+    const fromId = node.metadata?.diagramId ?? node.metadata?.orgName;
+    const toId = child.metadata?.diagramId ?? child.metadata?.orgName;
+    edgeLayer.add(
+      connectNodes(app, node, child, obstacles, {
+        parent: root,
+        style: "orthogonal",
+        stroke: DIAGRAM.edge,
+        glowColor: DIAGRAM.edgeGlow,
+        strokeWidth: DIAGRAM.stroke.edge,
+        arrowEnd: "filled",
+        edgeId: `org_${fromId}_${toId}`,
+        fromId,
+        toId
+      })
+    );
+    walkOrgEdgesConnect(app, root, child, edgeLayer, obstacles);
+  }
 }
 function wireMindMapConnectors(app, group) {
   if (group.children.length < 2)
@@ -16678,14 +18488,17 @@ function wireMindMapConnectors(app, group) {
   const cy = worldToParentLocal(group, cB.x + cB.width / 2, cB.y + cB.height / 2).y;
   for (let i = 1; i < group.children.length; i++) {
     const branch = group.children[i];
+    const branchStroke = branch.metadata?.mindBranchColor ?? DIAGRAM.mindBranch.stroke;
+    const branchGlow = branch.metadata?.mindBranchGlow ?? DIAGRAM.edgeGlow;
     const bB = branch.getBounds();
     const bx = worldToParentLocal(group, bB.x + bB.width / 2, bB.y + bB.height / 2).x;
     const by = worldToParentLocal(group, bB.x + bB.width / 2, bB.y + bB.height / 2).y;
     edges.add(
       createConnector(app, cx, cy, bx, by, {
         style: "straight",
-        stroke: DIAGRAM.edge,
-        strokeWidth: 2,
+        stroke: branchStroke,
+        glowColor: branchGlow,
+        strokeWidth: DIAGRAM.stroke.edge,
         arrowEnd: "none"
       })
     );
@@ -16698,8 +18511,9 @@ function wireMindMapConnectors(app, group) {
       edges.add(
         createConnector(app, bx, branchBottom, lx, ly, {
           style: "orthogonal",
-          stroke: DIAGRAM.edgeMuted,
-          strokeWidth: 1.5,
+          stroke: branchStroke,
+          glowColor: branchGlow,
+          strokeWidth: DIAGRAM.stroke.edgeThin,
           arrowEnd: "filled"
         })
       );
@@ -16707,64 +18521,32 @@ function wireMindMapConnectors(app, group) {
   }
   group.add(edges);
 }
-function walkOrgEdges(app, parent, node, edges) {
-  const children = node.children.filter((c) => c.metadata?.orgNode && c !== node.metadata?.collapseIndicator);
-  for (const child of children) {
-    if (!child.visible)
-      continue;
-    const pb = node.getBounds();
-    const cb = child.getBounds();
-    const from = worldToParentLocal(parent, pb.x + pb.width / 2, pb.y + pb.height);
-    const to = worldToParentLocal(parent, cb.x + cb.width / 2, cb.y);
-    const midY = (from.y + to.y) / 2;
-    const points = [from.x, from.y, from.x, midY, to.x, midY, to.x, to.y];
-    const trim = 8;
-    const display = shortenPathEnd(points, trim);
-    edges.add(
-      app.polyline({
-        points: display,
-        fill: null,
-        stroke: DIAGRAM.edge,
-        strokeWidth: 2,
-        lineJoin: "round",
-        lineCap: "round",
-        listening: false
-      })
-    );
-    edges.add(
-      app.polygon({
-        points: arrowHeadPoints(to.x, to.y, Math.PI / 2, 8),
-        fill: DIAGRAM.edge,
-        stroke: DIAGRAM.edge,
-        strokeWidth: 1,
-        listening: false
-      })
-    );
-    walkOrgEdges(app, parent, child, edges);
-  }
-}
 
 // src/diagram/symbols.ts
 var SYMBOL_SIZE = 44;
 var STROKE = DIAGRAM.schematicStroke;
-function symbolPad(app, w, h) {
+var SYMBOL_ACCENTS = {
+  battery: DIAGRAM.schematicBattery,
+  resistor: DIAGRAM.schematicResistor,
+  switch: DIAGRAM.schematicSwitch,
+  led: DIAGRAM.schematicLedStroke
+};
+function symbolPad(app, w, h, accent) {
   const g = app.group();
-  g.add(
-    app.roundedRect({
-      width: w,
-      height: h,
-      cornerRadius: DIAGRAM.radii.sm,
-      fill: DIAGRAM.schematicFill,
-      stroke: DIAGRAM.labelPillStroke,
-      strokeWidth: 1,
-      shadow: DIAGRAM.shadowSoft,
-      listening: false
-    })
-  );
+  addCardChrome(app, g, {
+    width: w,
+    height: h,
+    cornerRadius: DIAGRAM.radii.sm,
+    fill: DIAGRAM.schematicFill,
+    stroke: DIAGRAM.labelPillStroke,
+    strokeWidth: DIAGRAM.stroke.label,
+    shadow: DIAGRAM.shadowSoft,
+    accentColor: accent
+  });
   return g;
 }
 function resistor(app, x, y) {
-  const g = symbolPad(app, SYMBOL_SIZE, SYMBOL_SIZE);
+  const g = symbolPad(app, SYMBOL_SIZE, SYMBOL_SIZE, SYMBOL_ACCENTS.resistor);
   g.x = x;
   g.y = y;
   const pts = [4, 22, 12, 8, 20, 36, 28, 8, 36, 36, 40, 22];
@@ -16782,7 +18564,7 @@ function capacitor(app, x, y) {
   return g;
 }
 function ground(app, x, y) {
-  const g = symbolPad(app, SYMBOL_SIZE, SYMBOL_SIZE);
+  const g = symbolPad(app, SYMBOL_SIZE, SYMBOL_SIZE, DIAGRAM.edgeMuted);
   g.x = x;
   g.y = y;
   g.add(app.line({ x: 22, y: 8, x2: 0, y2: 12, stroke: STROKE, strokeWidth: 2, lineCap: "round", listening: false }));
@@ -16792,26 +18574,26 @@ function ground(app, x, y) {
   return g;
 }
 function battery(app, x, y) {
-  const g = symbolPad(app, SYMBOL_SIZE, SYMBOL_SIZE);
+  const g = symbolPad(app, SYMBOL_SIZE, SYMBOL_SIZE, SYMBOL_ACCENTS.battery);
   g.x = x;
   g.y = y;
   g.add(app.line({ x: 14, y: 10, x2: 0, y2: 28, stroke: STROKE, strokeWidth: 2, lineCap: "round", listening: false }));
-  g.add(app.line({ x: 22, y: 6, x2: 0, y2: 32, stroke: STROKE, strokeWidth: 3, lineCap: "round", listening: false }));
+  g.add(app.line({ x: 22, y: 6, x2: 0, y2: 32, stroke: DIAGRAM.schematicBattery, strokeWidth: 3, lineCap: "round", listening: false }));
   g.add(app.line({ x: 30, y: 10, x2: 0, y2: 28, stroke: STROKE, strokeWidth: 2, lineCap: "round", listening: false }));
   return g;
 }
 function switchSymbol(app, x, y) {
-  const g = symbolPad(app, SYMBOL_SIZE, SYMBOL_SIZE);
+  const g = symbolPad(app, SYMBOL_SIZE, SYMBOL_SIZE, SYMBOL_ACCENTS.switch);
   g.x = x;
   g.y = y;
   g.add(app.line({ x: 4, y: 22, x2: 14, y2: 0, stroke: STROKE, strokeWidth: 2, lineCap: "round", listening: false }));
-  g.add(app.line({ x: 14, y: 22, x2: 4, y2: -10, stroke: STROKE, strokeWidth: 2, lineCap: "round", listening: false }));
-  g.add(app.circle({ x: 14, y: 22, radius: 2.5, fill: STROKE, listening: false }));
+  g.add(app.line({ x: 14, y: 22, x2: 4, y2: -10, stroke: DIAGRAM.schematicSwitch, strokeWidth: 2, lineCap: "round", listening: false }));
+  g.add(app.circle({ x: 14, y: 22, radius: 2.5, fill: DIAGRAM.schematicSwitch, listening: false }));
   g.add(app.line({ x: 30, y: 22, x2: -12, y2: 0, stroke: STROKE, strokeWidth: 2, lineCap: "round", listening: false }));
   return g;
 }
 function led(app, x, y) {
-  const g = symbolPad(app, SYMBOL_SIZE, SYMBOL_SIZE);
+  const g = symbolPad(app, SYMBOL_SIZE, SYMBOL_SIZE, SYMBOL_ACCENTS.led);
   g.x = x;
   g.y = y;
   g.add(app.line({ x: 4, y: 22, x2: 12, y2: 0, stroke: STROKE, strokeWidth: 2, lineCap: "round", listening: false }));
@@ -16820,7 +18602,7 @@ function led(app, x, y) {
       points: [12, 14, 32, 22, 12, 30],
       fill: DIAGRAM.schematicLedFill,
       stroke: DIAGRAM.schematicLedStroke,
-      strokeWidth: 1.5,
+      strokeWidth: DIAGRAM.stroke.node,
       listening: false
     })
   );
@@ -16842,7 +18624,20 @@ var SYMBOL_FACTORIES = {
         y: 0,
         x2: 48,
         y2: 0,
-        stroke: STROKE,
+        stroke: DIAGRAM.schematicWireGlow,
+        strokeWidth: 6,
+        lineCap: "round",
+        opacity: 0.85,
+        listening: false
+      })
+    );
+    g.add(
+      app.line({
+        x: 0,
+        y: 0,
+        x2: 48,
+        y2: 0,
+        stroke: DIAGRAM.schematicWire,
         strokeWidth: 2.5,
         lineCap: "round",
         listening: false
@@ -16859,9 +18654,10 @@ function createSymbol(app, type, x, y, label) {
     g.add(
       app.text({
         text: label,
-        x: 0,
+        x: centerLabelX(label, SYMBOL_SIZE),
         y: SYMBOL_SIZE + 6,
         fontSize: DIAGRAM.fontSize.sm,
+        fontWeight: "600",
         fontFamily: DIAGRAM.fontFamily,
         fill: DIAGRAM.schematicLabel,
         listening: false
@@ -16870,8 +18666,56 @@ function createSymbol(app, type, x, y, label) {
   }
   return g;
 }
+function centerLabelX(label, boxWidth) {
+  const approx = label.length * DIAGRAM.fontSize.sm * 0.55;
+  return Math.max(0, (boxWidth - approx) / 2);
+}
+function wireBetween(app, x1, y1, x2, y2) {
+  const g = app.group({ listening: false });
+  g.add(
+    app.line({
+      x: x1,
+      y: y1,
+      x2,
+      y2,
+      stroke: DIAGRAM.schematicWireGlow,
+      strokeWidth: 6,
+      lineCap: "round",
+      opacity: 0.85,
+      listening: false
+    })
+  );
+  g.add(
+    app.line({
+      x: x1,
+      y: y1,
+      x2,
+      y2,
+      stroke: DIAGRAM.schematicWire,
+      strokeWidth: 2.5,
+      lineCap: "round",
+      listening: false
+    })
+  );
+  return g;
+}
 function buildSchematic(app, components) {
   const group = app.group({ name: "schematic" });
+  const wireLayer = app.group({ zIndex: -10, listening: false });
+  const sorted = [...components].sort((a, b) => a.x - b.x);
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const a = sorted[i];
+    const b = sorted[i + 1];
+    if (a.type === "wire" || b.type === "wire")
+      continue;
+    const y = a.y + SYMBOL_SIZE / 2;
+    const x1 = a.x + SYMBOL_SIZE;
+    const x2 = b.x;
+    if (x2 > x1) {
+      wireLayer.add(wireBetween(app, x1, y, x2, y));
+    }
+  }
+  group.add(wireLayer);
   for (const comp of components) {
     const sym = createSymbol(app, comp.type, comp.x, comp.y, comp.label);
     sym.metadata.diagramId = comp.id;
@@ -16886,7 +18730,10 @@ function buildSchematic(app, components) {
 function createFlowchart(app, data, options = {}) {
   const group = createDiagramGroup(app, "flowchart", { ...options, data }, { name: "flowchart" });
   const { nodes, edges } = normalizeDiagramData(data);
-  autoLayoutNodes(nodes, 3, 160, 88, 32, 28);
+  const canvas = readCanvasSize(options);
+  const strokeCtx = strokeContextForCanvas(canvas.width, canvas.height);
+  const edgeWidth = resolveStrokeWidth(DIAGRAM.stroke.edge, strokeCtx);
+  autoLayoutNodesResponsive(nodes, canvas.width, canvas.height, 128, 52);
   const nodeMap = /* @__PURE__ */ new Map();
   for (const n of nodes) {
     const nodeGroup = createFlowchartNode(app, n.label, n.type ?? "process");
@@ -16896,6 +18743,7 @@ function createFlowchart(app, data, options = {}) {
     nodeMap.set(n.id, nodeGroup);
   }
   const edgeLayer = app.group({ zIndex: -10, listening: false });
+  edgeLayer.metadata.diagramEdgeLayer = true;
   const obstacles = collectObstacles([...nodeMap.values()]);
   for (const edge of edges) {
     const fromNode = nodeMap.get(edge.from);
@@ -16906,7 +18754,8 @@ function createFlowchart(app, data, options = {}) {
       connectNodes(app, fromNode, toNode, obstacles, {
         parent: group,
         stroke: DIAGRAM.edge,
-        strokeWidth: 2,
+        glowColor: DIAGRAM.edgeGlow,
+        strokeWidth: edgeWidth,
         label: edge.label
       })
     );
@@ -16920,10 +18769,15 @@ function createFlowchart(app, data, options = {}) {
 function createStateMachine(app, data, options = {}) {
   const group = createDiagramGroup(app, "stateMachine", { ...options, data }, { name: "stateMachine" });
   const nodeMap = /* @__PURE__ */ new Map();
+  const canvas = readCanvasSize(options);
+  const strokeCtx = strokeContextForCanvas(canvas.width, canvas.height);
+  const edgeWidth = resolveStrokeWidth(DIAGRAM.stroke.edge, strokeCtx);
+  const layoutNodes = data.states.map((s) => ({ id: s.id, x: s.x, y: s.y }));
+  autoLayoutNodesResponsive(layoutNodes, canvas.width, canvas.height, 64, 64);
   const states = data.states.map((s, i) => ({
     ...s,
-    x: s.x ?? 48 + i % 4 * 110,
-    y: s.y ?? 48 + Math.floor(i / 4) * 100
+    x: s.x ?? layoutNodes[i]?.x ?? 48 + i % 4 * 110,
+    y: s.y ?? layoutNodes[i]?.y ?? 48 + Math.floor(i / 4) * 100
   }));
   for (const s of states) {
     const nodeGroup = createStateNode(app, s.label, s.type ?? "normal");
@@ -16933,6 +18787,7 @@ function createStateMachine(app, data, options = {}) {
     nodeMap.set(s.id, nodeGroup);
   }
   const edgeLayer = app.group({ zIndex: -10, listening: false });
+  edgeLayer.metadata.diagramEdgeLayer = true;
   const obstacles = collectObstacles([...nodeMap.values()]);
   for (const t of data.transitions) {
     const from = nodeMap.get(t.from);
@@ -16943,6 +18798,8 @@ function createStateMachine(app, data, options = {}) {
       connectNodes(app, from, to, obstacles, {
         parent: group,
         stroke: DIAGRAM.edge,
+        glowColor: DIAGRAM.edgeGlow,
+        strokeWidth: edgeWidth,
         label: t.label
       })
     );
@@ -16965,6 +18822,7 @@ function createClassDiagram(app, data, options = {}) {
     group.add(nodeGroup);
   }
   const edgeLayer = app.group({ zIndex: -10, listening: false });
+  edgeLayer.metadata.diagramEdgeLayer = true;
   for (const rel of data.relations) {
     const from = nodeMap.get(rel.from);
     const to = nodeMap.get(rel.to);
@@ -16975,7 +18833,8 @@ function createClassDiagram(app, data, options = {}) {
         connectNodes(app, from, to, [], {
           parent: group,
           style: "orthogonal",
-          stroke: DIAGRAM.classStroke,
+          stroke: DIAGRAM.umlInheritance,
+          glowColor: "rgba(245,158,11,0.18)",
           arrowEnd: "hollow"
         })
       );
@@ -16984,8 +18843,19 @@ function createClassDiagram(app, data, options = {}) {
         connectNodes(app, from, to, [], {
           parent: group,
           style: "orthogonal",
-          stroke: DIAGRAM.edge,
+          stroke: DIAGRAM.umlAssociation,
+          glowColor: DIAGRAM.edgeGlow,
           arrowEnd: "open"
+        })
+      );
+    } else if (rel.type === "composition") {
+      edgeLayer.add(
+        connectNodes(app, from, to, [], {
+          parent: group,
+          style: "orthogonal",
+          stroke: DIAGRAM.umlComposition,
+          glowColor: "rgba(244,114,182,0.16)",
+          arrowEnd: "filled"
         })
       );
     } else {
@@ -16993,8 +18863,10 @@ function createClassDiagram(app, data, options = {}) {
         connectNodes(app, from, to, [], {
           parent: group,
           style: "orthogonal",
-          stroke: DIAGRAM.edge,
-          dash: rel.type === "implements" ? [6, 4] : void 0
+          stroke: DIAGRAM.umlImplements,
+          glowColor: "rgba(167,139,250,0.16)",
+          dash: rel.type === "implements" ? [6, 4] : void 0,
+          arrowEnd: "open"
         })
       );
     }
@@ -17004,38 +18876,54 @@ function createClassDiagram(app, data, options = {}) {
 }
 function createMindMap(app, center, branches, options = {}) {
   const group = createDiagramGroup(app, "mindMap", { ...options, center, branches }, { name: "mindMap" });
-  const centerNode = createNodeBox(app, center, 108, 52, {
+  const canvas = readCanvasSize(options);
+  const minDim = Math.min(canvas.width, canvas.height);
+  const centerNode = createNodeBox(app, center, 112, 54, {
     fill: DIAGRAM.mindCenter.fill,
     stroke: DIAGRAM.mindCenter.stroke,
-    cornerRadius: 26
+    cornerRadius: 27,
+    accentColor: DIAGRAM.mindCenter.accent
   });
+  centerNode.metadata.diagramId = "center";
   group.add(centerNode);
-  for (const branch of branches) {
-    const branchNode = createNodeBox(app, branch.label, 96, 38, {
-      fill: DIAGRAM.mindBranch.fill,
-      stroke: DIAGRAM.mindBranch.stroke
+  branches.forEach((branch, bi) => {
+    const palette = DIAGRAM.mindBranchPalette[bi % DIAGRAM.mindBranchPalette.length];
+    const branchNode = createNodeBox(app, branch.label, 100, 40, {
+      fill: palette.fill,
+      stroke: palette.stroke,
+      accentColor: palette.accent
     });
+    branchNode.metadata = {
+      diagramId: `branch_${bi}`,
+      mindBranchColor: palette.stroke,
+      mindBranchGlow: palette.glow
+    };
     group.add(branchNode);
     if (branch.children) {
       branch.children.forEach((child, ci) => {
-        const childNode = createNodeBox(app, child, 84, 32, {
+        const childNode = createNodeBox(app, child, 88, 34, {
           fill: DIAGRAM.mindLeaf.fill,
-          stroke: DIAGRAM.mindLeaf.stroke
+          stroke: palette.stroke,
+          accentColor: palette.accent
         });
+        childNode.metadata.diagramId = `branch_${bi}_leaf_${ci}`;
         childNode.x = -12 + ci * 92;
         childNode.y = 50;
         branchNode.add(childNode);
       });
     }
-  }
-  radialLayout(group, 220, 160, 130, 190);
+  });
+  radialLayout(group, canvas.width / 2, canvas.height / 2, minDim * 0.2, minDim * 0.34);
   wireMindMapConnectors(app, group);
   return group;
 }
 function createNetworkDiagram(app, data, options = {}) {
   const group = createDiagramGroup(app, "networkTopology", { ...options, data }, { name: "network" });
   const { nodes, edges } = normalizeDiagramData(data);
-  autoLayoutNodes(nodes, 4, 130, 100, 28, 24);
+  const canvas = readCanvasSize(options);
+  const strokeCtx = strokeContextForCanvas(canvas.width, canvas.height);
+  const edgeWidth = resolveStrokeWidth(DIAGRAM.stroke.edge, strokeCtx);
+  autoLayoutNodesResponsive(nodes, canvas.width, canvas.height, 100, 72);
   const nodeMap = /* @__PURE__ */ new Map();
   for (const n of nodes) {
     const nodeGroup = createNetworkNode(app, n.label, n.type ?? "default");
@@ -17047,6 +18935,7 @@ function createNetworkDiagram(app, data, options = {}) {
   }
   const obstacles = collectObstacles([...nodeMap.values()]);
   const edgeLayer = app.group({ zIndex: -10, listening: false });
+  edgeLayer.metadata.diagramEdgeLayer = true;
   for (const edge of edges) {
     const from = nodeMap.get(edge.from);
     const to = nodeMap.get(edge.to);
@@ -17056,6 +18945,8 @@ function createNetworkDiagram(app, data, options = {}) {
       connectNodes(app, from, to, obstacles, {
         parent: group,
         stroke: DIAGRAM.edge,
+        glowColor: DIAGRAM.edgeGlow,
+        strokeWidth: edgeWidth,
         label: edge.label
       })
     );
@@ -17065,24 +18956,31 @@ function createNetworkDiagram(app, data, options = {}) {
 }
 function createOrgChart(app, root, options = {}) {
   const group = createDiagramGroup(app, "orgChart", { ...options, root }, { name: "orgChart" });
-  buildOrgNode(app, group, root, 0, 0);
-  layoutDiagram(group, 110, 72);
+  const canvas = readCanvasSize(options);
+  buildOrgNode(app, group, root, 0, 0, 0);
+  layoutDiagram(
+    group,
+    Math.max(80, Math.round(canvas.height * 0.16)),
+    Math.max(56, Math.round(canvas.width * 0.11))
+  );
   wireOrgChartConnectors(app, group);
   return group;
 }
-function buildOrgNode(app, parent, data, x, y) {
+function buildOrgNode(app, parent, data, x, y, depth) {
   const childCount = data.children?.length ?? 0;
   const collapsed = data.collapsed ?? false;
-  const { node, indicator } = createOrgNode(app, data.name, void 0, childCount, collapsed);
+  const { node, indicator } = createOrgNode(app, data.name, void 0, childCount, collapsed, depth);
+  node.metadata.diagramId = data.name;
+  node.metadata.orgName = data.name;
   node.x = x;
   node.y = y;
-  node.metadata = { orgNode: true, collapsed, childCount };
+  node.metadata = { ...node.metadata, orgNode: true, collapsed, childCount };
   if (indicator) {
     node.metadata.collapseIndicator = indicator;
   }
   if (data.children && data.children.length > 0 && !collapsed) {
     for (const child of data.children) {
-      buildOrgNode(app, node, child, 0, 0);
+      buildOrgNode(app, node, child, 0, 0, depth + 1);
     }
   }
   parent.add(node);
@@ -17117,9 +19015,28 @@ function createSchematic(app, components, options = {}) {
 }
 function createCanNetwork(app, data, options = {}) {
   const group = createDiagramGroup(app, "canNetwork", { ...options, data }, { name: "canNetwork" });
+  const canvas = readCanvasSize(options);
+  const strokeCtx = strokeContextForCanvas(canvas.width, canvas.height);
+  const nodeStroke = resolveStrokeWidth(DIAGRAM.stroke.node, strokeCtx);
   const busY = 72;
-  const busWidth = Math.max(440, data.ecus.length * 110);
+  const busWidth = Math.max(
+    280,
+    Math.min(canvas.width - 48, Math.max(440, data.ecus.length * 110))
+  );
   const busLabel = data.busLabel ?? "CAN Bus";
+  group.add(
+    app.roundedRect({
+      x: 14,
+      y: busY - 5,
+      width: busWidth + 4,
+      height: 10,
+      cornerRadius: 5,
+      fill: DIAGRAM.canBusGlow,
+      stroke: null,
+      opacity: 0.6,
+      listening: false
+    })
+  );
   group.add(
     app.roundedRect({
       x: 16,
@@ -17171,67 +19088,11 @@ function createCanNetwork(app, data, options = {}) {
   const spacing = busWidth / (data.ecus.length + 1);
   for (let i = 0; i < data.ecus.length; i++) {
     const ecu = data.ecus[i];
+    const ecuColor = DIAGRAM.canEcuPalette[i % DIAGRAM.canEcuPalette.length];
     const x = 16 + spacing * (i + 1) - 44;
-    const ecuGroup = app.group({ x, y: busY + 14 });
-    ecuGroup.add(
-      app.roundedRect({
-        width: 88,
-        height: 54,
-        cornerRadius: DIAGRAM.radii.md,
-        fill: DIAGRAM.nodeFill,
-        stroke: DIAGRAM.nodeStroke,
-        strokeWidth: 1.5,
-        shadow: DIAGRAM.shadowSoft,
-        listening: false
-      })
-    );
-    ecuGroup.add(
-      app.rect({
-        x: 0,
-        y: 0,
-        width: 88,
-        height: 4,
-        fill: DIAGRAM.nodeStroke,
-        listening: false
-      })
-    );
-    ecuGroup.add(
-      app.text({
-        text: ecu.label,
-        x: DIAGRAM.spacing.sm,
-        y: 12,
-        fontSize: DIAGRAM.fontSize.md,
-        fill: DIAGRAM.nodeText,
-        fontWeight: "bold",
-        fontFamily: DIAGRAM.fontFamily,
-        listening: false
-      })
-    );
-    if (ecu.address) {
-      ecuGroup.add(
-        app.text({
-          text: ecu.address,
-          x: DIAGRAM.spacing.sm,
-          y: 30,
-          fontSize: DIAGRAM.fontSize.xs,
-          fontFamily: DIAGRAM.fontMono,
-          fill: DIAGRAM.edgeLabel,
-          listening: false
-        })
-      );
-    }
-    ecuGroup.add(
-      app.line({
-        x: 44,
-        y: 0,
-        x2: 0,
-        y2: -14,
-        stroke: DIAGRAM.canBus,
-        strokeWidth: 2.5,
-        lineCap: "round",
-        listening: false
-      })
-    );
+    const ecuGroup = createCanEcuNode(app, ecu.label, ecu.address, ecuColor, nodeStroke);
+    ecuGroup.x = x;
+    ecuGroup.y = busY + 14;
     ecuGroup.metadata = { diagramId: ecu.id };
     group.add(ecuGroup);
   }
@@ -17239,6 +19100,9 @@ function createCanNetwork(app, data, options = {}) {
 }
 function createPipeline(app, stages, options = {}) {
   const group = createDiagramGroup(app, "processPipeline", { ...options, stages }, { name: "pipeline" });
+  const canvas = readCanvasSize(options);
+  const strokeCtx = strokeContextForCanvas(canvas.width, canvas.height);
+  const edgeWidth = resolveStrokeWidth(DIAGRAM.stroke.edge, strokeCtx);
   const stageNodes = [];
   for (const stage of stages) {
     const node = createPipelineStage(app, stage.label, stage.status ?? "pending");
@@ -17246,14 +19110,17 @@ function createPipeline(app, stages, options = {}) {
     group.add(node);
     stageNodes.push(node);
   }
-  pipelineLayout(group, 56, 12);
+  pipelineLayout(group, Math.max(8, Math.floor((canvas.width - 48) / Math.max(stages.length, 1) / 3)), 12, canvas.height);
   const edgeLayer = app.group({ zIndex: -10, listening: false });
+  edgeLayer.metadata.diagramEdgeLayer = true;
   for (let i = 0; i < stageNodes.length - 1; i++) {
     edgeLayer.add(
       connectNodes(app, stageNodes[i], stageNodes[i + 1], [], {
         parent: group,
         style: "straight",
         stroke: DIAGRAM.edge,
+        glowColor: DIAGRAM.edgeGlow,
+        strokeWidth: edgeWidth,
         arrowEnd: "filled"
       })
     );
@@ -17303,6 +19170,805 @@ function createDiagramFromJSON(type, props, app) {
   return createDiagramFromProps(type, props, app);
 }
 
+// src/diagram/editor/collect.ts
+function nodeDiagramId(node) {
+  const id = node.metadata?.diagramId;
+  if (id)
+    return id;
+  if (node.metadata?.orgNode) {
+    const name = node.metadata?.orgName;
+    return name ? `org:${name}` : void 0;
+  }
+  if (node.metadata?.pipelineStatus !== void 0) {
+    return node.metadata.diagramId ?? void 0;
+  }
+  return void 0;
+}
+function isEditableDiagramNode(node) {
+  return !!(node.metadata?.diagramId || node.metadata?.orgNode || node.metadata?.pipelineStatus !== void 0 || node.metadata?.symbolType);
+}
+function collectEditableNodes(root) {
+  const out = [];
+  const walk2 = (parent) => {
+    for (const child of parent.children) {
+      if (child.metadata?.isDiagramHitTarget)
+        continue;
+      if (child.metadata?.diagramEditorOverlay)
+        continue;
+      if (isEditableDiagramNode(child)) {
+        out.push(child);
+      }
+      if ("children" in child && child.children?.length) {
+        walk2(child);
+      }
+    }
+  };
+  walk2(root);
+  return out;
+}
+function findEdgeLayer(root) {
+  for (const child of root.children) {
+    if (child.metadata?.diagramEdgeLayer)
+      return child;
+    if (child.zIndex === -10 && child.type === "group" && !child.metadata?.diagramId) {
+      return child;
+    }
+  }
+  return void 0;
+}
+function collectEdgesFromLayer(edgeLayer) {
+  const edges = [];
+  for (const child of edgeLayer.children) {
+    const from = child.metadata?.edgeFrom;
+    const to = child.metadata?.edgeTo;
+    if (!from || !to)
+      continue;
+    edges.push({
+      id: child.metadata?.edgeId ?? `${from}-${to}`,
+      from,
+      to,
+      label: child.metadata?.edgeLabel,
+      options: {
+        style: child.metadata?.edgeStyle,
+        stroke: child.metadata?.edgeStroke,
+        strokeWidth: child.metadata?.edgeStrokeWidth,
+        glowColor: child.metadata?.edgeGlow,
+        arrowEnd: child.metadata?.edgeArrowEnd,
+        arrowStart: child.metadata?.edgeArrowStart,
+        dash: child.metadata?.edgeDash
+      }
+    });
+  }
+  return edges;
+}
+function findNodeByDiagramId(root, id) {
+  return collectEditableNodes(root).find((n) => nodeDiagramId(n) === id);
+}
+function resolveEditableGroup(hit) {
+  let cur = hit;
+  while (cur) {
+    if (isEditableDiagramNode(cur)) {
+      return cur;
+    }
+    cur = cur.parent;
+  }
+  return void 0;
+}
+
+// src/diagram/editor/edgeWiring.ts
+function attachEdgeHitTarget(app, edge) {
+  if (edge.metadata?.edgeHitAttached)
+    return;
+  const poly = edge.children.find(
+    (c) => c.type === "polyline" && c.metadata?.edgeHitPolyline !== true
+  );
+  const points = poly && "points" in poly ? poly.points ?? [] : [];
+  if (points.length < 4)
+    return;
+  const hit = app.polyline({
+    points,
+    fill: null,
+    stroke: "rgba(0,0,0,0.001)",
+    strokeWidth: 14,
+    lineJoin: "round",
+    lineCap: "round",
+    listening: true
+  });
+  hit.metadata.edgeHitPolyline = true;
+  edge.add(hit);
+  edge.listening = true;
+  edge.metadata.edgeHitAttached = true;
+}
+function edgeAnchorPoint(root, from, to, end) {
+  const anchors = getConnectorAnchors(from, to, root);
+  if (end === "from")
+    return { x: root.x + anchors.x1, y: root.y + anchors.y1 };
+  return { x: root.x + anchors.x2, y: root.y + anchors.y2 };
+}
+
+// src/diagram/editor/labelEdit.ts
+function showLabelEditor(app, node, onCommit) {
+  const el = app["renderer"].getElement();
+  const rect = el.getBoundingClientRect();
+  const b = node.getBounds();
+  const parent = node.parent;
+  let wx = node.x + b.x;
+  let wy = node.y + b.y;
+  if (parent) {
+    wx += parent.x;
+    wy += parent.y;
+  }
+  const screen = app.camera.worldToScreen(wx, wy);
+  const input = document.createElement("input");
+  input.type = "text";
+  input.value = extractLabel(node);
+  Object.assign(input.style, {
+    position: "fixed",
+    left: `${rect.left + screen.x}px`,
+    top: `${rect.top + screen.y}px`,
+    minWidth: `${Math.max(80, b.width)}px`,
+    padding: "4px 8px",
+    fontSize: "12px",
+    fontFamily: "Inter, system-ui, sans-serif",
+    border: "2px solid #38bdf8",
+    borderRadius: "6px",
+    background: "#1e293b",
+    color: "#f1f5f9",
+    zIndex: "10000",
+    outline: "none"
+  });
+  document.body.appendChild(input);
+  input.focus();
+  input.select();
+  const commit = () => {
+    const v = input.value.trim();
+    if (v)
+      onCommit(v);
+    input.remove();
+  };
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter")
+      commit();
+    if (e.key === "Escape")
+      input.remove();
+  });
+  input.addEventListener("blur", commit);
+}
+function extractLabel(node) {
+  for (const child of node.children) {
+    if (child.type === "text" && "text" in child) {
+      return child.text;
+    }
+  }
+  return "";
+}
+
+// src/diagram/editor/reroute.ts
+function rerouteDiagramEdges(app, root, edges) {
+  const edgeLayer = findEdgeLayer(root);
+  if (!edgeLayer)
+    return;
+  const records = edges ?? collectEdgesFromLayer(edgeLayer);
+  const nodeMap = new Map(collectEditableNodes(root).map((n) => [n.metadata.diagramId, n]));
+  for (const child of [...edgeLayer.children]) {
+    edgeLayer.remove(child);
+    child.destroy();
+  }
+  const obstacles = collectObstacles([...nodeMap.values()]);
+  for (const edge of records) {
+    const from = findNodeByDiagramId(root, edge.from) ?? nodeMap.get(edge.from);
+    const to = findNodeByDiagramId(root, edge.to) ?? nodeMap.get(edge.to);
+    if (!from || !to)
+      continue;
+    edgeLayer.add(
+      connectNodes(app, from, to, obstacles, {
+        parent: root,
+        stroke: edge.options?.stroke ?? DIAGRAM.edge,
+        glowColor: edge.options?.glowColor ?? DIAGRAM.edgeGlow,
+        strokeWidth: edge.options?.strokeWidth ?? DIAGRAM.stroke.edge,
+        label: edge.label,
+        style: edge.options?.style ?? "smart",
+        arrowEnd: edge.options?.arrowEnd ?? "filled",
+        arrowStart: edge.options?.arrowStart ?? "none",
+        dash: edge.options?.dash,
+        edgeId: edge.id,
+        fromId: edge.from,
+        toId: edge.to
+      })
+    );
+  }
+  root.markDirty();
+}
+function syncPositionsToState(root) {
+  const state = { ...root.metadata?.diagramState };
+  const type = root.metadata?.diagramType;
+  const nodes = collectEditableNodes(root);
+  const positions = {};
+  for (const n of nodes) {
+    const id = n.metadata?.diagramId;
+    if (!id)
+      continue;
+    positions[id] = { x: n.x, y: n.y, scaleX: n.scaleX, scaleY: n.scaleY };
+  }
+  state.editorPositions = positions;
+  if (type === "flowchart" || type === "networkTopology") {
+    const data = state.data;
+    if (data?.nodes) {
+      for (const n of data.nodes) {
+        const p = positions[n.id];
+        if (p) {
+          n.x = p.x;
+          n.y = p.y;
+        }
+      }
+      state.data = data;
+    }
+  }
+  if (type === "stateMachine") {
+    const data = state.data;
+    if (data?.states) {
+      for (const s of data.states) {
+        const p = positions[s.id];
+        if (p) {
+          s.x = p.x;
+          s.y = p.y;
+        }
+      }
+      state.data = data;
+    }
+  }
+  if (type === "processPipeline") {
+    const stages = state.stages;
+    if (stages) {
+      state.stages = stages.map((s) => {
+        const p = positions[s.id];
+        return p ? { ...s, x: p.x, y: p.y } : s;
+      });
+    }
+  }
+  root.metadata.diagramState = state;
+}
+function syncEdgesToState(root) {
+  const edgeLayer = findEdgeLayer(root);
+  if (!edgeLayer)
+    return;
+  const edges = collectEdgesFromLayer(edgeLayer);
+  const state = { ...root.metadata?.diagramState };
+  state.editorEdges = edges;
+  const type = root.metadata?.diagramType;
+  if (type === "flowchart" || type === "networkTopology") {
+    const data = state.data;
+    if (data) {
+      data.edges = edges.map((e) => ({ from: e.from, to: e.to, label: e.label }));
+      state.data = data;
+    }
+  }
+  if (type === "stateMachine") {
+    const data = state.data;
+    if (data) {
+      data.transitions = edges.map((e) => ({ from: e.from, to: e.to, label: e.label }));
+      state.data = data;
+    }
+  }
+  root.metadata.diagramState = state;
+}
+
+// src/diagram/editor/DiagramEditor.ts
+var HANDLE = 8;
+var DiagramEditor = class {
+  constructor(app, root, options = {}) {
+    this.tool = "select";
+    this.selectedId = null;
+    this.selectedEdgeId = null;
+    this.connectFromId = null;
+    this.previewLine = null;
+    this.handlers = [];
+    this.keyHandler = null;
+    this.destroyed = false;
+    this.app = app;
+    this.root = root;
+    this.options = { gridSize: 8, showPorts: true, ...options };
+    this.tool = options.tool ?? "select";
+    this.overlay = app.group({ zIndex: 1e3, listening: false });
+    this.overlay.metadata.diagramEditorOverlay = true;
+    app.stage.add(this.overlay);
+    this.keyHandler = (e) => {
+      if (e.key !== "Delete" && e.key !== "Backspace")
+        return;
+      if (!this.selectedEdgeId)
+        return;
+      e.preventDefault();
+      this.deleteSelectedEdge();
+    };
+    window.addEventListener("keydown", this.keyHandler);
+  }
+  setTool(tool) {
+    this.tool = tool;
+    this.connectFromId = null;
+    this.clearPreview();
+    this.refreshOverlay();
+  }
+  getTool() {
+    return this.tool;
+  }
+  selectNode(id) {
+    this.selectedId = id;
+    this.selectedEdgeId = null;
+    this.refreshOverlay();
+    this.app.requestRender();
+  }
+  selectEdge(id) {
+    this.selectedEdgeId = id;
+    this.selectedId = null;
+    this.connectFromId = null;
+    this.refreshOverlay();
+    this.app.requestRender();
+  }
+  getSelectedEdgeId() {
+    return this.selectedEdgeId;
+  }
+  getSelectedNodeId() {
+    return this.selectedId;
+  }
+  reroute() {
+    rerouteDiagramEdges(this.app, this.root);
+  }
+  wireNode(node) {
+    const id = nodeDiagramId(node);
+    if (!id)
+      return;
+    const onClick = (e) => {
+      e.stopPropagation();
+      if (this.tool === "connect") {
+        if (!this.connectFromId) {
+          this.connectFromId = id;
+          this.selectNode(id);
+        } else if (this.connectFromId !== id) {
+          this.addEdge(this.connectFromId, id);
+          this.connectFromId = null;
+          this.selectNode(id);
+        }
+        return;
+      }
+      this.selectNode(id);
+    };
+    const onDblClick = (e) => {
+      e.stopPropagation();
+      showLabelEditor(this.app, node, (text) => {
+        this.updateNodeLabel(node, text);
+        this.emitChange();
+        this.app.requestRender();
+      });
+    };
+    const onDragMove = () => {
+      const grid = this.options.gridSize ?? 0;
+      if (grid > 0) {
+        node.x = Math.round(node.x / grid) * grid;
+        node.y = Math.round(node.y / grid) * grid;
+      }
+      rerouteDiagramEdges(this.app, this.root);
+      this.refreshOverlay();
+      this.app.requestRender();
+    };
+    const onDragEnd = () => {
+      syncPositionsToState(this.root);
+      this.wireEdges();
+      this.emitChange();
+    };
+    node.on("click", onClick);
+    node.on("dblclick", onDblClick);
+    node.on("dragmove", onDragMove);
+    node.on("dragend", onDragEnd);
+    this.handlers.push(
+      { node, type: "click", fn: onClick },
+      { node, type: "dblclick", fn: onDblClick },
+      { node, type: "dragmove", fn: onDragMove },
+      { node, type: "dragend", fn: onDragEnd }
+    );
+  }
+  wireEdges() {
+    const edgeLayer = findEdgeLayer(this.root);
+    if (!edgeLayer)
+      return;
+    for (const child of edgeLayer.children) {
+      const from = child.metadata?.edgeFrom;
+      const to = child.metadata?.edgeTo;
+      if (!from || !to)
+        continue;
+      if (child.metadata?.edgeEditorWired)
+        continue;
+      attachEdgeHitTarget(this.app, child);
+      const edgeId = child.metadata?.edgeId ?? `${from}-${to}`;
+      const onClick = (e) => {
+        e.stopPropagation();
+        this.selectEdge(edgeId);
+      };
+      child.on("click", onClick);
+      child.metadata.edgeEditorWired = true;
+      this.handlers.push({ node: child, type: "click", fn: onClick });
+    }
+  }
+  deleteSelectedEdge() {
+    if (!this.selectedEdgeId)
+      return;
+    const edgeLayer = findEdgeLayer(this.root);
+    if (!edgeLayer)
+      return;
+    const remaining = collectEdgesFromLayer(edgeLayer).filter((e) => e.id !== this.selectedEdgeId);
+    rerouteDiagramEdges(this.app, this.root, remaining);
+    syncEdgesToState(this.root);
+    this.selectedEdgeId = null;
+    this.wireEdges();
+    this.refreshOverlay();
+    this.emitChange();
+    this.app.requestRender();
+  }
+  rewireEdgeEndpoint(edgeId, end, newNodeId) {
+    const edgeLayer = findEdgeLayer(this.root);
+    if (!edgeLayer)
+      return;
+    const edges = collectEdgesFromLayer(edgeLayer);
+    const edge = edges.find((e) => e.id === edgeId);
+    if (!edge)
+      return;
+    const nextFrom = end === "from" ? newNodeId : edge.from;
+    const nextTo = end === "to" ? newNodeId : edge.to;
+    if (nextFrom === nextTo)
+      return;
+    const updated = edges.map(
+      (e) => e.id === edgeId ? { ...e, from: nextFrom, to: nextTo, id: `e_${nextFrom}_${nextTo}_${Date.now()}` } : e
+    );
+    rerouteDiagramEdges(this.app, this.root, updated);
+    syncEdgesToState(this.root);
+    this.selectedEdgeId = updated.find((e) => e.from === nextFrom && e.to === nextTo)?.id ?? null;
+    this.wireEdges();
+    this.refreshOverlay();
+    this.emitChange();
+    this.app.requestRender();
+  }
+  addEdge(from, to) {
+    const edgeLayer = this.root.children.find((c) => c.metadata?.diagramEdgeLayer);
+    if (!edgeLayer)
+      return;
+    const id = `e_${from}_${to}_${Date.now()}`;
+    const fromNode = findNodeByDiagramId(this.root, from);
+    const toNode = findNodeByDiagramId(this.root, to);
+    if (!fromNode || !toNode)
+      return;
+    const obstacles = collectObstacles(collectEditableNodes(this.root));
+    edgeLayer.add(
+      connectNodes(this.app, fromNode, toNode, obstacles, {
+        parent: this.root,
+        stroke: DIAGRAM.edge,
+        glowColor: DIAGRAM.edgeGlow,
+        strokeWidth: DIAGRAM.stroke.edge,
+        edgeId: id,
+        fromId: from,
+        toId: to
+      })
+    );
+    syncEdgesToState(this.root);
+    this.wireEdges();
+    this.selectEdge(id);
+    this.emitChange();
+    this.app.requestRender();
+  }
+  updateNodeLabel(node, text) {
+    for (const child of node.children) {
+      if (child.type === "text" && "text" in child) {
+        child.text = text;
+        child.markDirty?.();
+      }
+    }
+    const state = { ...this.root.metadata?.diagramState };
+    const type = this.root.metadata?.diagramType;
+    const id = node.metadata?.diagramId;
+    if ((type === "flowchart" || type === "networkTopology") && state.data) {
+      const data = state.data;
+      const n = data.nodes.find((x) => x.id === id);
+      if (n)
+        n.label = text;
+      state.data = data;
+    }
+    this.root.metadata.diagramState = state;
+  }
+  refreshOverlay() {
+    this.overlay.clear();
+    if (this.selectedEdgeId) {
+      this.drawEdgeSelection(this.selectedEdgeId);
+      return;
+    }
+    if (!this.selectedId)
+      return;
+    const node = findNodeByDiagramId(this.root, this.selectedId);
+    if (!node)
+      return;
+    const b = node.getBounds();
+    const wx = this.root.x + node.x + b.x;
+    const wy = this.root.y + node.y + b.y;
+    const w = b.width * node.scaleX;
+    const h = b.height * node.scaleY;
+    this.overlay.add(
+      this.app.rect({
+        x: wx - 3,
+        y: wy - 3,
+        width: w + 6,
+        height: h + 6,
+        fill: null,
+        stroke: DIAGRAM.mindBranch.stroke,
+        strokeWidth: 2,
+        dash: [6, 4],
+        listening: false
+      })
+    );
+    if (this.tool === "select") {
+      this.addResizeHandles(node, wx, wy, w, h);
+    }
+    if (this.tool === "connect" && this.options.showPorts) {
+      this.addPorts(node, wx, wy, w, h);
+    }
+  }
+  drawEdgeSelection(edgeId) {
+    const edgeLayer = findEdgeLayer(this.root);
+    if (!edgeLayer)
+      return;
+    const record = collectEdgesFromLayer(edgeLayer).find((e) => e.id === edgeId);
+    if (!record)
+      return;
+    const fromNode = findNodeByDiagramId(this.root, record.from);
+    const toNode = findNodeByDiagramId(this.root, record.to);
+    if (!fromNode || !toNode)
+      return;
+    const fromPt = edgeAnchorPoint(this.root, fromNode, toNode, "from");
+    const toPt = edgeAnchorPoint(this.root, fromNode, toNode, "to");
+    this.overlay.add(
+      this.app.line({
+        x: fromPt.x,
+        y: fromPt.y,
+        x2: toPt.x,
+        y2: toPt.y,
+        stroke: DIAGRAM.mindBranch.stroke,
+        strokeWidth: 3,
+        dash: [8, 5],
+        listening: false
+      })
+    );
+    this.addEndpointHandle(fromPt.x, fromPt.y, "from", edgeId);
+    this.addEndpointHandle(toPt.x, toPt.y, "to", edgeId);
+  }
+  addEndpointHandle(x, y, end, edgeId) {
+    const handle = this.app.circle({
+      x,
+      y,
+      radius: 6,
+      fill: end === "to" ? DIAGRAM.edge : "#fff",
+      stroke: DIAGRAM.mindBranch.stroke,
+      strokeWidth: 2,
+      listening: true
+    });
+    handle.metadata.diagramEditorOverlay = true;
+    this.overlay.add(handle);
+    let lastX = x;
+    let lastY = y;
+    wirePointerDrag(
+      handle,
+      (wx, wy) => {
+        lastX = wx;
+        lastY = wy;
+        this.drawPreviewLine(x, y, wx, wy);
+      },
+      () => {
+        this.clearPreview();
+        const hit = this.app.hitTest(lastX, lastY)?.node;
+        const target = resolveEditableGroup(hit);
+        if (target) {
+          const nodeId = nodeDiagramId(target);
+          if (nodeId)
+            this.rewireEdgeEndpoint(edgeId, end, nodeId);
+        }
+        this.app.requestRender();
+      }
+    );
+  }
+  addResizeHandles(node, x, y, w, h) {
+    const corners = [
+      { cx: x, cy: y },
+      { cx: x + w, cy: y },
+      { cx: x + w, cy: y + h },
+      { cx: x, cy: y + h }
+    ];
+    const baseW = node.metadata.editorBaseW ?? w;
+    const baseH = node.metadata.editorBaseH ?? h;
+    const baseSx = node.metadata.editorBaseScaleX ?? 1;
+    const baseSy = node.metadata.editorBaseScaleY ?? 1;
+    for (const c of corners) {
+      const handle = this.app.rect({
+        x: c.cx - HANDLE / 2,
+        y: c.cy - HANDLE / 2,
+        width: HANDLE,
+        height: HANDLE,
+        fill: "#fff",
+        stroke: DIAGRAM.mindBranch.stroke,
+        strokeWidth: 1.5,
+        listening: true,
+        cornerRadius: 2
+      });
+      handle.metadata.diagramEditorOverlay = true;
+      this.overlay.add(handle);
+      wirePointerDrag(handle, (worldX, worldY) => {
+        const cx = x + w / 2;
+        const cy = y + h / 2;
+        const halfW = Math.max(20, Math.abs(worldX - cx) * 2);
+        const halfH = Math.max(16, Math.abs(worldY - cy) * 2);
+        node.scaleX = Math.max(0.4, Math.min(3, halfW / baseW * baseSx));
+        node.scaleY = Math.max(0.4, Math.min(3, halfH / baseH * baseSy));
+        rerouteDiagramEdges(this.app, this.root);
+        this.refreshOverlay();
+        this.app.requestRender();
+      }, () => {
+        syncPositionsToState(this.root);
+        this.wireEdges();
+        this.emitChange();
+      });
+    }
+  }
+  addPorts(node, x, y, w, h) {
+    const ports = [
+      { px: x + w / 2, py: y },
+      { px: x + w, py: y + h / 2 },
+      { px: x + w / 2, py: y + h },
+      { px: x, py: y + h / 2 }
+    ];
+    const fromId = nodeDiagramId(node);
+    for (const p of ports) {
+      const port = this.app.circle({
+        x: p.px,
+        y: p.py,
+        radius: 5,
+        fill: DIAGRAM.edge,
+        stroke: "#fff",
+        strokeWidth: 1.5,
+        listening: true
+      });
+      port.metadata.diagramEditorOverlay = true;
+      this.overlay.add(port);
+      let lastX = p.px;
+      let lastY = p.py;
+      wirePointerDrag(
+        port,
+        (wx, wy) => {
+          lastX = wx;
+          lastY = wy;
+          this.drawPreviewLine(p.px, p.py, wx, wy);
+        },
+        () => {
+          this.clearPreview();
+          const hit = this.app.hitTest(lastX, lastY)?.node;
+          const target = resolveEditableGroup(hit);
+          if (target && fromId) {
+            const toId = nodeDiagramId(target);
+            if (toId && toId !== fromId) {
+              this.addEdge(fromId, toId);
+              this.selectNode(toId);
+            }
+          }
+          this.app.requestRender();
+        }
+      );
+    }
+  }
+  drawPreviewLine(x1, y1, x2, y2) {
+    this.clearPreview();
+    this.previewLine = this.app.line({
+      x: x1,
+      y: y1,
+      x2,
+      y2,
+      stroke: DIAGRAM.edge,
+      strokeWidth: 2,
+      dash: [6, 4],
+      listening: false
+    });
+    this.previewLine.metadata.diagramEditorOverlay = true;
+    this.overlay.add(this.previewLine);
+    this.app.requestRender();
+  }
+  clearPreview() {
+    if (this.previewLine) {
+      this.overlay.remove(this.previewLine);
+      this.previewLine.destroy();
+      this.previewLine = null;
+    }
+  }
+  emitChange() {
+    this.options.onChange?.(this.root.metadata?.diagramState);
+  }
+  destroy() {
+    if (this.destroyed)
+      return;
+    this.destroyed = true;
+    if (this.keyHandler) {
+      window.removeEventListener("keydown", this.keyHandler);
+      this.keyHandler = null;
+    }
+    for (const h of this.handlers) {
+      h.node.off(h.type, h.fn);
+    }
+    this.handlers = [];
+    this.overlay.destroy();
+    this.app.requestRender();
+  }
+};
+
+// src/diagram/editor/hitTargets.ts
+function attachNodeHitTarget(app, node) {
+  if (node.metadata?.hitTargetAttached)
+    return;
+  const b = node.getBounds();
+  const w = Math.max(b.width, 24);
+  const h = Math.max(b.height, 24);
+  const hit = app.rect({
+    x: b.x,
+    y: b.y,
+    width: w,
+    height: h,
+    fill: "rgba(0,0,0,0.001)",
+    stroke: null,
+    listening: true
+  });
+  hit.metadata.isDiagramHitTarget = true;
+  hit.metadata.hitTargetFor = node.metadata?.diagramId;
+  node.add(hit);
+  node.draggable = true;
+  node.listening = true;
+  node.metadata.hitTargetAttached = true;
+  node.metadata.editorBaseScaleX = node.scaleX;
+  node.metadata.editorBaseScaleY = node.scaleY;
+  node.metadata.editorBaseW = w;
+  node.metadata.editorBaseH = h;
+}
+function ensureEditableHitTargets(app, root) {
+  const walk2 = (parent) => {
+    for (const child of parent.children) {
+      if (isEditableDiagramNode(child)) {
+        attachNodeHitTarget(app, child);
+      }
+      if ("children" in child && child.children?.length) {
+        walk2(child);
+      }
+    }
+  };
+  walk2(root);
+}
+function tagEdgeLayer(root) {
+  const walk2 = (parent) => {
+    for (const child of parent.children) {
+      if (child.zIndex === -10 && child.type === "group") {
+        child.metadata.diagramEdgeLayer = true;
+      }
+    }
+  };
+  walk2(root);
+}
+
+// src/diagram/editor/index.ts
+function installDiagramEditor(app, root, options = {}) {
+  tagEdgeLayer(root);
+  ensureEditableHitTargets(app, root);
+  const editor = new DiagramEditor(app, root, options);
+  for (const node of collectEditableNodes(root)) {
+    editor.wireNode(node);
+  }
+  editor.wireEdges();
+  root.metadata.diagramEditor = editor;
+  return editor;
+}
+function uninstallDiagramEditor(root) {
+  const editor = root.metadata?.diagramEditor;
+  editor?.destroy();
+  delete root.metadata.diagramEditor;
+}
+
 // src/diagram/index.ts
 var Diagram = {
   flowchart: createFlowchart,
@@ -17317,7 +19983,10 @@ var Diagram = {
   layout: layoutDiagram,
   route: routeConnector,
   forceLayout: forceDirectedLayout,
-  toggleCollapse: toggleOrgCollapse
+  toggleCollapse: toggleOrgCollapse,
+  fitToBounds: fitDiagramToBounds,
+  installEditor: installDiagramEditor,
+  uninstallEditor: uninstallDiagramEditor
 };
 
 // src/modules/diagram/index.ts

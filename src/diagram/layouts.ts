@@ -159,14 +159,23 @@ export function layoutDiagram(group: Group, levelGap = 80, siblingGap = 40): voi
 }
 
 /** Horizontal pipeline layout — stages in a row */
-export function pipelineLayout(group: Group, gap = 40, padding = 10): void {
+export function pipelineLayout(
+  group: Group,
+  gap = 40,
+  padding = 10,
+  canvasH?: number
+): void {
+  const stageH = 50;
   let x = padding;
-  const y = padding;
+  const y = canvasH ? Math.max(padding, (canvasH - stageH) / 2) : padding;
   for (const child of group.children) {
+    if (child.metadata?.diagramId === undefined && child.metadata?.pipelineStatus === undefined) {
+      continue;
+    }
     child.x = x;
     child.y = y;
     child.markDirty();
-    x += child.getBounds().width + gap;
+    x += 118 + gap;
   }
 }
 

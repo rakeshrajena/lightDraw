@@ -1,6 +1,6 @@
 {
   "name": "lightdraw",
-  "version": "0.9.0",
+  "version": "1.0.0",
   "description": "Ultra-lightweight 2D graphics and UI engine for the web",
   "main": "dist/lightdraw.js",
   "module": "dist/lightdraw.esm.js",

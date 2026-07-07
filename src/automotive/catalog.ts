@@ -189,7 +189,7 @@ export const PANEL_WIDGETS: PanelDef[] = [
   { kind: 'panel', type: 'mediaPlayer', title: 'Media', rows: ['Now playing', 'Track — Artist'] },
   { kind: 'panel', type: 'musicControls', title: 'Music', rows: ['⏮  ▶  ⏭'] },
   { kind: 'panel', type: 'albumArt', title: 'Album', rows: ['[ Artwork ]'] },
-  { kind: 'panel', type: 'radio', title: 'Radio', rows: ['FM 98.5'] },
+  { kind: 'panel', type: 'fmRadio', title: 'Radio', rows: ['FM 98.5'] },
   { kind: 'panel', type: 'podcastPlayer', title: 'Podcast', rows: ['Episode 12'] },
   { kind: 'panel', type: 'equalizer', title: 'EQ', rows: ['Bass +2', 'Treble 0'] },
   { kind: 'panel', type: 'nowPlaying', title: 'Now Playing', rows: ['Song Title', 'Artist'] },
@@ -230,4 +230,5 @@ export const WIDGET_ALIASES: Record<string, string> = {
   gearPositionIndicator: 'gearIndicator',
   tirePressureMonitoring: 'tpms',
   turnIndicator: 'turnIndicators',
+  radio: 'fmRadio',
 };

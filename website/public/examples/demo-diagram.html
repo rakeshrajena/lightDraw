@@ -12,38 +12,115 @@
   <div class="demo-shell">
     <header class="demo-header">
       <span class="demo-badge">Diagram Module</span>
-      <h1>Diagram Studio</h1>
-      <p>Flowcharts, state machines, network topology, CAN bus, UML, and organizational charts.</p>
+      <h1>Diagram Gallery</h1>
+      <p>Polished, production-ready diagrams for flowcharts, state machines, networks, automotive buses, and more.</p>
     </header>
     <main class="demo-main demo-layout-split">
-      <aside class="demo-sidebar">
-        <h2>Diagram types</h2>
-        <button class="demo-btn secondary active" data-diagram="flowchart" onclick="pick(this, 'flowchart')">Flowchart</button>
-        <button class="demo-btn secondary" data-diagram="stateMachine" onclick="pick(this, 'stateMachine')">State Machine</button>
-        <button class="demo-btn secondary" data-diagram="network" onclick="pick(this, 'network')">Network</button>
-        <button class="demo-btn secondary" data-diagram="can" onclick="pick(this, 'can')">CAN Bus</button>
-        <button class="demo-btn secondary" data-diagram="pipeline" onclick="pick(this, 'pipeline')">Pipeline</button>
-        <button class="demo-btn secondary" data-diagram="mindMap" onclick="pick(this, 'mindMap')">Mind Map</button>
-        <button class="demo-btn secondary" data-diagram="uml" onclick="pick(this, 'uml')">UML Class</button>
-        <button class="demo-btn secondary" data-diagram="schematic" onclick="pick(this, 'schematic')">Schematic</button>
-        <button class="demo-btn secondary" data-diagram="org" onclick="pick(this, 'org')">Org Chart</button>
-        <button class="demo-btn" style="margin-top:0.5rem" onclick="runForceLayout()">Force Layout</button>
+      <aside class="demo-sidebar demo-diagram-sidebar">
+        <div class="demo-diagram-group">
+          <h2>Process</h2>
+          <button type="button" class="demo-btn secondary is-active" data-diagram="flowchart" onclick="pick(this, 'flowchart')">Flowchart</button>
+          <button type="button" class="demo-btn secondary" data-diagram="stateMachine" onclick="pick(this, 'stateMachine')">State Machine</button>
+          <button type="button" class="demo-btn secondary" data-diagram="pipeline" onclick="pick(this, 'pipeline')">Pipeline</button>
+        </div>
+        <div class="demo-diagram-group">
+          <h2>Systems</h2>
+          <button type="button" class="demo-btn secondary" data-diagram="network" onclick="pick(this, 'network')">Network</button>
+          <button type="button" class="demo-btn secondary" data-diagram="can" onclick="pick(this, 'can')">CAN Bus</button>
+          <button type="button" class="demo-btn secondary" data-diagram="schematic" onclick="pick(this, 'schematic')">Schematic</button>
+        </div>
+        <div class="demo-diagram-group">
+          <h2>Structure</h2>
+          <button type="button" class="demo-btn secondary" data-diagram="mindMap" onclick="pick(this, 'mindMap')">Mind Map</button>
+          <button type="button" class="demo-btn secondary" data-diagram="uml" onclick="pick(this, 'uml')">UML Class</button>
+          <button type="button" class="demo-btn secondary" data-diagram="org" onclick="pick(this, 'org')">Org Chart</button>
+        </div>
+        <div class="demo-diagram-info" id="diagram-info">
+          <span class="demo-diagram-info__eyebrow" id="diagram-info-eyebrow">Process</span>
+          <div class="demo-diagram-info__title" id="diagram-info-title">Flowchart</div>
+          <p class="demo-diagram-info__desc" id="diagram-info-desc">Decision branches, terminals, and routed connectors for workflows and runbooks.</p>
+        </div>
       </aside>
-      <div class="demo-canvas-wrap">
+      <div class="demo-canvas-wrap demo-canvas-diagram" id="diagram-canvas-wrap">
         <div id="app"></div>
       </div>
     </main>
   </div>
   <script src="../lightdraw.min.js"></script>
   <script>
+    const canvasWrap = document.getElementById('diagram-canvas-wrap');
+    let canvasW = 900;
+    let canvasH = 500;
+
+    const diagramMeta = {
+      flowchart: {
+        category: 'Process',
+        title: 'Flowchart',
+        desc: 'Decision branches, terminals, and routed connectors for workflows and runbooks.',
+      },
+      stateMachine: {
+        category: 'Process',
+        title: 'State Machine',
+        desc: 'Initial, final, and transition states with labeled edges for control logic.',
+      },
+      pipeline: {
+        category: 'Process',
+        title: 'Pipeline',
+        desc: 'Stage status badges and sequential flow for CI/CD and data pipelines.',
+      },
+      network: {
+        category: 'Systems',
+        title: 'Network Topology',
+        desc: 'Routers, servers, and clients with smart routing and interface labels.',
+      },
+      can: {
+        category: 'Systems',
+        title: 'CAN Bus',
+        desc: 'Automotive ECU layout on a high-speed CAN backbone with address tags.',
+      },
+      schematic: {
+        category: 'Systems',
+        title: 'Schematic',
+        desc: 'Battery, switch, resistor, LED, and ground symbols with auto-wiring.',
+      },
+      mindMap: {
+        category: 'Structure',
+        title: 'Mind Map',
+        desc: 'Radial branches with color-coded tiers for architecture overviews.',
+      },
+      uml: {
+        category: 'Structure',
+        title: 'UML Class',
+        desc: 'Classes with compartments and inheritance or association connectors.',
+      },
+      org: {
+        category: 'Structure',
+        title: 'Org Chart',
+        desc: 'Hierarchical roles with tier styling and parent–child connectors.',
+      },
+    };
+
+    function measureCanvas() {
+      const rect = canvasWrap.getBoundingClientRect();
+      canvasW = Math.max(320, Math.floor(rect.width - 8));
+      canvasH = Math.max(280, Math.floor(rect.height - 8));
+      return { width: canvasW, height: canvasH };
+    }
+
     const app = LightDraw.createApp('#app', {
-      width: 900,
-      height: 500,
+      width: canvasW,
+      height: canvasH,
       background: '#0d1322',
       renderer: 'canvas',
     });
 
+    let currentDiagram = 'flowchart';
     let currentGroup = null;
+    let resizeTimer = null;
+
+    function diagramOpts(extra = {}) {
+      return { width: canvasW, height: canvasH, ...extra };
+    }
 
     const samples = {
       flowchart: () =>
@@ -59,7 +136,7 @@
             { from: 'check', to: 'process', label: 'yes' },
             { from: 'process', to: 'end' },
           ],
-        }),
+        }, diagramOpts()),
       stateMachine: () =>
         LightDraw.Diagram.stateMachine(app, {
           states: [
@@ -76,7 +153,7 @@
             { from: 'run', to: 'done', label: 'complete' },
             { from: 'err', to: 'idle', label: 'retry' },
           ],
-        }),
+        }, diagramOpts()),
       network: () =>
         LightDraw.Diagram.network(app, {
           nodes: [
@@ -94,7 +171,7 @@
             { from: 's1', to: 'c1' },
             { from: 's3', to: 'c2' },
           ],
-        }),
+        }, diagramOpts()),
       can: () =>
         LightDraw.Diagram.canNetwork(
           app,
@@ -108,7 +185,7 @@
               { id: 'icu', label: 'ICU', address: '0x7E4' },
             ],
           },
-          { x: 80, y: 140 }
+          diagramOpts({ x: 24, y: 100 })
         ),
       pipeline: () =>
         LightDraw.Diagram.pipeline(
@@ -120,7 +197,7 @@
             { id: 'load', label: 'Load', status: 'pending' },
             { id: 'notify', label: 'Notify', status: 'pending' },
           ],
-          { x: 60, y: 200 }
+          diagramOpts()
         ),
       mindMap: () =>
         LightDraw.Diagram.mindMap(app, 'LightDraw.js', [
@@ -128,7 +205,7 @@
           { label: 'Modules', children: ['UI', 'Dashboard', 'Automotive'] },
           { label: 'Diagrams', children: ['Flowchart', 'Network', 'UML'] },
           { label: 'I/O', children: ['JSON', 'Export'] },
-        ]),
+        ], diagramOpts()),
       uml: () =>
         LightDraw.Diagram.classDiagram(app, {
           classes: [
@@ -160,7 +237,7 @@
             { from: 'shape', to: 'node', type: 'inheritance' },
             { from: 'group', to: 'node', type: 'inheritance' },
           ],
-        }),
+        }, diagramOpts()),
       schematic: () =>
         LightDraw.Diagram.schematic(app, [
           { id: 'b1', type: 'battery', x: 60, y: 200, label: '9V' },
@@ -168,7 +245,7 @@
           { id: 'r1', type: 'resistor', x: 260, y: 200, label: '220Ω' },
           { id: 'd1', type: 'led', x: 360, y: 200, label: 'LED' },
           { id: 'g1', type: 'ground', x: 460, y: 200 },
-        ]),
+        ], diagramOpts()),
       org: () =>
         LightDraw.Diagram.orgChart(app, {
           name: 'CEO',
@@ -177,53 +254,58 @@
             { name: 'CFO', children: [{ name: 'Accounting' }] },
             { name: 'COO', collapsed: true, children: [{ name: 'Operations Manager' }] },
           ],
-        }),
+        }, diagramOpts()),
     };
 
+    function updateDiagramInfo(name) {
+      const meta = diagramMeta[name];
+      if (!meta) return;
+      document.getElementById('diagram-info-eyebrow').textContent = meta.category;
+      document.getElementById('diagram-info-title').textContent = meta.title;
+      document.getElementById('diagram-info-desc').textContent = meta.desc;
+    }
+
+    function fitCurrentDiagram() {
+      if (!currentGroup || !LightDraw.Diagram.fitToBounds) return;
+      currentGroup.scaleX = 1;
+      currentGroup.scaleY = 1;
+      currentGroup.x = 0;
+      currentGroup.y = 0;
+      app.render();
+      LightDraw.Diagram.fitToBounds(currentGroup, canvasW, canvasH, 24);
+    }
+
     function pick(btn, name) {
-      document.querySelectorAll('[data-diagram]').forEach((b) => b.classList.remove('active'));
-      btn.classList.add('active');
+      document.querySelectorAll('[data-diagram]').forEach((b) => b.classList.remove('is-active'));
+      btn.classList.add('is-active');
       showDiagram(name);
     }
 
     function showDiagram(name) {
+      currentDiagram = name;
+      updateDiagramInfo(name);
+      measureCanvas();
+      app.resize(canvasW, canvasH);
       app.stage.clear();
       currentGroup = samples[name]();
       app.add(currentGroup);
+      fitCurrentDiagram();
       app.render();
     }
 
-    function runForceLayout() {
-      if (!currentGroup || !LightDraw.Diagram.forceLayout) return;
-      const edges = [];
-      const ids = currentGroup.children
-        .filter((c) => c.metadata && c.metadata.diagramId)
-        .map((c) => c.metadata.diagramId);
-      for (let i = 0; i < ids.length - 1; i++) {
-        edges.push({ from: ids[i], to: ids[i + 1] });
-      }
-      if (edges.length && LightDraw.applyForceLayout) {
-        LightDraw.applyForceLayout(currentGroup, edges, { seed: 42, iterations: 60 });
-      } else if (edges.length) {
-        const positions = LightDraw.Diagram.forceLayout(ids.map((id) => ({ id })), edges, {
-          seed: 42,
-          iterations: 60,
-          width: 800,
-          height: 440,
-        });
-        for (const child of currentGroup.children) {
-          const id = child.metadata?.diagramId;
-          if (id && positions.has(id)) {
-            const p = positions.get(id);
-            child.x = p.x;
-            child.y = p.y;
-          }
-        }
-      }
-      app.render();
+    function scheduleResize() {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => showDiagram(currentDiagram), 120);
     }
 
-    showDiagram('flowchart');
+    if (typeof ResizeObserver !== 'undefined') {
+      new ResizeObserver(scheduleResize).observe(canvasWrap);
+    }
+    window.addEventListener('resize', scheduleResize);
+
+    const boot = () => showDiagram('flowchart');
+    if (document.readyState === 'complete') boot();
+    else window.addEventListener('load', boot, { once: true });
   </script>
 </body>
 </html>

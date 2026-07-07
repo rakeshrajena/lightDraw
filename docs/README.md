@@ -1,6 +1,6 @@
 # LightDraw.js Documentation
 
-**Version:** 0.9.0
+**Version:** 1.0.0
 
 ## Guides
 
@@ -11,6 +11,9 @@
 | [Plugins](./plugin-guide.md) | Custom components, renderers, registration |
 | [Performance](./performance-guide.md) | Benchmarks, spatial index, dirty regions |
 | [Legacy Browsers](./legacy-browser-guide.md) | ES5 build, polyfills, WebView |
+| [UI Theme](./ui-theme-guide.md) | Presets, tokens, high contrast — no mandatory CSS |
+| [Responsive Layout](./responsive-guide.md) | Breakpoints, `fullWidth`, `autoResize` |
+| [Legacy UI & CSS](./legacy-ui-guide.md) | ES5 + `lightdraw.min.css` compatibility |
 | [Automotive Examples](./automotive-examples.md) | Cluster, CAN viewer, drive simulation |
 | [AI Integration](./ai-integration-guide.md) | JSON schema, prompts, round-trip |
 | [Export Pipeline](./export-pipeline.md) | PNG, SVG, PDF, unified `app.export()` |
@@ -52,6 +55,7 @@ Interactive HTML demos live in [`../examples/`](../examples/):
 - `demo.html` — core shapes & animation
 - `demo-animation.html` — motion path, morph, stagger
 - `demo-ui.html` — 17 UI components
+- `demo-ui-catalog.html` — Storybook-style variant gallery
 - `demo-dashboard.html` — live charts & gauges
 - `demo-automotive.html` — instrument cluster
 - `demo-diagram.html` — flowchart, state machine, network

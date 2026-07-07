@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><link rel="stylesheet" href="/dist/lightdraw.min.css">
+<style>body{margin:0;background:#0d1322}#host{width:900px;height:520px;overflow:hidden}</style></head>
+<body><div id="host"></div>
+<script src="/dist/lightdraw.min.js"></script>
+<script src="/scripts/diagram-audit-samples.js"></script>
+<script>
+  window.renderDiagram = function(type) {
+    const host = document.getElementById('host');
+    host.innerHTML = '';
+    const app = LightDraw.createApp(host, { renderer: 'canvas', width: 900, height: 520, background: '#0d1322' });
+    const fn = window.DIAGRAM_AUDIT_SAMPLES[type];
+    if (!fn) return;
+    const g = fn(app, 900, 520);
+    app.add(g);
+    app.render();
+    if (LightDraw.Diagram.fitToBounds) LightDraw.Diagram.fitToBounds(g, 900, 520, 24);
+    app.render();
+  };
+</script></body></html>

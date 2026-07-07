@@ -4,50 +4,51 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LightDraw.js Demo</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: system-ui, sans-serif; background: #0f172a; color: #e2e8f0; }
-    header { padding: 1rem 2rem; border-bottom: 1px solid #334155; }
-    header h1 { font-size: 1.5rem; }
-    header p { color: #94a3b8; margin-top: 0.25rem; }
-    main { display: grid; grid-template-columns: 1fr 320px; gap: 1rem; padding: 1rem 2rem; }
-    #app { background: #1e293b; border-radius: 8px; border: 1px solid #334155; }
-    aside { background: #1e293b; border-radius: 8px; border: 1px solid #334155; padding: 1rem; }
-    aside h2 { font-size: 1rem; margin-bottom: 0.75rem; }
-    aside button { display: block; width: 100%; padding: 0.5rem; margin-bottom: 0.5rem; background: #2563eb; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
-    aside button:hover { background: #1d4ed8; }
-    aside a.demo-link { display: block; font-size: 0.8rem; color: #93c5fd; text-decoration: none; margin: -0.25rem 0 0.5rem 0.25rem; }
-    aside a.demo-link:hover { text-decoration: underline; }
-    pre { background: #0f172a; padding: 0.75rem; border-radius: 4px; font-size: 0.75rem; overflow: auto; max-height: 200px; }
-  </style>
+  <script src="demo-embed.js"></script>
+  <link rel="stylesheet" href="demo-common.css">
 </head>
 <body>
-  <header>
-    <h1>LightDraw.js</h1>
-    <p>Ultra-lightweight 2D graphics engine — zero dependencies</p>
-  </header>
-  <main>
-    <div id="app"></div>
-    <aside>
-      <h2>Examples</h2>
-      <button onclick="demoShapes()">Basic Shapes</button>
-      <button onclick="demoAnimation()">Animation</button>
-      <button onclick="demoDashboard()">Dashboard</button>
-      <a class="demo-link" href="demo-dashboard.html">Full dashboard demo →</a>
-      <button onclick="demoAutomotive()">Automotive Cluster</button>
-      <a class="demo-link" href="demo-automotive.html">Full automotive demo →</a>
-      <button onclick="demoTimeline()">Timeline</button>
-      <h2 style="margin-top:1rem">Scene JSON</h2>
-      <pre id="json-output"></pre>
-    </aside>
-  </main>
+  <div class="demo-shell">
+    <header class="demo-header">
+      <span class="demo-badge">Core Engine</span>
+      <h1>LightDraw.js</h1>
+      <p>Ultra-lightweight 2D graphics engine — shapes, animation, dashboards, and timelines.</p>
+    </header>
+    <main class="demo-main demo-layout-aside">
+      <div class="demo-canvas-wrap">
+        <div id="app"></div>
+      </div>
+      <aside class="demo-aside-panel">
+        <h2>Examples</h2>
+        <button type="button" class="demo-btn is-active" id="btn-shapes" onclick="pickDemo(this, demoShapes)">Basic Shapes</button>
+        <button type="button" class="demo-btn secondary" onclick="pickDemo(this, demoAnimation)">Animation</button>
+        <button type="button" class="demo-btn secondary" onclick="pickDemo(this, demoDashboard)">Dashboard</button>
+        <a class="demo-aside-link" href="demo-dashboard.html">Full dashboard demo →</a>
+        <button type="button" class="demo-btn secondary" onclick="pickDemo(this, demoAutomotive)">Automotive Cluster</button>
+        <a class="demo-aside-link" href="demo-automotive.html">Full automotive demo →</a>
+        <button type="button" class="demo-btn secondary" onclick="pickDemo(this, demoTimeline)">Timeline</button>
+        <h3 style="margin-top:0.75rem">Scene JSON</h3>
+        <pre class="demo-json-output" id="json-output"></pre>
+      </aside>
+    </main>
+  </div>
   <script src="../dist/lightdraw.min.js"></script>
   <script>
-    let app = LightDraw.createApp('#app', { width: 800, height: 500, background: '#1e293b' });
+    let app = LightDraw.createApp('#app', { width: 800, height: 500, background: '#0d1322' });
+
+    function pickDemo(btn, fn) {
+      document.querySelectorAll('.demo-aside-panel .demo-btn').forEach((b) => {
+        b.classList.remove('is-active');
+        b.classList.add('secondary');
+      });
+      btn.classList.add('is-active');
+      btn.classList.remove('secondary');
+      fn();
+    }
 
     function clear() {
       app.destroy();
-      app = LightDraw.createApp('#app', { width: 800, height: 500, background: '#1e293b' });
+      app = LightDraw.createApp('#app', { width: 800, height: 500, background: '#0d1322' });
     }
 
     function showJSON() {
@@ -83,8 +84,8 @@
           { type: 'gauge', props: { value: 72, size: 120, x: 280, y: 80 } },
           { type: 'lineChart', props: { data: [20, 45, 30, 60, 55, 80], width: 300, height: 120, x: 450, y: 50 } },
           { type: 'barChart', props: { data: [30, 50, 40, 70], width: 300, height: 120, x: 50, y: 280 } },
-          { type: 'battery', props: { value: 85, x: 400, y: 300 } }
-        ]
+          { type: 'battery', props: { value: 85, x: 400, y: 300 } },
+        ],
       });
       showJSON();
     }
@@ -98,8 +99,8 @@
           { type: 'gearIndicator', props: { gear: 'D', x: 370, y: 200 } },
           { type: 'turnIndicators', props: { left: true, x: 300, y: 380 } },
           { type: 'warningLamp', props: { label: 'ABS', active: false, x: 500, y: 380 } },
-          { type: 'adasStatus', props: { status: 'active', x: 600, y: 380 } }
-        ]
+          { type: 'adasStatus', props: { status: 'active', x: 600, y: 380 } },
+        ],
       });
       showJSON();
     }

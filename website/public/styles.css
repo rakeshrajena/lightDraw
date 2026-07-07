@@ -127,31 +127,48 @@ main {
   border-radius: 10px;
   background: #0d1322;
   display: block;
+  min-height: 360px;
 }
 
 .demo-frame--tall {
-  height: 720px;
+  height: clamp(520px, 72vh, 760px);
 }
 
 .demo-frame--dashboard {
-  height: 736px;
+  height: clamp(560px, 78vh, 820px);
 }
 
 .demo-frame--ui {
-  height: 800px;
+  height: clamp(600px, 82vh, 880px);
 }
 
 .demo-frame--medium {
-  height: 520px;
+  height: clamp(440px, 58vh, 620px);
 }
 
 .demo-frame--automotive {
-  height: 560px;
-  min-height: 480px;
+  height: clamp(480px, 62vh, 640px);
+  min-height: 400px;
 }
 
 .demo-frame--compact {
-  height: 480px;
+  height: clamp(400px, 52vh, 540px);
+}
+
+@media (max-width: 720px) {
+  .demo-frame--ui {
+    height: clamp(480px, 70vh, 720px);
+  }
+
+  .demo-frame--dashboard {
+    height: clamp(440px, 65vh, 680px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav a {
+    transition: none;
+  }
 }
 
 footer {

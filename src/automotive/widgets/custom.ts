@@ -2,7 +2,6 @@
  * Rich automotive widgets — override catalog defaults where bespoke UI is needed.
  */
 import { TextNode } from '../../shapes/index';
-import type { Node } from '../../Node';
 import { registerAutomotive, createAutomotiveFromJSON } from '../registryCore';
 import {
   bool,

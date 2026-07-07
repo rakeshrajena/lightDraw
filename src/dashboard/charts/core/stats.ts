@@ -82,8 +82,8 @@ function inverseErf(x: number): number {
 
 export function hexbinCenters(
   points: [number, number][],
-  width: number,
-  height: number,
+  _width: number,
+  _height: number,
   radius: number
 ): Map<string, { x: number; y: number; count: number }> {
   const bins = new Map<string, { x: number; y: number; count: number }>();

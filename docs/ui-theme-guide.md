@@ -170,4 +170,6 @@ Adds `lightdraw-high-contrast` and `data-ld-high-contrast="true"` on the HTML ro
 ## Related
 
 - [UI components schema](./ui-components-schema.md)
+- [Responsive layout guide](./responsive-guide.md)
+- [Legacy UI & CSS guide](./legacy-ui-guide.md)
 - [UI_POLISH_PLAN.md](../UI_POLISH_PLAN.md) — phased beautification roadmap

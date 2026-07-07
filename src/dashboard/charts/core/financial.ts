@@ -2,14 +2,12 @@ import type { OhlcBar } from '../types';
 
 export function toHeikinAshi(bars: OhlcBar[]): OhlcBar[] {
   const out: OhlcBar[] = [];
-  let prevClose = bars[0]?.close ?? 0;
   for (const b of bars) {
     const close = (b.open + b.high + b.low + b.close) / 4;
     const open = out.length ? (out[out.length - 1].open + out[out.length - 1].close) / 2 : (b.open + b.close) / 2;
     const high = Math.max(b.high, open, close);
     const low = Math.min(b.low, open, close);
     out.push({ time: b.time, open, high, low, close, volume: b.volume });
-    prevClose = close;
   }
   return out;
 }

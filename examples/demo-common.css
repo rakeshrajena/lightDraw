@@ -1,5 +1,10 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
+/**
+ * Demo playground chrome (dark shell).
+ * Load ../dist/lightdraw.min.css on pages that use the HTML renderer so
+ * components inside #app inherit --ld-* tokens from .lightdraw-html-root.
+ */
 :root {
   --bg: #0b1120;
   --surface: #151d2e;
@@ -11,6 +16,7 @@
   --accent-hover: #2563eb;
   --radius: 12px;
   --shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+  --demo-canvas-bg: #0d1322;
 }
 
 * {
@@ -107,7 +113,7 @@ body {
   min-height: 420px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: #0d1322;
+  background: var(--demo-canvas-bg);
   box-shadow: var(--shadow);
   overflow: hidden;
   padding: 4px;
@@ -171,6 +177,239 @@ body {
   color: #fff;
 }
 
+.demo-btn.secondary.is-active,
+.demo-btn.secondary.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+/* Split layout — canvas + aside (animation, export, a11y) */
+.demo-layout-aside {
+  display: grid;
+  grid-template-columns: 1fr minmax(200px, 240px);
+  gap: 1rem;
+  flex: 1;
+  min-height: 0;
+  align-items: stretch;
+}
+
+.demo-aside-panel {
+  background: linear-gradient(180deg, var(--surface-elevated) 0%, var(--surface) 100%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  align-self: start;
+  box-shadow: var(--shadow);
+}
+
+.demo-aside-panel h2,
+.demo-aside-panel h3 {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0 0 0.65rem;
+}
+
+.demo-aside-panel p {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  line-height: 1.55;
+  margin: 0 0 0.75rem;
+}
+
+.demo-aside-panel .demo-btn {
+  display: block;
+  width: 100%;
+  margin-bottom: 0.4rem;
+  text-align: left;
+}
+
+.demo-aside-panel label {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  display: block;
+  margin: 0.5rem 0 0.25rem;
+}
+
+.demo-aside-panel input[type='range'],
+.demo-aside-panel input[type='number'] {
+  width: 100%;
+}
+
+.demo-aside-panel kbd {
+  display: inline-block;
+  font-family: ui-monospace, 'Cascadia Code', monospace;
+  font-size: 0.7rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--surface-elevated);
+  color: var(--text);
+}
+
+.demo-aside-hint {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+  margin-top: 0.75rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--border);
+}
+
+.demo-aside-link {
+  display: block;
+  font-size: 0.75rem;
+  color: #93c5fd;
+  text-decoration: none;
+  margin: -0.2rem 0 0.35rem 0.25rem;
+}
+
+.demo-aside-link:hover {
+  text-decoration: underline;
+}
+
+.demo-json-output {
+  margin-top: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  background: #0a0f1a;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: ui-monospace, 'Cascadia Code', monospace;
+  font-size: 10px;
+  color: #94a3b8;
+  max-height: 200px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .demo-btn {
+    transition: none;
+  }
+
+  .cluster-status-dot.is-active {
+    animation: none;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-demo-theme='light']) {
+    color-scheme: dark;
+  }
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-demo-theme='dark']) {
+    color-scheme: light;
+  }
+}
+
+/* Split layout — sidebar + canvas (diagram, animation demos) */
+.demo-layout-split {
+  display: grid;
+  grid-template-columns: minmax(200px, 220px) 1fr;
+  gap: 1rem;
+  align-items: stretch;
+  min-height: 0;
+}
+
+.demo-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.85rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow-y: auto;
+  max-height: 100%;
+}
+
+.demo-sidebar h2 {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0 0 0.35rem;
+}
+
+.demo-sidebar .demo-btn {
+  width: 100%;
+  text-align: left;
+  justify-content: flex-start;
+}
+
+.demo-sidebar .demo-sidebar-actions {
+  margin-top: auto;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+/* Diagram studio — view-only showcase sidebar */
+.demo-diagram-sidebar {
+  gap: 0.65rem;
+}
+
+.demo-diagram-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.demo-diagram-group + .demo-diagram-group {
+  padding-top: 0.15rem;
+}
+
+.demo-diagram-info {
+  margin-top: auto;
+  padding: 0.75rem 0.8rem;
+  background: linear-gradient(145deg, rgba(28, 39, 64, 0.95) 0%, rgba(21, 29, 46, 0.98) 100%);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  border-left: 3px solid var(--accent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.demo-diagram-info__eyebrow {
+  display: block;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #93c5fd;
+  margin-bottom: 0.35rem;
+}
+
+.demo-diagram-info__title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  margin-bottom: 0.35rem;
+}
+
+.demo-diagram-info__desc {
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.demo-canvas-wrap.demo-canvas-diagram {
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 0%, rgba(59, 130, 246, 0.07) 0%, transparent 55%),
+    #0d1322;
+}
+
 .demo-log {
   padding: 0.65rem 0.85rem;
   background: #0a0f1a;
@@ -191,6 +430,46 @@ body {
 
   .demo-main {
     padding: 0.75rem;
+  }
+
+  .demo-layout-split {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  .demo-layout-aside {
+    grid-template-columns: 1fr;
+  }
+
+  .demo-aside-panel .demo-btn {
+    text-align: center;
+  }
+
+  .demo-sidebar {
+    flex-direction: row;
+    flex-wrap: wrap;
+    max-height: none;
+    padding: 0.65rem;
+  }
+
+  .demo-sidebar h2 {
+    width: 100%;
+  }
+
+  .demo-sidebar .demo-btn {
+    width: auto;
+    flex: 1 1 calc(50% - 0.25rem);
+    min-width: 7rem;
+    text-align: center;
+  }
+
+  .demo-sidebar .demo-sidebar-actions {
+    width: 100%;
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+    flex-direction: row;
+    flex-wrap: wrap;
   }
 
   .demo-options .demo-btn {
@@ -227,6 +506,27 @@ html.demo-embed .demo-options {
 }
 
 html.demo-embed .demo-log {
+  display: none;
+}
+
+html.demo-embed .demo-layout-aside {
+  grid-template-columns: 1fr minmax(168px, 200px);
+  gap: 0.5rem;
+}
+
+html.demo-embed .demo-aside-panel {
+  padding: 0.65rem;
+  align-self: stretch;
+  overflow-y: auto;
+}
+
+html.demo-embed .demo-aside-panel .demo-btn {
+  font-size: 0.75rem;
+  padding: 0.35rem 0.55rem;
+  margin-bottom: 0.3rem;
+}
+
+html.demo-embed .demo-aside-hint {
   display: none;
 }
 
@@ -507,4 +807,63 @@ html.demo-embed .chart-catalog-wrap {
 html.demo-embed .demo-section-pills .demo-btn {
   font-size: 0.75rem;
   padding: 0.35rem 0.65rem;
+}
+
+/* UI catalog — Storybook-style variant grid (demo-ui-catalog.html) */
+.catalog-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 2px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.catalog-tile {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.catalog-tile h3 {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: ui-monospace, monospace;
+  color: var(--text-muted);
+  text-transform: lowercase;
+}
+
+.catalog-stage {
+  min-height: 88px;
+  border-radius: 8px;
+  background: #f1f5f9;
+  overflow: hidden;
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+}
+
+.catalog-stage > * {
+  flex: 1;
+  width: 100%;
+  min-height: 88px;
+}
+
+.catalog-variant-label {
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+}
+
+@media (max-width: 640px) {
+  .catalog-grid {
+    grid-template-columns: 1fr;
+  }
 }

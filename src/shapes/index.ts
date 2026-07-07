@@ -163,7 +163,7 @@ export class Arc extends Node {
     const dy = localY - cy;
     const dist = Math.hypot(dx, dy);
     if (dist > this.radius || dist < this.innerRadius) return false;
-    let angle = Math.atan2(dy, dx);
+    const angle = Math.atan2(dy, dx);
     const start = this.startAngle;
     const end = this.endAngle;
     if (this.counterClockwise) {

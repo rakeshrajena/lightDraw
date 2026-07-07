@@ -721,7 +721,12 @@ registerDashboard('chartPanel', (props, app) => {
     );
   }
 
-  const { chartType: _ct, title: _t, width: _w, height: _h, maximizable: _m, ...chartProps } = props;
+  const chartProps = { ...props };
+  delete chartProps.chartType;
+  delete chartProps.title;
+  delete chartProps.width;
+  delete chartProps.height;
+  delete chartProps.maximizable;
   const chart = createDashboardFromJSON(
     chartType,
     {

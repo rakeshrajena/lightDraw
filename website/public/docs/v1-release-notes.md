@@ -1,6 +1,6 @@
 # LightDraw.js v1.0.0 Release Notes
 
-**Release date:** TBD (after manual verification)  
+**Release date:** 2026-07-08  
 **npm:** `lightdraw@1.0.0`  
 **GitHub:** [rakeshrajena/lightDraw](https://github.com/rakeshrajena/lightDraw)
 
@@ -20,7 +20,8 @@ v1.0.0 is the first **production** release of LightDraw.js — a zero-dependency
 | **Automotive** | Instrument cluster, TPMS, CAN viewer, drive simulation |
 | **Diagram** | Flowchart, state machine, mind map, network, force layout, smart routing |
 | **Export** | PNG, JPEG, SVG, PDF, HTML, JSON via `app.export()` |
-| **Docs** | Guides, TypeDoc API, Vite playground, Playwright visual regression |
+| **UI polish** | Design tokens, 8 theme presets, `lightdraw.min.css`, legacy ES5 UI |
+| **Docs** | Guides (theme, responsive, legacy UI), TypeDoc API, playground, visual regression |
 
 ## Migration from v0.1.x
 
@@ -74,12 +75,13 @@ None intentional since v0.2.0 modular architecture. If you pinned `0.1.0`:
 | Bundle | Size gate |
 |--------|-----------|
 | Core | ≤ 26 KB |
-| Full | ≤ 54 KB |
-| HTML plugin | ≤ 17 KB |
-| UI plugin | ≤ 11 KB |
-| Dashboard / Automotive | ≤ 12 KB each |
-| Diagram | ≤ 10 KB |
-| SVG plugin | ≤ 10 KB |
+| Full | ≤ 105 KB |
+| HTML plugin | ≤ 19 KB |
+| UI plugin | ≤ 12 KB |
+| SVG plugin | ≤ 11 KB |
+| Dashboard | ≤ 34 KB |
+| Automotive | ≤ 31 KB |
+| Diagram | ≤ 17 KB |
 
 Original aspirational targets (8 KB core / 25 KB full) are documented in `IMPLEMENTATION_PLAN.md` as deferred goals.
 
@@ -100,6 +102,9 @@ Original aspirational targets (8 KB core / 25 KB full) are documented in `IMPLEM
 
 - [Documentation](./README.md)
 - [Getting Started](./getting-started.md)
+- [UI theme guide](./ui-theme-guide.md)
+- [Responsive layout](./responsive-guide.md)
+- [Legacy UI & CSS](./legacy-ui-guide.md)
 - [Versioning policy](./VERSIONING.md)
 - [Release workflow](./RELEASE.md)
 

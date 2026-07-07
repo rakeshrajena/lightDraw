@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (Phase UI-10 — Documentation & release)
+
+- `docs/responsive-guide.md` — breakpoints, fluid layouts, `fullWidth`, `autoResize`
+- `docs/legacy-ui-guide.md` — ES5 + CSS compatibility table for HTML UI
+- `examples/demo-ui-catalog.html` — Storybook-style gallery of all UI variants
+- `test/ui10-docs.test.ts` — doc presence, catalog page, theme/responsive snippets
+- README screenshot refresh via `npm run screenshots:readme`
+
+### Added (Phase UI-9 — Cross-module polish & legacy)
+
+- Shared `demo-common.css` aside layout, embed mode, reduced-motion, dark `color-scheme`
+- `demo.html` migrated to shared demo shell; animation/export/a11y aside panels
+- Playground responsive iframe heights (`clamp()` in `website/public/styles.css`)
+- `test/ui9-cross-module.test.ts` — all 8 playground demos use shared shell
+- Extended `test/phase12-legacy.test.ts` — 17 UI components on legacy bundle
+- Visual smoke: ui, diagram, export, a11y golden screenshots
+
+### Added (Phase UI-8 — Diagram module polish)
+
+- `src/diagram/chrome.ts` — shared card chrome (sheen, accent bar, caption pills)
+- Professional primitives per diagram type (flowchart, state machine, network, CAN, etc.)
+- `demo-diagram.html` — view-only showcase with grouped sidebar and info panel
+
+### Added (Phase UI-7 — Automotive module polish)
+
+- Instrument cluster chrome, themed gauges, responsive cluster toolbar
+- `demo-automotive.html` — widget catalog tab, live drive simulation, embed layout
+
 ### Added (Phase UI-6 — Dashboard module)
 
 - `resolveDashboardTheme()` — merge UI theme tokens into dashboard palette
@@ -135,6 +163,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Line coverage gate: ≥92% → **≥94%** (Phase 11 gate)
 - `examples/demo-animation.html` — static auto-start frame for gallery/visual tests
 - CI: Phase 11 tests, Playwright install, visual regression suite
+
+## [1.0.0] - 2026-07-08
+
+### Summary — UI polish program complete
+
+LightDraw **v1.0.0** completes the phased UI beautification program (UI-0 through UI-10): design tokens, 17 HTML/canvas UI components, dashboard and automotive widgets, diagram chrome, cross-demo consistency, legacy ES5 hardening, and documentation for themes, responsive layout, and legacy CSS targets.
+
+**Highlights:**
+
+- `lightdraw.min.css` — single stylesheet for polished HTML renderer UI
+- `app.setUiTheme({ preset })` — eight presets, no mandatory custom CSS
+- Playground + 8 demo pages synced (`npm run prepare:website`)
+- Legacy bundle renders all UI components on HTML renderer (`test/phase12-legacy.test.ts`)
+- Guides: [ui-theme](./docs/ui-theme-guide.md), [responsive](./docs/responsive-guide.md), [legacy UI](./docs/legacy-ui-guide.md)
+- Visual regression: 8 golden scenes (`npm run test:ci:visual`)
+
+See [Unreleased] above for per-phase detail. Migration from v0.9: no breaking API changes; demos and CSS tokens are additive.
 
 ## [0.9.0] - 2026-07-05
 

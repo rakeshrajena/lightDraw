@@ -9,7 +9,6 @@ export function stepPoints(
     if (i === 0) {
       pts.push(x, y);
     } else {
-      const [px] = toXY(i - 1, data[i - 1]);
       pts.push(x, data[i - 1] !== undefined ? toXY(i - 1, data[i - 1])[1] : y);
       pts.push(x, y);
     }

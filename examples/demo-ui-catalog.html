@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LightDraw — UI Component Catalog</title>
+  <script src="demo-embed.js"></script>
+  <link rel="stylesheet" href="demo-common.css">
+  <link rel="stylesheet" href="../dist/lightdraw.min.css">
+</head>
+<body>
+  <div class="demo-shell">
+    <header class="demo-header">
+      <span class="demo-badge">UI Catalog</span>
+      <h1>Component &amp; Variant Gallery</h1>
+      <p>All 17 UI components with primary variants — HTML renderer, design tokens from <code>lightdraw.min.css</code>.</p>
+    </header>
+    <main class="demo-main">
+      <div class="demo-options">
+        <div class="demo-toolbar" id="theme-gallery" role="group" aria-label="Theme presets"></div>
+        <a class="demo-btn secondary" href="demo-ui.html">Interactive demo →</a>
+      </div>
+      <div class="catalog-grid" id="catalog-grid"></div>
+    </main>
+  </div>
+  <script src="../dist/lightdraw.min.js"></script>
+  <script>
+    const THEME_OPTIONS = [
+      { id: 'default', label: 'Light' },
+      { id: 'dark', label: 'Dark' },
+      { id: 'violet', label: 'Violet' },
+      { id: 'emerald', label: 'Emerald' },
+    ];
+
+    let activeTheme = 'default';
+
+    /** @type {Array<{ type: string, label: string, height: number, props: Record<string, unknown> }>} */
+    const CATALOG = [
+      { type: 'button', label: 'primary', height: 56, props: { label: 'Save', variant: 'primary', x: 12, y: 12 } },
+      { type: 'button', label: 'secondary / danger', height: 56, props: { label: 'Delete', variant: 'danger', x: 12, y: 12 } },
+      { type: 'label', label: 'section', height: 40, props: { text: 'Section title', x: 12, y: 10 } },
+      { type: 'input', label: 'default', height: 72, props: { label: 'Email', placeholder: 'you@example.com', x: 12, y: 8, width: 240 } },
+      { type: 'input', label: 'invalid', height: 88, props: { label: 'Code', invalid: true, error: 'Required', x: 12, y: 8, width: 240 } },
+      { type: 'textarea', label: 'rows', height: 100, props: { label: 'Notes', rows: 3, x: 12, y: 8, width: 240 } },
+      { type: 'checkbox', label: 'checked', height: 40, props: { label: 'Agree to terms', checked: true, x: 12, y: 10 } },
+      { type: 'toggle', label: 'on', height: 40, props: { label: 'Enabled', value: true, x: 12, y: 10 } },
+      { type: 'radio', label: 'selected', height: 36, props: { label: 'Option A', selected: true, group: 'cat', x: 12, y: 10 } },
+      { type: 'slider', label: 'value 60', height: 56, props: { value: 60, width: 220, x: 12, y: 8 } },
+      { type: 'progressBar', label: '72%', height: 48, props: { value: 72, width: 220, x: 12, y: 14 } },
+      { type: 'card', label: 'elevated', height: 100, props: { title: 'Metrics', subtitle: 'Live', elevated: true, width: 240, height: 88, x: 8, y: 6 } },
+      { type: 'tabs', label: '3 tabs', height: 72, props: { tabs: ['Overview', 'Logs', 'Settings'], activeIndex: 0, width: 240, x: 8, y: 16 } },
+      { type: 'accordion', label: 'open', height: 120, props: { sections: [{ title: 'Details', content: 'Expanded panel' }], width: 240, x: 8, y: 8 } },
+      { type: 'toolbar', label: 'actions', height: 48, props: { items: ['New', 'Save', '|', 'Export'], width: 240, x: 8, y: 8 } },
+      { type: 'statusBar', label: 'segments', height: 36, props: { segments: ['Ready', 'Line 42', 'UTF-8'], primaryIndex: 0, width: 240, x: 8, y: 6 } },
+      { type: 'table', label: '3 rows', height: 120, props: { columns: ['Name', 'Status'], rows: [['Alpha', 'OK'], ['Beta', 'Warn'], ['Gamma', 'OK']], width: 240, height: 108, x: 8, y: 6 } },
+      { type: 'tree', label: 'nested', height: 120, props: { nodes: [{ label: 'src', children: [{ label: 'App.ts' }, { label: 'theme.ts' }] }], width: 240, height: 108, x: 8, y: 6 } },
+      { type: 'menu', label: 'open', height: 100, props: { items: ['Edit', 'Copy', 'Delete'], itemVariants: ['', '', 'danger'], open: true, width: 160, x: 12, y: 12 } },
+      { type: 'tooltip', label: 'visible', height: 56, props: { text: 'Helpful hint', visible: true, placement: 'top', x: 12, y: 20 } },
+      { type: 'toast', label: 'success', height: 56, props: { message: 'Saved successfully', variant: 'success', x: 12, y: 12 } },
+      { type: 'dialog', label: 'open', height: 140, props: { title: 'Confirm', open: true, width: 220, height: 120, x: 20, y: 10 } },
+    ];
+
+    const apps = [];
+
+    function buildThemeGallery() {
+      const host = document.getElementById('theme-gallery');
+      host.innerHTML = '';
+      THEME_OPTIONS.forEach(({ id, label }) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'demo-btn secondary' + (id === activeTheme ? ' is-active' : '');
+        btn.textContent = label;
+        btn.addEventListener('click', () => {
+          activeTheme = id;
+          buildThemeGallery();
+          mountCatalog();
+        });
+        host.appendChild(btn);
+      });
+    }
+
+    function destroyApps() {
+      while (apps.length) {
+        try {
+          apps.pop().destroy();
+        } catch (_) {
+          /* ignore */
+        }
+      }
+    }
+
+    function mountCatalog() {
+      destroyApps();
+      const grid = document.getElementById('catalog-grid');
+      grid.innerHTML = '';
+
+      CATALOG.forEach((entry) => {
+        const tile = document.createElement('article');
+        tile.className = 'catalog-tile';
+        tile.innerHTML =
+          '<h3>' +
+          entry.type +
+          '</h3>' +
+          '<span class="catalog-variant-label">' +
+          entry.label +
+          '</span>' +
+          '<div class="catalog-stage"></div>';
+        grid.appendChild(tile);
+
+        const stage = tile.querySelector('.catalog-stage');
+        const h = entry.height;
+        const app = LightDraw.createApp(stage, {
+          width: 264,
+          height: h,
+          background: '#f1f5f9',
+          renderer: 'html',
+          uiTheme: { preset: activeTheme },
+          autoResize: false,
+        });
+        const node = LightDraw.createComponentFromJSON(entry.type, entry.props, app);
+        if (node) app.add(node);
+        app.render();
+        apps.push(app);
+      });
+    }
+
+    buildThemeGallery();
+    mountCatalog();
+  </script>
+</body>
+</html>
