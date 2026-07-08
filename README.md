@@ -1,207 +1,195 @@
 <p align="center">
-  <img src="docs/images/logo.svg" alt="LightDraw logo" width="96" height="96" />
+  <img src="https://raw.githubusercontent.com/rakeshrajena/lightDraw/main/docs/images/logo.svg" alt="LightDraw logo" width="96" height="96" />
 </p>
 
 <h1 align="center">LightDraw.js</h1>
 
 <p align="center">
   <strong>Ultra-lightweight, production-ready 2D graphics and UI engine for the web.</strong><br/>
-  Build dashboards, automotive instrument clusters, diagrams, and interactive UIs — with zero dependencies.
+  Dashboards, automotive clusters, diagrams, and interactive UI — zero dependencies.
+</p>
+
+<p align="center">
+  <a href="https://www.npmjs.com/package/lightdraw"><img src="https://img.shields.io/npm/v/lightdraw.svg" alt="npm version" /></a>
+  <a href="https://www.npmjs.com/package/lightdraw"><img src="https://img.shields.io/npm/dm/lightdraw.svg" alt="npm downloads" /></a>
+  <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" />
+  <img src="https://img.shields.io/badge/deps-zero-success" alt="Zero dependencies" />
+  <img src="https://img.shields.io/badge/renderers-Canvas%20%7C%20SVG%20%7C%20HTML-64748b" alt="Renderers" />
 </p>
 
 <p align="center">
   <a href="https://github.com/rakeshrajena/lightDraw">GitHub</a>
   ·
-  <a href="./docs/getting-started.md">Documentation</a>
+  <a href="https://github.com/rakeshrajena/lightDraw#install">Install</a>
   ·
-  <a href="./docs/README.md">Docs index</a>
+  <a href="https://github.com/rakeshrajena/lightDraw/blob/main/docs/getting-started.md">Docs</a>
+  ·
+  <a href="https://github.com/rakeshrajena/lightDraw#ai--llm-integration">AI / JSON</a>
   ·
   <a href="https://www.npmjs.com/package/lightdraw">npm</a>
-</p>
-
-<p align="center">
-  <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" />
-  <img src="https://img.shields.io/badge/version-1.0.0-2563eb" alt="Version 1.0.0" />
-  <img src="https://img.shields.io/badge/deps-zero-success" alt="Zero dependencies" />
-  <img src="https://img.shields.io/badge/renderers-Canvas%20%7C%20SVG%20%7C%20HTML-64748b" alt="Renderers" />
 </p>
 
 ---
 
 ## What is LightDraw?
 
-**LightDraw** is a retained-mode 2D scene graph for browsers and embedded WebViews. It ships as small, tree-shakeable bundles and targets use cases where you need **real graphics performance** without pulling in React, D3, or a charting framework.
+**LightDraw** is a retained-mode 2D scene graph for browsers and embedded WebViews. Tree-shakeable bundles, three renderers (Canvas, SVG, HTML), and a **JSON-first API** for AI-generated dashboards, HMIs, and diagrams — without React, D3, or a charting framework.
 
-Use it when you want to:
+| Module | What you get |
+|--------|----------------|
+| **Core** | Shapes, animation, events, camera, layouts |
+| **UI** | 17 components (button, slider, dialog, table, …) + `lightdraw.min.css` |
+| **Dashboard** | Gauges, 82+ chart types, clocks, thermometers |
+| **Automotive** | 160 widgets, instrument cluster, TPMS, CAN, ADAS |
+| **Diagram** | 9 types — flowchart, state machine, UML, network, CAN bus |
+| **Export** | PNG, JPEG, SVG, PDF, JSON, offline HTML |
 
-- Render **live dashboards** (gauges, charts, clocks) on canvas or HTML
-- Build **automotive digital cockpits** with tachometers, TPMS, ADAS status, and themes
-- Draw **flowcharts, org charts, UML, and network diagrams** with smart connector routing
-- Ship **accessible UI components** (buttons, forms, tables, dialogs) via the HTML renderer
-- Load scenes from **JSON** — ideal for AI-generated UIs and low-code tools
-- Support **legacy ES5 browsers** in automotive and industrial embedded targets
+---
 
-**Repository:** [github.com/rakeshrajena/lightDraw](https://github.com/rakeshrajena/lightDraw)
-
-## Screenshots
-
-Full demo pages at 1280×800 — header, controls, and canvas included (not cropped).
-
-### Dashboard widgets
-
-Live gauges, line charts, progress bars, and status cards — interactive hover tooltips included.
-
-<p align="center">
-  <img src="docs/images/dashboard.png" alt="LightDraw dashboard widgets — gauges and charts" width="100%" />
-</p>
-
-### Automotive instrument cluster
-
-Full digital cockpit with speedometer, tachometer, fuel, TPMS (FL/FR/RL/RR), and warning lamps.
-
-<p align="center">
-  <img src="docs/images/automotive.png" alt="LightDraw automotive instrument cluster" width="100%" />
-</p>
-
-### Diagram module
-
-Flowcharts, state machines, class diagrams, mind maps, and network topology with routed connectors.
-
-<p align="center">
-  <img src="docs/images/diagram.png" alt="LightDraw diagram module — flowchart and network" width="100%" />
-</p>
-
-### UI component library
-
-17 built-in components with professional CSS theming — buttons, forms, tabs, tables, dialogs, and more.
-
-<p align="center">
-  <img src="docs/images/ui-components.png" alt="LightDraw UI component library" width="100%" />
-</p>
-
-### Animation engine
-
-Timelines, easing, motion paths, and stagger — no GSAP or third-party animation library required.
-
-<p align="center">
-  <img src="docs/images/animation.png" alt="LightDraw animation demo" width="100%" />
-</p>
-
-> Regenerate screenshots after UI changes: `npm run screenshots:readme`
-
-## Features
-
-- **Zero dependencies** — no React, jQuery, GSAP, or other libraries required
-- **Multiple renderers** — Canvas, SVG, and HTML/CSS with automatic detection
-- **Retained-mode scene graph** — unlimited nesting, transforms, clipping, shadows
-- **Animation engine** — timelines, easing, chaining (no third-party libs)
-- **Event system** — pointer, touch, drag, keyboard with optimized hit testing
-- **Camera** — pan, zoom, rotate, follow object, coordinate conversion
-- **Layout engine** — grid, stack, flex, flow, tree, circular layouts
-- **UI components** — button, card, slider, progress bar, toggle, and more
-- **Dashboard widgets** — charts, gauges, speedometer, clock, battery
-- **Automotive module** — instrument cluster, tachometer, ADAS, warning lamps
-- **Diagram module** — flowcharts, org charts, connector routing
-- **AI-friendly JSON** — load and export scenes as JSON definitions
-- **Plugin system** — extend with custom components, renderers, themes
-- **Legacy browser support** — ES5 build for embedded/automotive browsers
-
-## Quick Start
-
-### CDN
-
-```html
-<div id="app"></div>
-<script src="https://cdn.jsdelivr.net/npm/lightdraw/dist/lightdraw.min.js"></script>
-<script>
-  const app = LightDraw.createApp('#app', { width: 800, height: 600 });
-
-  const circle = app.circle({ x: 200, y: 200, radius: 60, fill: '#2563eb' });
-  app.add(circle);
-
-  circle.animate({ x: 500, rotation: 360, duration: 1200, easing: 'easeOutBounce' });
-</script>
-```
-
-### npm
+## Install
 
 ```bash
 npm install lightdraw
 ```
 
-```javascript
-import LightDraw from 'lightdraw';
-
-const app = LightDraw.createApp('#app');
-const rect = app.rect({ width: 100, height: 50, fill: '#ef4444' });
-app.add(rect);
-```
-
-### Modular imports (v0.4+)
-
-Load only what you need — smaller bundles and faster startup:
-
-```javascript
-import LightDraw from 'lightdraw/core';
-import svgPlugin from 'lightdraw/svg';
-import htmlPlugin from 'lightdraw/html';
-import uiPlugin from 'lightdraw/ui';
-
-LightDraw.use(svgPlugin);
-LightDraw.use(htmlPlugin);
-LightDraw.use(uiPlugin);
-
-const app = LightDraw.createApp('#app', { renderer: 'html' });
-```
-
-| Subpath | Bundle | Contents |
-|---------|--------|----------|
-| `lightdraw/core` | `lightdraw.core.min.js` | App, shapes, canvas, animation, events |
-| `lightdraw/svg` | `lightdraw.svg.min.js` | SVG renderer plugin |
-| `lightdraw/html` | `lightdraw.html.min.js` | HTML renderer plugin |
-| `lightdraw/ui` | `lightdraw.ui.min.js` | UI components |
-| `lightdraw/dashboard` | `lightdraw.dashboard.min.js` | Dashboard widgets |
-| `lightdraw/automotive` | `lightdraw.automotive.min.js` | Automotive widgets |
-| `lightdraw/diagram` | `lightdraw.diagram.min.js` | Diagram module |
-| `lightdraw` | `lightdraw.min.js` | Full bundle (all modules, backward compatible) |
-
-Each bundle also ships an ES5 `.legacy.js` variant for embedded browsers.
+**CDN (full bundle + CSS for HTML UI):**
 
 ```html
-<!-- Core + HTML plugin via CDN -->
-<script src="https://cdn.jsdelivr.net/npm/lightdraw/dist/lightdraw.core.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/lightdraw/dist/lightdraw.html.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lightdraw@1/dist/lightdraw.min.css">
+<div id="app"></div>
+<script src="https://cdn.jsdelivr.net/npm/lightdraw@1/dist/lightdraw.min.js"></script>
 <script>
-  LightDraw.use(LightDrawHtml.default);
-  const app = LightDraw.createApp('#app', { renderer: 'html' });
+  const app = LightDraw.createApp('#app', { width: 800, height: 600, renderer: 'html' });
+  app.loadJSON({ type: 'button', props: { label: 'Hello', x: 40, y: 40 } });
 </script>
 ```
 
+**ESM (tree-shake plugins):**
+
+```javascript
+import LightDraw from 'lightdraw';
+// or: import LightDraw from 'lightdraw/core' + LightDraw.use(uiPlugin)
+
+const app = LightDraw.createApp('#app', { renderer: 'html' });
+app.add(app.circle({ x: 120, y: 120, radius: 48, fill: '#2563eb' }));
+app.render();
+```
+
+**TypeScript:** types ship in `dist/index.d.ts`. Subpath types: `lightdraw/core`, `lightdraw/ui`, `lightdraw/dashboard`, etc.
+
+**Legacy / WebView:** `import 'lightdraw/legacy'` or `dist/lightdraw.legacy.js` (ES5 UMD).
+
+---
+
+## Quick example
+
+```javascript
+import LightDraw from 'lightdraw';
+
+const app = LightDraw.createApp('#app', { width: 800, height: 500, background: '#0d1322' });
+const ball = app.circle({ x: 100, y: 250, radius: 28, fill: '#3b82f6', draggable: true });
+app.add(ball);
+ball.animate({ x: 650, duration: 2000, easing: 'easeInOutCubic', loop: true, reverse: true });
+```
+
+Load a dashboard from JSON:
+
+```javascript
+app.loadJSON({
+  type: 'group',
+  children: [
+    { type: 'speedometer', props: { value: 95, size: 160, x: 40, y: 40 } },
+    { type: 'lineChart', props: { data: [20, 45, 30, 60, 55, 80], width: 320, height: 140, x: 240, y: 50 } },
+    { type: 'gauge', props: { value: 68, size: 100, x: 600, y: 60 } },
+  ],
+});
+```
+
+---
+
+## Screenshots
+
+Full demo pages at 1280×800 (playground + examples on GitHub).
+
+### Dashboard
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/rakeshrajena/lightDraw/main/docs/images/dashboard.png" alt="LightDraw dashboard — gauges and charts" width="100%" />
+</p>
+
+### Automotive cluster
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/rakeshrajena/lightDraw/main/docs/images/automotive.png" alt="LightDraw automotive instrument cluster" width="100%" />
+</p>
+
+### Diagrams
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/rakeshrajena/lightDraw/main/docs/images/diagram.png" alt="LightDraw diagrams — flowchart and network" width="100%" />
+</p>
+
+### UI components
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/rakeshrajena/lightDraw/main/docs/images/ui-components.png" alt="LightDraw UI component library" width="100%" />
+</p>
+
+### Animation
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/rakeshrajena/lightDraw/main/docs/images/animation.png" alt="LightDraw animation demo" width="100%" />
+</p>
+
+---
+
+## Modular bundles
+
+| npm import | File | Gzip (approx.) |
+|------------|------|----------------|
+| `lightdraw` | `lightdraw.min.js` | ~101 KB |
+| `lightdraw/core` | `lightdraw.core.min.js` | ~26 KB |
+| `lightdraw/html` | `lightdraw.html.min.js` | ~18 KB |
+| `lightdraw/ui` | `lightdraw.ui.min.js` | ~11 KB |
+| `lightdraw/svg` | `lightdraw.svg.min.js` | ~10 KB |
+| `lightdraw/dashboard` | `lightdraw.dashboard.min.js` | ~32 KB |
+| `lightdraw/automotive` | `lightdraw.automotive.min.js` | ~29 KB |
+| `lightdraw/diagram` | `lightdraw.diagram.min.js` | ~15 KB |
+
+Each bundle has a matching `*.legacy.js` (ES5) build. CSS: `dist/lightdraw.min.css`.
+
+```javascript
+import LightDraw from 'lightdraw/core';
+import htmlPlugin from 'lightdraw/html';
+import uiPlugin from 'lightdraw/ui';
+
+LightDraw.use(htmlPlugin);
+LightDraw.use(uiPlugin);
+
+const app = LightDraw.createApp('#app', {
+  renderer: 'html',
+  uiTheme: { preset: 'dark' },
+});
+```
+
+---
+
 ## AI & LLM Integration
 
-LightDraw is **JSON-first**: an LLM outputs a scene tree, you validate it, call `app.loadJSON()`, and get a live dashboard, form, diagram, or HMI — no React/Vue code generation required.
+LightDraw is **JSON-first**: an LLM outputs a scene tree → `validateSceneJSON` → `app.loadJSON()` → live UI. No React/Vue codegen.
 
 ```
-User prompt  →  LLM (with schema docs)  →  scene JSON  →  validateSceneJSON  →  app.loadJSON()  →  canvas / HTML UI
+Prompt → LLM + schema docs → scene JSON → validate → loadJSON → canvas / HTML
 ```
 
-### Drop-in host page
-
-Give agents a minimal HTML shell; they only need to produce the JSON payload:
+**Minimal host page (CDN):**
 
 ```html
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lightdraw/dist/lightdraw.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lightdraw@1/dist/lightdraw.min.css">
 <div id="app"></div>
-<script src="https://cdn.jsdelivr.net/npm/lightdraw/dist/lightdraw.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/lightdraw@1/dist/lightdraw.min.js"></script>
 <script>
-  const app = LightDraw.createApp('#app', {
-    width: 960,
-    height: 540,
-    renderer: 'html',
-    background: '#0d1322',
-  });
-
-  // Replace with LLM-generated scene (or fetch from your API)
+  const app = LightDraw.createApp('#app', { width: 960, height: 540, renderer: 'html', background: '#0d1322' });
   const scene = {
     type: 'group',
     children: [
@@ -211,175 +199,106 @@ Give agents a minimal HTML shell; they only need to produce the JSON payload:
       { type: 'button', props: { label: 'Acknowledge', variant: 'primary', x: 480, y: 200 } },
     ],
   };
-
-  const result = LightDraw.validateSceneJSON(scene);
-  if (!result.valid) {
-    console.error(result.errors);
-  } else {
-    app.loadJSON(scene);
-    app.setUiTheme({ preset: 'dark' });
-  }
+  const { valid, errors } = LightDraw.validateSceneJSON(scene);
+  if (valid) { app.loadJSON(scene); app.setUiTheme({ preset: 'dark' }); }
+  else console.error(errors);
 </script>
 ```
 
-### Example scenes by domain
+**Schema catalogs (attach to LLM context):**
 
-**Dashboard** — gauges, charts, clocks ([schema](./docs/dashboard-widgets-schema.md)):
+| Domain | Doc on GitHub |
+|--------|----------------|
+| UI (17 components) | [ui-components-schema.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/ui-components-schema.md) |
+| Dashboard | [dashboard-widgets-schema.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/dashboard-widgets-schema.md) |
+| Automotive | [automotive-widgets-schema.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/automotive-widgets-schema.md) |
+| Diagram | [diagram-module-schema.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/diagram-module-schema.md) |
 
-```javascript
-app.loadJSON({
-  type: 'group',
-  children: [
-    { type: 'speedometer', props: { value: 95, size: 160, x: 40, y: 40 } },
-    { type: 'lineChart', props: { data: [20, 45, 30, 60, 55, 80], width: 320, height: 140, x: 240, y: 50 } },
-    { type: 'battery', props: { value: 82, x: 600, y: 80 } },
-  ],
-});
+Full guide: [docs/ai-integration-guide.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/ai-integration-guide.md)
+
+**System prompt snippet:**
+
+```text
+Generate LightDraw scene JSON only.
+Root: { "type": "group", "children": [...] }
+Each child: { "type": "<widget>", "props": { "x", "y", ... } }
+Use only types from the schema catalog. Colors: #rrggbb. No JS. No markdown fences.
 ```
 
-**UI form** — buttons, inputs, toggles ([schema](./docs/ui-components-schema.md)):
+---
 
-```javascript
-app.loadJSON({
-  type: 'group',
-  children: [
-    { type: 'input', props: { label: 'Email', placeholder: 'you@example.com', fullWidth: true, x: 24, y: 24, width: 320 } },
-    { type: 'checkbox', props: { label: 'Subscribe to updates', checked: true, x: 24, y: 88 } },
-    { type: 'button', props: { label: 'Submit', variant: 'primary', x: 24, y: 132 } },
-  ],
-});
-```
+## Live demos & playground
 
-**Diagram** — flowcharts, state machines, networks ([schema](./docs/diagram-module-schema.md)):
+Clone the [GitHub repo](https://github.com/rakeshrajena/lightDraw) for interactive HTML demos:
 
-```javascript
-app.loadJSON({
-  type: 'flowchart',
-  props: {
-    data: {
-      nodes: [
-        { id: 'start', label: 'Start', type: 'start' },
-        { id: 'check', label: 'Valid?', type: 'decision' },
-        { id: 'end', label: 'Done', type: 'end' },
-      ],
-      edges: [
-        { from: 'start', to: 'check' },
-        { from: 'check', to: 'end', label: 'yes' },
-      ],
-    },
-  },
-});
-```
-
-### Prompt the model
-
-Attach the relevant schema doc to context, then use a system rule like:
-
-```
-You generate LightDraw scene JSON only.
-- Root: { "type": "group", "children": [...] } unless a single diagram widget is requested.
-- Each child: { "type": "<widget>", "props": { "x", "y", ... } }
-- Use only types from the provided schema catalog.
-- Colors as #rrggbb hex. No JavaScript. No markdown fences in the JSON output.
-```
-
-Validate, render, and round-trip:
-
-```javascript
-const json = app.exportJSON();
-app.clear();
-app.loadJSON(json);
-LightDraw.scenesEqual(json, app.exportJSON()); // stable widgets round-trip
-```
-
-Export for review or sharing: `app.export({ format: 'html' })` or `app.export({ format: 'json', validate: true })`.
-
-### Schema catalogs (give these to your LLM)
-
-| Domain | Types | Schema |
-|--------|-------|--------|
-| UI | 17 components (button, slider, dialog, table, …) | [ui-components-schema.md](./docs/ui-components-schema.md) |
-| Dashboard | Gauges, charts, clock, thermometer, … | [dashboard-widgets-schema.md](./docs/dashboard-widgets-schema.md) |
-| Automotive | Cluster, TPMS, CAN, ADAS, … | [automotive-widgets-schema.md](./docs/automotive-widgets-schema.md) |
-| Diagram | Flowchart, state machine, UML, network, … | [diagram-module-schema.md](./docs/diagram-module-schema.md) |
-
-Full guide: **[docs/ai-integration-guide.md](./docs/ai-integration-guide.md)** — prompt templates, validation, export pipeline.
-
-### Try it live
-
-| Demo | What to explore |
-|------|-----------------|
-| [examples/demo-dashboard.html](./examples/demo-dashboard.html) | Live widgets + 82 chart types |
-| [examples/demo-ui.html](./examples/demo-ui.html) | All 17 UI components + themes |
-| [examples/demo-ui-catalog.html](./examples/demo-ui-catalog.html) | Variant gallery for prompting |
-| [examples/demo-diagram.html](./examples/demo-diagram.html) | 9 diagram types |
-| [examples/demo-automotive.html](./examples/demo-automotive.html) | Instrument cluster + widgets |
-| Playground `npm run dev:website` | All demos embedded at http://localhost:5173 |
-
-```bash
-npm run build && npm run dev:website   # local playground
-```
-
-## Build Outputs
-
-| File | Description |
+| Demo | Description |
 |------|-------------|
-| `dist/lightdraw.core.min.js` | Core only (canvas, shapes, animation) |
-| `dist/lightdraw.svg.min.js` | SVG renderer plugin |
-| `dist/lightdraw.html.min.js` | HTML renderer plugin |
-| `dist/lightdraw.ui.min.js` | UI components plugin |
-| `dist/lightdraw.dashboard.min.js` | Dashboard widgets plugin |
-| `dist/lightdraw.automotive.min.js` | Automotive widgets plugin |
-| `dist/lightdraw.diagram.min.js` | Diagram module plugin |
-| `dist/lightdraw.esm.js` | Full ES Module build |
-| `dist/lightdraw.js` | Full UMD / IIFE (development) |
-| `dist/lightdraw.min.js` | Full UMD minified (CDN) |
-| `dist/*.legacy.js` | ES5 variants for each bundle |
-| `dist/index.d.ts` | TypeScript declarations (full) |
-| `dist/lightdraw.min.css` | HTML renderer styles |
-
-## Documentation & Playground
-
-| Resource | Path |
-|----------|------|
-| **Docs index** | [docs/README.md](./docs/README.md) |
-| Getting started | [docs/getting-started.md](./docs/getting-started.md) |
-| **AI integration** | [docs/ai-integration-guide.md](./docs/ai-integration-guide.md) |
-| UI theme / responsive / legacy UI | [docs/ui-theme-guide.md](./docs/ui-theme-guide.md) · [responsive](./docs/responsive-guide.md) · [legacy UI](./docs/legacy-ui-guide.md) |
-| Animation / Plugins / Performance | [docs/](./docs/) |
-| API reference | `npm run docs:api` → `docs/api/` |
-| Playground | `npm run dev:website` → http://localhost:5173 |
-| Examples | [examples/](./examples/) |
+| [demo-dashboard.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-dashboard.html) | Widgets + 82 chart types |
+| [demo-ui.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-ui.html) | 17 UI components + themes |
+| [demo-ui-catalog.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-ui-catalog.html) | Variant gallery for AI prompting |
+| [demo-diagram.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-diagram.html) | 9 diagram types |
+| [demo-automotive.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-automotive.html) | Instrument cluster |
 
 ```bash
-npm run docs:api        # TypeDoc API reference
-npm run dev:website     # Vite playground (build library first)
-npm run build:website   # Static site → website/dist/
-npm run screenshots:readme  # Refresh README demo images
-npm run ci:local        # Full local test + benchmark suite
+git clone https://github.com/rakeshrajena/lightDraw.git
+cd lightDraw && npm install && npm run build && npm run dev:website
+# → http://localhost:5173
 ```
+
+---
+
+## Documentation
+
+| Guide | Link |
+|-------|------|
+| Getting started | [docs/getting-started.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/getting-started.md) |
+| AI integration | [docs/ai-integration-guide.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/ai-integration-guide.md) |
+| UI themes | [docs/ui-theme-guide.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/ui-theme-guide.md) |
+| Responsive layout | [docs/responsive-guide.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/responsive-guide.md) |
+| Legacy ES5 + CSS | [docs/legacy-ui-guide.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/legacy-ui-guide.md) |
+| Export pipeline | [docs/export-pipeline.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/export-pipeline.md) |
+| v1.0 release notes | [docs/v1-release-notes.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/v1-release-notes.md) |
+| All docs | [docs/README.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/README.md) |
+
+---
+
+## Features
+
+- Zero runtime dependencies
+- Canvas, SVG, and HTML/CSS renderers
+- Retained-mode scene graph with transforms, clipping, shadows
+- Animation engine — timelines, easing, motion paths, stagger
+- Pointer, touch, drag, keyboard + ARIA / high-contrast mode
+- `app.setUiTheme({ preset })` — polished UI without custom CSS
+- `app.export()` — PNG, JPEG, SVG, PDF, JSON, HTML
+- Plugin architecture + ES5 legacy bundles for WebView / automotive
+
+---
+
+## Browser support
+
+Chromium 49+, Chrome, Firefox, Edge, Safari, Android WebView, embedded Chromium, automotive HMIs.
+
+Use `lightdraw.legacy.js` + `lightdraw.min.css` for ES5 targets.
+
+---
 
 ## Development
-
-See [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md) for the phased roadmap (quality, tests, performance, memory gates per phase).
-See [PROJECT_STATUS.md](./PROJECT_STATUS.md) for current feature status.
 
 ```bash
 npm install
 npm run build
 npm test
-npm run ci:local      # coverage, perf, phase tests, benchmarks
+npm run ci:local    # typecheck, lint, size gate, full tests, benchmarks
 ```
 
-## Browser Support
+See [IMPLEMENTATION_PLAN.md](https://github.com/rakeshrajena/lightDraw/blob/main/IMPLEMENTATION_PLAN.md) and [PROJECT_STATUS.md](https://github.com/rakeshrajena/lightDraw/blob/main/PROJECT_STATUS.md) on GitHub.
 
-Chromium 49+, Chrome, Firefox, Edge, Safari, Android WebView, embedded Chromium, automotive infotainment browsers.
-
-Use `lightdraw.legacy.js` for ES5 environments.
+---
 
 ## License
 
-MIT — see [LICENSE](./LICENSE).
+MIT — see [LICENSE](https://github.com/rakeshrajena/lightDraw/blob/main/LICENSE).
 
 ---
 
@@ -388,8 +307,7 @@ MIT — see [LICENSE](./LICENSE).
 **Rakesh Ranjan Jena**
 
 - Website: [rakeshranjanjena.com](https://rakeshranjanjena.com)
-- Blog: [rrjprince.com](https://www.rrjprince.com/)
-- LinkedIn: [linkedin.com/in/rrjprince](https://www.linkedin.com/in/rrjprince/)
 - GitHub: [github.com/rakeshrajena/lightDraw](https://github.com/rakeshrajena/lightDraw)
+- LinkedIn: [linkedin.com/in/rrjprince](https://www.linkedin.com/in/rrjprince/)
 
 Made with ❤️ for the web developer & AI community.
