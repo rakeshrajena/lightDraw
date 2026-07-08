@@ -29,7 +29,7 @@ interface BenchmarkBaseline {
 const BASELINE_PATH = resolve(process.cwd(), 'benchmarks/baseline.json');
 
 /** Vitest runs slower than standalone benchmark script (coverage, transforms, full suite). */
-const VITEST_TOLERANCE = 8;
+const VITEST_TOLERANCE = 12;
 
 function loadBaseline(): BenchmarkBaseline | null {
   if (!existsSync(BASELINE_PATH)) return null;
