@@ -79,7 +79,7 @@
     "test:visual": "playwright test",
     "test:visual:update": "playwright test --update-snapshots",
     "test:ci:full": "npm test -- --exclude test/perf.test.ts && npm run test:perf && npm run test:coverage -- --exclude test/perf.test.ts && npm run test:phase12 && npm run test:phase11 && npm run test:memory && npm test -- test/renderers/",
-    "test:ci:visual": "npm run build:website && playwright test",
+    "test:ci:visual": "npm run build:website && playwright test --project=chromium",
     "benchmark:local": "npm run benchmark && npm run benchmark:compare",
     "ci:local": "npm run typecheck && npm run lint && npm run build && npm run size-gate && npm run test:ci:full && npm run benchmark:local",
     "screenshots:readme": "npm run build && npm run build:website && node scripts/capture-readme-screenshots.mjs",
