@@ -87,8 +87,10 @@
   "docs:api": "typedoc",
   "prepare:website": "node scripts/prepare-website.mjs",
   "dev:website": "npm run prepare:website && vite --config website/vite.config.ts",
-  "build:website": "npm run prepare:website && vite build --config website/vite.config.ts",
-  "preview:website": "npm run build:website && vite preview --config website/vite.config.ts --port 4173 --strictPort --host 127.0.0.1",
+    "build:website": "npm run prepare:website && vite build --config website/vite.config.ts",
+    "build:website:pages": "GITHUB_PAGES=true npm run build:website",
+    "preview:website": "npm run build:website && vite preview --config website/vite.config.ts --port 4173 --strictPort --host 127.0.0.1",
+    "preview:website:pages": "npm run build:website:pages && vite preview --config website/vite.config.ts --port 4173 --strictPort --host 127.0.0.1",
   "size-gate": "node scripts/size-gate.mjs",
     "lint": "eslint src test --ext .ts",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -124,7 +126,7 @@
   ],
   "author": "Rakesh Ranjan Jena <https://rakeshranjanjena.com>",
   "license": "MIT",
-  "homepage": "https://github.com/rakeshrajena/lightDraw#readme",
+  "homepage": "https://rakeshrajena.github.io/lightDraw/",
   "bugs": {
     "url": "https://github.com/rakeshrajena/lightDraw/issues"
   },
