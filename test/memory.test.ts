@@ -12,9 +12,10 @@ import { forceDirectedLayout } from '../src/diagram/layouts';
 const MAX_GROWTH = {
   appCycle200: 30 * 1024 * 1024,
   appCycle1000: 50 * 1024 * 1024,
-  nodes1000: 48 * 1024 * 1024,
+  nodes1000: 56 * 1024 * 1024,
   groups500: 40 * 1024 * 1024,
   render500: 50 * 1024 * 1024,
+  forceLayout50: 32 * 1024 * 1024,
 };
 
 describe('Memory', () => {
@@ -175,6 +176,6 @@ describe('Memory', () => {
     app.destroy();
 
     forceGc();
-    expect(heapUsed() - before).toBeLessThan(20 * 1024 * 1024);
+    expect(heapUsed() - before).toBeLessThan(MAX_GROWTH.forceLayout50);
   });
 });

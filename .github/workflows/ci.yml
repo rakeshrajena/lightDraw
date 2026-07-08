@@ -31,4 +31,4 @@ jobs:
         run: npm run size-gate
 
       - name: Unit tests (excludes perf — run locally with ci:local)
-        run: npm test -- --exclude test/perf.test.ts
+        run: npm test
