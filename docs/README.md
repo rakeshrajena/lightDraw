@@ -1,6 +1,13 @@
 # LightDraw.js Documentation
 
-**Version:** 1.0.0
+<p align="center">
+  <a href="https://www.npmjs.com/package/lightdraw"><img src="https://img.shields.io/npm/v/lightdraw.svg" alt="npm version" /></a>
+  <a href="https://www.npmjs.com/package/lightdraw"><img src="https://img.shields.io/npm/dm/lightdraw.svg?label=downloads%2Fmonth" alt="npm downloads per month" /></a>
+  <a href="https://www.npmjs.com/package/lightdraw"><img src="https://img.shields.io/npm/dt/lightdraw.svg?label=total%20downloads" alt="npm total downloads" /></a>
+  <a href="https://github.com/rakeshrajena/lightDraw"><img src="https://img.shields.io/github/v/release/rakeshrajena/lightDraw?label=GitHub" alt="GitHub release" /></a>
+</p>
+
+**Version:** 1.0.0 · **Install:** `npm install lightdraw`
 
 ## Guides
 
