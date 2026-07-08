@@ -351,7 +351,8 @@ Full guide: [ai-integration-guide.md](https://github.com/rakeshrajena/lightDraw/
 
 | Demo | Link |
 |------|------|
-| Playground (all modules) | Clone repo → `npm run dev:website` → http://localhost:5173 |
+| **Live playground** | [rakeshrajena.github.io/lightDraw](https://rakeshrajena.github.io/lightDraw/) |
+| Local dev | `npm run dev:website` → http://localhost:5173 |
 | Dashboard + 82 charts | [demo-dashboard.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-dashboard.html) |
 | UI + themes | [demo-ui.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-ui.html) |
 | UI variant catalog (AI) | [demo-ui-catalog.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-ui-catalog.html) |

@@ -56,7 +56,7 @@ describe('Phase UI-9 — Cross-module demo polish', () => {
   it('website playground embeds all demo iframes', () => {
     const html = readFileSync(resolve(ROOT, 'website/index.html'), 'utf8');
     for (const file of PLAYGROUND_DEMOS.filter((f) => f !== 'demo.html')) {
-      expect(html).toContain(`/examples/${file}?embed=1`);
+      expect(html).toMatch(new RegExp(`(?:/|\\./)?examples/${file}\\?embed=1`));
     }
   });
 
