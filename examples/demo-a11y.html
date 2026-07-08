@@ -7,13 +7,6 @@
   <script src="demo-embed.js"></script>
   <link rel="stylesheet" href="demo-common.css">
   <link rel="stylesheet" href="../dist/lightdraw.min.css">
-  <style>
-    .a11y-layout { display: grid; grid-template-columns: 1fr 220px; gap: 1rem; flex: 1; min-height: 0; }
-    .a11y-aside { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; align-self: start; }
-    .a11y-aside p { font-size: 0.8125rem; color: var(--text-muted); line-height: 1.55; margin-bottom: 0.75rem; }
-    .a11y-aside .demo-btn { display: block; width: 100%; margin-bottom: 0.4rem; }
-    html.demo-embed .a11y-layout { grid-template-columns: 1fr 200px; gap: 0.5rem; }
-  </style>
 </head>
 <body>
   <div class="demo-shell">
@@ -22,16 +15,17 @@
       <h1>Keyboard &amp; ARIA</h1>
       <p>Focus management, roles, drag-and-drop targets, and high-contrast rendering.</p>
     </header>
-    <main class="demo-main a11y-layout">
+    <main class="demo-main demo-layout-aside">
       <div class="demo-canvas-wrap">
         <div id="app"></div>
       </div>
-      <aside class="a11y-aside">
+      <aside class="demo-aside-panel">
         <p>Use <kbd>Tab</kbd> / <kbd>Shift+Tab</kbd> to move focus.<br>
            <kbd>Enter</kbd> or <kbd>Space</kbd> activates buttons.<br>
            Drag the blue chip onto the green zone.</p>
-        <button class="demo-btn" onclick="toggleContrast()">Toggle High Contrast</button>
-        <button class="demo-btn secondary" onclick="resetDemo()">Reset</button>
+        <button type="button" class="demo-btn" onclick="toggleContrast()">Toggle High Contrast</button>
+        <button type="button" class="demo-btn secondary" onclick="resetDemo()">Reset</button>
+        <p class="demo-aside-hint">HTML renderer · focus rings from lightdraw.min.css</p>
       </aside>
     </main>
   </div>

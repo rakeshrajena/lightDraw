@@ -4,6 +4,7 @@ import type { Node } from '../Node';
 import { Rect, Circle, Ellipse, TextNode, Path, Line, Polyline, Arc, Polygon } from '../shapes/index';
 import { Matrix2D } from '../utils';
 import { isGradient, gradientToCss, shadowToCss } from './styles';
+import { arcSectorPath } from './arcSector';
 import { toHighContrastColor } from '../utils/a11y';
 import { applyUiTheme, type UiThemeTokens } from '../components/uiTheme';
 import {
@@ -51,9 +52,9 @@ export class HTMLRenderer extends Renderer {
     container.appendChild(this.root);
   }
 
-  /** Merge programmatic theme tokens (re-applied after each layout pass). */
+  /** Replace programmatic theme tokens (re-applied after each layout pass). */
   setUiTheme(tokens: UiThemeTokens): void {
-    this.uiTheme = { ...this.uiTheme, ...tokens };
+    this.uiTheme = { ...tokens };
     this.applyThemeVars();
   }
 
@@ -73,8 +74,10 @@ export class HTMLRenderer extends Renderer {
     `;
     if (this.highContrast) {
       this.root.classList.add('lightdraw-high-contrast');
+      this.root.setAttribute('data-ld-high-contrast', 'true');
     } else {
       this.root.classList.remove('lightdraw-high-contrast');
+      this.root.removeAttribute('data-ld-high-contrast');
     }
     this.applyThemeVars();
   }
@@ -108,10 +111,15 @@ export class HTMLRenderer extends Renderer {
     this.root.remove();
   }
 
+  private shouldSyncWhenHidden(node: Node): boolean {
+    const t = node.metadata?.componentType as string | undefined;
+    return t === 'tooltip' || t === 'menu' || t === 'dialog';
+  }
+
   private syncGroup(group: Group, parent: HTMLElement): void {
     group.sortChildren();
     for (const child of group.children) {
-      if (!child.visible) continue;
+      if (!child.visible && !this.shouldSyncWhenHidden(child)) continue;
       this.syncNode(child, parent);
     }
   }
@@ -296,17 +304,26 @@ export class HTMLRenderer extends Renderer {
       transform: rotate(${node.rotation}deg) scale(${node.scaleX}, ${node.scaleY});
       transform-origin: top left;
       pointer-events: ${node.listening ? 'auto' : 'none'};
+      ${node.zIndex !== 0 ? `z-index: ${node.zIndex};` : ''}
       ${extra}
     `;
 
     this.applyShapeStyles(node, el);
+    if (node instanceof TextNode) {
+      this.applyTextBoxPosition(node, el);
+    }
     this.seenIds.add(node.id);
 
     if ('children' in node) {
       const bounds = (node as Group).getBounds();
+      const chartW = (node.metadata?.chartWidth ?? node.metadata?.autoWidth) as number | undefined;
+      const chartH = (node.metadata?.chartHeight ?? node.metadata?.autoHeight) as number | undefined;
       if (node.metadata?.componentType && bounds.width > 0) {
         el.style.width = `${bounds.width}px`;
         el.style.height = `${Math.max(bounds.height, 1)}px`;
+      } else if (chartW && chartW > 0) {
+        el.style.height = `${Math.max(chartH ?? chartW, 1)}px`;
+        el.style.width = `${chartW}px`;
       }
 
       let inner = this.innerContainers.get(node.id);
@@ -412,15 +429,11 @@ export class HTMLRenderer extends Renderer {
     } else if (node instanceof Arc) {
       const cx = node.radius + ox;
       const cy = node.radius + oy;
-      const r = node.radius;
-      const x1 = cx + r * Math.cos(node.startAngle);
-      const y1 = cy + r * Math.sin(node.startAngle);
-      const x2 = cx + r * Math.cos(node.endAngle);
-      const y2 = cy + r * Math.sin(node.endAngle);
-      const sweep = node.counterClockwise ? 0 : 1;
-      const large = Math.abs(node.endAngle - node.startAngle) > Math.PI ? 1 : 0;
       const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      path.setAttribute('d', `M ${x1} ${y1} A ${r} ${r} 0 ${large} ${sweep} ${x2} ${y2}`);
+      path.setAttribute(
+        'd',
+        arcSectorPath(cx, cy, node.radius, node.startAngle, node.endAngle, node.innerRadius, node.counterClockwise)
+      );
       path.setAttribute('stroke', strokeColor);
       path.setAttribute('stroke-width', sw);
       path.setAttribute('fill', fillColor);
@@ -451,6 +464,28 @@ export class HTMLRenderer extends Renderer {
     return this.highContrast ? toHighContrastColor(stroke, 'stroke') : stroke;
   }
 
+  private applyTextBoxPosition(node: TextNode, el: HTMLElement): void {
+    const boxW = node.metadata?.textBoxWidth as number | undefined;
+    const centerY = node.metadata?.textBoxCenterY as number | undefined;
+    if (boxW && boxW > 0 && node.textAlign === 'center') {
+      el.style.width = `${boxW}px`;
+      el.style.textAlign = 'center';
+      el.style.left = `${node.x - boxW / 2}px`;
+      if (centerY !== undefined) {
+        el.style.top = `${centerY - node.fontSize / 2}px`;
+        el.style.height = `${node.fontSize}px`;
+        el.style.lineHeight = `${node.fontSize}px`;
+      }
+      el.style.zIndex = String(Math.max(node.zIndex, 902));
+      return;
+    }
+    if (node.textAlign && node.textAlign !== 'left') {
+      el.style.textAlign = node.textAlign;
+      const b = node.getBounds();
+      el.style.width = `${Math.max(b.width, node.fontSize)}px`;
+    }
+  }
+
   private applyShapeStyles(node: Node, el: HTMLElement): void {
     if (node instanceof Rect) {
       el.style.width = `${node.width}px`;
@@ -479,16 +514,7 @@ export class HTMLRenderer extends Renderer {
       el.style.color = this.fillToCss(node.fill);
       el.style.background = 'transparent';
       el.style.whiteSpace = 'pre';
-      if (node.textAlign && node.textAlign !== 'left') {
-        el.style.textAlign = node.textAlign;
-        const parent = node.parent;
-        if (parent && 'getBounds' in parent) {
-          const pb = (parent as Group).getBounds();
-          if (pb.width > 0) {
-            el.style.width = `${pb.width}px`;
-          }
-        }
-      }
+      el.style.lineHeight = `${Math.max(node.fontSize + 2, 12)}px`;
     } else if (node instanceof Path) {
       // Vector paths use SVG via syncVectorShape
       const b = node.getBounds();

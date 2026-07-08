@@ -7,6 +7,128 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (Phase UI-10 — Documentation & release)
+
+- `docs/responsive-guide.md` — breakpoints, fluid layouts, `fullWidth`, `autoResize`
+- `docs/legacy-ui-guide.md` — ES5 + CSS compatibility table for HTML UI
+- `examples/demo-ui-catalog.html` — Storybook-style gallery of all UI variants
+- `test/ui10-docs.test.ts` — doc presence, catalog page, theme/responsive snippets
+- README screenshot refresh via `npm run screenshots:readme`
+
+### Added (Phase UI-9 — Cross-module polish & legacy)
+
+- Shared `demo-common.css` aside layout, embed mode, reduced-motion, dark `color-scheme`
+- `demo.html` migrated to shared demo shell; animation/export/a11y aside panels
+- Playground responsive iframe heights (`clamp()` in `website/public/styles.css`)
+- `test/ui9-cross-module.test.ts` — all 8 playground demos use shared shell
+- Extended `test/phase12-legacy.test.ts` — 17 UI components on legacy bundle
+- Visual smoke: ui, diagram, export, a11y golden screenshots
+
+### Added (Phase UI-8 — Diagram module polish)
+
+- `src/diagram/chrome.ts` — shared card chrome (sheen, accent bar, caption pills)
+- Professional primitives per diagram type (flowchart, state machine, network, CAN, etc.)
+- `demo-diagram.html` — view-only showcase with grouped sidebar and info panel
+
+### Added (Phase UI-7 — Automotive module polish)
+
+- Instrument cluster chrome, themed gauges, responsive cluster toolbar
+- `demo-automotive.html` — widget catalog tab, live drive simulation, embed layout
+
+### Added (Phase UI-6 — Dashboard module)
+
+- `resolveDashboardTheme()` — merge UI theme tokens into dashboard palette
+- Extended `DASHBOARD` semantic tokens (success, warning, meter, clock, battery, signal, etc.)
+- Clock widget: live second hand via `live: true` + `setRefresh`
+- `demo-dashboard.html` — all 16 widgets, 2×2 gauge grid, responsive stack @ &lt;720px, live clock
+- Phase 7 tests: theme merge, pie/bar/signal/clock, chart tooltip visibility, 16-widget perf &lt;45ms
+
+### Changed (Phase UI-6)
+
+- Dashboard widgets use `DASHBOARD` tokens instead of hardcoded light-theme hex on dark panels
+- `pieChart` default colors from `DASHBOARD.series`
+- Signal strength inactive bars use dark-panel colors (`signalInactive`)
+
+### Added (Phase UI-0 — Design system foundation)
+
+- Spacing scale (`--ld-space-xs` … `--ld-space-xl`) and breakpoint reference tokens (`--ld-bp-sm/md/lg`) in `lightdraw.css`
+- `resolveUiTheme()`, `UiThemeInput.preset`, `UI_THEME_VAR_MAP`, and `UI_THEME_TOKEN_KEYS` in `uiTheme.ts`
+- `docs/ui-theme-guide.md` — customize themes without mandatory CSS
+- `test/ui/theme-tokens.test.ts` — token map completeness and preset resolution
+- Theme preset gallery in `examples/demo-ui.html` (light, dark, violet, emerald, slate, ocean, rose)
+
+### Changed (Phase UI-0)
+
+- Canvas `UI` tokens in `theme.ts` aligned 1:1 with CSS variable defaults
+- `App.setUiTheme()` resolves presets and passes full token set to HTML renderer
+- Global tap-highlight reset and shared disabled cursor in `lightdraw.css`
+
+### Added (Phase UI-3 — Overlays & feedback)
+
+- Dialog: centered panel, backdrop blur (solid fallback), mobile full-bleed @ 480px, focus trap
+- Menu: scrollable panel, danger item variant (`itemVariants`), click-outside close
+- Tooltip: placement arrows (`top` / `bottom` / `right`), optional `delay`, custom `anchor` text
+- Toast: slide-in animation (`prefers-reduced-motion` safe), stack positions, dismiss button, variants
+
+### Changed (Phase UI-3)
+
+- Overlay z-index scale (`--ld-z-menu` … `--ld-z-dialog`) in `lightdraw.css`
+- `demo-ui.html` Overlays section: menu, tooltips, toasts, dialog playground
+- Canvas parity for dialog, menu, tooltip, toast in `definitions.ts`
+- Extended `test/phase6.test.ts` and `test/coverage-v09-gate.test.ts` with UI-3 overlay tests
+
+### Added (Phase UI-4 — Data display)
+
+- Table: zebra rows, sticky header, sortable column headers, horizontal/vertical scroll wrapper
+- Tree: indent guides, chevron expand/collapse icons, selectable leaves with highlight
+
+### Changed (Phase UI-4)
+
+- `demo-ui.html` Data section: 10-row project table + file-tree sidebar mock
+- Canvas parity for table and tree in `definitions.ts`
+- Extended `test/phase6.test.ts` with UI-4 data display tests
+
+### Added (Phase UI-5 — UI integration & canvas parity)
+
+- `canvasSurface()` helper for consistent canvas chrome (radius, border, shadow)
+- High-contrast refinements: `data-ld-high-contrast` attribute + expanded CSS token overrides
+- `docs/ui-components-schema.md` — full variant/size props for all 20 UI factories
+- JSON round-trip documentation in `docs/ui-theme-guide.md`
+
+### Changed (Phase UI-5)
+
+- `demo-ui.html` showcase: hero, section sidebar nav, theme gallery, HTML/canvas toggle, high-contrast control
+- `test/renderers/canvas.test.ts` — all UI components render on canvas
+- `test/renderers/html.test.ts` — high-contrast and uiTheme variable tests
+- Extended `test/phase6.test.ts` with UI-5 integration tests
+
+### Added (Phase UI-2 — Surfaces & layout)
+
+- Card: subtitle, actions slot, hover elevation (`elevated` prop)
+- Tabs: sliding underline indicator, horizontal scroll, arrow-key navigation
+- Accordion: animated expand/collapse panel, toggle-to-close, `aria-expanded`
+- Toolbar: icon+label buttons, `|` separator items, flex-wrap on narrow screens
+- StatusBar: `primaryIndex`, optional `mono` monospace segments
+
+### Changed (Phase UI-2)
+
+- `demo-ui.html` Layout section: dashboard mock (card + tabs + accordion + toolbar + statusBar)
+- Canvas parity for all 5 surface components in `definitions.ts`
+- Extended `test/phase6.test.ts` with UI-2 surface variant tests
+
+### Added (Phase UI-1 — Form controls)
+
+- Form control states: `disabled`, `invalid`, `error` props on input/textarea; disabled on checkbox, toggle, radio, slider
+- Size modifiers (`sm` / `md` / `lg`) for buttons, fields, checkbox, toggle, progress bar
+- `fullWidth` prop on input, textarea, slider, progressBar for responsive layouts
+- Legacy-friendly form CSS: margin-based spacing (no `gap`), `-webkit-appearance` resets
+- Canvas parity: button sizes/variants, invalid/disabled field strokes, progress variants
+
+### Changed (Phase UI-1)
+
+- `demo-ui.html` forms section: validation example, disabled row, all 9 controls, responsive stack @ &lt;768px
+- Extended `test/phase6.test.ts` and `test/renderers/html.test.ts` for form variants
+
 ### Added (Phase 12 — Production Release Hardening)
 
 - Cross-browser Playwright smoke (Chromium, Firefox, WebKit)
@@ -41,6 +163,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Line coverage gate: ≥92% → **≥94%** (Phase 11 gate)
 - `examples/demo-animation.html` — static auto-start frame for gallery/visual tests
 - CI: Phase 11 tests, Playwright install, visual regression suite
+
+## [1.0.0] - 2026-07-08
+
+### Summary — UI polish program complete
+
+LightDraw **v1.0.0** completes the phased UI beautification program (UI-0 through UI-10): design tokens, 17 HTML/canvas UI components, dashboard and automotive widgets, diagram chrome, cross-demo consistency, legacy ES5 hardening, and documentation for themes, responsive layout, and legacy CSS targets.
+
+**Highlights:**
+
+- `lightdraw.min.css` — single stylesheet for polished HTML renderer UI
+- `app.setUiTheme({ preset })` — eight presets, no mandatory custom CSS
+- Playground + 8 demo pages synced (`npm run prepare:website`)
+- Legacy bundle renders all UI components on HTML renderer (`test/phase12-legacy.test.ts`)
+- Guides: [ui-theme](./docs/ui-theme-guide.md), [responsive](./docs/responsive-guide.md), [legacy UI](./docs/legacy-ui-guide.md)
+- Visual regression: 8 golden scenes (`npm run test:ci:visual`)
+
+See [Unreleased] above for per-phase detail. Migration from v0.9: no breaking API changes; demos and CSS tokens are additive.
 
 ## [0.9.0] - 2026-07-05
 

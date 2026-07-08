@@ -7,16 +7,6 @@
   <script src="demo-embed.js"></script>
   <link rel="stylesheet" href="demo-common.css">
   <link rel="stylesheet" href="../dist/lightdraw.min.css">
-  <style>
-    .export-layout { display: grid; grid-template-columns: 1fr 240px; gap: 1rem; flex: 1; min-height: 0; }
-    .export-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; align-self: start; }
-    .export-panel h3 { font-size: 0.8125rem; margin-bottom: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
-    .export-panel .demo-btn { display: block; width: 100%; margin-bottom: 0.4rem; }
-    .export-panel label { font-size: 0.8125rem; color: var(--text-muted); display: block; margin: 0.5rem 0 0.25rem; }
-    .export-panel input[type="range"], .export-panel input[type="number"] { width: 100%; }
-    #status { margin-top: 0.75rem; font-size: 0.8125rem; color: var(--text-muted); }
-    html.demo-embed .export-layout { grid-template-columns: 1fr 220px; gap: 0.5rem; }
-  </style>
 </head>
 <body>
   <div class="demo-shell">
@@ -25,24 +15,24 @@
       <h1>Scene Export</h1>
       <p>PNG, JPEG, SVG, PDF, JSON, and offline HTML via unified <code>app.export()</code>.</p>
     </header>
-    <main class="demo-main export-layout">
+    <main class="demo-main demo-layout-aside">
       <div class="demo-canvas-wrap">
         <div id="app"></div>
       </div>
-      <div class="export-panel">
+      <aside class="demo-aside-panel">
         <h3>Download</h3>
-        <button class="demo-btn" onclick="doExport('png')">PNG (Hi-DPI)</button>
-        <button class="demo-btn secondary" onclick="doExport('jpeg')">JPEG</button>
-        <button class="demo-btn secondary" onclick="doExport('svg')">SVG</button>
-        <button class="demo-btn secondary" onclick="doExport('pdf')">PDF</button>
-        <button class="demo-btn secondary" onclick="doExport('json')">JSON</button>
-        <button class="demo-btn secondary" onclick="doExport('html')">HTML</button>
+        <button type="button" class="demo-btn" onclick="doExport('png')">PNG (Hi-DPI)</button>
+        <button type="button" class="demo-btn secondary" onclick="doExport('jpeg')">JPEG</button>
+        <button type="button" class="demo-btn secondary" onclick="doExport('svg')">SVG</button>
+        <button type="button" class="demo-btn secondary" onclick="doExport('pdf')">PDF</button>
+        <button type="button" class="demo-btn secondary" onclick="doExport('json')">JSON</button>
+        <button type="button" class="demo-btn secondary" onclick="doExport('html')">HTML</button>
         <label>JPEG quality <input type="range" id="quality" min="0.1" max="1" step="0.05" value="0.92"></label>
         <label>Pixel ratio <input type="number" id="pixelRatio" min="1" max="3" value="2"></label>
         <label><input type="checkbox" id="cropRegion"> Crop to blue rect</label>
         <label><input type="checkbox" id="validateJson" checked> Validate JSON</label>
-        <p id="status">Ready</p>
-      </div>
+        <p id="status" class="demo-aside-hint" style="border-top:none;padding-top:0;margin-top:0.5rem">Ready</p>
+      </aside>
     </main>
   </div>
   <script src="../dist/lightdraw.min.js"></script>

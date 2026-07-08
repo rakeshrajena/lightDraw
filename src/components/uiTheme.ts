@@ -33,11 +33,28 @@ export interface UiThemeTokens {
   statusBarText?: string;
   statusBarBorder?: string;
   tooltipBg?: string;
+  spaceXs?: string;
+  spaceSm?: string;
+  spaceMd?: string;
+  spaceLg?: string;
+  spaceXl?: string;
+  bpSm?: string;
+  bpMd?: string;
+  bpLg?: string;
   /** Sets `data-ld-theme` on the HTML root (`light` | `dark`) */
   mode?: 'light' | 'dark';
 }
 
-const VAR_MAP: Record<Exclude<keyof UiThemeTokens, 'mode'>, string> = {
+/** Theme input — optional named preset merged before explicit token overrides. */
+export interface UiThemeInput extends UiThemeTokens {
+  /** Apply a named preset first, then merge any other fields on top. */
+  preset?: UiThemePreset | string;
+}
+
+export type UiThemePreset = keyof typeof UI_PRESETS;
+
+/** Maps token keys to CSS custom property names on `.lightdraw-html-root`. */
+export const UI_THEME_VAR_MAP: Record<Exclude<keyof UiThemeTokens, 'mode'>, string> = {
   primary: '--ld-primary',
   primaryHover: '--ld-primary-hover',
   primaryActive: '--ld-primary-active',
@@ -71,17 +88,28 @@ const VAR_MAP: Record<Exclude<keyof UiThemeTokens, 'mode'>, string> = {
   statusBarText: '--ld-statusbar-text',
   statusBarBorder: '--ld-statusbar-border',
   tooltipBg: '--ld-tooltip-bg',
+  spaceXs: '--ld-space-xs',
+  spaceSm: '--ld-space-sm',
+  spaceMd: '--ld-space-md',
+  spaceLg: '--ld-space-lg',
+  spaceXl: '--ld-space-xl',
+  bpSm: '--ld-bp-sm',
+  bpMd: '--ld-bp-md',
+  bpLg: '--ld-bp-lg',
 };
+
+/** All token keys (excluding `mode`) for completeness checks in tests. */
+export const UI_THEME_TOKEN_KEYS = Object.keys(UI_THEME_VAR_MAP) as Exclude<keyof UiThemeTokens, 'mode'>[];
 
 /** Apply theme tokens to a LightDraw HTML root (or any container). */
 export function applyUiTheme(el: HTMLElement, tokens: UiThemeTokens): void {
   if (tokens.mode) {
     el.setAttribute('data-ld-theme', tokens.mode);
   }
-  for (const [key, value] of Object.entries(tokens) as [keyof UiThemeTokens, string][]) {
-    if (key === 'mode') continue;
-    const cssVar = VAR_MAP[key as Exclude<keyof UiThemeTokens, 'mode'>];
-    if (cssVar && value !== undefined && value !== '') {
+  for (const key of UI_THEME_TOKEN_KEYS) {
+    const value = tokens[key];
+    const cssVar = UI_THEME_VAR_MAP[key];
+    if (value !== undefined && value !== '') {
       el.style.setProperty(cssVar, value);
     }
   }
@@ -110,45 +138,56 @@ const DARK_BASE: UiThemeTokens = {
   tooltipBg: '#0f172a',
 };
 
-/** Preset themes — use via `createApp('#el', { uiTheme: UI_PRESETS.violet })` */
+/**
+ * Built-in theme presets — use via `createApp('#el', { uiTheme: { preset: 'violet' } })`
+ * or spread: `uiTheme: { ...UI_PRESETS.emerald }`.
+ */
 export const UI_PRESETS: Record<string, UiThemeTokens> = {
+  /** Default light theme — uses CSS file defaults; only sets `mode: 'light'`. */
   default: { mode: 'light' },
+  /** Full dark palette with blue primary accent. */
   dark: {
     ...DARK_BASE,
     primary: '#3b82f6',
     primaryHover: '#2563eb',
     primaryActive: '#1d4ed8',
   },
+  /** Purple brand accent — dashboards and creative tools. */
   violet: {
     primary: '#7c3aed',
     primaryHover: '#6d28d9',
     primaryActive: '#5b21b6',
     primarySubtle: '#ede9fe',
   },
+  /** Green brand accent — success-oriented UIs. */
   emerald: {
     primary: '#059669',
     primaryHover: '#047857',
     primaryActive: '#065f46',
     primarySubtle: '#d1fae5',
   },
+  /** Neutral slate accent — minimal corporate look. */
   slate: {
     primary: '#334155',
     primaryHover: '#1e293b',
     primaryActive: '#0f172a',
     primarySubtle: '#f1f5f9',
   },
+  /** Sky-blue accent — data and analytics apps. */
   ocean: {
     primary: '#0284c7',
     primaryHover: '#0369a1',
     primaryActive: '#075985',
     primarySubtle: '#e0f2fe',
   },
+  /** Rose accent — alerts and marketing surfaces. */
   rose: {
     primary: '#e11d48',
     primaryHover: '#be123c',
     primaryActive: '#9f1239',
     primarySubtle: '#ffe4e6',
   },
+  /** Dark mode with violet accent (alias for dark + violet primary). */
   darkViolet: {
     ...DARK_BASE,
     primary: '#8b5cf6',
@@ -157,3 +196,10 @@ export const UI_PRESETS: Record<string, UiThemeTokens> = {
     primarySubtle: '#2e1065',
   },
 };
+
+/** Resolve preset + overrides into a flat token object (no `preset` field). */
+export function resolveUiTheme(input: UiThemeInput): UiThemeTokens {
+  const { preset, ...overrides } = input;
+  const base = preset && UI_PRESETS[preset] ? { ...UI_PRESETS[preset] } : {};
+  return { ...base, ...overrides };
+}

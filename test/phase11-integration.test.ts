@@ -15,8 +15,9 @@ const UI_TYPES = [
 ];
 
 const DASH_TYPES = [
-  'lineChart', 'barChart', 'gauge', 'speedometer', 'clock', 'battery', 'areaChart',
+  'lineChart', 'barChart', 'pieChart', 'gauge', 'speedometer', 'clock', 'battery', 'areaChart',
   'legend', 'thermometer', 'compass', 'calendar', 'timeline', 'signalStrength', 'knob', 'meter',
+  'candlestickChart', 'histogram', 'scatterChart', 'sankeyChart', 'treemap', 'radarChart', 'waterfallChart',
 ];
 
 describe('Phase 11 integration coverage', () => {

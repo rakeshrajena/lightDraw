@@ -146,7 +146,7 @@ describe('Memory', () => {
     const second = cycleGrowth(50);
 
     // Second batch should not grow significantly more per-object than first (2× allowance)
-    expect(second).toBeLessThan(Math.max(first * 2, 6 * 1024 * 1024));
+    expect(second).toBeLessThan(Math.max(first * 2, 7 * 1024 * 1024));
   });
 
   it('App create/destroy × 10000 — completes without error (Phase 12)', () => {

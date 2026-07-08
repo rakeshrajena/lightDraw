@@ -1,5 +1,7 @@
 import { Arc } from '../shapes/index';
 import { TextNode } from '../shapes/index';
+import type { App } from '../App';
+import type { Group } from '../shapes/Group';
 import { syntheticEvent } from '../components/helpers';
 import { registerDashboard } from './registryCore';
 import {
@@ -14,180 +16,16 @@ import {
   str,
   bool,
 } from './helpers';
-import {
-  addAxes,
-  addGridLines,
-  addLegend,
-  areaPathFromPoints,
-  computeTicks,
-  dataBounds,
-  defaultLayout,
-  seriesToPoints,
-  wireChartInteraction,
-} from './chartPrimitives';
-import {
-  buildDialGauge,
-  updateDialNeedle,
-} from '../primitives/dialGauge';
+import { addLegend } from './chartPrimitives';
+import { buildDialGauge, updateDialNeedle } from '../primitives/dialGauge';
 import { DASHBOARD } from './theme';
+import { installChartRebuild } from './charts/core/refresh';
+import { createDashboardFromJSON } from './registryCore';
+
+import './charts/registerAll';
 
 export { animateLiveValue, setLiveValue, dashboardToJSON } from './helpers';
-
-function buildDataChart(
-  group: ReturnType<typeof createWidgetGroup>,
-  app: import('../App').App,
-  props: Record<string, unknown>,
-  filled: boolean
-): void {
-  const width = num(props, 'width', 300);
-  const height = num(props, 'height', 150);
-  const data = (props.data as number[]) ?? [10, 30, 20, 50, 40, 60];
-  const layout = defaultLayout(width, height);
-  const minY = props.minY;
-  const maxY = props.maxY;
-  const bounds = dataBounds(
-    data,
-    typeof minY === 'number' ? minY : undefined,
-    typeof maxY === 'number' ? maxY : undefined
-  );
-  const yTicks = computeTicks(bounds.min, bounds.max, num(props, 'tickCount', 5));
-
-  group.add(
-    app.rect({ width, height, fill: DASHBOARD.chartBg, stroke: DASHBOARD.chartGrid, strokeWidth: 1, listening: true })
-  );
-  group.add(
-    app.rect({
-      x: layout.plotX,
-      y: layout.plotY,
-      width: layout.plotWidth,
-      height: layout.plotHeight,
-      fill: DASHBOARD.chartPlot,
-      stroke: null,
-      listening: false,
-    })
-  );
-  addGridLines(app, group, layout, yTicks, bounds);
-  addAxes(app, group, layout, bounds, yTicks);
-
-  const points = seriesToPoints(data, layout, bounds);
-  const baselineY = layout.plotY + layout.plotHeight;
-
-  if (filled) {
-    group.add(
-      app.path({
-        d: areaPathFromPoints(points, baselineY),
-        fill: DASHBOARD.chartArea,
-        stroke: null,
-        listening: false,
-      })
-    );
-  }
-
-  group.add(
-    app.polyline({
-      points,
-      fill: null,
-      stroke: DASHBOARD.chartLine,
-      strokeWidth: 2.5,
-      lineCap: 'round',
-      lineJoin: 'round',
-      listening: false,
-    })
-  );
-
-  data.forEach((_, i) => {
-    if (i % Math.max(1, Math.floor(data.length / 6)) === 0 || data.length <= 8) {
-      const px = points[i * 2];
-      const py = points[i * 2 + 1];
-      group.add(
-        app.circle({
-          x: px - 3,
-          y: py - 3,
-          radius: 3,
-          fill: DASHBOARD.chartBg,
-          stroke: DASHBOARD.chartLine,
-          strokeWidth: 2,
-          listening: false,
-        })
-      );
-    }
-  });
-
-  if (props.showLegend !== false) {
-    addLegend(
-      app,
-      group,
-      [{ label: str(props, 'seriesLabel', 'Series'), color: DASHBOARD.chartLine }],
-      width - 90,
-      8
-    );
-  }
-
-  const crosshair = app.line({
-    x: layout.plotX,
-    y: layout.plotY,
-    x2: 0,
-    y2: layout.plotHeight,
-    stroke: DASHBOARD.chartCrosshair,
-    strokeWidth: 1,
-    dash: [4, 4],
-    visible: false,
-    listening: false,
-  });
-  const dot = app.circle({
-    x: 0,
-    y: 0,
-    radius: 5,
-    fill: DASHBOARD.chartDot,
-    stroke: DASHBOARD.chartLine,
-    strokeWidth: 2,
-    visible: false,
-    listening: false,
-  });
-  const tooltip = app.roundedRect({
-    width: 52,
-    height: 24,
-    cornerRadius: 6,
-    fill: DASHBOARD.chartTooltipBg,
-    stroke: DASHBOARD.chartTooltipBorder,
-    strokeWidth: 1,
-    visible: false,
-    listening: false,
-  });
-  const tooltipLabel = app.text({
-    text: '',
-    fontSize: 11,
-    fontWeight: 'bold',
-    fill: DASHBOARD.text,
-    x: 8,
-    y: 5,
-    listening: false,
-  });
-  const hitArea = app.rect({
-    x: layout.plotX,
-    y: layout.plotY,
-    width: layout.plotWidth,
-    height: layout.plotHeight,
-    fill: 'rgba(0,0,0,0.001)',
-    listening: true,
-  });
-
-  group.add(crosshair, dot, tooltip, tooltipLabel, hitArea);
-
-  if (props.interactive !== false) {
-    wireChartInteraction(group, data, layout, bounds, {
-      tooltip,
-      tooltipLabel,
-      crosshair,
-      dot,
-      hitArea,
-    });
-  }
-
-  setParts(group, { crosshair, dot, tooltip, tooltipLabel, hitArea });
-
-  setState(group, { width, height, data, filled, tickCount: num(props, 'tickCount', 5) });
-}
+export { CHART_TYPES } from './charts/registerAll';
 
 registerDashboard('gauge', (props, app) => {
   const size = num(props, 'size', 120);
@@ -204,7 +42,7 @@ registerDashboard('gauge', (props, app) => {
       needleColor: DASHBOARD.gaugeNeedle,
       textColor: DASHBOARD.text,
       textMuted: DASHBOARD.textMuted,
-      faceColor: '#0f172a',
+      faceColor: DASHBOARD.face,
       bezelColor: DASHBOARD.panelStroke,
     },
     { size, value, max, tickCount: 6, ariaLive: 'polite' }
@@ -233,9 +71,9 @@ registerDashboard('speedometer', (props, app) => {
       needleColor: DASHBOARD.speedoNeedle,
       textColor: DASHBOARD.text,
       textMuted: DASHBOARD.textMuted,
-      faceColor: '#0f172a',
+      faceColor: DASHBOARD.face,
       bezelColor: DASHBOARD.panelStroke,
-      redlineColor: '#dc2626',
+      redlineColor: DASHBOARD.dangerDark,
     },
     {
       size,
@@ -256,87 +94,14 @@ registerDashboard('speedometer', (props, app) => {
   return group;
 });
 
-registerDashboard('lineChart', (props, app) => {
-  const group = createWidgetGroup(app, 'lineChart', props);
-  buildDataChart(group, app, props, false);
-  return group;
-});
-
-registerDashboard('areaChart', (props, app) => {
-  const group = createWidgetGroup(app, 'areaChart', props);
-  buildDataChart(group, app, props, true);
-  return group;
-});
-
 registerDashboard('legend', (props, app) => {
   const group = createWidgetGroup(app, 'legend', props);
   const items = (props.items as { label: string; color: string }[]) ?? [
-    { label: 'Series A', color: '#3b82f6' },
-    { label: 'Series B', color: '#ef4444' },
+    { label: 'Series A', color: DASHBOARD.primary },
+    { label: 'Series B', color: DASHBOARD.secondary },
   ];
   addLegend(app, group, items, 0, 0);
   setState(group, { items });
-  return group;
-});
-
-registerDashboard('barChart', (props, app) => {
-  const width = num(props, 'width', 300);
-  const height = num(props, 'height', 150);
-  const data = (props.data as number[]) ?? [30, 50, 40, 70, 60];
-  const group = createWidgetGroup(app, 'barChart', props);
-  const layout = defaultLayout(width, height);
-  const bounds = dataBounds(data);
-  const yTicks = computeTicks(bounds.min, bounds.max, 5);
-
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
-  addGridLines(app, group, layout, yTicks, bounds);
-  addAxes(app, group, layout, bounds, yTicks);
-
-  const barWidth = layout.plotWidth / data.length - 8;
-  data.forEach((val, i) => {
-    const barHeight = ((val - bounds.min) / (bounds.max - bounds.min || 1)) * layout.plotHeight;
-    group.add(
-      app.rect({
-        x: layout.plotX + i * (barWidth + 8),
-        y: layout.plotY + layout.plotHeight - barHeight,
-        width: barWidth,
-        height: barHeight,
-        fill: DASHBOARD.barFill,
-        listening: false,
-      })
-    );
-  });
-  setState(group, { width, height, data });
-  return group;
-});
-
-registerDashboard('pieChart', (props, app) => {
-  const size = num(props, 'size', 150);
-  const data = (props.data as number[]) ?? [30, 25, 20, 25];
-  const colors = (props.colors as string[]) ?? ['#3b82f6', '#ef4444', '#22c55e', '#f59e0b'];
-  const group = createWidgetGroup(app, 'pieChart', props);
-  const total = data.reduce((a, b) => a + b, 0) || 1;
-  const cx = size / 2;
-  let startAngle = -Math.PI / 2;
-
-  data.forEach((val, i) => {
-    const sweep = (val / total) * Math.PI * 2;
-    group.add(
-      new Arc({
-        x: cx - size / 2 + 10,
-        y: cx - size / 2 + 10,
-        radius: size / 2 - 10,
-        startAngle,
-        endAngle: startAngle + sweep,
-        fill: colors[i % colors.length],
-        stroke: '#1f2937',
-        strokeWidth: 1,
-        listening: false,
-      })
-    );
-    startAngle += sweep;
-  });
-  setState(group, { size, data, colors });
   return group;
 });
 
@@ -345,7 +110,9 @@ registerDashboard('thermometer', (props, app) => {
   const width = num(props, 'width', 24);
   const value = clamp(num(props, 'value', 50), 0, 100);
   const group = createWidgetGroup(app, 'thermometer', props);
-  const tubeH = height - 30;
+  const tubeH = height - Math.round(width * 1.1);
+  const bulbR = Math.max(8, Math.round(width * 0.48));
+  const fontSize = Math.max(10, Math.round(width * 0.5));
 
   group.add(
     app.roundedRect({
@@ -365,13 +132,27 @@ registerDashboard('thermometer', (props, app) => {
     width: width - 4,
     height: fillH,
     cornerRadius: (width - 4) / 2,
-    fill: value > 80 ? '#ef4444' : value > 50 ? '#f59e0b' : '#3b82f6',
+    fill: value > 80 ? DASHBOARD.danger : value > 50 ? DASHBOARD.warning : DASHBOARD.primary,
     listening: false,
   });
   group.add(
     fill,
-    app.circle({ x: width / 2 - 8, y: tubeH + 2, radius: 12, fill: '#ef4444', listening: false }),
-    app.text({ text: `${Math.round(value)}°`, x: width + 8, y: tubeH / 2 - 8, fontSize: 12, fill: DASHBOARD.text, listening: false })
+    app.circle({
+      x: width / 2 - bulbR,
+      y: tubeH - 2,
+      radius: bulbR,
+      fill: DASHBOARD.danger,
+      listening: false,
+    }),
+    app.text({
+      text: `${Math.round(value)}°`,
+      x: width + 8,
+      y: tubeH / 2 - fontSize / 2,
+      fontSize,
+      fontWeight: '600',
+      fill: DASHBOARD.text,
+      listening: false,
+    })
   );
   setParts(group, { fill });
   setRefresh(group, (v) => {
@@ -386,63 +167,135 @@ registerDashboard('thermometer', (props, app) => {
 registerDashboard('compass', (props, app) => {
   const size = num(props, 'size', 100);
   const heading = num(props, 'heading', 0);
-  const group = createWidgetGroup(app, 'compass', props);
+  const group = createWidgetGroup(app, 'compass', props, { width: size, height: size });
   const cx = size / 2;
-  const r = size / 2 - 5;
+  const r = size / 2 - 4;
+  const fontSize = Math.max(8, Math.round(size * 0.1));
 
   group.add(
-    app.circle({ x: 0, y: 0, radius: r, fill: DASHBOARD.compassFace, stroke: DASHBOARD.compassRing, strokeWidth: 2, listening: false }),
-    app.text({ text: 'N', x: cx - 4, y: 4, fontSize: 10, fill: DASHBOARD.textMuted, listening: false })
+    app.circle({
+      x: cx - r,
+      y: cx - r,
+      radius: r,
+      fill: DASHBOARD.compassFace,
+      stroke: DASHBOARD.compassRing,
+      strokeWidth: Math.max(1.5, size / 50),
+      shadow: size >= 90 ? { color: 'rgba(0,0,0,0.3)', blur: 6, offsetX: 0, offsetY: 2 } : undefined,
+      listening: false,
+    })
   );
 
+  ['N', 'E', 'S', 'W'].forEach((label, i) => {
+    const a = (i / 4) * Math.PI * 2 - Math.PI / 2;
+    const lr = r * 0.62;
+    group.add(
+      app.text({
+        text: label,
+        x: cx + lr * Math.cos(a) - fontSize / 2,
+        y: cx + lr * Math.sin(a) - fontSize / 2,
+        fontSize,
+        fontWeight: label === 'N' ? '700' : '500',
+        fill: label === 'N' ? DASHBOARD.text : DASHBOARD.textMuted,
+        textAlign: 'center',
+        textBaseline: 'middle',
+        listening: false,
+      })
+    );
+  });
+
   const rad = ((heading - 90) * Math.PI) / 180;
+  const needleLen = r * 0.55;
   const needle = app.line({
     x: cx,
     y: cx,
-    x2: (r - 10) * Math.cos(rad),
-    y2: (r - 10) * Math.sin(rad),
+    x2: needleLen * Math.cos(rad),
+    y2: needleLen * Math.sin(rad),
     stroke: DASHBOARD.speedoNeedle,
-    strokeWidth: 3,
+    strokeWidth: Math.max(2, size / 32),
+    lineCap: 'round',
     listening: false,
   });
   group.add(
     needle,
-    app.circle({ x: cx - 4, y: cx - 4, radius: 4, fill: '#334155', listening: false }),
-    app.text({ text: `${Math.round(heading)}°`, x: cx - 12, y: size - 18, fontSize: 11, fill: DASHBOARD.text, listening: false })
+    app.circle({
+      x: cx - size * 0.05,
+      y: cx - size * 0.05,
+      radius: size * 0.05,
+      fill: DASHBOARD.compassHub,
+      stroke: DASHBOARD.compassRing,
+      strokeWidth: 1,
+      listening: false,
+    }),
+    app.text({
+      text: `${Math.round(heading)}°`,
+      x: cx,
+      y: cx + r * 0.22,
+      fontSize: Math.max(8, Math.round(size * 0.09)),
+      fontWeight: '600',
+      fill: DASHBOARD.text,
+      textAlign: 'center',
+      textBaseline: 'middle',
+      listening: false,
+    })
   );
   setParts(group, { needle });
   setRefresh(group, (v) => {
     const h = ((v - 90) * Math.PI) / 180;
-    (needle as { x2: number; y2: number }).x2 = (r - 10) * Math.cos(h);
-    (needle as { y2: number }).y2 = (r - 10) * Math.sin(h);
+    const len = r * 0.55;
+    (needle as { x2: number; y2: number }).x2 = len * Math.cos(h);
+    (needle as { y2: number }).y2 = len * Math.sin(h);
   });
   setState(group, { size, heading });
   return group;
 });
 
 registerDashboard('calendar', (props, app) => {
-  const width = num(props, 'width', 210);
-  const cell = 28;
   const group = createWidgetGroup(app, 'calendar', props);
+  installChartRebuild(group, app, buildCalendar);
+  return group;
+});
+
+function buildCalendar(group: Group, app: App, props: Record<string, unknown>): void {
+  const width = num(props, 'width', 210);
+  const height = num(props, 'height', 0);
   const year = num(props, 'year', new Date().getFullYear());
   const month = num(props, 'month', new Date().getMonth());
+  const highlightDay = num(props, 'highlightDay', -1);
   const first = new Date(year, month, 1);
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const startDay = first.getDay();
+  const numRows = Math.ceil((startDay + daysInMonth) / 7);
+  const headerH = 36;
+  const gridW = width - 8;
+  const gridH = height > headerH ? height - headerH - 4 : numRows * 26;
+  const cell = Math.max(14, Math.min(Math.floor(gridW / 7), Math.floor(gridH / numRows), 32));
+  const contentH = headerH + numRows * cell;
+
+  group.metadata.chartWidth = width;
+  group.metadata.chartHeight = height > 0 ? height : contentH + 4;
 
   group.add(
     app.text({
       text: first.toLocaleString('default', { month: 'long', year: 'numeric' }),
       x: 4,
       y: 4,
-      fontSize: 13,
+      fontSize: Math.min(13, cell * 0.45),
       fontWeight: 'bold',
       fill: DASHBOARD.text,
       listening: false,
     })
   );
   ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].forEach((d, i) => {
-    group.add(app.text({ text: d, x: i * cell + 4, y: 24, fontSize: 10, fill: '#64748b', listening: false }));
+    group.add(
+      app.text({
+        text: d,
+        x: i * cell + 4,
+        y: 22,
+        fontSize: Math.max(8, cell * 0.32),
+        fill: DASHBOARD.textDim,
+        listening: false,
+      })
+    );
   });
 
   for (let day = 1; day <= daysInMonth; day++) {
@@ -452,54 +305,35 @@ registerDashboard('calendar', (props, app) => {
     group.add(
       app.text({
         text: String(day),
-        x: col * cell + 6,
-        y: 40 + row * cell,
-        fontSize: 11,
-        fill: day === num(props, 'highlightDay', -1) ? '#3b82f6' : DASHBOARD.text,
+        x: col * cell + Math.max(4, cell * 0.2),
+        y: headerH + row * cell,
+        fontSize: Math.max(9, cell * 0.38),
+        fill: day === highlightDay ? DASHBOARD.highlight : DASHBOARD.text,
         listening: false,
       })
     );
   }
-  setState(group, { width, year, month });
-  return group;
-});
-
-registerDashboard('timeline', (props, app) => {
-  const height = num(props, 'height', 160);
-  const events = (props.events as { label: string; time?: string }[]) ?? [
-    { label: 'Start', time: '09:00' },
-    { label: 'Review', time: '12:00' },
-    { label: 'Done', time: '17:00' },
-  ];
-  const group = createWidgetGroup(app, 'timeline', props);
-  const step = height / Math.max(events.length, 1);
-
-  group.add(app.line({ x: 12, y: 0, x2: 0, y2: height, stroke: '#475569', strokeWidth: 2, listening: false }));
-  events.forEach((ev, i) => {
-    const y = i * step + 10;
-    group.add(
-      app.circle({ x: 8, y, radius: 6, fill: '#2563eb', listening: false }),
-      app.text({ text: ev.time ?? '', x: 24, y: y - 6, fontSize: 10, fill: '#64748b', listening: false }),
-      app.text({ text: ev.label, x: 24, y: y + 8, fontSize: 12, fill: DASHBOARD.text, listening: false })
-    );
-  });
-  setState(group, { height, events });
-  return group;
-});
+  setState(group, { width, height: height > 0 ? height : contentH + 4, year, month, highlightDay, cell });
+}
 
 registerDashboard('signalStrength', (props, app) => {
   const level = clamp(num(props, 'value', 3), 0, 5);
+  const scale = num(props, 'scale', 1);
   const group = createWidgetGroup(app, 'signalStrength', props);
+  const barW = Math.max(5, Math.round(7 * scale));
+  const gap = Math.max(2, Math.round(3 * scale));
+  const maxH = Math.round(28 * scale);
+  const totalW = 5 * barW + 4 * gap;
   const bars: import('../Node').Node[] = [];
   for (let i = 0; i < 5; i++) {
-    const h = 8 + i * 5;
+    const h = Math.round((8 + i * 5) * scale);
     const bar = app.rect({
-      x: i * 10,
-      y: 28 - h,
-      width: 7,
+      x: i * (barW + gap),
+      y: maxH - h,
+      width: barW,
       height: h,
-      fill: i < level ? '#22c55e' : '#d1d5db',
-      cornerRadius: 1,
+      fill: i < level ? DASHBOARD.signalActive : DASHBOARD.signalInactive,
+      cornerRadius: Math.max(1, scale),
       listening: false,
     });
     bars.push(bar);
@@ -509,48 +343,97 @@ registerDashboard('signalStrength', (props, app) => {
   setRefresh(group, (v) => {
     const lv = clamp(Math.round(v), 0, 5);
     bars.forEach((bar, i) => {
-      (bar as { fill: string }).fill = i < lv ? '#22c55e' : '#d1d5db';
+      (bar as { fill: string }).fill = i < lv ? DASHBOARD.signalActive : DASHBOARD.signalInactive;
     });
   });
-  setState(group, { value: level });
+  setState(group, { value: level, scale, width: totalW, height: maxH });
   return group;
 });
 
 registerDashboard('knob', (props, app) => {
   const size = num(props, 'size', 80);
   const value = clamp(num(props, 'value', 50), 0, 100);
-  const group = createWidgetGroup(app, 'knob', props, { focusable: true, listening: true });
+  const group = createWidgetGroup(app, 'knob', props, { width: size, height: size, focusable: true, listening: true });
   const cx = size / 2;
-  const r = size / 2 - 8;
-  const angle = Math.PI * 0.75 + (value / 100) * Math.PI * 1.5;
+  const r = size / 2 - 5;
+  const start = Math.PI * 0.75;
+  const sweep = Math.PI * 1.5;
+  const angle = start + (value / 100) * sweep;
+  const arcW = Math.max(3, size * 0.07);
+  const ptrR = r - arcW;
 
   group.add(
-    app.circle({ x: 0, y: 0, radius: r, fill: '#374151', stroke: '#1f2937', strokeWidth: 2, listening: false })
+    app.circle({
+      x: cx - r,
+      y: cx - r,
+      radius: r,
+      fill: DASHBOARD.knobTrack,
+      stroke: DASHBOARD.knobRing,
+      strokeWidth: Math.max(1.5, size / 40),
+      shadow: size >= 48 ? { color: 'rgba(0,0,0,0.35)', blur: 5, offsetX: 0, offsetY: 2 } : undefined,
+      listening: false,
+    })
   );
-  const indicator = app.line({
-    x: cx,
-    y: cx,
-    x2: (r - 12) * Math.cos(angle),
-    y2: (r - 12) * Math.sin(angle),
-    stroke: '#f59e0b',
-    strokeWidth: 3,
+
+  group.add(
+    new Arc({
+      x: cx - r + arcW,
+      y: cx - r + arcW,
+      radius: r - arcW,
+      startAngle: start,
+      endAngle: start + sweep,
+      fill: null,
+      stroke: DASHBOARD.inactive,
+      strokeWidth: arcW * 0.65,
+      listening: false,
+    })
+  );
+
+  const valueArc = new Arc({
+    x: cx - r + arcW,
+    y: cx - r + arcW,
+    radius: r - arcW,
+    startAngle: start,
+    endAngle: angle,
+    fill: null,
+    stroke: DASHBOARD.knobIndicator,
+    strokeWidth: arcW,
     listening: false,
   });
+  group.add(valueArc);
+
+  const ptrSize = Math.max(4, size * 0.09);
+  const pointer = app.circle({
+    x: cx + ptrR * Math.cos(angle) - ptrSize,
+    y: cx + ptrR * Math.sin(angle) - ptrSize,
+    radius: ptrSize,
+    fill: DASHBOARD.knobIndicator,
+    stroke: '#fff',
+    strokeWidth: 1,
+    listening: false,
+  });
+
   const valueLabel = app.text({
     text: String(Math.round(value)),
-    x: cx - 10,
-    y: cx + r - 10,
-    fontSize: 12,
+    x: cx,
+    y: cx,
+    fontSize: Math.max(10, size * 0.22),
+    fontWeight: '600',
     fill: DASHBOARD.text,
+    textAlign: 'center',
+    textBaseline: 'middle',
     listening: false,
   });
-  group.add(indicator, valueLabel);
-  setParts(group, { indicator, valueLabel });
+  group.add(pointer, valueLabel);
+  setParts(group, { valueArc, pointer, valueLabel });
+
   setRefresh(group, (v) => {
-    const a = Math.PI * 0.75 + (clamp(v, 0, 100) / 100) * Math.PI * 1.5;
-    (indicator as { x2: number; y2: number }).x2 = (r - 12) * Math.cos(a);
-    (indicator as { y2: number }).y2 = (r - 12) * Math.sin(a);
-    (valueLabel as TextNode).text = String(Math.round(v));
+    const pct = clamp(v, 0, 100) / 100;
+    const a = start + pct * sweep;
+    (valueArc as Arc).endAngle = a;
+    (pointer as { x: number; y: number }).x = cx + ptrR * Math.cos(a) - ptrSize;
+    (pointer as { y: number }).y = cx + ptrR * Math.sin(a) - ptrSize;
+    (valueLabel as TextNode).text = String(Math.round(clamp(v, 0, 100)));
   });
   group.on('click', () => {
     const next = (num(getState(group), 'value', 0) + 10) % 100;
@@ -569,13 +452,13 @@ registerDashboard('meter', (props, app) => {
   const group = createWidgetGroup(app, 'meter', props);
 
   if (vertical) {
-    group.add(app.rect({ width: height, height: width, fill: '#e5e7eb', listening: false }));
+    group.add(app.rect({ width: height, height: width, fill: DASHBOARD.meterTrack, listening: false }));
     const fillBar = app.rect({
       x: 2,
       y: width - (width * value) / 100 - 2,
       width: height - 4,
       height: (width * value) / 100,
-      fill: '#2563eb',
+      fill: DASHBOARD.meterFill,
       listening: false,
     });
     group.add(fillBar);
@@ -585,13 +468,23 @@ registerDashboard('meter', (props, app) => {
       (fillBar as { height: number }).height = width * pct;
     });
   } else {
-    group.add(app.rect({ width, height, fill: '#e5e7eb', listening: false }));
-    const fillBar = app.rect({
+    const trackR = Math.min(4, height / 2);
+    group.add(
+      app.roundedRect({
+        width,
+        height,
+        cornerRadius: trackR,
+        fill: DASHBOARD.meterTrack,
+        listening: false,
+      })
+    );
+    const fillBar = app.roundedRect({
       x: 0,
       y: 0,
       width: (width * value) / 100,
       height,
-      fill: '#2563eb',
+      cornerRadius: trackR,
+      fill: DASHBOARD.meterFill,
       listening: false,
     });
     group.add(fillBar);
@@ -605,49 +498,256 @@ registerDashboard('meter', (props, app) => {
 
 registerDashboard('battery', (props, app) => {
   const level = clamp(num(props, 'value', 75), 0, 100);
+  const scale = num(props, 'scale', 1);
+  const bodyW = Math.round(40 * scale);
+  const bodyH = Math.round(20 * scale);
   const group = createWidgetGroup(app, 'battery', props);
-  group.add(app.rect({ width: 40, height: 20, fill: null, stroke: '#333', strokeWidth: 2, listening: false }));
-  group.add(app.rect({ x: 40, y: 6, width: 4, height: 8, fill: '#333', listening: false }));
-  const fill = app.rect({
-    x: 2,
-    y: 2,
-    width: (36 * level) / 100,
-    height: 16,
-    fill: level > 20 ? '#22c55e' : '#ef4444',
+  group.add(
+    app.roundedRect({
+      width: bodyW,
+      height: bodyH,
+      cornerRadius: Math.max(2, 3 * scale),
+      fill: null,
+      stroke: DASHBOARD.batteryOutline,
+      strokeWidth: Math.max(1.5, 2 * scale),
+      listening: false,
+    })
+  );
+  group.add(
+    app.roundedRect({
+      x: bodyW,
+      y: bodyH * 0.3,
+      width: Math.max(3, 4 * scale),
+      height: bodyH * 0.4,
+      cornerRadius: 1,
+      fill: DASHBOARD.batteryTip,
+      listening: false,
+    })
+  );
+  const inset = Math.max(2, 2 * scale);
+  const fill = app.roundedRect({
+    x: inset,
+    y: inset,
+    width: ((bodyW - inset * 2) * level) / 100,
+    height: bodyH - inset * 2,
+    cornerRadius: Math.max(1, 2 * scale),
+    fill: level > 20 ? DASHBOARD.success : DASHBOARD.danger,
     listening: false,
   });
   group.add(fill);
   setRefresh(group, (v) => {
     const lv = clamp(v, 0, 100);
-    (fill as { width: number }).width = (36 * lv) / 100;
-    (fill as { fill: string }).fill = lv > 20 ? '#22c55e' : '#ef4444';
+    (fill as { width: number }).width = ((bodyW - inset * 2) * lv) / 100;
+    (fill as { fill: string }).fill = lv > 20 ? DASHBOARD.success : DASHBOARD.danger;
   });
-  setState(group, { value: level });
+  setState(group, { value: level, scale, width: bodyW + Math.max(3, 4 * scale), height: bodyH });
   return group;
 });
 
 registerDashboard('clock', (props, app) => {
   const size = num(props, 'size', 120);
-  const group = createWidgetGroup(app, 'clock', props);
+  const live = bool(props, 'live', true);
+  const showSeconds = bool(props, 'showSeconds', size >= 44);
+  const group = createWidgetGroup(app, 'clock', props, { width: size, height: size });
   const cx = size / 2;
-  const now = new Date();
-  const hours = now.getHours() % 12;
-  const minutes = now.getMinutes();
-  const seconds = now.getSeconds();
+  const r = size / 2 - 3;
+  const pad = Math.max(2, size * 0.04);
+  const hourLen = (r - pad) * 0.5;
+  const minLen = (r - pad) * 0.72;
+  const secLen = (r - pad) * 0.82;
+  const hourW = Math.max(2, size * 0.035);
+  const minW = Math.max(1.5, size * 0.025);
+  const hubR = Math.max(3, size * 0.05);
 
   group.add(
-    app.circle({ x: cx - cx, y: cx - cx, radius: cx, fill: '#1f2937', stroke: '#374151', strokeWidth: 2, listening: false })
+    app.circle({
+      x: cx - r,
+      y: cx - r,
+      radius: r,
+      fill: DASHBOARD.clockFace,
+      stroke: DASHBOARD.clockRing,
+      strokeWidth: Math.max(1.5, size / 50),
+      shadow: size >= 56 ? { color: 'rgba(0,0,0,0.35)', blur: 5, offsetX: 0, offsetY: 2 } : undefined,
+      listening: false,
+    })
   );
 
-  const hourAngle = ((hours + minutes / 60) / 12) * Math.PI * 2 - Math.PI / 2;
-  const minAngle = ((minutes + seconds / 60) / 60) * Math.PI * 2 - Math.PI / 2;
-  const secAngle = (seconds / 60) * Math.PI * 2 - Math.PI / 2;
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2 - Math.PI / 2;
+    const major = i % 3 === 0;
+    const tickLen = major ? size * 0.1 : size * 0.06;
+    const inner = r - tickLen;
+    const outer = r - size * 0.03;
+    const cos = Math.cos(a);
+    const sin = Math.sin(a);
+    group.add(
+      app.line({
+        x: cx + inner * cos,
+        y: cx + inner * sin,
+        x2: (outer - inner) * cos,
+        y2: (outer - inner) * sin,
+        stroke: major ? DASHBOARD.clockTickMajor : DASHBOARD.clockTick,
+        strokeWidth: major ? Math.max(1.5, size / 40) : 1,
+        lineCap: 'round',
+        listening: false,
+      })
+    );
+  }
+
+  const hourHand = app.line({
+    x: cx,
+    y: cx,
+    x2: 0,
+    y2: -hourLen,
+    stroke: DASHBOARD.clockHand,
+    strokeWidth: hourW,
+    lineCap: 'round',
+    listening: false,
+  });
+  const minHand = app.line({
+    x: cx,
+    y: cx,
+    x2: 0,
+    y2: -minLen,
+    stroke: DASHBOARD.clockHand,
+    strokeWidth: minW,
+    lineCap: 'round',
+    listening: false,
+  });
+  const secHand = app.line({
+    x: cx,
+    y: cx,
+    x2: 0,
+    y2: -secLen,
+    stroke: DASHBOARD.clockSecond,
+    strokeWidth: Math.max(1, size * 0.015),
+    lineCap: 'round',
+    visible: showSeconds,
+    listening: false,
+  });
+  group.add(hourHand, minHand, secHand);
 
   group.add(
-    app.line({ x: cx, y: cx, x2: 30 * Math.cos(hourAngle), y2: 30 * Math.sin(hourAngle), stroke: '#fff', strokeWidth: 3, listening: false }),
-    app.line({ x: cx, y: cx, x2: 40 * Math.cos(minAngle), y2: 40 * Math.sin(minAngle), stroke: '#fff', strokeWidth: 2, listening: false }),
-    app.line({ x: cx, y: cx, x2: 45 * Math.cos(secAngle), y2: 45 * Math.sin(secAngle), stroke: '#ef4444', strokeWidth: 1, listening: false })
+    app.circle({
+      x: cx - hubR,
+      y: cx - hubR,
+      radius: hubR,
+      fill: DASHBOARD.clockHub,
+      stroke: DASHBOARD.clockRing,
+      strokeWidth: 1,
+      listening: false,
+    }),
+    app.circle({
+      x: cx - hubR * 0.45,
+      y: cx - hubR * 0.45,
+      radius: hubR * 0.45,
+      fill: DASHBOARD.clockHand,
+      listening: false,
+    })
   );
-  setState(group, { size });
+
+  const updateHands = () => {
+    const now = new Date();
+    const hours = now.getHours() % 12;
+    const minutes = now.getMinutes();
+    const seconds = now.getSeconds();
+    const hourAngle = ((hours + minutes / 60) / 12) * Math.PI * 2 - Math.PI / 2;
+    const minAngle = ((minutes + seconds / 60) / 60) * Math.PI * 2 - Math.PI / 2;
+    const secAngle = (seconds / 60) * Math.PI * 2 - Math.PI / 2;
+    (hourHand as { x2: number; y2: number }).x2 = hourLen * Math.cos(hourAngle);
+    (hourHand as { y2: number }).y2 = hourLen * Math.sin(hourAngle);
+    (minHand as { x2: number; y2: number }).x2 = minLen * Math.cos(minAngle);
+    (minHand as { y2: number }).y2 = minLen * Math.sin(minAngle);
+    if (showSeconds) {
+      (secHand as { x2: number; y2: number }).x2 = secLen * Math.cos(secAngle);
+      (secHand as { y2: number }).y2 = secLen * Math.sin(secAngle);
+    }
+  };
+
+  updateHands();
+  setParts(group, { hourHand, minHand, secHand });
+  if (live) {
+    setRefresh(group, () => updateHands());
+  }
+  setState(group, { size, live, showSeconds });
+  return group;
+});
+
+/** Framed chart with title bar — embed any registered chart type. */
+registerDashboard('chartPanel', (props, app) => {
+  const chartType = str(props, 'chartType', 'lineChart');
+  const title = str(props, 'title', chartType);
+  const width = num(props, 'width', 320);
+  const height = num(props, 'height', 200);
+  const pad = 8;
+  const headerH = 26;
+  const innerW = Math.max(40, width - pad * 2);
+  const innerH = Math.max(32, height - headerH - pad);
+
+  const group = createWidgetGroup(app, 'chartPanel', props);
+
+  group.add(
+    app.rect({
+      width,
+      height,
+      fill: DASHBOARD.chartBg,
+      stroke: DASHBOARD.panelStroke,
+      strokeWidth: 1,
+      cornerRadius: 8,
+      listening: false,
+    }),
+    app.text({
+      text: title,
+      x: pad,
+      y: 6,
+      fontSize: 12,
+      fontWeight: 'bold',
+      fill: DASHBOARD.text,
+      listening: false,
+    })
+  );
+
+  if (props.maximizable !== false) {
+    group.add(
+      app.text({
+        text: '⤢',
+        x: width - 22,
+        y: 5,
+        fontSize: 14,
+        fill: DASHBOARD.textMuted,
+        listening: true,
+        metadata: { chartPanelAction: 'maximize' },
+      })
+    );
+  }
+
+  const chartProps = { ...props };
+  delete chartProps.chartType;
+  delete chartProps.title;
+  delete chartProps.width;
+  delete chartProps.height;
+  delete chartProps.maximizable;
+  const chart = createDashboardFromJSON(
+    chartType,
+    {
+      ...chartProps,
+      width: innerW,
+      height: innerH,
+      x: pad,
+      y: headerH,
+      responsive: props.responsive !== false,
+      zoomEnabled: props.zoomEnabled !== false,
+    },
+    app
+  );
+
+  if (chart) {
+    chart.x = pad;
+    chart.y = headerH;
+    group.add(chart);
+    setParts(group, { chart });
+  }
+
+  setState(group, { chartType, title, width, height, innerW, innerH });
   return group;
 });

@@ -157,4 +157,84 @@ describe('HTMLRenderer', () => {
     expect(root.style.getPropertyValue('--ld-primary')).toBe('#8b5cf6');
     app.destroy();
   });
+
+  it('applies preset via uiTheme input', () => {
+    container = createTestContainer();
+    const app = createTestApp(container, {
+      renderer: 'html',
+      uiTheme: { preset: 'violet' },
+    });
+    app.render();
+    const root = container.querySelector('.lightdraw-html-root') as HTMLElement;
+    expect(root.style.getPropertyValue('--ld-primary')).toBe('#7c3aed');
+    app.destroy();
+  });
+
+  it('persists theme across render and resize', () => {
+    container = createTestContainer();
+    const app = createTestApp(container, {
+      renderer: 'html',
+      width: 400,
+      height: 300,
+      uiTheme: { preset: 'emerald' },
+    });
+    app.render();
+    const root = () => container.querySelector('.lightdraw-html-root') as HTMLElement;
+    expect(root().style.getPropertyValue('--ld-primary')).toBe('#059669');
+    app.render();
+    expect(root().style.getPropertyValue('--ld-primary')).toBe('#059669');
+    app.resize(640, 480);
+    expect(root().style.getPropertyValue('--ld-primary')).toBe('#059669');
+    app.setUiTheme({ preset: 'rose' });
+    expect(root().style.getPropertyValue('--ld-primary')).toBe('#e11d48');
+    app.destroy();
+  });
+
+  it('form controls apply size and state modifier classes', () => {
+    container = createTestContainer();
+    const app = createTestApp(container, { renderer: 'html' });
+    app.loadJSON({
+      type: 'group',
+      children: [
+        { type: 'checkbox', props: { label: 'Opt in', checked: true, disabled: true, size: 'sm', x: 10, y: 10 } },
+        { type: 'toggle', props: { label: 'Alerts', value: false, size: 'sm', x: 10, y: 40 } },
+        { type: 'slider', props: { value: 30, width: 180, disabled: true, x: 10, y: 80 } },
+        { type: 'progressBar', props: { value: 55, label: 'Done', size: 'lg', variant: 'success', x: 10, y: 140, width: 200 } },
+      ],
+    });
+    app.render();
+    expect(container.querySelector('.lightdraw-checkbox--sm.lightdraw-checkbox--disabled')).not.toBeNull();
+    expect(container.querySelector('.lightdraw-switch-wrap--sm')).not.toBeNull();
+    expect(container.querySelector('.lightdraw-field--slider.lightdraw-field--disabled')).not.toBeNull();
+    expect(container.querySelector('.lightdraw-progress-wrap--lg')).not.toBeNull();
+    expect(container.querySelector('.lightdraw-progress--success')).not.toBeNull();
+    app.destroy();
+  });
+
+  it('setHighContrast applies data-ld-high-contrast on HTML root', () => {
+    container = createTestContainer();
+    const app = createTestApp(container, { renderer: 'html' });
+    app.loadJSON({ type: 'button', props: { label: 'A11y', x: 10, y: 10 } });
+    app.render();
+    const root = container.querySelector('.lightdraw-html-root') as HTMLElement;
+    expect(root?.hasAttribute('data-ld-high-contrast')).toBe(false);
+    app.setHighContrast(true);
+    app.render();
+    expect(root?.getAttribute('data-ld-high-contrast')).toBe('true');
+    expect(root?.classList.contains('lightdraw-high-contrast')).toBe(true);
+    app.destroy();
+  });
+
+  it('setUiTheme preset applies CSS variables on root', () => {
+    container = createTestContainer();
+    const app = createTestApp(container, { renderer: 'html', uiTheme: { preset: 'violet' } });
+    app.render();
+    const root = container.querySelector('.lightdraw-html-root') as HTMLElement;
+    expect(root?.style.getPropertyValue('--ld-primary').length).toBeGreaterThan(0);
+    app.setUiTheme({ preset: 'emerald' });
+    app.render();
+    const emerald = root.style.getPropertyValue('--ld-primary');
+    expect(emerald.length).toBeGreaterThan(0);
+    app.destroy();
+  });
 });

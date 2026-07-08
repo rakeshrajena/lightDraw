@@ -6,6 +6,7 @@ import {
 } from '../src/dashboard/registry';
 import { setLiveValue } from '../src/dashboard/helpers';
 import { computeTicks, dataBounds } from '../src/dashboard/chartPrimitives';
+import { DASHBOARD, resolveDashboardTheme } from '../src/dashboard/theme';
 import { toJSON } from '../src/io/json';
 import { syntheticEvent } from '../src/components/helpers';
 import { createTestApp, createTestContainer, measureAverageMs } from './helpers';
@@ -190,6 +191,148 @@ describe('Phase 7 — Dashboard Module', () => {
     setLiveValue(thermo, 'value', 90);
     expect((thermo.metadata.widgetState as { value: number }).value).toBe(90);
     app.destroy();
+  });
+
+  it('resolveDashboardTheme merges UI primary token', () => {
+    const theme = resolveDashboardTheme({ primary: '#ff00aa' });
+    expect(theme.primary).toBe('#ff00aa');
+    expect(theme.gaugeNeedle).toBe('#ff00aa');
+    expect(theme.panel).toBe(DASHBOARD.panel);
+  });
+
+  it('pieChart renders one arc per data slice', () => {
+    const container = createTestContainer();
+    const app = createTestApp(container, { renderer: 'html' });
+    const pie = createDashboardFromJSON('pieChart', { data: [30, 20, 50], size: 120, x: 0, y: 0 }, app)!;
+    app.add(pie);
+    app.render();
+    expect(pie.children.length).toBeGreaterThanOrEqual(3);
+    app.destroy();
+  });
+
+  it('barChart renders bars for each data point', () => {
+    const container = createTestContainer();
+    const app = createTestApp(container, { renderer: 'html' });
+    const chart = createDashboardFromJSON('barChart', { data: [10, 20, 30], width: 200, height: 100, x: 0, y: 0 }, app)!;
+    app.add(chart);
+    app.render();
+    expect(chart.children.length).toBeGreaterThan(4);
+    app.destroy();
+  });
+
+  it('signalStrength uses theme success color for active bars', () => {
+    const container = createTestContainer();
+    const app = createTestApp(container, { renderer: 'html' });
+    const sig = createDashboardFromJSON('signalStrength', { value: 3, x: 0, y: 0 }, app)!;
+    app.add(sig);
+    app.render();
+    const bars = sig.children as { fill?: string }[];
+    expect(bars[0]?.fill).toBe(DASHBOARD.signalActive);
+    expect(bars[4]?.fill).toBe(DASHBOARD.signalInactive);
+    app.destroy();
+  });
+
+  it('clock live refresh updates hand angles', () => {
+    const container = createTestContainer();
+    const app = createTestApp(container, { renderer: 'html' });
+    const clock = createDashboardFromJSON('clock', { size: 100, live: true, x: 0, y: 0 }, app)!;
+    app.add(clock);
+    app.render();
+    expect(typeof clock.metadata.refresh).toBe('function');
+    clock.metadata.refresh!(0);
+    app.render();
+    app.destroy();
+  });
+
+  it('barChart hover emits hover event and shows tooltip', () => {
+    const container = createTestContainer();
+    const app = createTestApp(container, { renderer: 'html' });
+    const chart = createDashboardFromJSON(
+      'barChart',
+      { data: [10, 20, 30, 40], width: 200, height: 100, x: 10, y: 10 },
+      app
+    )!;
+    app.add(chart);
+    let hovered: unknown;
+    chart.on('hover', (e: { index?: number }) => {
+      hovered = e.index;
+    });
+    chart.emit('mousemove', syntheticEvent('mousemove', chart, { worldX: 80, worldY: 50 }));
+    app.render();
+    expect(hovered).toBeDefined();
+    const parts = chart.metadata._parts as {
+      tooltip?: { x?: number; width?: number; height?: number; visible?: boolean };
+      tooltipLabel?: { x?: number; y?: number; text?: string; textAlign?: string };
+    };
+    expect(parts.tooltip?.visible).toBe(true);
+    expect(parts.tooltipLabel?.text).toBeTruthy();
+    expect(parts.tooltipLabel?.textAlign).toBe('center');
+    const tcx = (parts.tooltip?.x ?? 0) + (parts.tooltip?.width ?? 0) / 2;
+    expect(parts.tooltipLabel?.x).toBeCloseTo(tcx, 0);
+    app.destroy();
+  });
+
+  it('line chart tooltip becomes visible on hover', () => {
+    const container = createTestContainer();
+    const app = createTestApp(container, { renderer: 'html' });
+    const chart = createDashboardFromJSON(
+      'lineChart',
+      { data: [10, 20, 30, 40], width: 200, height: 100, x: 10, y: 10 },
+      app
+    )!;
+    app.add(chart);
+    app.render();
+    chart.emit('mousemove', syntheticEvent('mousemove', chart, { worldX: 80, worldY: 50 }));
+    app.render();
+    const parts = chart.metadata._parts as {
+      tooltip?: { x?: number; width?: number; visible?: boolean };
+      tooltipLabel?: { x?: number; text?: string; textAlign?: string };
+    };
+    expect(parts.tooltip?.visible).toBe(true);
+    expect(parts.tooltipLabel?.text).toBeTruthy();
+    expect(parts.tooltipLabel?.textAlign).toBe('center');
+    const tcx = (parts.tooltip?.x ?? 0) + (parts.tooltip?.width ?? 0) / 2;
+    expect(parts.tooltipLabel?.x).toBeCloseTo(tcx, 0);
+    app.destroy();
+  });
+
+  it('16-widget dashboard renders within performance budget', () => {
+    const orig = globalThis.Path2D;
+    class MockPath2D {
+      constructor(public d?: string) {}
+    }
+    globalThis.Path2D = MockPath2D as typeof Path2D;
+    try {
+      const container = createTestContainer();
+      const app = createTestApp(container, { renderer: 'canvas' });
+      const specs: [string, Record<string, unknown>][] = [
+        ['gauge', { value: 40, size: 60, x: 0, y: 0 }],
+        ['speedometer', { value: 60, size: 70, x: 70, y: 0 }],
+        ['lineChart', { data: [1, 2, 3], width: 100, height: 60, x: 0, y: 70 }],
+        ['areaChart', { data: [2, 4, 3], width: 100, height: 60, x: 110, y: 70 }],
+        ['barChart', { data: [3, 5, 2], width: 100, height: 60, x: 220, y: 70 }],
+        ['pieChart', { data: [1, 2, 3], size: 60, x: 330, y: 70 }],
+        ['thermometer', { value: 70, x: 400, y: 0 }],
+        ['compass', { heading: 45, size: 60, x: 440, y: 0 }],
+        ['battery', { value: 80, x: 510, y: 0 }],
+        ['meter', { value: 55, width: 80, x: 560, y: 0 }],
+        ['signalStrength', { value: 4, x: 650, y: 0 }],
+        ['knob', { value: 40, size: 50, x: 700, y: 0 }],
+        ['clock', { size: 60, live: false, x: 760, y: 0 }],
+        ['legend', { items: [{ label: 'A', color: '#3b82f6' }], x: 0, y: 140 }],
+        ['calendar', { width: 140, x: 120, y: 140 }],
+        ['timeline', { height: 80, x: 280, y: 140 }],
+      ];
+      for (const [type, props] of specs) {
+        app.add(createDashboardFromJSON(type, props, app)!);
+      }
+      app.render();
+      const avg = measureAverageMs(() => app.render(), 3);
+      expect(avg).toBeLessThan(45);
+      app.destroy();
+    } finally {
+      globalThis.Path2D = orig;
+    }
   });
 
   it('line chart with 1000 data points renders within budget', () => {

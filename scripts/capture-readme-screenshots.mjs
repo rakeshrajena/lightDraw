@@ -77,6 +77,16 @@ async function main() {
       console.log(`Capturing ${shot.file} (${VIEWPORT.width}×${VIEWPORT.height})…`);
       await page.goto(`${BASE}${shot.path}`, { waitUntil: 'networkidle' });
       await page.waitForSelector('#app canvas, #app .lightdraw-html-root', { timeout: 15000 });
+      if (shot.path.includes('demo-diagram')) {
+        await page.evaluate(() => {
+          const wrap = document.querySelector('.demo-canvas-wrap');
+          if (wrap instanceof HTMLElement) {
+            wrap.style.flex = 'none';
+            wrap.style.height = '640px';
+            wrap.style.minHeight = '640px';
+          }
+        });
+      }
       if (shot.wait) await delay(shot.wait);
       await page.screenshot({
         path: out,

@@ -2,14 +2,15 @@ import type { App } from '../App';
 import type { Node } from '../Node';
 import { Group } from '../shapes/Group';
 import type { NodeOptions } from '../types';
-import { DIAGRAM } from './theme';
+import { DIAGRAM, resolveStrokeWidth, strokeContextForCanvas } from './theme';
 import {
   applyPositions,
-  autoLayoutNodes,
+  autoLayoutNodesResponsive,
   createDiagramGroup,
   createNodeBox,
   measureTextWidth,
   normalizeDiagramData,
+  readCanvasSize,
   setDiagramState,
 } from './helpers';
 import {
@@ -19,6 +20,7 @@ import {
   createOrgNode,
   createPipelineStage,
   createStateNode,
+  createCanEcuNode,
 } from './primitives';
 import {
   forceDirectedLayout,
@@ -43,7 +45,10 @@ import type {
 export function createFlowchart(app: App, data: DiagramData, options: NodeOptions = {}): Group {
   const group = createDiagramGroup(app, 'flowchart', { ...options, data }, { name: 'flowchart' });
   const { nodes, edges } = normalizeDiagramData(data);
-  autoLayoutNodes(nodes, 3, 160, 88, 32, 28);
+  const canvas = readCanvasSize(options as Record<string, unknown>);
+  const strokeCtx = strokeContextForCanvas(canvas.width, canvas.height);
+  const edgeWidth = resolveStrokeWidth(DIAGRAM.stroke.edge, strokeCtx);
+  autoLayoutNodesResponsive(nodes, canvas.width, canvas.height, 128, 52);
   const nodeMap = new Map<string, Node>();
 
   for (const n of nodes) {
@@ -55,6 +60,7 @@ export function createFlowchart(app: App, data: DiagramData, options: NodeOption
   }
 
   const edgeLayer = app.group({ zIndex: -10, listening: false }) as Group;
+  edgeLayer.metadata.diagramEdgeLayer = true;
   const obstacles = collectObstacles([...nodeMap.values()]);
   for (const edge of edges) {
     const fromNode = nodeMap.get(edge.from);
@@ -64,7 +70,8 @@ export function createFlowchart(app: App, data: DiagramData, options: NodeOption
       connectNodes(app, fromNode, toNode, obstacles, {
         parent: group,
         stroke: DIAGRAM.edge,
-        strokeWidth: 2,
+        glowColor: DIAGRAM.edgeGlow,
+        strokeWidth: edgeWidth,
         label: edge.label,
       })
     );
@@ -86,10 +93,15 @@ export function createStateMachine(
 ): Group {
   const group = createDiagramGroup(app, 'stateMachine', { ...options, data }, { name: 'stateMachine' });
   const nodeMap = new Map<string, Node>();
+  const canvas = readCanvasSize(options as Record<string, unknown>);
+  const strokeCtx = strokeContextForCanvas(canvas.width, canvas.height);
+  const edgeWidth = resolveStrokeWidth(DIAGRAM.stroke.edge, strokeCtx);
+  const layoutNodes = data.states.map((s) => ({ id: s.id, x: s.x, y: s.y }));
+  autoLayoutNodesResponsive(layoutNodes, canvas.width, canvas.height, 64, 64);
   const states = data.states.map((s, i) => ({
     ...s,
-    x: s.x ?? 48 + (i % 4) * 110,
-    y: s.y ?? 48 + Math.floor(i / 4) * 100,
+    x: s.x ?? layoutNodes[i]?.x ?? 48 + (i % 4) * 110,
+    y: s.y ?? layoutNodes[i]?.y ?? 48 + Math.floor(i / 4) * 100,
   }));
 
   for (const s of states) {
@@ -101,6 +113,7 @@ export function createStateMachine(
   }
 
   const edgeLayer = app.group({ zIndex: -10, listening: false }) as Group;
+  edgeLayer.metadata.diagramEdgeLayer = true;
   const obstacles = collectObstacles([...nodeMap.values()]);
   for (const t of data.transitions) {
     const from = nodeMap.get(t.from);
@@ -110,6 +123,8 @@ export function createStateMachine(
       connectNodes(app, from, to, obstacles, {
         parent: group,
         stroke: DIAGRAM.edge,
+        glowColor: DIAGRAM.edgeGlow,
+        strokeWidth: edgeWidth,
         label: t.label,
       })
     );
@@ -142,6 +157,7 @@ export function createClassDiagram(
   }
 
   const edgeLayer = app.group({ zIndex: -10, listening: false }) as Group;
+  edgeLayer.metadata.diagramEdgeLayer = true;
   for (const rel of data.relations) {
     const from = nodeMap.get(rel.from);
     const to = nodeMap.get(rel.to);
@@ -151,7 +167,8 @@ export function createClassDiagram(
         connectNodes(app, from, to, [], {
           parent: group,
           style: 'orthogonal',
-          stroke: DIAGRAM.classStroke,
+          stroke: DIAGRAM.umlInheritance,
+          glowColor: 'rgba(245,158,11,0.18)',
           arrowEnd: 'hollow',
         })
       );
@@ -160,8 +177,19 @@ export function createClassDiagram(
         connectNodes(app, from, to, [], {
           parent: group,
           style: 'orthogonal',
-          stroke: DIAGRAM.edge,
+          stroke: DIAGRAM.umlAssociation,
+          glowColor: DIAGRAM.edgeGlow,
           arrowEnd: 'open',
+        })
+      );
+    } else if (rel.type === 'composition') {
+      edgeLayer.add(
+        connectNodes(app, from, to, [], {
+          parent: group,
+          style: 'orthogonal',
+          stroke: DIAGRAM.umlComposition,
+          glowColor: 'rgba(244,114,182,0.16)',
+          arrowEnd: 'filled',
         })
       );
     } else {
@@ -169,8 +197,10 @@ export function createClassDiagram(
         connectNodes(app, from, to, [], {
           parent: group,
           style: 'orthogonal',
-          stroke: DIAGRAM.edge,
+          stroke: DIAGRAM.umlImplements,
+          glowColor: 'rgba(167,139,250,0.16)',
           dash: rel.type === 'implements' ? [6, 4] : undefined,
+          arrowEnd: 'open',
         })
       );
     }
@@ -188,35 +218,48 @@ export function createMindMap(
   options: NodeOptions = {}
 ): Group {
   const group = createDiagramGroup(app, 'mindMap', { ...options, center, branches }, { name: 'mindMap' });
+  const canvas = readCanvasSize(options as Record<string, unknown>);
+  const minDim = Math.min(canvas.width, canvas.height);
 
-  const centerNode = createNodeBox(app, center, 108, 52, {
+  const centerNode = createNodeBox(app, center, 112, 54, {
     fill: DIAGRAM.mindCenter.fill,
     stroke: DIAGRAM.mindCenter.stroke,
-    cornerRadius: 26,
+    cornerRadius: 27,
+    accentColor: DIAGRAM.mindCenter.accent,
   });
+  centerNode.metadata.diagramId = 'center';
   group.add(centerNode);
 
-  for (const branch of branches) {
-    const branchNode = createNodeBox(app, branch.label, 96, 38, {
-      fill: DIAGRAM.mindBranch.fill,
-      stroke: DIAGRAM.mindBranch.stroke,
+  branches.forEach((branch, bi) => {
+    const palette = DIAGRAM.mindBranchPalette[bi % DIAGRAM.mindBranchPalette.length];
+    const branchNode = createNodeBox(app, branch.label, 100, 40, {
+      fill: palette.fill,
+      stroke: palette.stroke,
+      accentColor: palette.accent,
     });
+    branchNode.metadata = {
+      diagramId: `branch_${bi}`,
+      mindBranchColor: palette.stroke,
+      mindBranchGlow: palette.glow,
+    };
     group.add(branchNode);
 
     if (branch.children) {
       branch.children.forEach((child, ci) => {
-        const childNode = createNodeBox(app, child, 84, 32, {
+        const childNode = createNodeBox(app, child, 88, 34, {
           fill: DIAGRAM.mindLeaf.fill,
-          stroke: DIAGRAM.mindLeaf.stroke,
+          stroke: palette.stroke,
+          accentColor: palette.accent,
         });
+        childNode.metadata.diagramId = `branch_${bi}_leaf_${ci}`;
         childNode.x = -12 + ci * 92;
         childNode.y = 50;
         branchNode.add(childNode);
       });
     }
-  }
+  });
 
-  radialLayout(group, 220, 160, 130, 190);
+  radialLayout(group, canvas.width / 2, canvas.height / 2, minDim * 0.2, minDim * 0.34);
   wireMindMapConnectors(app, group);
   return group;
 }
@@ -229,7 +272,10 @@ export function createNetworkDiagram(
 ): Group {
   const group = createDiagramGroup(app, 'networkTopology', { ...options, data }, { name: 'network' });
   const { nodes, edges } = normalizeDiagramData(data);
-  autoLayoutNodes(nodes, 4, 130, 100, 28, 24);
+  const canvas = readCanvasSize(options as Record<string, unknown>);
+  const strokeCtx = strokeContextForCanvas(canvas.width, canvas.height);
+  const edgeWidth = resolveStrokeWidth(DIAGRAM.stroke.edge, strokeCtx);
+  autoLayoutNodesResponsive(nodes, canvas.width, canvas.height, 100, 72);
   const nodeMap = new Map<string, Node>();
 
   for (const n of nodes) {
@@ -243,6 +289,7 @@ export function createNetworkDiagram(
 
   const obstacles = collectObstacles([...nodeMap.values()]);
   const edgeLayer = app.group({ zIndex: -10, listening: false }) as Group;
+  edgeLayer.metadata.diagramEdgeLayer = true;
   for (const edge of edges) {
     const from = nodeMap.get(edge.from);
     const to = nodeMap.get(edge.to);
@@ -251,6 +298,8 @@ export function createNetworkDiagram(
       connectNodes(app, from, to, obstacles, {
         parent: group,
         stroke: DIAGRAM.edge,
+        glowColor: DIAGRAM.edgeGlow,
+        strokeWidth: edgeWidth,
         label: edge.label,
       })
     );
@@ -267,8 +316,13 @@ export function createOrgChart(
   options: NodeOptions = {}
 ): Group {
   const group = createDiagramGroup(app, 'orgChart', { ...options, root }, { name: 'orgChart' });
-  buildOrgNode(app, group, root, 0, 0);
-  layoutDiagram(group, 110, 72);
+  const canvas = readCanvasSize(options as Record<string, unknown>);
+  buildOrgNode(app, group, root, 0, 0, 0);
+  layoutDiagram(
+    group,
+    Math.max(80, Math.round(canvas.height * 0.16)),
+    Math.max(56, Math.round(canvas.width * 0.11))
+  );
   wireOrgChartConnectors(app, group);
   return group;
 }
@@ -278,14 +332,17 @@ function buildOrgNode(
   parent: Group,
   data: OrgChartNode,
   x: number,
-  y: number
+  y: number,
+  depth: number
 ): Group {
   const childCount = data.children?.length ?? 0;
   const collapsed = data.collapsed ?? false;
-  const { node, indicator } = createOrgNode(app, data.name, undefined, childCount, collapsed);
+  const { node, indicator } = createOrgNode(app, data.name, undefined, childCount, collapsed, depth);
+  node.metadata.diagramId = data.name;
+  node.metadata.orgName = data.name;
   node.x = x;
   node.y = y;
-  node.metadata = { orgNode: true, collapsed, childCount };
+  node.metadata = { ...node.metadata, orgNode: true, collapsed, childCount };
 
   if (indicator) {
     node.metadata.collapseIndicator = indicator;
@@ -293,7 +350,7 @@ function buildOrgNode(
 
   if (data.children && data.children.length > 0 && !collapsed) {
     for (const child of data.children) {
-      buildOrgNode(app, node, child, 0, 0);
+      buildOrgNode(app, node, child, 0, 0, depth + 1);
     }
   }
 
@@ -346,10 +403,29 @@ export function createCanNetwork(
   options: NodeOptions = {}
 ): Group {
   const group = createDiagramGroup(app, 'canNetwork', { ...options, data }, { name: 'canNetwork' });
+  const canvas = readCanvasSize(options as Record<string, unknown>);
+  const strokeCtx = strokeContextForCanvas(canvas.width, canvas.height);
+  const nodeStroke = resolveStrokeWidth(DIAGRAM.stroke.node, strokeCtx);
   const busY = 72;
-  const busWidth = Math.max(440, data.ecus.length * 110);
+  const busWidth = Math.max(
+    280,
+    Math.min(canvas.width - 48, Math.max(440, data.ecus.length * 110))
+  );
   const busLabel = data.busLabel ?? 'CAN Bus';
 
+  group.add(
+    app.roundedRect({
+      x: 14,
+      y: busY - 5,
+      width: busWidth + 4,
+      height: 10,
+      cornerRadius: 5,
+      fill: DIAGRAM.canBusGlow,
+      stroke: null,
+      opacity: 0.6,
+      listening: false,
+    })
+  );
   group.add(
     app.roundedRect({
       x: 16,
@@ -402,67 +478,11 @@ export function createCanNetwork(
   const spacing = busWidth / (data.ecus.length + 1);
   for (let i = 0; i < data.ecus.length; i++) {
     const ecu = data.ecus[i];
+    const ecuColor = DIAGRAM.canEcuPalette[i % DIAGRAM.canEcuPalette.length];
     const x = 16 + spacing * (i + 1) - 44;
-    const ecuGroup = app.group({ x, y: busY + 14 });
-    ecuGroup.add(
-      app.roundedRect({
-        width: 88,
-        height: 54,
-        cornerRadius: DIAGRAM.radii.md,
-        fill: DIAGRAM.nodeFill,
-        stroke: DIAGRAM.nodeStroke,
-        strokeWidth: 1.5,
-        shadow: DIAGRAM.shadowSoft,
-        listening: false,
-      })
-    );
-    ecuGroup.add(
-      app.rect({
-        x: 0,
-        y: 0,
-        width: 88,
-        height: 4,
-        fill: DIAGRAM.nodeStroke,
-        listening: false,
-      })
-    );
-    ecuGroup.add(
-      app.text({
-        text: ecu.label,
-        x: DIAGRAM.spacing.sm,
-        y: 12,
-        fontSize: DIAGRAM.fontSize.md,
-        fill: DIAGRAM.nodeText,
-        fontWeight: 'bold',
-        fontFamily: DIAGRAM.fontFamily,
-        listening: false,
-      })
-    );
-    if (ecu.address) {
-      ecuGroup.add(
-        app.text({
-          text: ecu.address,
-          x: DIAGRAM.spacing.sm,
-          y: 30,
-          fontSize: DIAGRAM.fontSize.xs,
-          fontFamily: DIAGRAM.fontMono,
-          fill: DIAGRAM.edgeLabel,
-          listening: false,
-        })
-      );
-    }
-    ecuGroup.add(
-      app.line({
-        x: 44,
-        y: 0,
-        x2: 0,
-        y2: -14,
-        stroke: DIAGRAM.canBus,
-        strokeWidth: 2.5,
-        lineCap: 'round',
-        listening: false,
-      })
-    );
+    const ecuGroup = createCanEcuNode(app, ecu.label, ecu.address, ecuColor, nodeStroke);
+    ecuGroup.x = x;
+    ecuGroup.y = busY + 14;
     ecuGroup.metadata = { diagramId: ecu.id };
     group.add(ecuGroup);
   }
@@ -477,6 +497,9 @@ export function createPipeline(
   options: NodeOptions = {}
 ): Group {
   const group = createDiagramGroup(app, 'processPipeline', { ...options, stages }, { name: 'pipeline' });
+  const canvas = readCanvasSize(options as Record<string, unknown>);
+  const strokeCtx = strokeContextForCanvas(canvas.width, canvas.height);
+  const edgeWidth = resolveStrokeWidth(DIAGRAM.stroke.edge, strokeCtx);
 
   const stageNodes: Node[] = [];
   for (const stage of stages) {
@@ -486,15 +509,18 @@ export function createPipeline(
     stageNodes.push(node);
   }
 
-  pipelineLayout(group, 56, 12);
+  pipelineLayout(group, Math.max(8, Math.floor((canvas.width - 48) / Math.max(stages.length, 1) / 3)), 12, canvas.height);
 
   const edgeLayer = app.group({ zIndex: -10, listening: false }) as Group;
+  edgeLayer.metadata.diagramEdgeLayer = true;
   for (let i = 0; i < stageNodes.length - 1; i++) {
     edgeLayer.add(
       connectNodes(app, stageNodes[i], stageNodes[i + 1], [], {
         parent: group,
         style: 'straight',
         stroke: DIAGRAM.edge,
+        glowColor: DIAGRAM.edgeGlow,
+        strokeWidth: edgeWidth,
         arrowEnd: 'filled',
       })
     );

@@ -38,7 +38,11 @@ export interface ClassDiagramData {
     x?: number;
     y?: number;
   }>;
-  relations: Array<{ from: string; to: string; type?: 'inheritance' | 'implements' | 'association' }>;
+  relations: Array<{
+    from: string;
+    to: string;
+    type?: 'inheritance' | 'implements' | 'association' | 'composition';
+  }>;
 }
 
 export interface OrgChartNode {

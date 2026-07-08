@@ -342,8 +342,8 @@ describe('Coverage — diagram module extras', () => {
     expect(positions.size).toBe(3);
 
     const group = app.group();
-    group.add(app.rect({ width: 40, height: 30 }));
-    group.add(app.rect({ width: 40, height: 30 }));
+    group.add(app.rect({ width: 40, height: 30, metadata: { pipelineStatus: 'done' } }));
+    group.add(app.rect({ width: 40, height: 30, metadata: { pipelineStatus: 'active' } }));
     pipelineLayout(group, 20, 5);
     expect(group.children[1].x).toBeGreaterThan(group.children[0].x);
     app.destroy();

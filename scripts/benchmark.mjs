@@ -35,18 +35,28 @@ const args = process.argv.slice(2);
 const saveBaseline = args.includes('--save');
 const compareBaseline = args.includes('--compare');
 
+function setGlobal(name, value) {
+  try {
+    globalThis[name] = value;
+  } catch {
+    Object.defineProperty(globalThis, name, {
+      value,
+      configurable: true,
+      writable: true,
+    });
+  }
+}
+
 // --- jsdom + canvas mock (mirrors test/setup.ts) ---
 const dom = new JSDOM('<!DOCTYPE html><html><body><div id="app"></div></body></html>', {
   pretendToBeVisual: true,
 });
-globalThis.window = dom.window;
-globalThis.document = dom.window.document;
-globalThis.navigator = dom.window.navigator;
-globalThis.requestAnimationFrame = (cb) => setTimeout(() => cb(performance.now()), 16);
-globalThis.cancelAnimationFrame = (id) => clearTimeout(id);
-globalThis.performance = performance;
-globalThis.Image = dom.window.Image;
-globalThis.HTMLElement = dom.window.HTMLElement;
+setGlobal('window', dom.window);
+setGlobal('document', dom.window.document);
+setGlobal('HTMLElement', dom.window.HTMLElement);
+setGlobal('Image', dom.window.Image);
+setGlobal('requestAnimationFrame', (cb) => setTimeout(() => cb(performance.now()), 16));
+setGlobal('cancelAnimationFrame', (id) => clearTimeout(id));
 
 function installCanvasMock() {
   const proto = dom.window.HTMLCanvasElement.prototype;

@@ -67,8 +67,9 @@ export class EventManager {
     for (const type of events) {
       const handler = (e: Event) => this.handleEvent(type as EventType, e);
       this.boundHandlers[type] = handler;
+      // Wheel must be non-passive so chart zoom can call preventDefault (block page scroll).
       this.element.addEventListener(type, handler, {
-        passive: type === 'touchmove' || type === 'wheel',
+        passive: type === 'touchmove',
       });
     }
   }
@@ -77,6 +78,44 @@ export class EventManager {
     for (const type in this.boundHandlers) {
       this.element.removeEventListener(type, this.boundHandlers[type]);
     }
+  }
+
+  private resolveDraggableNode(node: Node | null): Node | null {
+    let cur: Node | null = node;
+    while (cur) {
+      if (cur.draggable) return cur;
+      cur = cur.parent;
+    }
+    return null;
+  }
+
+  /** Map world-space pointer delta into the dragged node's parent local space. */
+  private dragPositionFromWorld(
+    node: Node,
+    startWorldX: number,
+    startWorldY: number,
+    worldX: number,
+    worldY: number,
+    nodeStartX: number,
+    nodeStartY: number
+  ): { x: number; y: number } {
+    const parent = node.parent;
+    if (!parent) {
+      return {
+        x: nodeStartX + (worldX - startWorldX),
+        y: nodeStartY + (worldY - startWorldY),
+      };
+    }
+    const inv = parent.getWorldMatrix().invert();
+    if (!inv) {
+      return {
+        x: nodeStartX + (worldX - startWorldX),
+        y: nodeStartY + (worldY - startWorldY),
+      };
+    }
+    const p0 = inv.transformPoint(startWorldX, startWorldY);
+    const p1 = inv.transformPoint(worldX, worldY);
+    return { x: nodeStartX + (p1.x - p0.x), y: nodeStartY + (p1.y - p0.y) };
   }
 
   private getPointerCoords(e: Event): { x: number; y: number } {
@@ -101,10 +140,17 @@ export class EventManager {
     const world = this.app.camera.screenToWorld(x, y);
 
     if (this.dragState && (type === 'mousemove' || type === 'touchmove')) {
-      const dx = world.x - this.dragState.startX;
-      const dy = world.y - this.dragState.startY;
-      this.dragState.node.x = this.dragState.nodeStartX + dx;
-      this.dragState.node.y = this.dragState.nodeStartY + dy;
+      const pos = this.dragPositionFromWorld(
+        this.dragState.node,
+        this.dragState.startX,
+        this.dragState.startY,
+        world.x,
+        world.y,
+        this.dragState.nodeStartX,
+        this.dragState.nodeStartY
+      );
+      this.dragState.node.x = pos.x;
+      this.dragState.node.y = pos.y;
       this.dispatchBubble(
         this.dragState.node,
         'dragmove',
@@ -182,18 +228,19 @@ export class EventManager {
       this.dispatchBubble(target, type, originalEvent, x, y, world.x, world.y);
 
       if (type === 'mousedown' || type === 'touchstart') {
-        if (target.draggable) {
+        const dragNode = this.resolveDraggableNode(target);
+        if (dragNode) {
           this.dragState = {
-            node: target,
+            node: dragNode,
             startX: world.x,
             startY: world.y,
-            nodeStartX: target.x,
-            nodeStartY: target.y,
-            payload: target.dragPayload ?? target.metadata?.dragPayload,
+            nodeStartX: dragNode.x,
+            nodeStartY: dragNode.y,
+            payload: dragNode.dragPayload ?? dragNode.metadata?.dragPayload,
             overNode: null,
           };
           this.dispatchBubble(
-            target,
+            dragNode,
             'dragstart',
             originalEvent,
             x,
@@ -208,7 +255,30 @@ export class EventManager {
 
     if (type === 'wheel') {
       const wheelEvent = originalEvent as WheelEvent;
-      this.app.camera.pan(wheelEvent.deltaX / this.app.camera.zoom, wheelEvent.deltaY / this.app.camera.zoom);
+      const hit = this.app.hitTest(world.x, world.y);
+      const target = hit?.node ?? null;
+      let handled = false;
+      if (target) {
+        const event = createEvent('wheel', target, originalEvent, x, y, world.x, world.y);
+        let current: Node | null = target;
+        while (current) {
+          if (current.listening) {
+            event.currentTarget = current;
+            current.emit('wheel', event);
+            if (event.propagationStopped) {
+              handled = true;
+              break;
+            }
+          }
+          current = current.parent;
+        }
+      }
+      if (!handled) {
+        this.app.camera.pan(wheelEvent.deltaX / this.app.camera.zoom, wheelEvent.deltaY / this.app.camera.zoom);
+      } else {
+        wheelEvent.preventDefault();
+      }
+      return;
     }
   }
 

@@ -16,6 +16,7 @@ import {
 } from '../shapes/index';
 import { Matrix2D } from '../utils';
 import { isGradient, createSvgGradient, createSvgShadowFilter } from './styles';
+import { arcSectorPath } from './arcSector';
 
 export class SVGRenderer extends Renderer {
   private svg!: SVGSVGElement;
@@ -304,6 +305,21 @@ export class SVGRenderer extends Renderer {
       el = document.createElementNS(ns, 'polygon');
       el.setAttribute('points', this.starPoints(node));
       this.applyStyle(node, el);
+    } else if (node instanceof Arc) {
+      el = document.createElementNS(ns, 'path');
+      el.setAttribute(
+        'd',
+        arcSectorPath(
+          node.radius,
+          node.radius,
+          node.radius,
+          node.startAngle,
+          node.endAngle,
+          node.innerRadius,
+          node.counterClockwise
+        )
+      );
+      this.applyStyle(node, el);
     } else if (node instanceof ImageNode) {
       el = document.createElementNS(ns, 'image');
       el.setAttribute('href', node.src);
@@ -330,6 +346,20 @@ export class SVGRenderer extends Renderer {
       el.setAttribute('font-size', String(node.fontSize));
     } else if (node instanceof Path) {
       el.setAttribute('d', node.d);
+      this.applyStyle(node, el);
+    } else if (node instanceof Arc) {
+      el.setAttribute(
+        'd',
+        arcSectorPath(
+          node.radius,
+          node.radius,
+          node.radius,
+          node.startAngle,
+          node.endAngle,
+          node.innerRadius,
+          node.counterClockwise
+        )
+      );
       this.applyStyle(node, el);
     } else {
       this.applyStyle(node, el);

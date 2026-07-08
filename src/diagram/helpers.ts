@@ -78,6 +78,49 @@ export function seededRandom(seed: number): () => number {
   };
 }
 
+export interface GridLayoutSpec {
+  cols: number;
+  cellW: number;
+  cellH: number;
+  paddingX: number;
+  paddingY: number;
+}
+
+export function readCanvasSize(
+  options: Record<string, unknown>,
+  fallbackW = 800,
+  fallbackH = 500
+): { width: number; height: number } {
+  return {
+    width: typeof options.width === 'number' ? options.width : fallbackW,
+    height: typeof options.height === 'number' ? options.height : fallbackH,
+  };
+}
+
+/** Compute responsive grid columns and spacing for diagram auto-layout */
+export function resolveGridLayout(
+  nodeCount: number,
+  canvasW: number,
+  canvasH: number,
+  nodeW = 130,
+  nodeH = 80,
+  minPadding = 16
+): GridLayoutSpec {
+  const tight = canvasW < 520 || canvasH < 360;
+  const maxCols = tight
+    ? Math.max(1, Math.floor((canvasW - minPadding * 2) / (nodeW * 0.9)))
+    : Math.max(2, Math.ceil(Math.sqrt(nodeCount * (canvasW / Math.max(canvasH, 1)))));
+  const cols = Math.max(1, Math.min(maxCols, nodeCount));
+  const rows = Math.ceil(nodeCount / cols);
+  const paddingX = Math.max(minPadding, Math.round(canvasW * 0.04));
+  const paddingY = Math.max(minPadding, Math.round(canvasH * 0.05));
+  const availW = Math.max(nodeW, canvasW - paddingX * 2);
+  const availH = Math.max(nodeH, canvasH - paddingY * 2);
+  const cellW = cols <= 1 ? nodeW : Math.max(nodeW * 0.72, (availW - nodeW) / Math.max(cols - 1, 1));
+  const cellH = rows <= 1 ? nodeH : Math.max(nodeH * 0.72, (availH - nodeH) / Math.max(rows - 1, 1));
+  return { cols, cellW, cellH, paddingX, paddingY };
+}
+
 /** Auto-place diagram nodes on a grid when positions are missing */
 export function autoLayoutNodes(
   nodes: Array<{ id: string; x?: number; y?: number }>,
@@ -95,13 +138,125 @@ export function autoLayoutNodes(
   });
 }
 
+/** Responsive grid auto-layout using canvas dimensions from options */
+export function autoLayoutNodesResponsive(
+  nodes: Array<{ id: string; x?: number; y?: number }>,
+  canvasW: number,
+  canvasH: number,
+  nodeW = 130,
+  nodeH = 80
+): void {
+  const needs = nodes.some((n) => n.x === undefined || n.y === undefined);
+  if (!needs) return;
+  const { cols, cellW, cellH, paddingX, paddingY } = resolveGridLayout(
+    nodes.length,
+    canvasW,
+    canvasH,
+    nodeW,
+    nodeH
+  );
+  nodes.forEach((n, i) => {
+    if (n.x === undefined) n.x = paddingX + (i % cols) * cellW;
+    if (n.y === undefined) n.y = paddingY + Math.floor(i / cols) * cellH;
+  });
+}
+
+/** Union bounds of diagram content nodes (excludes connector layers). */
+function diagramContentBounds(group: Group): {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+} {
+  const nodes: Node[] = [];
+  const walk = (parent: Group): void => {
+    for (const child of parent.children) {
+      if (
+        child.metadata?.diagramId ||
+        child.metadata?.orgNode ||
+        child.metadata?.symbolType ||
+        child.metadata?.pipelineStatus !== undefined
+      ) {
+        nodes.push(child);
+      }
+      if ('children' in child && (child as Group).children?.length) {
+        walk(child as Group);
+      }
+    }
+  };
+  walk(group);
+
+  const sources =
+    nodes.length > 0 ? nodes : group.children.filter((c) => c.zIndex >= 0);
+  if (sources.length === 0) return group.getBounds();
+
+  const posInRoot = (node: Node): { x: number; y: number } => {
+    let x = 0;
+    let y = 0;
+    let cur: Node | null = node;
+    while (cur && cur !== group) {
+      x += cur.x;
+      y += cur.y;
+      cur = cur.parent;
+    }
+    return { x, y };
+  };
+
+  let minX = Infinity,
+    minY = Infinity,
+    maxX = -Infinity,
+    maxY = -Infinity;
+  for (const child of sources) {
+    const b = child.getBounds();
+    const p = posInRoot(child);
+    minX = Math.min(minX, p.x + b.x);
+    minY = Math.min(minY, p.y + b.y);
+    maxX = Math.max(maxX, p.x + b.x + b.width);
+    maxY = Math.max(maxY, p.y + b.y + b.height);
+  }
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+}
+
+/** Scale and translate a diagram group to fit within canvas bounds */
+export function fitDiagramToBounds(
+  group: Group,
+  canvasW: number,
+  canvasH: number,
+  padding = 20,
+  options: { allowScaleUp?: boolean; maxScaleUp?: number } = {}
+): { scale: number; offsetX: number; offsetY: number } {
+  const allowScaleUp = options.allowScaleUp ?? true;
+  const maxScaleUp = options.maxScaleUp ?? 2.1;
+  const b = diagramContentBounds(group);
+  const contentW = Math.max(b.width, 1);
+  const contentH = Math.max(b.height, 1);
+  const availW = canvasW - padding * 2;
+  const availH = canvasH - padding * 2;
+  let scale = Math.min(availW / contentW, availH / contentH);
+  if (scale > 1 && allowScaleUp) scale = Math.min(scale, maxScaleUp);
+  else if (scale > 1) scale = 1;
+  const offsetX = padding + (availW - contentW * scale) / 2 - b.x * scale;
+  const offsetY = padding + (availH - contentH * scale) / 2 - b.y * scale;
+  group.scaleX = scale;
+  group.scaleY = scale;
+  group.x = offsetX;
+  group.y = offsetY;
+  group.markDirty();
+  return { scale, offsetX, offsetY };
+}
+
 /** Build a labeled node box used across diagram types. */
 export function createNodeBox(
   app: App,
   label: string,
   width: number,
   height: number,
-  style: { fill?: string; stroke?: string; cornerRadius?: number } = {}
+  style: {
+    fill?: string;
+    stroke?: string;
+    cornerRadius?: number;
+    accentColor?: string;
+  } = {}
 ): Group {
   return createLabeledBox(app, label, width, height, style);
 }

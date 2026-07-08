@@ -3,7 +3,7 @@ import type { Node } from '../Node';
 import type { Group } from '../shapes/Group';
 import { DIAGRAM } from './theme';
 import type { Obstacle } from './types';
-import { computeRoutePoints, getAnchor, type RouteStyle } from './router';
+import { collectObstacles, computeRoutePoints, getAnchor, type RouteStyle } from './router';
 import { getConnectorAnchors, obstacleToParentLocal, worldToParentLocal } from './coords';
 import { createEdgeLabel } from './primitives';
 
@@ -15,11 +15,15 @@ export interface ConnectorOptions {
   parent?: Group;
   stroke?: string;
   strokeWidth?: number;
+  glowColor?: string;
   arrowEnd?: ArrowStyle;
   arrowStart?: ArrowStyle;
   label?: string;
   labelColor?: string;
   dash?: number[];
+  edgeId?: string;
+  fromId?: string;
+  toId?: string;
 }
 
 /** Angle of segment from (x1,y1) to (x2,y2) in radians */
@@ -108,10 +112,11 @@ export function createConnector(
   options: ConnectorOptions = {}
 ): Group {
   const stroke = options.stroke ?? DIAGRAM.edge;
-  const strokeWidth = options.strokeWidth ?? 2;
+  const strokeWidth = options.strokeWidth ?? DIAGRAM.stroke.edge;
+  const glowColor = options.glowColor ?? DIAGRAM.edgeGlow;
   const arrowEnd = options.arrowEnd ?? 'filled';
   const arrowStart = options.arrowStart ?? 'none';
-  const arrowSize = 10;
+  const arrowSize = 11;
   const style = options.style ?? 'smart';
   const obstacles = options.obstacles ?? [];
 
@@ -132,6 +137,19 @@ export function createConnector(
     display[0] = x0 + (x1s - x0) * t;
     display[1] = y0 + (y1s - y0) * t;
   }
+
+  group.add(
+    app.polyline({
+      points: display,
+      fill: null,
+      stroke: glowColor,
+      strokeWidth: strokeWidth + DIAGRAM.stroke.edgeGlow,
+      lineJoin: 'round',
+      lineCap: 'round',
+      opacity: 0.85,
+      listening: false,
+    })
+  );
 
   group.add(
     app.polyline({
@@ -160,7 +178,7 @@ export function createConnector(
         points: arrowHeadPoints(x2, y2, endAngle, arrowSize),
         fill: stroke,
         stroke,
-        strokeWidth: 1,
+        strokeWidth: DIAGRAM.stroke.arrow,
         listening: false,
       })
     );
@@ -182,7 +200,7 @@ export function createConnector(
         points: arrowHeadPoints(x2, y2, endAngle, arrowSize + 2),
         fill: DIAGRAM.classFill,
         stroke,
-        strokeWidth: 1.5,
+        strokeWidth: DIAGRAM.stroke.node,
         listening: false,
       })
     );
@@ -194,7 +212,7 @@ export function createConnector(
         points: arrowHeadPoints(x1, y1, startAngle + Math.PI, arrowSize),
         fill: stroke,
         stroke,
-        strokeWidth: 1,
+        strokeWidth: DIAGRAM.stroke.arrow,
         listening: false,
       })
     );
@@ -202,8 +220,20 @@ export function createConnector(
 
   if (options.label) {
     const mid = pathMidpoint(points);
-    group.add(createEdgeLabel(app, options.label, mid.x, mid.y - 6));
+    group.add(createEdgeLabel(app, options.label, mid.x, mid.y - 6, stroke));
   }
+
+  if (options.edgeId) group.metadata.edgeId = options.edgeId;
+  if (options.fromId) group.metadata.edgeFrom = options.fromId;
+  if (options.toId) group.metadata.edgeTo = options.toId;
+  if (options.label) group.metadata.edgeLabel = options.label;
+  group.metadata.edgeStroke = stroke;
+  group.metadata.edgeStrokeWidth = strokeWidth;
+  group.metadata.edgeGlow = glowColor;
+  group.metadata.edgeStyle = style;
+  group.metadata.edgeArrowEnd = arrowEnd;
+  group.metadata.edgeArrowStart = arrowStart;
+  if (options.dash) group.metadata.edgeDash = options.dash;
 
   return group;
 }
@@ -240,14 +270,79 @@ export function connectNodes(
     y2 = toAnchor.y;
   }
 
-  return createConnector(app, x1, y1, x2, y2, { style: 'smart', ...options, obstacles: routeObstacles });
+  return createConnector(app, x1, y1, x2, y2, {
+    style: 'smart',
+    fromId: options.fromId ?? (from.metadata?.diagramId as string | undefined),
+    toId: options.toId ?? (to.metadata?.diagramId as string | undefined),
+    edgeId:
+      options.edgeId ??
+      `${options.fromId ?? from.metadata?.diagramId ?? 'a'}-${options.toId ?? to.metadata?.diagramId ?? 'b'}`,
+    ...options,
+    obstacles: routeObstacles,
+  });
 }
 
 /** Wire org-chart parent → child connectors after tree layout */
 export function wireOrgChartConnectors(app: App, root: Group): void {
-  const edges = app.group({ listening: false, zIndex: -10 }) as Group;
-  walkOrgEdges(app, root, root, edges);
-  root.add(edges);
+  let edgeLayer = root.children.find((c) => c.metadata?.diagramEdgeLayer) as Group | undefined;
+  if (edgeLayer) {
+    for (const child of [...edgeLayer.children]) {
+      edgeLayer.remove(child);
+      child.destroy();
+    }
+  } else {
+    edgeLayer = app.group({ listening: false, zIndex: -10 }) as Group;
+    edgeLayer.metadata.diagramEdgeLayer = true;
+    root.add(edgeLayer);
+  }
+
+  const obstacles = collectObstacles(collectOrgChartNodes(root));
+  walkOrgEdgesConnect(app, root, root, edgeLayer, obstacles);
+}
+
+function collectOrgChartNodes(root: Group): Node[] {
+  const out: Node[] = [];
+  const walk = (group: Group): void => {
+    for (const child of group.children) {
+      if (child.metadata?.orgNode) out.push(child);
+      if ('children' in child && (child as Group).children?.length) {
+        walk(child as Group);
+      }
+    }
+  };
+  walk(root);
+  return out;
+}
+
+function walkOrgEdgesConnect(
+  app: App,
+  root: Group,
+  node: Group,
+  edgeLayer: Group,
+  obstacles: Obstacle[]
+): void {
+  const children = node.children.filter(
+    (c) => c.metadata?.orgNode && c !== node.metadata?.collapseIndicator
+  );
+  for (const child of children) {
+    if (!child.visible) continue;
+    const fromId = (node.metadata?.diagramId ?? node.metadata?.orgName) as string;
+    const toId = (child.metadata?.diagramId ?? child.metadata?.orgName) as string;
+    edgeLayer.add(
+      connectNodes(app, node, child, obstacles, {
+        parent: root,
+        style: 'orthogonal',
+        stroke: DIAGRAM.edge,
+        glowColor: DIAGRAM.edgeGlow,
+        strokeWidth: DIAGRAM.stroke.edge,
+        arrowEnd: 'filled',
+        edgeId: `org_${fromId}_${toId}`,
+        fromId,
+        toId,
+      })
+    );
+    walkOrgEdgesConnect(app, root, child as Group, edgeLayer, obstacles);
+  }
 }
 
 /** Wire mind-map center → branches → leaves */
@@ -261,14 +356,19 @@ export function wireMindMapConnectors(app: App, group: Group): void {
 
   for (let i = 1; i < group.children.length; i++) {
     const branch = group.children[i];
+    const branchStroke =
+      (branch.metadata?.mindBranchColor as string | undefined) ?? DIAGRAM.mindBranch.stroke;
+    const branchGlow =
+      (branch.metadata?.mindBranchGlow as string | undefined) ?? DIAGRAM.edgeGlow;
     const bB = branch.getBounds();
     const bx = worldToParentLocal(group, bB.x + bB.width / 2, bB.y + bB.height / 2).x;
     const by = worldToParentLocal(group, bB.x + bB.width / 2, bB.y + bB.height / 2).y;
     edges.add(
       createConnector(app, cx, cy, bx, by, {
         style: 'straight',
-        stroke: DIAGRAM.edge,
-        strokeWidth: 2,
+        stroke: branchStroke,
+        glowColor: branchGlow,
+        strokeWidth: DIAGRAM.stroke.edge,
         arrowEnd: 'none',
       })
     );
@@ -282,48 +382,13 @@ export function wireMindMapConnectors(app: App, group: Group): void {
       edges.add(
         createConnector(app, bx, branchBottom, lx, ly, {
           style: 'orthogonal',
-          stroke: DIAGRAM.edgeMuted,
-          strokeWidth: 1.5,
+          stroke: branchStroke,
+          glowColor: branchGlow,
+          strokeWidth: DIAGRAM.stroke.edgeThin,
           arrowEnd: 'filled',
         })
       );
     }
   }
   group.add(edges);
-}
-
-function walkOrgEdges(app: App, parent: Group, node: Group, edges: Group): void {
-  const children = node.children.filter((c) => c.metadata?.orgNode && c !== node.metadata?.collapseIndicator);
-  for (const child of children) {
-    if (!child.visible) continue;
-    const pb = node.getBounds();
-    const cb = child.getBounds();
-    const from = worldToParentLocal(parent, pb.x + pb.width / 2, pb.y + pb.height);
-    const to = worldToParentLocal(parent, cb.x + cb.width / 2, cb.y);
-    const midY = (from.y + to.y) / 2;
-    const points = [from.x, from.y, from.x, midY, to.x, midY, to.x, to.y];
-    const trim = 8;
-    const display = shortenPathEnd(points, trim);
-    edges.add(
-      app.polyline({
-        points: display,
-        fill: null,
-        stroke: DIAGRAM.edge,
-        strokeWidth: 2,
-        lineJoin: 'round',
-        lineCap: 'round',
-        listening: false,
-      })
-    );
-    edges.add(
-      app.polygon({
-        points: arrowHeadPoints(to.x, to.y, Math.PI / 2, 8),
-        fill: DIAGRAM.edge,
-        stroke: DIAGRAM.edge,
-        strokeWidth: 1,
-        listening: false,
-      })
-    );
-    walkOrgEdges(app, parent, child as Group, edges);
-  }
 }

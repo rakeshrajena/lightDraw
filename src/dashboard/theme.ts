@@ -1,10 +1,21 @@
-/** Dashboard widget palette for dark panels */
+import type { UiThemeTokens } from '../components/uiTheme';
+
+/** Dashboard widget palette — mirrors UI semantic token names for dark analytics panels. */
 export const DASHBOARD = {
   panel: '#151d2e',
   panelStroke: '#2a3654',
+  face: '#0f172a',
   text: '#e2e8f0',
   textMuted: '#94a3b8',
   textDim: '#64748b',
+  primary: '#3b82f6',
+  secondary: '#ef4444',
+  success: '#22c55e',
+  warning: '#f59e0b',
+  danger: '#ef4444',
+  dangerDark: '#dc2626',
+  inactive: '#374151',
+  inactiveBar: '#475569',
   gaugeTrack: '#374151',
   gaugeNeedle: '#3b82f6',
   speedoNeedle: '#ef4444',
@@ -21,6 +32,59 @@ export const DASHBOARD = {
   barFill: '#3b82f6',
   compassFace: '#1c2740',
   compassRing: '#475569',
+  compassHub: '#334155',
   thermometerTube: '#334155',
   thermometerBorder: '#475569',
+  meterTrack: '#374151',
+  meterFill: '#3b82f6',
+  clockFace: '#1f2937',
+  clockRing: '#374151',
+  clockHand: '#e2e8f0',
+  clockSecond: '#ef4444',
+  batteryOutline: '#475569',
+  batteryTip: '#475569',
+  knobTrack: '#374151',
+  knobRing: '#1f2937',
+  knobIndicator: '#f59e0b',
+  knobArc: 'rgba(245, 158, 11, 0.25)',
+  clockTick: '#64748b',
+  clockTickMajor: '#94a3b8',
+  clockHub: '#374151',
+  signalActive: '#22c55e',
+  signalInactive: '#475569',
+  pieStroke: '#1f2937',
+  timelineLine: '#475569',
+  timelineDot: '#3b82f6',
+  highlight: '#3b82f6',
+  series: ['#3b82f6', '#ef4444', '#22c55e', '#f59e0b'] as const,
+  financialUp: '#22c55e',
+  financialDown: '#ef4444',
+  flowLink: 'rgba(59, 130, 246, 0.45)',
+  heatmapLow: '#1e3a5f',
+  heatmapHigh: '#60a5fa',
 } as const;
+
+export type DashboardTheme = { readonly [K in keyof typeof DASHBOARD]: string | readonly string[] };
+
+/** Merge optional UI theme tokens into the dashboard palette (for app-level theming). */
+export function resolveDashboardTheme(ui?: Partial<UiThemeTokens>): DashboardTheme {
+  if (!ui) return DASHBOARD;
+  return {
+    ...DASHBOARD,
+    primary: ui.primary ?? DASHBOARD.primary,
+    secondary: ui.secondary ?? DASHBOARD.secondary,
+    success: ui.success ?? DASHBOARD.success,
+    warning: ui.warning ?? DASHBOARD.warning,
+    danger: ui.danger ?? DASHBOARD.danger,
+    text: ui.text ?? DASHBOARD.text,
+    textMuted: ui.textMuted ?? DASHBOARD.textMuted,
+    panel: ui.surface ?? DASHBOARD.panel,
+    panelStroke: ui.border ?? DASHBOARD.panelStroke,
+    gaugeNeedle: ui.primary ?? DASHBOARD.gaugeNeedle,
+    chartLine: ui.primary ?? DASHBOARD.chartLine,
+    barFill: ui.primary ?? DASHBOARD.barFill,
+    meterFill: ui.primary ?? DASHBOARD.meterFill,
+    highlight: ui.primary ?? DASHBOARD.highlight,
+    timelineDot: ui.primary ?? DASHBOARD.timelineDot,
+  };
+}

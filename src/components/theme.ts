@@ -1,11 +1,13 @@
-/** Built-in UI design tokens — beautiful defaults, no external CSS required. */
+/** Built-in UI design tokens — aligned 1:1 with `lightdraw.css` CSS variables. */
 export const UI = {
   primary: '#2563eb',
   primaryHover: '#1d4ed8',
-  primaryActive: '#1e40af',
-  primaryMuted: '#dbeafe',
-  secondary: '#64748b',
-  secondaryHover: '#475569',
+  primaryActive: '#163eb8',
+  primarySubtle: '#eff6ff',
+  /** @deprecated Use `primarySubtle` — kept for canvas definitions compatibility */
+  primaryMuted: '#eff6ff',
+  secondary: '#475569',
+  secondaryHover: '#334155',
   success: '#059669',
   successBg: '#ecfdf5',
   warning: '#d97706',
@@ -14,7 +16,7 @@ export const UI = {
   surface: '#ffffff',
   surfaceMuted: '#f8fafc',
   surfaceInset: '#f1f5f9',
-  overlay: 'rgba(15, 23, 42, 0.45)',
+  overlay: 'rgba(15, 23, 42, 0.5)',
 
   border: '#e2e8f0',
   borderStrong: '#cbd5e1',
@@ -38,6 +40,12 @@ export const UI = {
 
   controlHeight: 40,
   inputHeight: 40,
+
+  spaceXs: 4,
+  spaceSm: 8,
+  spaceMd: 16,
+  spaceLg: 24,
+  spaceXl: 32,
 
   shadowSm: { color: 'rgba(15, 23, 42, 0.05)', blur: 2, offsetX: 0, offsetY: 1 },
   shadowMd: { color: 'rgba(15, 23, 42, 0.08)', blur: 8, offsetX: 0, offsetY: 2 },

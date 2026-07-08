@@ -113,7 +113,7 @@ export interface AppOptions {
   accessibility?: boolean;
   highContrast?: boolean;
   /** Optional design tokens — applied as CSS variables (no custom CSS file needed). */
-  uiTheme?: import('./components/uiTheme').UiThemeTokens;
+  uiTheme?: import('./components/uiTheme').UiThemeInput;
   performance?: PerformanceOptions;
 }
 

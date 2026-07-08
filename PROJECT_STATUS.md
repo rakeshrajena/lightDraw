@@ -1,9 +1,9 @@
 # LightDraw.js — Project & Feature Status
 
 **Version:** 0.9.0  
-**Last updated:** July 5, 2026  
+**Last updated:** July 6, 2026  
 **License:** MIT  
-**Status:** Phase 12 in progress — production hardening, GitHub repo, release workflow; npm publish after manual verification.
+**Status:** Phase 7 chart catalog complete (82 chart types in `lightdraw.dashboard`); UI-0–UI-6 complete.
 
 ---
 
@@ -252,7 +252,7 @@ Legend: ✅ Done · 🟡 Partial · ❌ Not started
 | `lightdraw.svg.min.js` | ✅ | SVG renderer plugin |
 | `lightdraw.html.min.js` | ✅ | HTML renderer plugin |
 | `lightdraw.ui.min.js` | ✅ | UI components plugin |
-| `lightdraw.dashboard.min.js` | ✅ | Dashboard widgets plugin |
+| `lightdraw.dashboard.min.js` | ✅ | Dashboard widgets + 82 chart types (~24.5 KB gzip) |
 | `lightdraw.automotive.min.js` | ✅ | Automotive widgets plugin |
 | `lightdraw.diagram.min.js` | ✅ | Diagram module plugin |
 | `lightdraw.esm.js` | ✅ | Full ES Module |
@@ -337,7 +337,8 @@ src/
 
 ## Pending Work (Roadmap)
 
-> **Full phased plan with test, performance, and memory gates:** see [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md)
+> **UI beautification (phased):** see [UI_POLISH_PLAN.md](./UI_POLISH_PLAN.md) — **UI-0–UI-5 done**; next **UI-6** (dashboard module).  
+> **Core feature plan:** see [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md)
 
 ### High priority
 

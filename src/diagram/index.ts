@@ -23,7 +23,8 @@ export {
 export { routeConnector, collectObstacles, getAnchor } from './router';
 export type { RouteStyle } from './router';
 export { createSymbol, buildSchematic, Symbols } from './symbols';
-export { diagramToJSON } from './helpers';
+export { diagramToJSON, fitDiagramToBounds, resolveGridLayout, readCanvasSize } from './helpers';
+export { installDiagramEditor, uninstallDiagramEditor, DiagramEditor } from './editor';
 
 export type {
   DiagramNode,
@@ -53,6 +54,8 @@ import {
   toggleOrgCollapse,
 } from './definitions';
 import { forceDirectedLayout, layoutDiagram } from './layouts';
+import { fitDiagramToBounds } from './helpers';
+import { installDiagramEditor, uninstallDiagramEditor } from './editor';
 import { routeConnector } from './router';
 
 /** Diagram module namespace for plugin install */
@@ -70,4 +73,7 @@ export const Diagram = {
   route: routeConnector,
   forceLayout: forceDirectedLayout,
   toggleCollapse: toggleOrgCollapse,
+  fitToBounds: fitDiagramToBounds,
+  installEditor: installDiagramEditor,
+  uninstallEditor: uninstallDiagramEditor,
 };

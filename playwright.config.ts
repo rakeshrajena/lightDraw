@@ -22,7 +22,7 @@ export default defineConfig({
         webServer: {
           command: isCI ? previewCmd : `npm run build:website && ${previewCmd}`,
           url: 'http://127.0.0.1:4173',
-          reuseExistingServer: isCI,
+          reuseExistingServer: !isCI,
           timeout: 120000,
           stdout: 'pipe',
           stderr: 'pipe',

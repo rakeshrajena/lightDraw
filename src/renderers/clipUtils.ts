@@ -1,4 +1,5 @@
 import type { Node } from '../Node';
+import type { Group } from '../shapes/Group';
 import { Rect, Circle, Ellipse, Polygon, Star, Path, Arc } from '../shapes/index';
 
 export function beginShapeClip(ctx: CanvasRenderingContext2D, node: Node): void {
@@ -39,6 +40,32 @@ export function beginShapeClip(ctx: CanvasRenderingContext2D, node: Node): void 
       node.endAngle,
       node.counterClockwise
     );
+  } else if ('children' in node) {
+    const g = node as Group;
+    const meta = g.metadata ?? {};
+    const state = meta.autoState as { width?: number; height?: number } | undefined;
+    const aw = meta.autoWidth ?? state?.width;
+    const ah = meta.autoHeight ?? state?.height;
+    if (typeof aw === 'number' && typeof ah === 'number' && aw > 0 && ah > 0) {
+      ctx.rect(0, 0, aw, ah);
+    } else if (g.children.length === 0) {
+      ctx.rect(0, 0, 0, 0);
+    } else {
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      for (const child of g.children) {
+        const b = child.getBounds();
+        const x0 = child.x + b.x;
+        const y0 = child.y + b.y;
+        minX = Math.min(minX, x0);
+        minY = Math.min(minY, y0);
+        maxX = Math.max(maxX, x0 + b.width);
+        maxY = Math.max(maxY, y0 + b.height);
+      }
+      ctx.rect(minX, minY, maxX - minX, maxY - minY);
+    }
   } else {
     const b = node.getBounds();
     ctx.rect(b.x, b.y, b.width, b.height);
