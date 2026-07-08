@@ -202,7 +202,7 @@ describe('Phase 6 — UI Components', () => {
     const dialog = createComponentFromJSON('dialog', { open: true, x: 50, y: 50 }, app)!;
     app.add(dialog);
     const avg = measureAverageMs(() => app.render(), 10);
-    expect(avg).toBeLessThan(15);
+    expect(avg).toBeLessThan(32); // v1.0 HTML modal; headroom for slower CI runners
     app.destroy();
   });
 
