@@ -6309,7 +6309,7 @@ var Layout = {
 };
 
 // src/core/index.ts
-var VERSION = "0.9.0";
+var VERSION = "1.0.0";
 registerRenderer("canvas", () => new CanvasRenderer());
 function use(plugin) {
   installPlugin(plugin, LightDraw);
