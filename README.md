@@ -19,6 +19,8 @@
 <p align="center">
   <a href="https://github.com/rakeshrajena/lightDraw">GitHub</a>
   ·
+  <a href="https://rakeshrajena.github.io/lightDraw/">Live demo</a>
+  ·
   <a href="https://github.com/rakeshrajena/lightDraw#install">Install</a>
   ·
   <a href="https://github.com/rakeshrajena/lightDraw#use-cases">Use cases</a>
