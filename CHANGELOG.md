@@ -181,6 +181,16 @@ LightDraw **v1.0.0** completes the phased UI beautification program (UI-0 throug
 
 See [Unreleased] above for per-phase detail. Migration from v0.9: no breaking API changes; demos and CSS tokens are additive.
 
+## [1.0.1] - 2026-07-09
+
+### Added
+
+- First public npm publish (`lightdraw@1.0.1`) after GitHub release v1.0.0
+
+### Changed
+
+- Sync `VERSION` export with package version
+
 ## [0.9.0] - 2026-07-05
 
 ### Added (Phase 10 — Export Pipeline)

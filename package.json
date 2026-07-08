@@ -1,6 +1,6 @@
 {
   "name": "lightdraw",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Zero-dependency 2D graphics engine — dashboards, automotive HMIs, diagrams, UI components, and AI-friendly JSON scenes for Canvas, SVG, and HTML renderers.",
   "main": "dist/lightdraw.js",
   "module": "dist/lightdraw.esm.js",

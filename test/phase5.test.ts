@@ -27,7 +27,7 @@ describe('Phase 5 — Modular Bundle Architecture', () => {
   });
 
   it('core entry exposes App without plugin APIs', () => {
-    expect(VERSION).toBe('1.0.0');
+    expect(VERSION).toBe('1.0.1');
     expect(typeof LightDraw.createApp).toBe('function');
     expect(typeof LightDraw.App).toBe('function');
     expect((LightDraw as { registerComponent?: unknown }).registerComponent).toBeUndefined();
