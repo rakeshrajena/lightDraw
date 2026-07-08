@@ -25,7 +25,7 @@ jobs:
       - run: npm run lint
       - run: npm run build
       - run: npm run size-gate
-      - run: npm test -- --exclude test/perf.test.ts
+      - run: npm test
       - run: npm run test:phase12
 
       - name: Pack dist for GitHub Release
