@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LightDraw — Automotive Cluster</title>
+  <script src="demo-embed.js"></script>
+  <link rel="stylesheet" href="demo-common.css">
+  <link rel="stylesheet" href="../lightdraw.min.css">
+</head>
+<body>
+  <div class="demo-shell">
+    <header class="demo-header">
+      <span class="demo-badge">Automotive Module</span>
+      <h1>Digital Instrument Cluster</h1>
+      <p>Live cockpit with speed, RPM, ADAS lamps, and an <strong>incoming-call overlay</strong> between the primary gauges — plus a <strong>160-widget</strong> automotive catalog.</p>
+    </header>
+    <main class="demo-main">
+      <div class="demo-view-tabs" id="view-tabs">
+        <button type="button" class="demo-btn is-active" data-view="cluster">Instrument cluster</button>
+        <button type="button" class="demo-btn secondary" data-view="widgets">Widget catalog (160)</button>
+      </div>
+      <div id="view-cluster">
+        <div class="demo-toolbar cluster-toolbar">
+          <div class="cluster-toolbar-group">
+            <button class="demo-btn" id="btn-drive" onclick="toggleDrive()">Start drive simulation</button>
+            <button class="demo-btn secondary" onclick="randomFrame()">Random frame</button>
+            <button class="demo-btn secondary" id="btn-call" onclick="toggleIncomingCall()">Dismiss call</button>
+          </div>
+          <label class="demo-label">Theme
+            <select class="demo-select" id="theme" onchange="setTheme(this.value)">
+              <option value="classic">Classic</option>
+              <option value="sport">Sport</option>
+              <option value="digital">Digital</option>
+            </select>
+          </label>
+        </div>
+        <div class="cluster-status" id="cluster-status" aria-live="polite">
+          <span class="cluster-status-dot is-active" id="call-dot"></span>
+          <span id="cluster-status-text">Incoming call · Alex Morgan · Mobile</span>
+        </div>
+        <div class="demo-canvas-wrap cluster-canvas-wrap">
+          <div id="app"></div>
+        </div>
+      </div>
+      <div class="chart-catalog-wrap" id="view-widgets" hidden>
+        <div class="demo-toolbar">
+          <input type="search" id="widget-search" placeholder="Filter widgets…" aria-label="Filter widgets">
+          <span class="chart-count" id="widget-count"></span>
+        </div>
+        <div class="chart-gallery" id="widget-gallery"></div>
+      </div>
+    </main>
+  </div>
+  <script src="../lightdraw.min.js"></script>
+  <script src="demo-auto-catalog.js"></script>
+  <script>
+    const isEmbed = () => document.documentElement.classList.contains('demo-embed');
+
+    let driveTimer = null;
+    let frameIndex = 0;
+    let cluster = null;
+    let incomingCallActive = true;
+    const frames = LightDraw.sampleDriveFrames ? LightDraw.sampleDriveFrames(120) : [];
+
+    const CALL_DEMO = {
+      caller: 'Alex Morgan',
+      subtitle: 'Mobile',
+      callStatus: 'incoming',
+      callHint: 'Swipe to answer',
+    };
+
+    const clusterApp = LightDraw.createApp('#app', {
+      width: 920,
+      height: 420,
+      background: '#0a0a0a',
+      renderer: 'canvas',
+      autoResize: false,
+    });
+
+    const widgetMounts = [];
+    let lastClusterSize = { w: 0, h: 0 };
+    let clusterResizeTimer = 0;
+
+    function clusterWrapSize() {
+      const wrap = document.querySelector('#view-cluster .demo-canvas-wrap');
+      if (!wrap) return { w: 920, h: 420 };
+      const w = wrap.clientWidth;
+      const h = wrap.clientHeight;
+      return {
+        w: Math.max(320, w),
+        h: Math.max(200, h),
+      };
+    }
+
+    function applyClusterCanvasSize(w, h) {
+      const size = clusterApp.getSize?.() ?? { width: 0, height: 0 };
+      if (size.width === w && size.height === h) return;
+      clusterApp.resize(w, h);
+    }
+
+    function syncCallChrome() {
+      const dot = document.getElementById('call-dot');
+      const text = document.getElementById('cluster-status-text');
+      const btn = document.getElementById('btn-call');
+      if (dot) dot.classList.toggle('is-active', incomingCallActive);
+      if (text) {
+        text.textContent = incomingCallActive
+          ? `Incoming call · ${CALL_DEMO.caller} · ${CALL_DEMO.subtitle}`
+          : 'No active calls';
+      }
+      if (btn) btn.textContent = incomingCallActive ? 'Dismiss call' : 'Simulate incoming call';
+    }
+
+    function loadCluster(theme) {
+      const { w, h } = clusterWrapSize();
+      if (w < 100 || h < 100) return;
+      lastClusterSize = { w, h };
+      applyClusterCanvasSize(w, h);
+      clusterApp.loadJSON({
+        type: 'instrumentCluster',
+        props: {
+          theme,
+          width: w,
+          height: h,
+          x: 0,
+          y: 0,
+          speed: 0,
+          rpm: 800,
+          fuel: 75,
+          engineTemp: 85,
+          batteryVoltage: 12.4,
+          tpms: [32, 32, 32, 32],
+          gear: 'P',
+          parkingBrake: true,
+          incomingCall: incomingCallActive,
+          ...CALL_DEMO,
+        },
+      });
+      cluster = clusterApp.stage.children[0];
+      clusterApp.render();
+      syncCallChrome();
+    }
+
+    function toggleIncomingCall() {
+      incomingCallActive = !incomingCallActive;
+      if (!cluster) {
+        syncCallChrome();
+        return;
+      }
+      if (LightDraw.updateAutoWidgetProps) {
+        LightDraw.updateAutoWidgetProps(cluster, {
+          incomingCall: incomingCallActive,
+          ...CALL_DEMO,
+          callStatus: incomingCallActive ? 'incoming' : 'ended',
+        });
+      }
+      clusterApp.render();
+      syncCallChrome();
+    }
+
+    function syncClusterSize() {
+      if (document.getElementById('view-cluster')?.hidden) return;
+      const { w, h } = clusterWrapSize();
+      if (w < 100 || h < 100) return;
+      if (Math.abs(lastClusterSize.w - w) < 2 && Math.abs(lastClusterSize.h - h) < 2) return;
+      lastClusterSize = { w, h };
+
+      const theme = document.getElementById('theme')?.value || 'classic';
+      if (!cluster) {
+        loadCluster(theme);
+        return;
+      }
+
+      applyClusterCanvasSize(w, h);
+      if (LightDraw.updateAutoWidgetProps) {
+        LightDraw.updateAutoWidgetProps(cluster, { width: w, height: h });
+      }
+      clusterApp.render();
+    }
+
+    function scheduleClusterResize() {
+      clearTimeout(clusterResizeTimer);
+      clusterResizeTimer = setTimeout(syncClusterSize, 120);
+    }
+
+    function initClusterLayoutWatch() {
+      const wrap = document.querySelector('#view-cluster .demo-canvas-wrap');
+      if (!wrap) return;
+
+      const bootCluster = () => {
+        const theme = document.getElementById('theme')?.value || 'classic';
+        if (!cluster) loadCluster(theme);
+      };
+
+      if (typeof ResizeObserver !== 'undefined') {
+        const ro = new ResizeObserver(() => {
+          if (!cluster) return;
+          scheduleClusterResize();
+        });
+        ro.observe(wrap);
+      }
+
+      window.addEventListener('resize', scheduleClusterResize);
+
+      const start = () => setTimeout(bootCluster, 160);
+      if (document.readyState === 'complete') start();
+      else window.addEventListener('load', start, { once: true });
+    }
+
+    initClusterLayoutWatch();
+
+    function applyFrame(state) {
+      if (!cluster || !LightDraw.applyDriveState) return;
+      if (state.incomingCall !== undefined && state.incomingCall !== incomingCallActive) {
+        incomingCallActive = !!state.incomingCall;
+        syncCallChrome();
+      }
+      LightDraw.applyDriveState(cluster, state);
+    }
+
+    function toggleDrive() {
+      const btn = document.getElementById('btn-drive');
+      if (driveTimer) {
+        clearInterval(driveTimer);
+        driveTimer = null;
+        if (btn) btn.textContent = 'Start drive simulation';
+        return;
+      }
+      if (btn) btn.textContent = 'Stop drive simulation';
+      driveTimer = setInterval(() => {
+        if (!frames.length) return;
+        applyFrame(frames[frameIndex % frames.length]);
+        frameIndex++;
+      }, 100);
+    }
+
+    function randomFrame() {
+      applyFrame({
+        speed: Math.round(Math.random() * 140),
+        rpm: Math.round(1000 + Math.random() * 5000),
+        fuel: Math.round(Math.random() * 100),
+        engineTemp: Math.round(70 + Math.random() * 50),
+        batteryVoltage: Math.round((11.5 + Math.random() * 1.5) * 10) / 10,
+        tpms: [28, 30, 22, 31].map(() => Math.round(20 + Math.random() * 15)),
+        parkingBrake: Math.random() > 0.7,
+        headlights: Math.random() > 0.5,
+        cruiseSpeed: Math.random() > 0.6 ? 65 : 0,
+        gear: ['P', 'R', 'N', 'D'][Math.floor(Math.random() * 4)],
+        turnLeft: Math.random() > 0.8,
+        turnRight: Math.random() > 0.8,
+        signals: {
+          'engine.rpm': Math.round(Math.random() * 6000),
+          'vehicle.speed': Math.round(Math.random() * 120),
+          'battery.voltage': 12.4,
+        },
+      });
+    }
+
+    function setTheme(theme) {
+      const wasRunning = !!driveTimer;
+      if (driveTimer) clearInterval(driveTimer);
+      driveTimer = null;
+      const btn = document.getElementById('btn-drive');
+      if (btn) btn.textContent = 'Start drive simulation';
+      loadCluster(theme);
+      if (wasRunning) toggleDrive();
+    }
+
+    syncCallChrome();
+
+    function destroyWidgetGallery() {
+      widgetMounts.forEach((m) => m.destroy());
+      widgetMounts.length = 0;
+      const gallery = document.getElementById('widget-gallery');
+      if (gallery) gallery.innerHTML = '';
+    }
+
+    function mountAutoWidget(type, container) {
+      let app = null;
+      let root = null;
+      let layoutRo = null;
+
+      const init = () => {
+        const cw = Math.max(container.clientWidth, 120);
+        const ch = Math.max(container.clientHeight, 80);
+        if (cw < 8 || ch < 8) return;
+        if (app) return;
+
+        const props = window.ldAutoProps(type, cw, ch);
+        app = LightDraw.createApp(container, {
+          renderer: 'html',
+          width: cw,
+          height: ch,
+          background: '#0a0a0a',
+          autoResize: false,
+        });
+        root = app.loadJSON({ type, props: { ...props, x: 0, y: 0 } });
+        if (root && LightDraw.installAutoWidgetResizeObserver) {
+          LightDraw.installAutoWidgetResizeObserver(root, container);
+        }
+        app.render();
+      };
+
+      layoutRo = typeof ResizeObserver !== 'undefined'
+        ? new ResizeObserver(() => requestAnimationFrame(init))
+        : null;
+      layoutRo?.observe(container);
+      requestAnimationFrame(init);
+
+      const mount = {
+        type,
+        destroy: () => {
+          layoutRo?.disconnect();
+          if (root && LightDraw.detachAutoWidgetResizeObserver) {
+            LightDraw.detachAutoWidgetResizeObserver(root);
+          }
+          app?.destroy();
+          app = null;
+          root = null;
+        },
+      };
+      widgetMounts.push(mount);
+      return mount;
+    }
+
+    function buildWidgetGallery(filter = '') {
+      const gallery = document.getElementById('widget-gallery');
+      if (!gallery) return;
+      if (typeof window.syncAutoCatalog === 'function') window.syncAutoCatalog();
+      const catalog = window.LD_AUTO_WIDGET_CATALOG || [];
+      const q = filter.trim().toLowerCase();
+      const types = catalog.filter((t) => !q || t.toLowerCase().includes(q));
+      const countEl = document.getElementById('widget-count');
+      if (countEl) {
+        countEl.textContent = `${types.length} widget${types.length === 1 ? '' : 's'}`;
+      }
+
+      destroyWidgetGallery();
+
+      let i = 0;
+      const batch = 6;
+      function renderBatch() {
+        const slice = types.slice(i, i + batch);
+        if (!slice.length) return;
+        slice.forEach((type) => {
+          const card = document.createElement('div');
+          card.className = 'chart-card';
+          card.innerHTML = `
+            <div class="chart-card-head">
+              <h3>${type}</h3>
+            </div>
+            <div class="mini-canvas"></div>`;
+          gallery.appendChild(card);
+          try {
+            mountAutoWidget(type, card.querySelector('.mini-canvas'));
+          } catch (err) {
+            console.warn('Widget failed:', type, err);
+            card.querySelector('.mini-canvas').innerHTML =
+              `<p style="color:#94a3b8;font-size:12px;padding:8px">${type}</p>`;
+          }
+        });
+        i += batch;
+        if (i < types.length) requestAnimationFrame(renderBatch);
+      }
+      renderBatch();
+    }
+
+    function setView(view) {
+      const clusterView = document.getElementById('view-cluster');
+      const widgetsView = document.getElementById('view-widgets');
+      const isCluster = view === 'cluster';
+      clusterView.hidden = !isCluster;
+      widgetsView.hidden = isCluster;
+      document.querySelectorAll('#view-tabs [data-view]').forEach((btn) => {
+        btn.classList.toggle('is-active', btn.dataset.view === view);
+        btn.classList.toggle('secondary', btn.dataset.view !== view);
+      });
+      if (!isCluster) buildWidgetGallery(document.getElementById('widget-search')?.value || '');
+      else scheduleClusterResize();
+      if (!isEmbed()) {
+        const url = new URL(location.href);
+        if (view === 'widgets') url.hash = 'widgets';
+        else url.hash = '';
+        history.replaceState(null, '', url);
+      }
+    }
+
+    document.getElementById('view-tabs').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-view]');
+      if (btn) setView(btn.dataset.view);
+    });
+
+    document.getElementById('widget-search').addEventListener('input', (e) => {
+      buildWidgetGallery(e.target.value);
+    });
+
+    if (location.hash === '#widgets' && !isEmbed()) {
+      setView('widgets');
+    }
+  </script>
+</body>
+</html>

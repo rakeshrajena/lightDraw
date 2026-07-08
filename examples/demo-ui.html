@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LightDraw — UI Components</title>
+  <script src="demo-embed.js"></script>
+  <link rel="stylesheet" href="demo-common.css">
+  <link rel="stylesheet" href="../lightdraw.min.css">
+</head>
+<body>
+  <div class="demo-shell">
+    <header class="demo-header">
+      <span class="demo-badge">UI Module</span>
+      <h1>UI Components</h1>
+      <p>17 interactive controls — buttons, forms, tables, dialogs, and more.</p>
+    </header>
+    <main class="demo-main">
+      <div class="demo-control-bar">
+        <div class="demo-section-pills" id="section-nav" role="tablist" aria-label="Component sections"></div>
+        <div class="demo-options">
+          <div class="demo-toolbar" id="theme-gallery" role="group" aria-label="Theme presets"></div>
+          <button type="button" class="demo-btn secondary" id="hc-toggle" aria-pressed="false">High contrast</button>
+          <button type="button" class="demo-btn secondary" id="renderer-toggle" aria-pressed="false">Renderer: HTML</button>
+        </div>
+      </div>
+      <div class="demo-canvas-wrap light" id="canvas-wrap">
+        <div id="app"></div>
+      </div>
+      <div class="demo-log" id="log">Event log — interact with components above…</div>
+    </main>
+  </div>
+  <script src="../lightdraw.min.js"></script>
+  <script>
+    const logEl = document.getElementById('log');
+    const isEmbed = () => document.documentElement.classList.contains('demo-embed');
+
+    function log(msg) {
+      logEl.textContent = msg + '\n' + logEl.textContent.slice(0, 900);
+    }
+
+    let app;
+    let activeTheme = 'default';
+    let activeSection = isEmbed() ? 'forms' : 'all';
+    let activeRenderer = 'html';
+    let highContrast = false;
+
+    const SECTIONS = [
+      { id: 'all', label: 'All' },
+      { id: 'forms', label: 'Forms' },
+      { id: 'layout', label: 'Layout' },
+      { id: 'overlays', label: 'Overlays' },
+      { id: 'data', label: 'Data' },
+    ];
+
+    const THEME_OPTIONS = [
+      { id: 'default', label: 'Light' },
+      { id: 'dark', label: 'Dark' },
+      { id: 'violet', label: 'Violet' },
+      { id: 'emerald', label: 'Emerald' },
+      { id: 'slate', label: 'Slate' },
+      { id: 'ocean', label: 'Ocean' },
+      { id: 'rose', label: 'Rose' },
+    ];
+
+    const TABLE_ROWS = [
+      ['Prism UI', 'Active', 'v1.2.0'],
+      ['Beacon API', 'Active', 'v0.9.1'],
+      ['Nova Charts', 'Beta', 'v0.4.2'],
+      ['Atlas Auth', 'Active', 'v2.0.0'],
+      ['Pulse Metrics', 'Pending', 'v0.8.0'],
+      ['Harbor DB', 'Active', 'v3.1.4'],
+      ['Quill Docs', 'Inactive', 'v0.2.1'],
+      ['Signal Bus', 'Active', 'v1.0.3'],
+      ['Lumen CSS', 'Beta', 'v0.6.0'],
+      ['Forge CLI', 'Active', 'v4.2.1'],
+    ];
+
+    const SECTION_LABELS = {
+      forms: 'Forms',
+      layout: 'Layout',
+      overlays: 'Overlays',
+      data: 'Data',
+    };
+
+    const FORM_HEIGHTS = {
+      input: 70,
+      inputError: 88,
+      textarea: (h) => h + 30,
+      checkbox: 28,
+      toggle: 32,
+      radio: 26,
+      slider: 56,
+      progress: 40,
+      buttonRow: 40,
+      buttonSm: 32,
+      sectionLabel: 20,
+      gap: 12,
+      card: 68,
+      tabs: 40,
+      accordion: 180,
+      toolbar: 120,
+      statusBar: 28,
+      menu: 40,
+      tooltip: 44,
+      toast: 48,
+      table: (h) => h + 28,
+      tree: 220,
+    };
+
+    function createFlow(x, startY, fieldW, gap = FORM_HEIGHTS.gap) {
+      const children = [];
+      let y = startY;
+
+      const section = (text) => {
+        children.push({ type: 'label', props: { text, x, y, fontSize: 12, color: '#475569' } });
+        y += FORM_HEIGHTS.sectionLabel;
+      };
+      const place = (node, height) => {
+        const props = { ...node.props, x, y };
+        if (props.width === undefined) props.width = fieldW;
+        children.push({ type: node.type, props });
+        y += height + gap;
+      };
+      const placeAt = (node, top, height) => {
+        const props = { ...node.props, x, y: top };
+        if (props.width === undefined) props.width = fieldW;
+        children.push({ type: node.type, props });
+      };
+
+      return { section, place, placeAt, children, get bottom() { return y; }, setBottom(v) { y = v; }, gap };
+    }
+
+    function formsBlock(x, startY, fieldW, embed) {
+      const flow = createFlow(x, startY, fieldW, embed ? 8 : FORM_HEIGHTS.gap);
+
+      flow.section('Actions');
+      const btnY = flow.bottom;
+      flow.children.push(
+        {
+          type: 'button',
+          props: {
+            label: embed ? 'Save' : 'Save changes',
+            x,
+            y: btnY,
+            width: embed ? 96 : 140,
+            size: embed ? 'md' : 'lg',
+          },
+        },
+        {
+          type: 'button',
+          props: { label: 'Cancel', x: x + (embed ? 104 : 148), y: btnY, width: 96, variant: 'secondary' },
+        }
+      );
+      flow.setBottom(btnY + FORM_HEIGHTS.buttonRow + flow.gap);
+
+      if (!embed) {
+        flow.place({ type: 'button', props: { label: 'Delete', width: 96, variant: 'danger', size: 'sm', disabled: true } }, FORM_HEIGHTS.buttonSm);
+      }
+
+      flow.section('Inputs');
+      flow.place({ type: 'input', props: { label: 'Full name', value: 'Jane Cooper', placeholder: 'Enter name' } }, FORM_HEIGHTS.input);
+      flow.place(
+        {
+          type: 'input',
+          props: {
+            label: 'Email',
+            value: 'not-an-email',
+            invalid: true,
+            error: 'Invalid email address',
+          },
+        },
+        FORM_HEIGHTS.inputError
+      );
+      const taH = embed ? 44 : 72;
+      flow.place({ type: 'textarea', props: { label: 'Notes', value: 'Add project notes…', height: taH } }, FORM_HEIGHTS.textarea(taH));
+
+      flow.section('Choices');
+      flow.place({ type: 'checkbox', props: { label: 'Email notifications', checked: true } }, FORM_HEIGHTS.checkbox);
+      if (!embed) {
+        flow.place({ type: 'checkbox', props: { label: 'SMS alerts (disabled)', checked: false, disabled: true } }, FORM_HEIGHTS.checkbox);
+      }
+      flow.place({ type: 'toggle', props: { value: true, label: 'Dark mode', size: 'sm' } }, FORM_HEIGHTS.toggle);
+      flow.place({ type: 'radio', props: { label: 'Monthly billing', group: 'plan', selected: true } }, FORM_HEIGHTS.radio);
+      if (!embed) {
+        flow.place({ type: 'radio', props: { label: 'Annual billing', group: 'plan' } }, FORM_HEIGHTS.radio);
+      }
+      flow.place({ type: 'slider', props: { value: 62, label: 'Volume' } }, FORM_HEIGHTS.slider);
+      flow.place(
+        { type: 'progressBar', props: { value: 72, label: 'Upload', variant: 'success', size: embed ? 'md' : 'lg' } },
+        FORM_HEIGHTS.progress
+      );
+
+      return { children: flow.children, bottom: flow.bottom };
+    }
+
+    function layoutBlock(x, startY, fieldW) {
+      const flow = createFlow(x, startY, fieldW);
+      flow.place(
+        {
+          type: 'card',
+          props: {
+            title: 'Operations',
+            subtitle: 'Fleet overview',
+            actions: ['Refresh'],
+            elevated: true,
+            height: FORM_HEIGHTS.card,
+          },
+        },
+        FORM_HEIGHTS.card
+      );
+      flow.place({ type: 'tabs', props: { tabs: ['Overview', 'Analytics', 'Reports', 'Settings'] } }, FORM_HEIGHTS.tabs);
+      flow.place(
+        {
+          type: 'accordion',
+          props: {
+            sections: [
+              { title: 'General', content: 'Workspace preferences and defaults.' },
+              { title: 'Security', content: 'Two-factor auth and session timeout.' },
+              { title: 'Notifications', content: 'Email and push alert channels.' },
+            ],
+          },
+        },
+        FORM_HEIGHTS.accordion
+      );
+      flow.place({ type: 'toolbar', props: { items: ['New', '|', 'Export', 'Share'], icons: ['+', '↓', '↗'] } }, FORM_HEIGHTS.toolbar);
+      flow.place(
+        { type: 'statusBar', props: { segments: ['Live', 'us-east-1', '14:32 UTC'], primaryIndex: 0, mono: true } },
+        FORM_HEIGHTS.statusBar
+      );
+      return { children: flow.children, bottom: flow.bottom };
+    }
+
+    function overlaysBlock(x, startY, fieldW, W, canvasH) {
+      const html = activeRenderer === 'html';
+      const flow = createFlow(x, startY, fieldW);
+      flow.place(
+        {
+          type: 'menu',
+          props: {
+            items: ['Copy', 'Paste', 'Delete'],
+            itemVariants: ['', '', 'danger'],
+            triggerLabel: 'Actions',
+            open: false,
+            width: 160,
+          },
+        },
+        FORM_HEIGHTS.menu
+      );
+      flow.place(
+        { type: 'tooltip', props: { text: 'Export as CSV or PDF', anchor: 'Help', placement: 'bottom', delay: 200 } },
+        FORM_HEIGHTS.tooltip
+      );
+      if (html) {
+        flow.place(
+          { type: 'toast', props: { message: 'Saved successfully', variant: 'success', dismissible: true, visible: true, duration: 12000 } },
+          FORM_HEIGHTS.toast
+        );
+        flow.place(
+          { type: 'toast', props: { message: 'Connection lost', variant: 'error', dismissible: true, visible: true, duration: 12000 } },
+          FORM_HEIGHTS.toast
+        );
+      }
+      const dialogY = flow.bottom;
+      flow.placeAt(
+        {
+          type: 'dialog',
+          props: {
+            title: 'Confirm delete',
+            message: 'This action cannot be undone.',
+            open: false,
+            width: Math.min(fieldW, 280),
+            height: 160,
+            overlayWidth: W,
+            overlayHeight: canvasH,
+          },
+        },
+        dialogY,
+        160
+      );
+      flow.setBottom(dialogY + 160 + flow.gap);
+      return { children: flow.children, bottom: flow.bottom };
+    }
+
+    function dataBlock(x, startY, fieldW, split) {
+      const flow = createFlow(x, startY, fieldW);
+      const tableHeight = split ? 200 : 180;
+
+      if (split) {
+        flow.section('Projects');
+        const tableY = flow.bottom;
+        flow.placeAt(
+          {
+            type: 'table',
+            props: {
+              columns: ['Project', 'Status', 'Version'],
+              rows: TABLE_ROWS,
+              sortable: true,
+              sortColumn: 0,
+              sortDirection: 'asc',
+              stickyHeader: true,
+              maxHeight: tableHeight,
+              colWidth: 100,
+              width: Math.floor(fieldW * 0.58),
+            },
+          },
+          tableY,
+          tableHeight
+        );
+        const treeX = x + Math.floor(fieldW * 0.58) + 16;
+        const treeW = fieldW - Math.floor(fieldW * 0.58) - 16;
+        flow.children.push(
+          { type: 'label', props: { text: 'Files', x: treeX, y: startY, fontSize: 12, color: '#475569' } },
+          {
+            type: 'tree',
+            props: {
+              nodes: [
+                { label: 'src', children: [{ label: 'components' }, { label: 'renderers' }, { label: 'styles' }] },
+                { label: 'test', children: [{ label: 'phase6.test.ts' }, { label: 'html.test.ts' }] },
+                { label: 'examples', children: [{ label: 'demo-ui.html' }] },
+              ],
+              expanded: [0, 1],
+              selectedNode: 'p0.c1',
+              width: treeW,
+              x: treeX,
+              y: startY + FORM_HEIGHTS.sectionLabel,
+            },
+          }
+        );
+        flow.setBottom(startY + FORM_HEIGHTS.sectionLabel + FORM_HEIGHTS.tree + flow.gap);
+      } else {
+        flow.section('Projects');
+        flow.place(
+          {
+            type: 'table',
+            props: {
+              columns: ['Project', 'Status', 'Version'],
+              rows: TABLE_ROWS,
+              sortable: true,
+              sortColumn: 0,
+              sortDirection: 'asc',
+              stickyHeader: true,
+              maxHeight: tableHeight,
+              colWidth: Math.min(120, Math.floor(fieldW / 3) - 8),
+            },
+          },
+          tableHeight
+        );
+        flow.section('Files');
+        flow.place(
+          {
+            type: 'tree',
+            props: {
+              nodes: [
+                { label: 'src', children: [{ label: 'components' }, { label: 'renderers' }, { label: 'styles' }] },
+                { label: 'test', children: [{ label: 'phase6.test.ts' }, { label: 'html.test.ts' }] },
+                { label: 'examples', children: [{ label: 'demo-ui.html' }] },
+              ],
+              expanded: [0, 1],
+              selectedNode: 'p0.c1',
+            },
+          },
+          FORM_HEIGHTS.tree
+        );
+      }
+      return { children: flow.children, bottom: flow.bottom };
+    }
+
+    function sectionContent(name, x, cy, fieldW, W, canvasH, cardY) {
+      const splitData = W >= 720 && activeSection === 'data' && !isEmbed();
+      let result;
+      if (name === 'forms') result = formsBlock(x, cy, fieldW, isEmbed());
+      else if (name === 'layout') result = layoutBlock(x, cy, fieldW);
+      else if (name === 'overlays') result = overlaysBlock(x, cy, fieldW, W, canvasH);
+      else if (name === 'data') result = dataBlock(x, cy, fieldW, splitData);
+      else return { children: [], cardH: 200 };
+      return { children: result.children, cardH: result.bottom - cardY + 24 };
+    }
+
+    function buildThemeGallery() {
+      const gallery = document.getElementById('theme-gallery');
+      gallery.innerHTML = '';
+      THEME_OPTIONS.forEach(({ id, label }) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'demo-btn secondary' + (id === activeTheme ? ' is-active' : '');
+        btn.textContent = label;
+        btn.setAttribute('aria-pressed', id === activeTheme ? 'true' : 'false');
+        btn.addEventListener('click', () => {
+          activeTheme = id;
+          if (app) app.setUiTheme({ preset: id });
+          buildThemeGallery();
+          log('theme: ' + id);
+        });
+        gallery.appendChild(btn);
+      });
+    }
+
+    function buildSectionNav() {
+      const nav = document.getElementById('section-nav');
+      nav.innerHTML = '';
+      const items = isEmbed() ? SECTIONS.filter((s) => s.id !== 'all') : SECTIONS;
+      items.forEach(({ id, label }) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'demo-btn secondary' + (id === activeSection ? ' is-active' : '');
+        btn.textContent = label;
+        btn.setAttribute('role', 'tab');
+        btn.setAttribute('aria-selected', id === activeSection ? 'true' : 'false');
+        btn.addEventListener('click', () => {
+          activeSection = id;
+          buildSectionNav();
+          initApp();
+          log('section: ' + id);
+        });
+        nav.appendChild(btn);
+      });
+    }
+
+    function buildControls() {
+      const hcBtn = document.getElementById('hc-toggle');
+      const renBtn = document.getElementById('renderer-toggle');
+      hcBtn.classList.toggle('is-active', highContrast);
+      hcBtn.setAttribute('aria-pressed', highContrast ? 'true' : 'false');
+      renBtn.textContent = 'Renderer: ' + (activeRenderer === 'html' ? 'HTML' : 'Canvas');
+      renBtn.setAttribute('aria-pressed', activeRenderer === 'canvas' ? 'true' : 'false');
+      hcBtn.onclick = () => {
+        highContrast = !highContrast;
+        if (app) app.setHighContrast(highContrast);
+        buildControls();
+        log('highContrast: ' + highContrast);
+      };
+      renBtn.onclick = () => {
+        activeRenderer = activeRenderer === 'html' ? 'canvas' : 'html';
+        buildControls();
+        initApp();
+        log('renderer: ' + activeRenderer);
+      };
+    }
+
+    function buildScene(W) {
+      const pad = 16;
+      const innerPad = 24;
+      const innerW = W - pad * 2;
+      const fieldW = innerW - innerPad * 2;
+      const innerX = pad + innerPad;
+      const innerTop = isEmbed() ? 44 : 48;
+      const sections =
+        activeSection === 'all' ? ['forms', 'layout', 'overlays', 'data'] : [activeSection];
+
+      const children = [];
+      let y = pad;
+      let totalH = pad;
+
+      for (const name of sections) {
+        const cy = y + innerTop;
+        const estCanvasH = 1200;
+        const { children: sectionChildren, cardH } = sectionContent(name, innerX, cy, fieldW, W, estCanvasH, y);
+        children.push({
+          type: 'card',
+          props: {
+            x: pad,
+            y,
+            width: innerW,
+            height: cardH,
+            title: SECTION_LABELS[name],
+          },
+        });
+        children.push(...sectionChildren);
+        y += cardH + pad;
+        totalH = y + pad;
+      }
+
+      return { children, canvasH: totalH };
+    }
+
+    function bindEvents() {
+      const layer = app.stage.children[0];
+      if (!layer?.children) return;
+      layer.children.forEach((node) => {
+        if (node.metadata?.componentType === 'card' || node.metadata?.componentType === 'label') return;
+        ['change', 'select', 'open', 'close', 'input', 'click'].forEach((ev) => {
+          node.on(ev, (e) =>
+            log(
+              `${node.metadata?.componentType || node.type}: ${ev} ${JSON.stringify(e.value ?? e.item ?? e.index ?? '')}`
+            )
+          );
+        });
+      });
+    }
+
+    function initApp() {
+      const wrap = document.getElementById('canvas-wrap');
+      const appEl = document.getElementById('app');
+      const W = Math.max(wrap.clientWidth - 8, 280);
+      const { children, canvasH } = buildScene(W);
+
+      if (app) app.destroy();
+      app = LightDraw.createApp('#app', {
+        width: W,
+        height: canvasH,
+        background: highContrast ? '#000' : '#f1f5f9',
+        renderer: activeRenderer,
+        uiTheme: { preset: activeTheme },
+        highContrast,
+      });
+
+      appEl.style.height = canvasH + 'px';
+      wrap.scrollTop = 0;
+      app.loadJSON({ type: 'group', children });
+      bindEvents();
+    }
+
+    buildThemeGallery();
+    buildSectionNav();
+    buildControls();
+    initApp();
+    window.addEventListener('resize', () => {
+      clearTimeout(window._ldUiResize);
+      window._ldUiResize = setTimeout(initApp, 150);
+    });
+  </script>
+</body>
+</html>

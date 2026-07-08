@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LightDraw — Animation Demo</title>
+  <script src="demo-embed.js"></script>
+  <link rel="stylesheet" href="demo-common.css">
+</head>
+<body>
+  <div class="demo-shell">
+    <header class="demo-header">
+      <span class="demo-badge">Animation Engine</span>
+      <h1>Motion &amp; Timeline</h1>
+      <p>Path motion, stroke dash, morphing, stagger, and multi-property tweens with built-in easing.</p>
+    </header>
+    <main class="demo-main demo-layout-aside">
+      <div class="demo-canvas-wrap" id="animation-canvas-wrap">
+        <div id="app"></div>
+      </div>
+      <aside class="demo-aside-panel">
+        <h2>Scenes</h2>
+        <button type="button" class="demo-btn is-active" id="btn-motion" onclick="pickScene(this, demoMotionPath)">Motion Path</button>
+        <button type="button" class="demo-btn secondary" onclick="pickScene(this, demoDash)">Stroke Dash</button>
+        <button type="button" class="demo-btn secondary" onclick="pickScene(this, demoMorph)">Path Morph</button>
+        <button type="button" class="demo-btn secondary" onclick="pickScene(this, demoStagger)">Stagger</button>
+        <button type="button" class="demo-btn secondary" onclick="pickScene(this, demoGroup)">Multi-Prop</button>
+        <button type="button" class="demo-btn secondary" style="margin-top:0.35rem" onclick="stopAll()">Stop All</button>
+        <p class="demo-aside-hint" id="easing-hint">Easing: easeInOutCubic · loop · motion along path</p>
+      </aside>
+    </main>
+  </div>
+  <script src="../lightdraw.min.js"></script>
+  <script>
+    const canvasWrap = document.getElementById('animation-canvas-wrap');
+    let canvasW = 800;
+    let canvasH = 500;
+    let app;
+    let controls = [];
+
+    const sceneHints = {
+      motion: 'Easing: easeInOutCubic · loop · motion along path',
+      dash: 'Easing: linear · animated dashOffset',
+      morph: 'Easing: easeInOutQuad · morphTo rounded rect',
+      stagger: 'Easing: easeOutBounce · timeline stagger 80ms',
+      group: 'Easing: easeInOutCubic · x, y, opacity, rotation',
+    };
+
+    function measureCanvas() {
+      const rect = canvasWrap.getBoundingClientRect();
+      canvasW = Math.max(320, Math.floor(rect.width - 8));
+      canvasH = Math.max(280, Math.floor(rect.height - 8));
+      return { width: canvasW, height: canvasH };
+    }
+
+    function createApp() {
+      if (app) app.destroy();
+      measureCanvas();
+      app = LightDraw.createApp('#app', {
+        width: canvasW,
+        height: canvasH,
+        background: '#0d1322',
+        renderer: 'canvas',
+      });
+    }
+
+    function clear() {
+      controls.forEach((c) => c.stop?.());
+      controls = [];
+      LightDraw.AnimationEngine.stopAll();
+      createApp();
+    }
+
+    function stopAll() {
+      controls.forEach((c) => c.stop?.());
+      controls = [];
+      LightDraw.AnimationEngine.stopAll();
+    }
+
+    function pickScene(btn, fn) {
+      document.querySelectorAll('.demo-aside-panel .demo-btn').forEach((b) => {
+        b.classList.remove('is-active');
+        b.classList.add('secondary');
+      });
+      btn.classList.add('is-active');
+      btn.classList.remove('secondary');
+      fn();
+    }
+
+    function setHint(key) {
+      const el = document.getElementById('easing-hint');
+      if (el) el.textContent = sceneHints[key] ?? '';
+    }
+
+    function demoMotionPath() {
+      clear();
+      setHint('motion');
+      const track = app.path({
+        d: 'M 50 250 Q 200 50 400 250 T 750 250',
+        stroke: '#475569',
+        strokeWidth: 2,
+        dash: [8, 6],
+        listening: false,
+      });
+      const dot = app.circle({ x: 50, y: 250, radius: 12, fill: '#3b82f6' });
+      app.add(track, dot);
+      controls.push(
+        app.animate(dot, {
+          motionPath: track,
+          duration: 3000,
+          loop: true,
+          easing: 'easeInOutCubic',
+        })
+      );
+    }
+
+    function demoDash() {
+      clear();
+      setHint('dash');
+      const line = app.path({
+        d: 'M 80 250 L 720 250',
+        stroke: '#38bdf8',
+        strokeWidth: 4,
+        dash: [20, 12],
+        dashOffset: 0,
+        listening: false,
+      });
+      app.add(line);
+      controls.push(
+        line.animate({
+          dashOffset: 200,
+          duration: 2000,
+          loop: true,
+          easing: 'linear',
+        })
+      );
+    }
+
+    function demoMorph() {
+      clear();
+      setHint('morph');
+      const w = 120;
+      const h = 90;
+      const r = 24;
+      const rectPath = `M0 0 L${w} 0 L${w} ${h} L0 ${h} Z`;
+      const roundPath = [
+        `M${r} 0`,
+        `L${w - r} 0`,
+        `Q${w} 0 ${w} ${r}`,
+        `L${w} ${h - r}`,
+        `Q${w} ${h} ${w - r} ${h}`,
+        `L${r} ${h}`,
+        `Q0 ${h} 0 ${h - r}`,
+        `L0 ${r}`,
+        `Q0 0 ${r} 0`,
+        'Z',
+      ].join(' ');
+      const shape = app.path({
+        d: rectPath,
+        x: 340,
+        y: 205,
+        fill: '#f59e0b',
+        stroke: '#fde68a',
+        strokeWidth: 2,
+        listening: false,
+      });
+      app.add(shape);
+      controls.push(
+        shape.animate({
+          morphTo: roundPath,
+          duration: 1200,
+          loop: true,
+          reverse: true,
+          easing: 'easeInOutQuad',
+        })
+      );
+    }
+
+    function demoStagger() {
+      clear();
+      setHint('stagger');
+      const nodes = [];
+      for (let i = 0; i < 8; i++) {
+        nodes.push(
+          app.rect({
+            x: 100 + i * 70,
+            y: 400,
+            width: 40,
+            height: 20,
+            fill: '#6366f1',
+            cornerRadius: 4,
+            listening: false,
+          })
+        );
+      }
+      app.add(...nodes);
+      app.timeline().stagger(nodes, { y: 120, duration: 600, easing: 'easeOutBounce' }, 80).play();
+    }
+
+    function demoGroup() {
+      clear();
+      setHint('group');
+      const card = app.roundedRect({
+        x: 280,
+        y: 180,
+        width: 240,
+        height: 140,
+        fill: '#1e3a5f',
+        cornerRadius: 12,
+        stroke: '#60a5fa',
+        strokeWidth: 2,
+        listening: false,
+      });
+      app.add(card);
+      controls.push(
+        app.animate(card, {
+          x: 300,
+          y: 160,
+          opacity: 0.85,
+          rotation: 5,
+          duration: 1500,
+          loop: true,
+          reverse: true,
+          easing: 'easeInOutCubic',
+        })
+      );
+    }
+
+    function scheduleResize() {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        const active = document.querySelector('.demo-aside-panel .demo-btn.is-active');
+        if (active?.id === 'btn-motion') demoMotionPath();
+        else if (active) active.click();
+        else demoMotionPath();
+      }, 120);
+    }
+
+    let resizeTimer = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      new ResizeObserver(scheduleResize).observe(canvasWrap);
+    }
+    window.addEventListener('resize', scheduleResize);
+
+    createApp();
+    demoMotionPath();
+  </script>
+</body>
+</html>
