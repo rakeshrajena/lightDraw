@@ -14,3 +14,6 @@ docs/api/
 DATA_FEED_PLAN.md
 UI_POLISH_PLAN.md
 IMPLEMENTATION_PLAN.md
+blog/
+scripts/blog-fixtures/
+scripts/capture-blog-screenshots.mjs

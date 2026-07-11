@@ -83,6 +83,7 @@
     "benchmark:local": "npm run benchmark && npm run benchmark:compare",
     "ci:local": "npm run typecheck && npm run lint && npm run build && npm run size-gate && npm run test:ci:full && npm run benchmark:local",
     "screenshots:readme": "npm run build && npm run build:website && node scripts/capture-readme-screenshots.mjs",
+    "screenshots:blog": "npm run build && npm run build:website && node scripts/capture-blog-screenshots.mjs",
     "screenshots:widgets": "npm run build && node scripts/capture-auto-widget-audit.mjs",
   "docs:api": "typedoc",
   "prepare:website": "node scripts/prepare-website.mjs",

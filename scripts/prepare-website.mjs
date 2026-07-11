@@ -48,4 +48,8 @@ const docsOut = resolve(pub, 'docs');
 if (existsSync(docsOut)) rmSync(docsOut, { recursive: true });
 cpSync(resolve(root, 'docs'), docsOut, { recursive: true });
 
+const blogFixturesOut = resolve(pub, 'blog/fixtures');
+if (existsSync(blogFixturesOut)) rmSync(blogFixturesOut, { recursive: true });
+cpSync(resolve(root, 'scripts/blog-fixtures'), blogFixturesOut, { recursive: true });
+
 console.log('Website public assets prepared.');
