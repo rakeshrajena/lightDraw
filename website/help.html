@@ -8,14 +8,14 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/styles.css">
-  <script src="/site-theme.js"></script>
+  <link rel="stylesheet" href="%BASE_URL%styles.css">
+  <script src="%BASE_URL%site-theme.js"></script>
 </head>
 <body class="site-body">
   <div class="help-shell">
     <aside class="help-nav" aria-label="Help topics">
       <div class="rail-brand" style="border:0;padding:0.25rem 0.65rem 0.85rem">
-        <a href="/" class="rail-logo">LightDraw</a>
+        <a href="%BASE_URL%" class="rail-logo">LightDraw</a>
         <div class="rail-brand-actions">
           <button type="button" class="theme-toggle" id="btn-site-theme" data-theme="night" aria-pressed="false" title="Switch to day">
             <span class="theme-toggle-icon" aria-hidden="true"></span>
@@ -34,7 +34,7 @@
       <a href="#diagram">Diagram</a>
       <a href="#animation">Animation</a>
       <div class="help-nav-group" role="presentation">More</div>
-      <a href="/#theme">Live playground</a>
+      <a href="%BASE_URL%index.html#theme">Live playground</a>
       <a href="doc.html?src=docs/getting-started.md">Full guides</a>
       <a href="docs/api/index.html">API reference</a>
     </aside>
@@ -65,7 +65,7 @@ dot.animate({ x: 260, duration: 900, loop: true, reverse: true });</pre>
           </div>
         </div>
         <div class="help-actions">
-          <a class="stage-btn" href="/#core">Open in playground</a>
+          <a class="stage-btn" href="%BASE_URL%index.html#core">Open in playground</a>
           <a class="stage-btn stage-btn--ghost" href="doc.html?src=docs/getting-started.md">Getting started guide</a>
         </div>
       </section>
@@ -95,7 +95,7 @@ app.applyTheme({ primary: 'pink', fontSize: '16px' });</pre>
           </div>
         </div>
         <div class="help-actions">
-          <a class="stage-btn" href="/#theme">Theme playground</a>
+          <a class="stage-btn" href="%BASE_URL%index.html#theme">Theme playground</a>
           <a class="stage-btn stage-btn--ghost" href="doc.html?src=docs/ui-theme-guide.md">Theme guide</a>
         </div>
       </section>
@@ -113,7 +113,7 @@ app.applyTheme({ primary: 'pink', fontSize: '16px' });</pre>
 });</pre>
         </div>
         <div class="help-actions">
-          <a class="stage-btn" href="/#ui">Try UI demo</a>
+          <a class="stage-btn" href="%BASE_URL%index.html#ui">Try UI demo</a>
           <a class="stage-btn stage-btn--ghost" href="doc.html?src=docs/ai-integration-guide.md">AI + JSON guide</a>
         </div>
       </section>
@@ -136,7 +136,7 @@ app.applyTheme({ primary: 'pink', fontSize: '16px' });</pre>
           </div>
         </div>
         <div class="help-actions">
-          <a class="stage-btn" href="/#ui">UI playground</a>
+          <a class="stage-btn" href="%BASE_URL%index.html#ui">UI playground</a>
           <a class="stage-btn stage-btn--ghost" href="doc.html?src=docs/ui-components-schema.md">Component schema</a>
         </div>
       </section>
@@ -161,7 +161,7 @@ LightDraw.animateLiveValue(gaugeNode, 'value', 82, 400);</pre>
           </div>
         </div>
         <div class="help-actions">
-          <a class="stage-btn" href="/#dashboard">Dashboard playground</a>
+          <a class="stage-btn" href="%BASE_URL%index.html#dashboard">Dashboard playground</a>
           <a class="stage-btn stage-btn--ghost" href="doc.html?src=docs/dashboard-widgets-schema.md">Widget schema</a>
         </div>
       </section>
@@ -185,7 +185,7 @@ LightDraw.animateLiveValue(gaugeNode, 'value', 82, 400);</pre>
           </div>
         </div>
         <div class="help-actions">
-          <a class="stage-btn" href="/#automotive">Automotive playground</a>
+          <a class="stage-btn" href="%BASE_URL%index.html#automotive">Automotive playground</a>
           <a class="stage-btn stage-btn--ghost" href="doc.html?src=docs/automotive-examples.md">Examples</a>
         </div>
       </section>
@@ -231,7 +231,7 @@ LightDraw.animateLiveValue(gaugeNode, 'value', 82, 400);</pre>
           </div>
         </div>
         <div class="help-actions">
-          <a class="stage-btn" href="/#diagram">Diagram playground</a>
+          <a class="stage-btn" href="%BASE_URL%index.html#diagram">Diagram playground</a>
           <a class="stage-btn stage-btn--ghost" href="doc.html?src=docs/diagram-module-schema.md">Diagram schema</a>
         </div>
       </section>
@@ -268,7 +268,7 @@ dot.animate({
           </div>
         </div>
         <div class="help-actions">
-          <a class="stage-btn" href="/#animation">Animation playground</a>
+          <a class="stage-btn" href="%BASE_URL%index.html#animation">Animation playground</a>
           <a class="stage-btn stage-btn--ghost" href="doc.html?src=docs/animation-guide.md">Animation guide</a>
         </div>
       </section>

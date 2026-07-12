@@ -9,14 +9,14 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/styles/github-dark.min.css">
-  <link rel="stylesheet" href="/styles.css">
-  <script src="/site-theme.js"></script>
+  <link rel="stylesheet" href="%BASE_URL%styles.css">
+  <script src="%BASE_URL%site-theme.js"></script>
 </head>
 <body class="site-body doc-page">
   <div class="doc-shell">
     <aside class="doc-nav" aria-label="Documentation">
       <div class="rail-brand" style="border:0;padding:0.25rem 0.65rem 0.85rem">
-        <a href="/" class="rail-logo">LightDraw</a>
+        <a href="%BASE_URL%" class="rail-logo">LightDraw</a>
         <div class="rail-brand-actions">
           <button type="button" class="theme-toggle" id="btn-site-theme" data-theme="night" aria-pressed="false" title="Switch to day">
             <span class="theme-toggle-icon" aria-hidden="true"></span>
@@ -40,8 +40,8 @@
       <a href="doc.html?src=docs/automotive-examples.md">Auto examples</a>
       <a href="doc.html?src=docs/diagram-module-schema.md">Diagram</a>
       <div class="help-nav-group" role="presentation">More</div>
-      <a href="/help.html">Help center</a>
-      <a href="/">Playground</a>
+      <a href="%BASE_URL%help.html">Help center</a>
+      <a href="%BASE_URL%">Playground</a>
       <a href="docs/api/index.html">API reference</a>
     </aside>
 
@@ -50,7 +50,7 @@
         <p class="doc-crumb" id="doc-crumb">Documentation</p>
         <div class="doc-toolbar-actions">
           <a class="stage-btn stage-btn--ghost" id="doc-raw" href="#" target="_blank" rel="noopener">Raw Markdown</a>
-          <a class="stage-btn stage-btn--ghost" href="/help.html">Help</a>
+          <a class="stage-btn stage-btn--ghost" href="%BASE_URL%help.html">Help</a>
         </div>
       </header>
       <article class="doc-prose" id="doc-content" aria-live="polite">
@@ -63,6 +63,6 @@
   <script src="https://cdn.jsdelivr.net/npm/marked@15.0.12/marked.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/highlight.min.js"></script>
-  <script src="/doc-viewer.js"></script>
+  <script src="%BASE_URL%doc-viewer.js"></script>
 </body>
 </html>

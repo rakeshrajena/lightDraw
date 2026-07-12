@@ -9,17 +9,20 @@
   const DEFAULT_SRC = 'docs/README.md';
 
   function siteBase() {
+    if (window.SiteTheme && typeof SiteTheme.siteBase === 'function') {
+      return SiteTheme.siteBase();
+    }
     const path = location.pathname || '/';
     if (path.endsWith('/doc.html')) return path.slice(0, -'doc.html'.length) || '/';
     if (path.endsWith('/')) return path;
-    const i = path.lastIndexOf('/');
-    return i >= 0 ? path.slice(0, i + 1) : '/';
+    const file = path.split('/').pop() || '';
+    if (file.includes('.')) return path.slice(0, -file.length) || '/';
+    return path.endsWith('/') ? path : path + '/';
   }
 
   function joinBase(rel) {
-    const base = siteBase();
     const clean = String(rel || '').replace(/^\//, '');
-    return base + clean;
+    return new URL(clean, location.origin + siteBase()).href;
   }
 
   function normalizeSrc(raw) {

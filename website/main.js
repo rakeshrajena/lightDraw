@@ -90,6 +90,13 @@ const DEMO_GROUPS = [
   },
 ];
 
+const BASE = import.meta.env.BASE_URL || '/';
+
+function withBase(rel) {
+  const path = String(rel || '').replace(/^\//, '');
+  return BASE + path;
+}
+
 function currentDemoId() {
   const hash = (location.hash || '').replace(/^#\/?/, '').split('?')[0];
   if (hash === 'playground' || hash === 'hero' || !hash) return 'theme';
@@ -128,7 +135,7 @@ function demoSrc(demo) {
     document.documentElement.dataset.siteTheme ||
     (window.SiteTheme && SiteTheme.preferred()) ||
     'night';
-  const base = demo.src;
+  const base = withBase(demo.src);
   const join = base.includes('?') ? '&' : '?';
   return `${base}${join}shell=${theme}`;
 }
@@ -149,7 +156,7 @@ function selectDemo(id, pushHash) {
   if (title) title.textContent = demo.title;
   if (desc) desc.textContent = demo.blurb;
   if (open) {
-    open.href = demo.full;
+    open.href = withBase(demo.full);
     open.setAttribute('aria-label', `Open ${demo.title} full demo`);
   }
 

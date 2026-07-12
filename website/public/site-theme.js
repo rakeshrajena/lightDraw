@@ -53,6 +53,22 @@
     return apply(cur === 'day' ? 'night' : 'day');
   }
 
+  /** Public site base path (`/` locally, `/lightDraw/` on GitHub Pages). */
+  function siteBase() {
+    const path = location.pathname || '/';
+    if (path.endsWith('/')) return path;
+    const file = path.split('/').pop() || '';
+    if (file.includes('.')) {
+      const dir = path.slice(0, -file.length);
+      return dir || '/';
+    }
+    return path.endsWith('/') ? path : path + '/';
+  }
+
+  function siteUrl(rel) {
+    return new URL(String(rel || '').replace(/^\//, ''), location.origin + siteBase()).href;
+  }
+
   function boot() {
     apply(preferred(), { silent: true });
     document.getElementById('btn-site-theme')?.addEventListener('click', () => toggle());
@@ -84,10 +100,9 @@
       try {
         const u = new URL(href, location.href);
         path = u.pathname.replace(/^\//, '');
-        const parts = location.pathname.split('/').filter(Boolean);
-        // Strip project base (e.g. lightDraw/) when present
-        if (parts.length > 1 && path.startsWith(parts[0] + '/')) {
-          path = path.slice(parts[0].length + 1);
+        const base = siteBase().replace(/^\//, '').replace(/\/$/, '');
+        if (base && path.startsWith(base + '/')) {
+          path = path.slice(base.length + 1);
         }
       } catch (_) {
         /* keep */
@@ -98,19 +113,13 @@
 
       e.preventDefault();
       const hash = href.includes('#') ? '#' + href.split('#').slice(1).join('#') : '';
-      const basePath = location.pathname.includes('/lightDraw/') ? '/lightDraw/' : '/';
-      // Prefer relative doc.html next to current page
-      let docUrl = 'doc.html';
-      try {
-        docUrl = new URL('doc.html', location.href).pathname;
-      } catch (_) {
-        docUrl = basePath + 'doc.html';
-      }
-      location.href = docUrl + '?src=' + encodeURIComponent(file) + hash;
+      const u = new URL('doc.html', location.origin + siteBase());
+      u.searchParams.set('src', file);
+      location.href = u.href + hash;
     });
   }
 
-  global.SiteTheme = { apply, toggle, preferred, KEY, MSG };
+  global.SiteTheme = { apply, toggle, preferred, siteBase, siteUrl, KEY, MSG };
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', boot);
   } else {

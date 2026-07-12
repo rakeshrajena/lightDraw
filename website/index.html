@@ -8,8 +8,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/lightdraw.min.css">
-  <link rel="stylesheet" href="/styles.css">
+  <!-- %BASE_URL% → / locally, /lightDraw/ on GitHub Pages -->
+  <link rel="stylesheet" href="%BASE_URL%lightdraw.min.css">
+  <link rel="stylesheet" href="%BASE_URL%styles.css">
 </head>
 <body class="site-body">
   <section class="hero" id="hero" aria-label="LightDraw introduction">
@@ -24,7 +25,7 @@
       </p>
       <div class="hero-cta">
         <a class="hero-btn" href="#theme">Open playground</a>
-        <a class="hero-btn hero-btn--ghost" href="/help.html">Help</a>
+        <a class="hero-btn hero-btn--ghost" href="%BASE_URL%help.html">Help</a>
         <a class="hero-btn hero-btn--ghost" href="https://github.com/rakeshrajena/lightDraw">GitHub</a>
       </div>
     </div>
@@ -44,8 +45,8 @@
       </div>
       <nav class="rail-nav" id="demo-nav" role="tablist" aria-label="Demos"></nav>
       <div class="rail-foot">
-        <a href="/help.html">Help</a>
-        <a href="doc.html?src=docs/getting-started.md">Docs</a>
+        <a href="%BASE_URL%help.html">Help</a>
+        <a href="%BASE_URL%doc.html?src=docs/getting-started.md">Docs</a>
         <a href="https://github.com/rakeshrajena/lightDraw">GitHub</a>
       </div>
     </aside>
@@ -61,7 +62,7 @@
             <span class="stage-live-dot" aria-hidden="true"></span>
             Editable
           </span>
-          <a class="stage-btn" id="btn-open-full" href="examples/demo-theme.html" target="_blank" rel="noopener">Open full</a>
+          <a class="stage-btn" id="btn-open-full" href="%BASE_URL%examples/demo-theme.html" target="_blank" rel="noopener">Open full</a>
           <button type="button" class="stage-btn stage-btn--ghost" id="btn-reload" title="Reload demo">Reload</button>
         </div>
       </header>
@@ -77,8 +78,8 @@
     </div>
   </div>
 
-  <script src="/lightdraw.min.js"></script>
-  <script src="/site-theme.js"></script>
-  <script type="module" src="/main.js"></script>
+  <script src="%BASE_URL%lightdraw.min.js"></script>
+  <script src="%BASE_URL%site-theme.js"></script>
+  <script type="module" src="./main.js"></script>
 </body>
 </html>
