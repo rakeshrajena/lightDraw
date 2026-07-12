@@ -1,7 +1,7 @@
 import { attachRegionsHover, attachPolarSliceHover, attachIndexXHover, attachNearestHover } from '../core/interaction';
 import { registerDashboard } from '../../registryCore';
 import { createWidgetGroup, num, setState } from '../../helpers';
-import { DASHBOARD } from '../../theme';
+import { getActiveDashboard } from '../../theme';
 import { squarify, flattenHierarchy } from '../core/treemap';
 import type { HierarchyNode } from '../types';
 import { Arc } from '../../../shapes/index';
@@ -38,8 +38,8 @@ registerDashboard('treemap', (props, app) => {
         y: r.y,
         width: r.width - 1,
         height: r.height - 1,
-        fill: DASHBOARD.series[i % DASHBOARD.series.length],
-        stroke: DASHBOARD.pieStroke,
+        fill: getActiveDashboard().series[i % getActiveDashboard().series.length],
+        stroke: getActiveDashboard().pieStroke,
         strokeWidth: 1,
         listening: false,
       }),
@@ -48,7 +48,7 @@ registerDashboard('treemap', (props, app) => {
         x: r.x + 4,
         y: r.y + 4,
         fontSize: 10,
-        fill: DASHBOARD.text,
+        fill: getActiveDashboard().text,
         listening: false,
       })
     );
@@ -76,8 +76,8 @@ registerDashboard('sunburstChart', (props, app) => {
         radius: size / 2 - 10,
         startAngle: angle,
         endAngle: angle + sweep,
-        fill: DASHBOARD.series[i % DASHBOARD.series.length],
-        stroke: DASHBOARD.pieStroke,
+        fill: getActiveDashboard().series[i % getActiveDashboard().series.length],
+        stroke: getActiveDashboard().pieStroke,
         strokeWidth: 1,
         listening: false,
       })
@@ -108,14 +108,14 @@ registerDashboard('treeChart', (props, app) => {
     ],
   };
   const group = createWidgetGroup(app, 'treeChart', props);
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  group.add(app.rect({ width, height, fill: getActiveDashboard().chartBg, listening: true }));
   const leaves = flattenHierarchy(root);
   leaves.forEach((n, i) => {
     const x = 20 + (i % 4) * 70;
     const y = 30 + Math.floor(i / 4) * 50;
     group.add(
-      app.circle({ x: x - 8, y: y - 8, radius: 8, fill: DASHBOARD.primary, listening: false }),
-      app.text({ text: n.name, x: x + 12, y: y - 6, fontSize: 11, fill: DASHBOARD.text, listening: false })
+      app.circle({ x: x - 8, y: y - 8, radius: 8, fill: getActiveDashboard().primary, listening: false }),
+      app.text({ text: n.name, x: x + 12, y: y - 6, fontSize: 11, fill: getActiveDashboard().text, listening: false })
     );
   });
   attachNearestHover(
@@ -137,17 +137,17 @@ registerDashboard('dendrogramChart', (props, app) => {
   const width = num(props, 'width', 300);
   const height = num(props, 'height', 200);
   const group = createWidgetGroup(app, 'dendrogramChart', props);
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  group.add(app.rect({ width, height, fill: getActiveDashboard().chartBg, listening: true }));
   const nodes = ['A', 'B', 'C', 'D', 'E'];
   const step = width / nodes.length;
   nodes.forEach((n, i) => {
     const x = step * i + step / 2;
     group.add(
-      app.line({ x, y: height - 30, x2: 0, y2: -80, stroke: DASHBOARD.chartGrid, strokeWidth: 1, listening: false }),
-      app.text({ text: n, x: x - 6, y: height - 12, fontSize: 10, fill: DASHBOARD.text, listening: false })
+      app.line({ x, y: height - 30, x2: 0, y2: -80, stroke: getActiveDashboard().chartGrid, strokeWidth: 1, listening: false }),
+      app.text({ text: n, x: x - 6, y: height - 12, fontSize: 10, fill: getActiveDashboard().text, listening: false })
     );
   });
-  group.add(app.line({ x: step / 2, y: height - 110, x2: width - step, y2: 0, stroke: DASHBOARD.chartLine, strokeWidth: 2, listening: false }));
+  group.add(app.line({ x: step / 2, y: height - 110, x2: width - step, y2: 0, stroke: getActiveDashboard().chartLine, strokeWidth: 2, listening: false }));
   attachIndexXHover(
     app,
     group,

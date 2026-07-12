@@ -61,7 +61,7 @@ describe('Phase UI-10 — Documentation & release', () => {
   it('doc snippet — setUiTheme preset', () => {
     const container = createTestContainer(400, 300);
     const app = createTestApp(container, { renderer: 'html' });
-    app.setUiTheme({ preset: 'violet', mode: 'dark' });
+    app.setUiTheme({ preset: 'darkViolet' });
     expect(() => app.render()).not.toThrow();
     app.destroy();
   });

@@ -18,4 +18,24 @@ export const uiPlugin: Plugin = {
 export { registerComponent, createComponentFromJSON };
 export { applyUiTheme, resolveUiTheme, UI_PRESETS, UI_THEME_VAR_MAP } from '../../components/uiTheme';
 export type { UiThemeTokens, UiThemeInput, UiThemePreset } from '../../components/uiTheme';
+export {
+  resolveUiCanvasTheme,
+  getCanvasUiTheme,
+  getActiveUi,
+  refreshCanvasUi,
+  syncActiveCanvasUiTheme,
+  runWithCanvasUiTheme,
+} from '../../components/resolveCanvasTheme';
+export type { UiCanvasTheme } from '../../components/resolveCanvasTheme';
+export {
+  resolveEffectiveUiTokens,
+  resolveNodeTypography,
+  flatTypographyFromProps,
+  hasCustomTextColor,
+  hasCustomFontSize,
+  readNodeUiThemeProp,
+  normalizeNodeUiTheme,
+  hasNodeUiThemeOverride,
+} from '../../components/nodeTheme';
+export type { NodeUiThemeProp, NodeTypography } from '../../components/nodeTheme';
 export default uiPlugin;

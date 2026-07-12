@@ -1,104 +1,85 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-site-theme="night">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LightDraw.js — Playground</title>
+  <title>LightDraw.js — Live Playground</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="/lightdraw.min.css">
-  <link rel="stylesheet" href="/styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- %BASE_URL% → / locally, /lightDraw/ on GitHub Pages -->
+  <link rel="stylesheet" href="%BASE_URL%lightdraw.min.css">
+  <link rel="stylesheet" href="%BASE_URL%styles.css">
 </head>
-<body>
-  <header class="site-header">
-    <div class="site-header-inner">
-      <span class="site-badge">v1.0 · Production</span>
-      <h1>LightDraw.js Playground</h1>
-      <p class="tagline">Zero-dependency 2D graphics engine — shapes, animation, UI components, dashboards, automotive clusters, and diagrams.</p>
-      <nav class="nav">
-        <a href="#core">Core</a>
-        <a href="#animation">Animation</a>
-        <a href="#ui">UI</a>
-        <a href="#dashboard">Dashboard</a>
-        <a href="#automotive">Automotive</a>
-        <a href="#diagram">Diagram</a>
-        <a href="#export">Export</a>
-        <a href="#a11y">Accessibility</a>
-      </nav>
+<body class="site-body">
+  <section class="hero" id="hero" aria-label="LightDraw introduction">
+    <div class="hero-atmosphere" aria-hidden="true"></div>
+    <div class="hero-grid" aria-hidden="true"></div>
+    <div class="hero-inner">
+      <p class="hero-brand">LightDraw.js</p>
+      <h1 class="hero-line">Live playground</h1>
+      <p class="hero-sub">
+        Edit scene JSON, tweak themes, and watch every module re-render —
+        core shapes through automotive clusters.
+      </p>
+      <div class="hero-cta">
+        <a class="hero-btn" href="#theme">Open playground</a>
+        <a class="hero-btn hero-btn--ghost" href="%BASE_URL%help.html">Help</a>
+        <a class="hero-btn hero-btn--ghost" href="https://github.com/rakeshrajena/lightDraw">GitHub</a>
+      </div>
     </div>
-  </header>
-  <main>
-    <div class="demo-grid">
-      <section id="core" class="panel">
-        <div class="panel-header">
-          <h2>Core Engine</h2>
-          <p class="panel-desc">Canvas renderer with shapes, text, and live animation.</p>
-        </div>
-        <div id="demo-core" class="canvas-host"></div>
-      </section>
+    <div id="hero-canvas-host" class="hero-canvas" aria-hidden="true"></div>
+  </section>
 
-      <section id="animation" class="panel">
-        <div class="panel-header">
-          <h2>Animation</h2>
-          <p class="panel-desc">Motion paths, morphing, stagger, and timeline sequencing.</p>
+  <div class="playground" id="playground">
+    <aside class="rail" aria-label="Demo catalog">
+      <div class="rail-brand">
+        <a href="#hero" class="rail-logo">LightDraw</a>
+        <div class="rail-brand-actions">
+          <button type="button" class="theme-toggle" id="btn-site-theme" data-theme="night" aria-pressed="false" title="Switch to day">
+            <span class="theme-toggle-icon" aria-hidden="true"></span>
+            <span data-theme-label>Night</span>
+          </button>
         </div>
-        <iframe src="examples/demo-animation.html?embed=1" title="Animation demo" class="demo-frame demo-frame--medium"></iframe>
-      </section>
+      </div>
+      <nav class="rail-nav" id="demo-nav" role="tablist" aria-label="Demos"></nav>
+      <div class="rail-foot">
+        <a href="%BASE_URL%help.html">Help</a>
+        <a href="%BASE_URL%doc.html?src=docs/getting-started.md">Docs</a>
+        <a href="https://github.com/rakeshrajena/lightDraw">GitHub</a>
+      </div>
+    </aside>
 
-      <section id="ui" class="panel">
-        <div class="panel-header">
-          <h2>UI Components</h2>
-          <p class="panel-desc">17 interactive controls — buttons, forms, tables, dialogs, and more.</p>
+    <div class="stage">
+      <header class="stage-bar">
+        <div class="stage-titles">
+          <h2 id="stage-title">Theme</h2>
+          <p id="stage-desc">Live JSON and API editors — put theme on the scene root.</p>
         </div>
-        <iframe src="examples/demo-ui.html?embed=1" title="UI demo" class="demo-frame demo-frame--ui"></iframe>
-      </section>
-
-      <section id="dashboard" class="panel">
-        <div class="panel-header">
-          <h2>Dashboard Widgets</h2>
-          <p class="panel-desc">Live gauges &amp; widgets — <a href="examples/demo-dashboard.html#charts">82 chart types</a> in the full demo.</p>
+        <div class="stage-actions">
+          <span class="stage-live" id="stage-live" data-state="on" title="Demos support live Scene / Theme / API editing">
+            <span class="stage-live-dot" aria-hidden="true"></span>
+            Editable
+          </span>
+          <a class="stage-btn" id="btn-open-full" href="%BASE_URL%examples/demo-theme.html" target="_blank" rel="noopener">Open full</a>
+          <button type="button" class="stage-btn stage-btn--ghost" id="btn-reload" title="Reload demo">Reload</button>
         </div>
-        <iframe src="examples/demo-dashboard.html?embed=1" title="Dashboard demo" class="demo-frame demo-frame--dashboard"></iframe>
-      </section>
-
-      <section id="automotive" class="panel">
-        <div class="panel-header">
-          <h2>Automotive Instrument Cluster</h2>
-          <p class="panel-desc">Full digital cockpit — <a href="examples/demo-automotive.html#widgets">160 automotive widgets</a> in the full demo.</p>
-        </div>
-        <iframe src="examples/demo-automotive.html?embed=1" title="Automotive demo" class="demo-frame demo-frame--automotive"></iframe>
-      </section>
-
-      <section id="diagram" class="panel">
-        <div class="panel-header">
-          <h2>Diagram Module</h2>
-          <p class="panel-desc">Flowcharts, state machines, network topology, UML, and more.</p>
-        </div>
-        <iframe src="examples/demo-diagram.html?embed=1" title="Diagram demo" class="demo-frame demo-frame--medium"></iframe>
-      </section>
-
-      <section id="export" class="panel">
-        <div class="panel-header">
-          <h2>Export Pipeline</h2>
-          <p class="panel-desc">PNG, JPEG, SVG, and PDF export from scenes.</p>
-        </div>
-        <iframe src="examples/demo-export.html?embed=1" title="Export demo" class="demo-frame demo-frame--compact"></iframe>
-      </section>
-
-      <section id="a11y" class="panel">
-        <div class="panel-header">
-          <h2>Accessibility</h2>
-          <p class="panel-desc">Keyboard navigation, ARIA roles, and high-contrast mode.</p>
-        </div>
-        <iframe src="examples/demo-a11y.html?embed=1" title="A11y demo" class="demo-frame demo-frame--compact"></iframe>
-      </section>
+      </header>
+      <div class="stage-frame-wrap">
+        <iframe
+          id="demo-frame"
+          class="stage-frame"
+          title="LightDraw demo"
+          loading="lazy"
+          referrerpolicy="no-referrer-when-downgrade"
+        ></iframe>
+      </div>
     </div>
-  </main>
-  <footer>
-    <a href="https://github.com/rakeshrajena/lightDraw">GitHub</a>
-    · <a href="docs/getting-started.md">Documentation</a>
-    · MIT License
-  </footer>
-  <script src="/lightdraw.min.js"></script>
-  <script type="module" src="/main.js"></script>
+  </div>
+
+  <script src="%BASE_URL%lightdraw.min.js"></script>
+  <script src="%BASE_URL%site-theme.js"></script>
+  <script type="module" src="./main.js"></script>
 </body>
 </html>

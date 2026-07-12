@@ -5,7 +5,7 @@ import { Line, RoundedRect, TextNode } from '../shapes/index';
 import { syntheticEvent } from '../components/helpers';
 import { bandWidth, linearScale } from './charts/core/scales';
 
-import { DASHBOARD } from './theme';
+import { getActiveDashboard } from './theme';
 
 /** Map scene world coordinates to chart-group local space (handles nested panels). */
 export function chartLocalPoint(
@@ -103,7 +103,7 @@ export function addGridLines(
         y,
         x2: layout.plotWidth,
         y2: 0,
-        stroke: DASHBOARD.chartGrid,
+        stroke: getActiveDashboard().chartGrid,
         strokeWidth: 1,
         dash: [4, 4],
         listening: false,
@@ -118,7 +118,7 @@ export function addGridLines(
         y: layout.plotY,
         x2: 0,
         y2: layout.plotHeight,
-        stroke: DASHBOARD.chartGrid,
+        stroke: getActiveDashboard().chartGrid,
         strokeWidth: 1,
         dash: [4, 4],
         listening: false,
@@ -141,7 +141,7 @@ export function addAxes(
       y: layout.plotY,
       x2: 0,
       y2: layout.plotHeight,
-      stroke: DASHBOARD.chartAxis,
+      stroke: getActiveDashboard().chartAxis,
       strokeWidth: 1,
       listening: false,
     })
@@ -152,7 +152,7 @@ export function addAxes(
       y: layout.plotY + layout.plotHeight,
       x2: layout.plotWidth,
       y2: 0,
-      stroke: DASHBOARD.chartAxis,
+      stroke: getActiveDashboard().chartAxis,
       strokeWidth: 1,
       listening: false,
     })
@@ -168,8 +168,8 @@ export function addAxes(
         text: String(tick),
         x: 2,
         y: y - 6,
-        fontSize: 10,
-        fill: DASHBOARD.textMuted,
+        fontSize: getActiveDashboard().fontSizeSm,
+        fill: getActiveDashboard().textMuted,
         listening: false,
       })
     );
@@ -187,7 +187,7 @@ export function addLegend(
     const ly = y + i * 18;
     group.add(
       app.rect({ x, y: ly, width: 12, height: 12, fill: item.color, listening: false }),
-      app.text({ text: item.label, x: x + 16, y: ly - 1, fontSize: 11, fill: DASHBOARD.text, listening: false })
+      app.text({ text: item.label, x: x + 16, y: ly - 1, fontSize: getActiveDashboard().fontSizeSm, fill: getActiveDashboard().text, listening: false })
     );
   });
 }

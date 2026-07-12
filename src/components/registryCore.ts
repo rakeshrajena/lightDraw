@@ -2,6 +2,9 @@ import type { App } from '../App';
 import type { Node } from '../Node';
 import { Group } from '../shapes/Group';
 import type { NodeOptions } from '../types';
+import { syncActiveCanvasUiTheme, runWithCanvasUiTheme } from './resolveCanvasTheme';
+import { resolveEffectiveUiTokens } from './nodeTheme';
+import { installUiRebuild, UI_REBUILD_TYPES } from './uiRebuild';
 
 type ComponentFactory = (props: Record<string, unknown>, app: App) => Node;
 
@@ -17,7 +20,20 @@ export function createComponentFromJSON(
   app: App
 ): Node | null {
   const factory = registry[type];
-  return factory ? factory(props, app) : null;
+  if (!factory) return null;
+  const theme = syncActiveCanvasUiTheme(resolveEffectiveUiTokens(app, props), app);
+  return runWithCanvasUiTheme(theme, () => {
+    const node = factory(props, app);
+    if (
+      node &&
+      'children' in node &&
+      UI_REBUILD_TYPES.has(type) &&
+      !node.metadata.uiRebuild
+    ) {
+      installUiRebuild(node as Group, app, factory);
+    }
+    return node;
+  });
 }
 
 /** Base UI component wrapper */

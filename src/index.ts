@@ -38,6 +38,15 @@ import {
   exportApp,
   downloadExport,
   validateSceneJSON,
+  parseAndValidateSceneJSON,
+  formatJsonParseError,
+  locateJsonError,
+  formatValidationErrors,
+  validateThemePack,
+  listKnownSceneTypes,
+  formatExpectedValues,
+  formatInvalidValue,
+  suggestClosest,
   scenesEqual,
   createPluginContext,
   getInstalledPlugins,
@@ -65,8 +74,23 @@ import {
   listAutomotiveWidgets,
 } from './modules/automotive';
 import { diagramPlugin, Diagram } from './modules/diagram';
-import { applyUiTheme, resolveUiTheme, UI_PRESETS, UI_THEME_VAR_MAP } from './components/uiTheme';
+import { applyUiTheme, resolveUiTheme, UI_PRESETS, UI_THEME_VAR_MAP, UI_DARK_PACK, UI_LIGHT_PACK, UI_DARK_MODE_PACK, UI_LIGHT_MODE_PACK } from './components/uiTheme';
 export type { UiThemeTokens, UiThemeInput, UiThemePreset } from './components/uiTheme';
+import {
+  normalizeThemePack,
+  mergeThemePacks,
+  splitThemePack,
+  extractSceneTheme,
+  composeThemePack,
+} from './theme/themePack';
+export {
+  normalizeThemePack,
+  mergeThemePacks,
+  splitThemePack,
+  extractSceneTheme,
+  composeThemePack,
+};
+export type { ThemePack, DiagramThemePack } from './theme/themePack';
 
 export { VERSION };
 
@@ -105,6 +129,13 @@ export const LightDrawFull = Object.assign(LightDraw, {
   resolveUiTheme,
   UI_PRESETS,
   UI_THEME_VAR_MAP,
+  UI_DARK_PACK,
+  UI_LIGHT_PACK,
+  UI_DARK_MODE_PACK,
+  UI_LIGHT_MODE_PACK,
+  normalizeThemePack,
+  mergeThemePacks,
+  extractSceneTheme,
 });
 
 export {
@@ -148,6 +179,15 @@ export {
   exportApp,
   downloadExport,
   validateSceneJSON,
+  parseAndValidateSceneJSON,
+  formatJsonParseError,
+  locateJsonError,
+  formatValidationErrors,
+  validateThemePack,
+  listKnownSceneTypes,
+  formatExpectedValues,
+  formatInvalidValue,
+  suggestClosest,
   scenesEqual,
   registerComponent,
   createComponentFromJSON,
@@ -185,6 +225,10 @@ export {
   resolveUiTheme,
   UI_PRESETS,
   UI_THEME_VAR_MAP,
+  UI_DARK_PACK,
+  UI_LIGHT_PACK,
+  UI_DARK_MODE_PACK,
+  UI_LIGHT_MODE_PACK,
 };
 
 export { LightDrawFull as LightDraw };

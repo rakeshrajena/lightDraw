@@ -12,7 +12,7 @@ import { clearInstalledPlugins } from '../src/plugins/index';
 import { CanvasRenderer } from '../src/renderers/CanvasRenderer';
 import { createTestContainer } from './helpers';
 
-const CORE_MAX_GZIP = 26 * 1024; // v0.9.0 baseline (~24.1 KB measured); aspirational target is 8 KB
+const CORE_MAX_GZIP = 40 * 1024; // theme system baseline (~38.7 KB measured); aspirational target is 8 KB
 
 function registerCanvasRenderer(): void {
   registerRenderer('canvas', () => new CanvasRenderer());

@@ -4,13 +4,44 @@ coverage/
 *.log
 .DS_Store
 .env
-.env.local
+.env.*
+!.env.example
 .vscode/
 .idea/
+*.tsbuildinfo
+.turbo/
+.cache/
+
+# Test / Playwright outputs
 test-results/
 playwright-report/
-website/dist/
+blob-report/
+
+# Generated TypeDoc (npm run docs:api)
 docs/api/
+
+# Website build output + prepared Vite public copies (npm run prepare:website)
+website/dist/
+website/public/examples/
+website/public/docs/
+website/public/blog/
+website/public/lightdraw.min.js
+website/public/lightdraw.min.css
+website/public/lightdraw.esm.js
+website/public/lightdraw*.js
+website/public/lightdraw*.css
+
+# Local / internal planning notes (not published)
 DATA_FEED_PLAN.md
 UI_POLISH_PLAN.md
 IMPLEMENTATION_PLAN.md
+PROJECT_STATUS.md
+
+# Blog capture tooling (local-only fixtures)
+blog/
+scripts/blog-fixtures/
+scripts/capture-blog-screenshots.mjs
+
+# Scratch HTML from widget/diagram audits
+docs/images/**/tmp-*.html
+docs/images/**/audit-page.html

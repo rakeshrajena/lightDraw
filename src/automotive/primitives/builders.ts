@@ -13,7 +13,7 @@ import {
   str,
 } from '../helpers';
 import { autoCenteredText, centerInBounds, fitTextX, fluidFont, isCompactBounds, resolveBounds, resolveDisplay } from '../layout';
-import { getTheme } from '../themes';
+import { themeFromProps } from '../themes';
 import { buildDialGauge, updateDialNeedle } from '../../primitives/dialGauge';
 import {
   buildDigitalGauge,
@@ -84,7 +84,7 @@ export function buildDialWidget(
     needleColor?: string;
   }
 ): Node {
-  const theme = getTheme(str(props, 'theme', 'classic'));
+  const theme = themeFromProps(props);
   const bounds = resolveBounds(props, 160, 160);
   const value = num(props, 'value', 0);
   const max = num(props, 'max', options.max);
@@ -191,7 +191,7 @@ export function buildBarWidget(
   props: Record<string, unknown>,
   options: { label: string; unit?: string; warnBelow?: number }
 ): Node {
-  const theme = getTheme(str(props, 'theme', 'classic'));
+  const theme = themeFromProps(props);
   const value = clamp(num(props, 'value', 50), 0, 100);
   const bounds = resolveBounds(props, 120, 56);
   const group = createAutoGroup(app, type, { ...props, width: bounds.width, height: bounds.height }, autoPart);
@@ -266,7 +266,7 @@ export function buildNumericWidget(
   props: Record<string, unknown>,
   options: { title: string; unit?: string; decimals?: number; width?: number }
 ): Node {
-  const theme = getTheme(str(props, 'theme', 'classic'));
+  const theme = themeFromProps(props);
   const value = num(props, 'value', 0);
   const text = str(props, 'text', '');
   const bounds = resolveBounds(props, options.width ?? 128, 60);
@@ -354,7 +354,7 @@ export function buildLampWidget(
   symbol: string
 ): Node {
   const active = bool(props, 'active', false);
-  const theme = getTheme(str(props, 'theme', 'classic'));
+  const theme = themeFromProps(props);
   const bounds = resolveBounds(props, 36, 36);
   const group = createAutoGroup(app, type, { ...props, width: bounds.width, height: bounds.height }, autoPart);
   const maxR = Math.min(bounds.innerWidth, bounds.innerHeight) / 2 - 3;
@@ -403,7 +403,7 @@ export function buildBadgeWidget(
 ): Node {
   const status = str(props, 'status', str(props, 'text', 'OFF'));
   const active = bool(props, 'active', status.toLowerCase() === 'on' || status.toLowerCase() === 'active');
-  const theme = getTheme(str(props, 'theme', 'classic'));
+  const theme = themeFromProps(props);
   const bounds = resolveBounds(props, 168, 52);
   const group = createAutoGroup(app, type, { ...props, width: bounds.width, height: bounds.height }, autoPart);
   const w = bounds.innerWidth;
@@ -478,7 +478,7 @@ export function buildInfoPanel(
   title: string,
   rows: string[] = []
 ): Node {
-  const theme = getTheme(str(props, 'theme', 'classic'));
+  const theme = themeFromProps(props);
   const lines = (props.lines as string[]) ?? rows;
   const bounds = resolveBounds(props, 200, Math.max(72, lines.length * 18 + 32));
   const group = createAutoGroup(app, type, { ...props, width: bounds.width, height: bounds.height }, autoPart);

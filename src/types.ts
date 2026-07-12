@@ -112,8 +112,8 @@ export interface AppOptions {
   autoResize?: boolean;
   accessibility?: boolean;
   highContrast?: boolean;
-  /** Optional design tokens — applied as CSS variables (no custom CSS file needed). */
-  uiTheme?: import('./components/uiTheme').UiThemeInput;
+  /** Optional design tokens / theme pack — CSS vars + canvas / dashboard / diagram. */
+  uiTheme?: import('./theme/themePack').ThemePack | import('./components/uiTheme').UiThemeInput;
   performance?: PerformanceOptions;
 }
 
@@ -192,6 +192,11 @@ export interface SceneJSON {
   id?: string;
   props?: Record<string, unknown>;
   children?: SceneJSON[];
+  /**
+   * Optional app theme pack — applied on `loadJSON` before the scene mounts.
+   * Same shape as `app.applyTheme()` / `ThemePack`.
+   */
+  theme?: import('./theme/themePack').ThemePack;
 }
 
 export interface Plugin {

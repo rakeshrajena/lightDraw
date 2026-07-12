@@ -13,40 +13,43 @@
     <header class="demo-header">
       <span class="demo-badge">Diagram Module</span>
       <h1>Diagram Gallery</h1>
-      <p>Polished, production-ready diagrams for flowcharts, state machines, networks, automotive buses, and more.</p>
+      <p>Polished, production-ready diagrams for flowcharts, state machines, networks, automotive buses, and more. Edit Config JSON below for live updates.</p>
     </header>
-    <main class="demo-main demo-layout-split">
-      <aside class="demo-sidebar demo-diagram-sidebar">
-        <div class="demo-diagram-group">
-          <h2>Process</h2>
-          <button type="button" class="demo-btn secondary is-active" data-diagram="flowchart" onclick="pick(this, 'flowchart')">Flowchart</button>
-          <button type="button" class="demo-btn secondary" data-diagram="stateMachine" onclick="pick(this, 'stateMachine')">State Machine</button>
-          <button type="button" class="demo-btn secondary" data-diagram="pipeline" onclick="pick(this, 'pipeline')">Pipeline</button>
+    <main class="demo-main">
+      <div class="demo-layout-split">
+        <aside class="demo-sidebar demo-diagram-sidebar">
+          <div class="demo-diagram-group">
+            <h2>Process</h2>
+            <button type="button" class="demo-btn secondary is-active" data-diagram="flowchart" onclick="pick(this, 'flowchart')">Flowchart</button>
+            <button type="button" class="demo-btn secondary" data-diagram="stateMachine" onclick="pick(this, 'stateMachine')">State Machine</button>
+            <button type="button" class="demo-btn secondary" data-diagram="pipeline" onclick="pick(this, 'pipeline')">Pipeline</button>
+          </div>
+          <div class="demo-diagram-group">
+            <h2>Systems</h2>
+            <button type="button" class="demo-btn secondary" data-diagram="network" onclick="pick(this, 'network')">Network</button>
+            <button type="button" class="demo-btn secondary" data-diagram="can" onclick="pick(this, 'can')">CAN Bus</button>
+            <button type="button" class="demo-btn secondary" data-diagram="schematic" onclick="pick(this, 'schematic')">Schematic</button>
+          </div>
+          <div class="demo-diagram-group">
+            <h2>Structure</h2>
+            <button type="button" class="demo-btn secondary" data-diagram="mindMap" onclick="pick(this, 'mindMap')">Mind Map</button>
+            <button type="button" class="demo-btn secondary" data-diagram="uml" onclick="pick(this, 'uml')">UML Class</button>
+            <button type="button" class="demo-btn secondary" data-diagram="org" onclick="pick(this, 'org')">Org Chart</button>
+          </div>
+          <div class="demo-diagram-info" id="diagram-info">
+            <span class="demo-diagram-info__eyebrow" id="diagram-info-eyebrow">Process</span>
+            <div class="demo-diagram-info__title" id="diagram-info-title">Flowchart</div>
+            <p class="demo-diagram-info__desc" id="diagram-info-desc">Decision branches, terminals, and routed connectors for workflows and runbooks.</p>
+          </div>
+        </aside>
+        <div class="demo-canvas-wrap demo-canvas-diagram" id="diagram-canvas-wrap">
+          <div id="app"></div>
         </div>
-        <div class="demo-diagram-group">
-          <h2>Systems</h2>
-          <button type="button" class="demo-btn secondary" data-diagram="network" onclick="pick(this, 'network')">Network</button>
-          <button type="button" class="demo-btn secondary" data-diagram="can" onclick="pick(this, 'can')">CAN Bus</button>
-          <button type="button" class="demo-btn secondary" data-diagram="schematic" onclick="pick(this, 'schematic')">Schematic</button>
-        </div>
-        <div class="demo-diagram-group">
-          <h2>Structure</h2>
-          <button type="button" class="demo-btn secondary" data-diagram="mindMap" onclick="pick(this, 'mindMap')">Mind Map</button>
-          <button type="button" class="demo-btn secondary" data-diagram="uml" onclick="pick(this, 'uml')">UML Class</button>
-          <button type="button" class="demo-btn secondary" data-diagram="org" onclick="pick(this, 'org')">Org Chart</button>
-        </div>
-        <div class="demo-diagram-info" id="diagram-info">
-          <span class="demo-diagram-info__eyebrow" id="diagram-info-eyebrow">Process</span>
-          <div class="demo-diagram-info__title" id="diagram-info-title">Flowchart</div>
-          <p class="demo-diagram-info__desc" id="diagram-info-desc">Decision branches, terminals, and routed connectors for workflows and runbooks.</p>
-        </div>
-      </aside>
-      <div class="demo-canvas-wrap demo-canvas-diagram" id="diagram-canvas-wrap">
-        <div id="app"></div>
       </div>
     </main>
   </div>
   <script src="../dist/lightdraw.min.js"></script>
+  <script src="demo-live-playground.js"></script>
   <script>
     const canvasWrap = document.getElementById('diagram-canvas-wrap');
     let canvasW = 900;
@@ -291,7 +294,9 @@
       app.add(currentGroup);
       fitCurrentDiagram();
       app.render();
+      if (window.LivePlayground) LivePlayground.syncScene(true);
     }
+    window.showDiagram = showDiagram;
 
     function scheduleResize() {
       clearTimeout(resizeTimer);
@@ -303,7 +308,44 @@
     }
     window.addEventListener('resize', scheduleResize);
 
-    const boot = () => showDiagram('flowchart');
+    const boot = () => {
+      showDiagram('flowchart');
+      LivePlayground.mount({
+        app: () => app,
+        panes: ['scene', 'snippet'],
+        getScene: () => ({ diagram: currentDiagram }),
+        applyScene(parsed) {
+          const name = parsed && parsed.diagram;
+          if (!name || !samples[name]) {
+            throw new Error('Unknown diagram: ' + (name || '(missing)'));
+          }
+          const btn = document.querySelector(`[data-diagram="${name}"]`);
+          if (btn) {
+            document.querySelectorAll('[data-diagram]').forEach((b) => b.classList.remove('is-active'));
+            btn.classList.add('is-active');
+          }
+          showDiagram(name);
+        },
+        getSnippet(config) {
+          const name = (config && config.diagram) || 'flowchart';
+          return (
+            `// Editable API — Run or Ctrl/Cmd+Enter\n` +
+            `showDiagram(${JSON.stringify(name)});\n` +
+            `// Valid: ${Object.keys(samples).join(', ')}\n`
+          );
+        },
+        applySnippet(code) {
+          const runner = new Function(
+            'LightDraw',
+            'app',
+            'showDiagram',
+            'samples',
+            '"use strict";\n' + code
+          );
+          runner(LightDraw, app, showDiagram, samples);
+        },
+      });
+    };
     if (document.readyState === 'complete') boot();
     else window.addEventListener('load', boot, { once: true });
   </script>

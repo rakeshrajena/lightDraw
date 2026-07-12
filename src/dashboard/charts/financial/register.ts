@@ -1,7 +1,7 @@
 import { attachIndexXHover, attachIndexYHover } from '../core/interaction';
 import { registerDashboard } from '../../registryCore';
 import { createWidgetGroup, num, setState } from '../../helpers';
-import { DASHBOARD } from '../../theme';
+import { getActiveDashboard } from '../../theme';
 import { defaultLayout, dataBounds, computeTicks, addAxes, addGridLines } from '../../chartPrimitives';
 import { linearScale } from '../core/scales';
 import {
@@ -50,8 +50,8 @@ function plotFinancial(
   const bounds = { min: Math.min(...lows), max: Math.max(...highs) };
   const layout = defaultLayout(width, height);
   const yTicks = computeTicks(bounds.min, bounds.max, 5);
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
-  group.add(app.rect({ x: layout.plotX, y: layout.plotY, width: layout.plotWidth, height: layout.plotHeight, fill: DASHBOARD.chartPlot, listening: false }));
+  group.add(app.rect({ width, height, fill: getActiveDashboard().chartBg, listening: true }));
+  group.add(app.rect({ x: layout.plotX, y: layout.plotY, width: layout.plotWidth, height: layout.plotHeight, fill: getActiveDashboard().chartPlot, listening: false }));
   addGridLines(app, group, layout, yTicks, bounds);
   addAxes(app, group, layout, bounds, yTicks);
   const slot = layout.plotWidth / Math.max(bars.length, 1);
@@ -62,7 +62,7 @@ function plotFinancial(
     const yH = yScale(b.high);
     const yL = yScale(b.low);
     const up = b.close >= b.open;
-    const color = up ? DASHBOARD.financialUp : DASHBOARD.financialDown;
+    const color = up ? getActiveDashboard().financialUp : getActiveDashboard().financialDown;
     if (style === 'ohlc') {
       group.add(
         app.line({ x: cx, y: yH, x2: 0, y2: yL - yH, stroke: color, strokeWidth: 1, listening: false }),
@@ -78,7 +78,7 @@ function plotFinancial(
       const bodyH = Math.max(2, Math.abs(yC - yO));
       group.add(
         app.line({ x: cx, y: yH, x2: 0, y2: yL - yH, stroke: color, strokeWidth: 1, listening: false }),
-        app.rect({ x: cx - slot * 0.25, y: bodyTop, width: slot * 0.5, height: bodyH, fill: up ? color : DASHBOARD.chartBg, stroke: color, strokeWidth: 1, listening: false })
+        app.rect({ x: cx - slot * 0.25, y: bodyTop, width: slot * 0.5, height: bodyH, fill: up ? color : getActiveDashboard().chartBg, stroke: color, strokeWidth: 1, listening: false })
       );
     }
   });
@@ -114,7 +114,7 @@ registerDashboard('kagiChart', (props, app) => {
   const pts = toKagi(bars, num(props, 'reversal', 4));
   const group = createWidgetGroup(app, 'kagiChart', props);
   const layout = defaultLayout(width, height);
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  group.add(app.rect({ width, height, fill: getActiveDashboard().chartBg, listening: true }));
   const ys = pts.map((p) => p.y);
   const bounds = dataBounds(ys);
   const yScale = linearScale([bounds.min, bounds.max], [layout.plotY + layout.plotHeight, layout.plotY]);
@@ -122,7 +122,7 @@ registerDashboard('kagiChart', (props, app) => {
   pts.forEach((p, i) => {
     linePts.push(layout.plotX + (layout.plotWidth * i) / Math.max(pts.length - 1, 1), yScale(p.y));
   });
-  group.add(app.polyline({ points: linePts, fill: null, stroke: DASHBOARD.chartLine, strokeWidth: 2, listening: false }));
+  group.add(app.polyline({ points: linePts, fill: null, stroke: getActiveDashboard().chartLine, strokeWidth: 2, listening: false }));
   attachIndexXHover(app, group, props, layout, pts.length, (i) => `price: ${pts[i].y.toFixed(2)}`);
   setState(group, { width, height, data: bars });
   return group;
@@ -136,7 +136,7 @@ registerDashboard('volumeChart', (props, app) => {
   const layout = defaultLayout(width, height);
   const maxVol = Math.max(...bars.map((b) => b.volume ?? 0), 1);
   const slot = layout.plotWidth / bars.length;
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  group.add(app.rect({ width, height, fill: getActiveDashboard().chartBg, listening: true }));
   bars.forEach((b, i) => {
     const v = b.volume ?? 0;
     const h = (v / maxVol) * layout.plotHeight;
@@ -147,7 +147,7 @@ registerDashboard('volumeChart', (props, app) => {
         y: layout.plotY + layout.plotHeight - h,
         width: slot - 2,
         height: h,
-        fill: up ? DASHBOARD.financialUp : DASHBOARD.financialDown,
+        fill: up ? getActiveDashboard().financialUp : getActiveDashboard().financialDown,
         listening: false,
       })
     );
@@ -177,7 +177,7 @@ registerDashboard('candlestickVolumeChart', (props, app) => {
         y: layout.plotY + layout.plotHeight - h,
         width: slot - 2,
         height: h,
-        fill: DASHBOARD.inactiveBar,
+        fill: getActiveDashboard().inactiveBar,
         listening: false,
       })
     );
@@ -197,11 +197,11 @@ registerDashboard('volumeProfileChart', (props, app) => {
   const maxV = Math.max(...profile.map((p) => p.volume), 1);
   const minP = Math.min(...profile.map((p) => p.price));
   const maxP = Math.max(...profile.map((p) => p.price));
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  group.add(app.rect({ width, height, fill: getActiveDashboard().chartBg, listening: true }));
   profile.forEach((p) => {
     const y = layout.plotY + layout.plotHeight - ((p.price - minP) / (maxP - minP || 1)) * layout.plotHeight;
     const w = (p.volume / maxV) * layout.plotWidth * 0.4;
-    group.add(app.rect({ x: layout.plotX, y: y - 4, width: w, height: 8, fill: DASHBOARD.primary, listening: false }));
+    group.add(app.rect({ x: layout.plotX, y: y - 4, width: w, height: 8, fill: getActiveDashboard().primary, listening: false }));
   });
   attachIndexYHover(app, group, props, layout, profile.length, (i) => `price ${profile[i].price.toFixed(1)} vol ${profile[i].volume}`);
   setState(group, { width, height, data: bars });

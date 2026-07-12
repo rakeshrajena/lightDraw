@@ -18,9 +18,20 @@ import {
 } from './helpers';
 import { addLegend } from './chartPrimitives';
 import { buildDialGauge, updateDialNeedle } from '../primitives/dialGauge';
-import { DASHBOARD } from './theme';
+import { getActiveDashboard } from './theme';
+import {
+  hasCustomFontSize,
+  hasCustomTextColor,
+  resolveNodeTypography,
+} from '../components/nodeTheme';
 import { installChartRebuild } from './charts/core/refresh';
 import { createDashboardFromJSON } from './registryCore';
+import {
+  normalizeDialZones,
+  readColorStops,
+  readDialZones,
+  resolveValueColor,
+} from './colorStops';
 
 import './charts/registerAll';
 
@@ -31,28 +42,69 @@ registerDashboard('gauge', (props, app) => {
   const size = num(props, 'size', 120);
   const max = num(props, 'max', 100);
   const value = clamp(num(props, 'value', 0), 0, max);
+  const colorStops = readColorStops(props);
+  const dialZones = normalizeDialZones(readDialZones(props), max);
   const group = createWidgetGroup(app, 'gauge', props, { width: size, height: size });
   const r = size / 2 - 14;
   const cx = size / 2;
+  const dash = getActiveDashboard();
+  const typo = resolveNodeTypography(app, props, {
+    text: dash.text,
+    textMuted: dash.textMuted,
+    fontSize: dash.fontSizeTitle,
+    fontSizeSm: dash.fontSizeSm,
+    fontSizeLg: dash.fontSizeTitle,
+  });
+  const customFont = hasCustomFontSize(props);
+  const needleColor = resolveValueColor(value, colorStops, dash.gaugeNeedle);
   const parts = buildDialGauge(
     app,
     group,
     {
-      trackColor: DASHBOARD.gaugeTrack,
-      needleColor: DASHBOARD.gaugeNeedle,
-      textColor: DASHBOARD.text,
-      textMuted: DASHBOARD.textMuted,
-      faceColor: DASHBOARD.face,
-      bezelColor: DASHBOARD.panelStroke,
+      trackColor: dash.gaugeTrack,
+      needleColor,
+      accentColor: needleColor,
+      textColor: typo.text,
+      textMuted: typo.textMuted,
+      faceColor: dash.face,
+      bezelColor: dash.panelStroke,
     },
-    { size, value, max, tickCount: 6, ariaLive: 'polite' }
+    {
+      size,
+      value,
+      max,
+      tickCount: 6,
+      ariaLive: 'polite',
+      ...(customFont ? { valueFontSize: typo.fontSize, titleFontSize: typo.fontSizeSm } : {}),
+      ...(dialZones.length ? { colorZones: dialZones } : {}),
+    }
   );
-  setParts(group, { needle: parts.needle, valueText: parts.valueText });
+  setParts(group, { needle: parts.needle, valueText: parts.valueText, valueArc: parts.valueArc as never });
   setRefresh(group, (v) => {
-    updateDialNeedle(parts.needle, cx, v, max, r);
+    updateDialNeedle(parts.needle, cx, v, max, r, undefined, undefined, undefined, parts.valueArc);
     parts.valueText.text = String(Math.round(v));
+    const next = resolveValueColor(v, colorStops, getActiveDashboard().gaugeNeedle);
+    (parts.needle as { stroke: string }).stroke = next;
+    if (parts.valueArc) {
+      (parts.valueArc as { stroke: string }).stroke = next;
+    }
   });
-  setState(group, { size, value, max });
+  setState(group, {
+    size,
+    value,
+    max,
+    colorStops,
+    colorZones: readDialZones(props),
+    uiTheme: props.uiTheme,
+    textColor: props.textColor,
+    color: props.color,
+    textMuted: props.textMuted,
+    fontSize: props.fontSize,
+    demoId: props.demoId,
+    hasCustomTextColor: hasCustomTextColor(props),
+    hasCustomFontSize: customFont,
+  });
+  if (props.demoId != null) group.metadata.demoId = props.demoId;
   return group;
 });
 
@@ -60,20 +112,33 @@ registerDashboard('speedometer', (props, app) => {
   const size = num(props, 'size', 200);
   const value = num(props, 'value', 0);
   const max = num(props, 'max', 180);
+  const colorStops = readColorStops(props);
+  const dialZones = normalizeDialZones(readDialZones(props), max);
   const group = createWidgetGroup(app, 'speedometer', props);
   const r = size / 2 - 14;
   const cx = size / 2;
+  const dash = getActiveDashboard();
+  const typo = resolveNodeTypography(app, props, {
+    text: dash.text,
+    textMuted: dash.textMuted,
+    fontSize: dash.fontSizeTitle,
+    fontSizeSm: dash.fontSizeSm,
+    fontSizeLg: dash.fontSizeTitle,
+  });
+  const customFont = hasCustomFontSize(props);
+  const needleColor = resolveValueColor(value, colorStops, dash.speedoNeedle);
   const parts = buildDialGauge(
     app,
     group,
     {
-      trackColor: DASHBOARD.gaugeTrack,
-      needleColor: DASHBOARD.speedoNeedle,
-      textColor: DASHBOARD.text,
-      textMuted: DASHBOARD.textMuted,
-      faceColor: DASHBOARD.face,
-      bezelColor: DASHBOARD.panelStroke,
-      redlineColor: DASHBOARD.dangerDark,
+      trackColor: dash.gaugeTrack,
+      needleColor,
+      accentColor: needleColor,
+      textColor: typo.text,
+      textMuted: typo.textMuted,
+      faceColor: dash.face,
+      bezelColor: dash.panelStroke,
+      redlineColor: dash.dangerDark,
     },
     {
       size,
@@ -82,26 +147,57 @@ registerDashboard('speedometer', (props, app) => {
       unit: str(props, 'unit', 'km/h'),
       tickCount: 9,
       showTickLabels: true,
-      redlineFrom: 0.78,
+      ...(customFont
+        ? { valueFontSize: typo.fontSize, unitFontSize: typo.fontSizeSm }
+        : {}),
+      ...(dialZones.length ? { colorZones: dialZones } : { redlineFrom: 0.78 }),
     }
   );
-  setParts(group, { needle: parts.needle, valueText: parts.valueText });
+  setParts(group, { needle: parts.needle, valueText: parts.valueText, valueArc: parts.valueArc as never });
   setRefresh(group, (v) => {
-    updateDialNeedle(parts.needle, cx, v, max, r);
+    updateDialNeedle(parts.needle, cx, v, max, r, undefined, undefined, undefined, parts.valueArc);
     parts.valueText.text = `${Math.round(v)}`;
+    const next = resolveValueColor(v, colorStops, getActiveDashboard().speedoNeedle);
+    (parts.needle as { stroke: string }).stroke = next;
+    if (parts.valueArc) {
+      (parts.valueArc as { stroke: string }).stroke = next;
+    }
   });
-  setState(group, { size, value, max });
+  setState(group, {
+    size,
+    value,
+    max,
+    unit: str(props, 'unit', 'km/h'),
+    colorStops,
+    colorZones: readDialZones(props),
+    uiTheme: props.uiTheme,
+    textColor: props.textColor,
+    color: props.color,
+    textMuted: props.textMuted,
+    fontSize: props.fontSize,
+    hasCustomTextColor: hasCustomTextColor(props),
+    hasCustomFontSize: customFont,
+  });
   return group;
 });
 
 registerDashboard('legend', (props, app) => {
   const group = createWidgetGroup(app, 'legend', props);
-  const items = (props.items as { label: string; color: string }[]) ?? [
-    { label: 'Series A', color: DASHBOARD.primary },
-    { label: 'Series B', color: DASHBOARD.secondary },
-  ];
+  const rawItems = props.items as { label: string; color: string }[] | undefined;
+  const hasUserItems =
+    props.hasUserLegendItems === true ||
+    (!props._chartRebuild && Array.isArray(rawItems) && rawItems.length > 0);
+  const items = hasUserItems && rawItems?.length
+    ? rawItems
+    : [
+        { label: 'Series A', color: getActiveDashboard().primary },
+        { label: 'Series B', color: getActiveDashboard().secondary },
+      ];
   addLegend(app, group, items, 0, 0);
-  setState(group, { items });
+  setState(group, {
+    ...(hasUserItems ? { items: rawItems } : { items: [] }),
+    hasUserLegendItems: hasUserItems,
+  });
   return group;
 });
 
@@ -109,18 +205,26 @@ registerDashboard('thermometer', (props, app) => {
   const height = num(props, 'height', 120);
   const width = num(props, 'width', 24);
   const value = clamp(num(props, 'value', 50), 0, 100);
+  const colorStops =
+    readColorStops(props) ??
+    [
+      { upTo: 50, color: 'primary' },
+      { upTo: 80, color: 'warning' },
+      { color: 'danger' },
+    ];
   const group = createWidgetGroup(app, 'thermometer', props);
   const tubeH = height - Math.round(width * 1.1);
   const bulbR = Math.max(8, Math.round(width * 0.48));
   const fontSize = Math.max(10, Math.round(width * 0.5));
+  const fillColor = resolveValueColor(value, colorStops, getActiveDashboard().primary);
 
   group.add(
     app.roundedRect({
       width,
       height: tubeH,
       cornerRadius: width / 2,
-      fill: DASHBOARD.thermometerTube,
-      stroke: DASHBOARD.thermometerBorder,
+      fill: getActiveDashboard().thermometerTube,
+      stroke: getActiveDashboard().thermometerBorder,
       strokeWidth: 1,
       listening: false,
     })
@@ -132,35 +236,45 @@ registerDashboard('thermometer', (props, app) => {
     width: width - 4,
     height: fillH,
     cornerRadius: (width - 4) / 2,
-    fill: value > 80 ? DASHBOARD.danger : value > 50 ? DASHBOARD.warning : DASHBOARD.primary,
+    fill: fillColor,
+    listening: false,
+  });
+  const bulb = app.circle({
+    x: width / 2 - bulbR,
+    y: tubeH - 2,
+    radius: bulbR,
+    fill: fillColor,
     listening: false,
   });
   group.add(
     fill,
-    app.circle({
-      x: width / 2 - bulbR,
-      y: tubeH - 2,
-      radius: bulbR,
-      fill: DASHBOARD.danger,
-      listening: false,
-    }),
+    bulb,
     app.text({
       text: `${Math.round(value)}°`,
       x: width + 8,
       y: tubeH / 2 - fontSize / 2,
       fontSize,
       fontWeight: '600',
-      fill: DASHBOARD.text,
+      fill: getActiveDashboard().text,
       listening: false,
     })
   );
-  setParts(group, { fill });
+  setParts(group, { fill, bulb });
   setRefresh(group, (v) => {
-    const fh = (tubeH - 4) * (clamp(v, 0, 100) / 100);
+    const clamped = clamp(v, 0, 100);
+    const fh = (tubeH - 4) * (clamped / 100);
     (fill as { y: number; height: number }).y = tubeH - fh - 2;
     (fill as { height: number }).height = fh;
+    const next = resolveValueColor(clamped, colorStops, getActiveDashboard().primary);
+    (fill as { fill: string }).fill = next;
+    (bulb as { fill: string }).fill = next;
   });
-  setState(group, { height, width, value });
+  setState(group, {
+    height,
+    width,
+    value,
+    colorStops: readColorStops(props),
+  });
   return group;
 });
 
@@ -177,8 +291,8 @@ registerDashboard('compass', (props, app) => {
       x: cx - r,
       y: cx - r,
       radius: r,
-      fill: DASHBOARD.compassFace,
-      stroke: DASHBOARD.compassRing,
+      fill: getActiveDashboard().compassFace,
+      stroke: getActiveDashboard().compassRing,
       strokeWidth: Math.max(1.5, size / 50),
       shadow: size >= 90 ? { color: 'rgba(0,0,0,0.3)', blur: 6, offsetX: 0, offsetY: 2 } : undefined,
       listening: false,
@@ -195,7 +309,7 @@ registerDashboard('compass', (props, app) => {
         y: cx + lr * Math.sin(a) - fontSize / 2,
         fontSize,
         fontWeight: label === 'N' ? '700' : '500',
-        fill: label === 'N' ? DASHBOARD.text : DASHBOARD.textMuted,
+        fill: label === 'N' ? getActiveDashboard().text : getActiveDashboard().textMuted,
         textAlign: 'center',
         textBaseline: 'middle',
         listening: false,
@@ -210,7 +324,7 @@ registerDashboard('compass', (props, app) => {
     y: cx,
     x2: needleLen * Math.cos(rad),
     y2: needleLen * Math.sin(rad),
-    stroke: DASHBOARD.speedoNeedle,
+    stroke: getActiveDashboard().speedoNeedle,
     strokeWidth: Math.max(2, size / 32),
     lineCap: 'round',
     listening: false,
@@ -221,8 +335,8 @@ registerDashboard('compass', (props, app) => {
       x: cx - size * 0.05,
       y: cx - size * 0.05,
       radius: size * 0.05,
-      fill: DASHBOARD.compassHub,
-      stroke: DASHBOARD.compassRing,
+      fill: getActiveDashboard().compassHub,
+      stroke: getActiveDashboard().compassRing,
       strokeWidth: 1,
       listening: false,
     }),
@@ -232,7 +346,7 @@ registerDashboard('compass', (props, app) => {
       y: cx + r * 0.22,
       fontSize: Math.max(8, Math.round(size * 0.09)),
       fontWeight: '600',
-      fill: DASHBOARD.text,
+      fill: getActiveDashboard().text,
       textAlign: 'center',
       textBaseline: 'middle',
       listening: false,
@@ -281,7 +395,7 @@ function buildCalendar(group: Group, app: App, props: Record<string, unknown>): 
       y: 4,
       fontSize: Math.min(13, cell * 0.45),
       fontWeight: 'bold',
-      fill: DASHBOARD.text,
+      fill: getActiveDashboard().text,
       listening: false,
     })
   );
@@ -292,7 +406,7 @@ function buildCalendar(group: Group, app: App, props: Record<string, unknown>): 
         x: i * cell + 4,
         y: 22,
         fontSize: Math.max(8, cell * 0.32),
-        fill: DASHBOARD.textDim,
+        fill: getActiveDashboard().textDim,
         listening: false,
       })
     );
@@ -308,7 +422,7 @@ function buildCalendar(group: Group, app: App, props: Record<string, unknown>): 
         x: col * cell + Math.max(4, cell * 0.2),
         y: headerH + row * cell,
         fontSize: Math.max(9, cell * 0.38),
-        fill: day === highlightDay ? DASHBOARD.highlight : DASHBOARD.text,
+        fill: day === highlightDay ? getActiveDashboard().highlight : getActiveDashboard().text,
         listening: false,
       })
     );
@@ -332,7 +446,7 @@ registerDashboard('signalStrength', (props, app) => {
       y: maxH - h,
       width: barW,
       height: h,
-      fill: i < level ? DASHBOARD.signalActive : DASHBOARD.signalInactive,
+      fill: i < level ? getActiveDashboard().signalActive : getActiveDashboard().signalInactive,
       cornerRadius: Math.max(1, scale),
       listening: false,
     });
@@ -343,7 +457,7 @@ registerDashboard('signalStrength', (props, app) => {
   setRefresh(group, (v) => {
     const lv = clamp(Math.round(v), 0, 5);
     bars.forEach((bar, i) => {
-      (bar as { fill: string }).fill = i < lv ? DASHBOARD.signalActive : DASHBOARD.signalInactive;
+      (bar as { fill: string }).fill = i < lv ? getActiveDashboard().signalActive : getActiveDashboard().signalInactive;
     });
   });
   setState(group, { value: level, scale, width: totalW, height: maxH });
@@ -367,8 +481,8 @@ registerDashboard('knob', (props, app) => {
       x: cx - r,
       y: cx - r,
       radius: r,
-      fill: DASHBOARD.knobTrack,
-      stroke: DASHBOARD.knobRing,
+      fill: getActiveDashboard().knobTrack,
+      stroke: getActiveDashboard().knobRing,
       strokeWidth: Math.max(1.5, size / 40),
       shadow: size >= 48 ? { color: 'rgba(0,0,0,0.35)', blur: 5, offsetX: 0, offsetY: 2 } : undefined,
       listening: false,
@@ -383,7 +497,7 @@ registerDashboard('knob', (props, app) => {
       startAngle: start,
       endAngle: start + sweep,
       fill: null,
-      stroke: DASHBOARD.inactive,
+      stroke: getActiveDashboard().inactive,
       strokeWidth: arcW * 0.65,
       listening: false,
     })
@@ -396,7 +510,7 @@ registerDashboard('knob', (props, app) => {
     startAngle: start,
     endAngle: angle,
     fill: null,
-    stroke: DASHBOARD.knobIndicator,
+    stroke: getActiveDashboard().knobIndicator,
     strokeWidth: arcW,
     listening: false,
   });
@@ -407,7 +521,7 @@ registerDashboard('knob', (props, app) => {
     x: cx + ptrR * Math.cos(angle) - ptrSize,
     y: cx + ptrR * Math.sin(angle) - ptrSize,
     radius: ptrSize,
-    fill: DASHBOARD.knobIndicator,
+    fill: getActiveDashboard().knobIndicator,
     stroke: '#fff',
     strokeWidth: 1,
     listening: false,
@@ -419,7 +533,7 @@ registerDashboard('knob', (props, app) => {
     y: cx,
     fontSize: Math.max(10, size * 0.22),
     fontWeight: '600',
-    fill: DASHBOARD.text,
+    fill: getActiveDashboard().text,
     textAlign: 'center',
     textBaseline: 'middle',
     listening: false,
@@ -449,16 +563,18 @@ registerDashboard('meter', (props, app) => {
   const height = num(props, 'height', 24);
   const value = clamp(num(props, 'value', 60), 0, 100);
   const vertical = bool(props, 'vertical', false);
+  const colorStops = readColorStops(props);
+  const fillColor = resolveValueColor(value, colorStops, getActiveDashboard().meterFill);
   const group = createWidgetGroup(app, 'meter', props);
 
   if (vertical) {
-    group.add(app.rect({ width: height, height: width, fill: DASHBOARD.meterTrack, listening: false }));
+    group.add(app.rect({ width: height, height: width, fill: getActiveDashboard().meterTrack, listening: false }));
     const fillBar = app.rect({
       x: 2,
       y: width - (width * value) / 100 - 2,
       width: height - 4,
       height: (width * value) / 100,
-      fill: DASHBOARD.meterFill,
+      fill: fillColor,
       listening: false,
     });
     group.add(fillBar);
@@ -466,6 +582,11 @@ registerDashboard('meter', (props, app) => {
       const pct = clamp(v, 0, 100) / 100;
       (fillBar as { y: number; height: number }).y = width - width * pct - 2;
       (fillBar as { height: number }).height = width * pct;
+      (fillBar as { fill: string }).fill = resolveValueColor(
+        clamp(v, 0, 100),
+        colorStops,
+        getActiveDashboard().meterFill
+      );
     });
   } else {
     const trackR = Math.min(4, height / 2);
@@ -474,7 +595,7 @@ registerDashboard('meter', (props, app) => {
         width,
         height,
         cornerRadius: trackR,
-        fill: DASHBOARD.meterTrack,
+        fill: getActiveDashboard().meterTrack,
         listening: false,
       })
     );
@@ -484,21 +605,33 @@ registerDashboard('meter', (props, app) => {
       width: (width * value) / 100,
       height,
       cornerRadius: trackR,
-      fill: DASHBOARD.meterFill,
+      fill: fillColor,
       listening: false,
     });
     group.add(fillBar);
     setRefresh(group, (v) => {
-      (fillBar as { width: number }).width = (width * clamp(v, 0, 100)) / 100;
+      const clamped = clamp(v, 0, 100);
+      (fillBar as { width: number }).width = (width * clamped) / 100;
+      (fillBar as { fill: string }).fill = resolveValueColor(
+        clamped,
+        colorStops,
+        getActiveDashboard().meterFill
+      );
     });
   }
-  setState(group, { width, height, value, vertical });
+  setState(group, { width, height, value, vertical, colorStops });
   return group;
 });
 
 registerDashboard('battery', (props, app) => {
   const level = clamp(num(props, 'value', 75), 0, 100);
   const scale = num(props, 'scale', 1);
+  const colorStops =
+    readColorStops(props) ??
+    [
+      { upTo: 20, color: 'danger' },
+      { color: 'success' },
+    ];
   const bodyW = Math.round(40 * scale);
   const bodyH = Math.round(20 * scale);
   const group = createWidgetGroup(app, 'battery', props);
@@ -508,7 +641,7 @@ registerDashboard('battery', (props, app) => {
       height: bodyH,
       cornerRadius: Math.max(2, 3 * scale),
       fill: null,
-      stroke: DASHBOARD.batteryOutline,
+      stroke: getActiveDashboard().batteryOutline,
       strokeWidth: Math.max(1.5, 2 * scale),
       listening: false,
     })
@@ -520,7 +653,7 @@ registerDashboard('battery', (props, app) => {
       width: Math.max(3, 4 * scale),
       height: bodyH * 0.4,
       cornerRadius: 1,
-      fill: DASHBOARD.batteryTip,
+      fill: getActiveDashboard().batteryTip,
       listening: false,
     })
   );
@@ -531,16 +664,26 @@ registerDashboard('battery', (props, app) => {
     width: ((bodyW - inset * 2) * level) / 100,
     height: bodyH - inset * 2,
     cornerRadius: Math.max(1, 2 * scale),
-    fill: level > 20 ? DASHBOARD.success : DASHBOARD.danger,
+    fill: resolveValueColor(level, colorStops, getActiveDashboard().success),
     listening: false,
   });
   group.add(fill);
   setRefresh(group, (v) => {
     const lv = clamp(v, 0, 100);
     (fill as { width: number }).width = ((bodyW - inset * 2) * lv) / 100;
-    (fill as { fill: string }).fill = lv > 20 ? DASHBOARD.success : DASHBOARD.danger;
+    (fill as { fill: string }).fill = resolveValueColor(
+      lv,
+      colorStops,
+      getActiveDashboard().success
+    );
   });
-  setState(group, { value: level, scale, width: bodyW + Math.max(3, 4 * scale), height: bodyH });
+  setState(group, {
+    value: level,
+    scale,
+    width: bodyW + Math.max(3, 4 * scale),
+    height: bodyH,
+    colorStops: readColorStops(props),
+  });
   return group;
 });
 
@@ -564,8 +707,8 @@ registerDashboard('clock', (props, app) => {
       x: cx - r,
       y: cx - r,
       radius: r,
-      fill: DASHBOARD.clockFace,
-      stroke: DASHBOARD.clockRing,
+      fill: getActiveDashboard().clockFace,
+      stroke: getActiveDashboard().clockRing,
       strokeWidth: Math.max(1.5, size / 50),
       shadow: size >= 56 ? { color: 'rgba(0,0,0,0.35)', blur: 5, offsetX: 0, offsetY: 2 } : undefined,
       listening: false,
@@ -586,7 +729,7 @@ registerDashboard('clock', (props, app) => {
         y: cx + inner * sin,
         x2: (outer - inner) * cos,
         y2: (outer - inner) * sin,
-        stroke: major ? DASHBOARD.clockTickMajor : DASHBOARD.clockTick,
+        stroke: major ? getActiveDashboard().clockTickMajor : getActiveDashboard().clockTick,
         strokeWidth: major ? Math.max(1.5, size / 40) : 1,
         lineCap: 'round',
         listening: false,
@@ -599,7 +742,7 @@ registerDashboard('clock', (props, app) => {
     y: cx,
     x2: 0,
     y2: -hourLen,
-    stroke: DASHBOARD.clockHand,
+    stroke: getActiveDashboard().clockHand,
     strokeWidth: hourW,
     lineCap: 'round',
     listening: false,
@@ -609,7 +752,7 @@ registerDashboard('clock', (props, app) => {
     y: cx,
     x2: 0,
     y2: -minLen,
-    stroke: DASHBOARD.clockHand,
+    stroke: getActiveDashboard().clockHand,
     strokeWidth: minW,
     lineCap: 'round',
     listening: false,
@@ -619,7 +762,7 @@ registerDashboard('clock', (props, app) => {
     y: cx,
     x2: 0,
     y2: -secLen,
-    stroke: DASHBOARD.clockSecond,
+    stroke: getActiveDashboard().clockSecond,
     strokeWidth: Math.max(1, size * 0.015),
     lineCap: 'round',
     visible: showSeconds,
@@ -632,8 +775,8 @@ registerDashboard('clock', (props, app) => {
       x: cx - hubR,
       y: cx - hubR,
       radius: hubR,
-      fill: DASHBOARD.clockHub,
-      stroke: DASHBOARD.clockRing,
+      fill: getActiveDashboard().clockHub,
+      stroke: getActiveDashboard().clockRing,
       strokeWidth: 1,
       listening: false,
     }),
@@ -641,7 +784,7 @@ registerDashboard('clock', (props, app) => {
       x: cx - hubR * 0.45,
       y: cx - hubR * 0.45,
       radius: hubR * 0.45,
-      fill: DASHBOARD.clockHand,
+      fill: getActiveDashboard().clockHand,
       listening: false,
     })
   );
@@ -690,8 +833,8 @@ registerDashboard('chartPanel', (props, app) => {
     app.rect({
       width,
       height,
-      fill: DASHBOARD.chartBg,
-      stroke: DASHBOARD.panelStroke,
+      fill: getActiveDashboard().chartBg,
+      stroke: getActiveDashboard().panelStroke,
       strokeWidth: 1,
       cornerRadius: 8,
       listening: false,
@@ -702,7 +845,7 @@ registerDashboard('chartPanel', (props, app) => {
       y: 6,
       fontSize: 12,
       fontWeight: 'bold',
-      fill: DASHBOARD.text,
+      fill: getActiveDashboard().text,
       listening: false,
     })
   );
@@ -714,7 +857,7 @@ registerDashboard('chartPanel', (props, app) => {
         x: width - 22,
         y: 5,
         fontSize: 14,
-        fill: DASHBOARD.textMuted,
+        fill: getActiveDashboard().textMuted,
         listening: true,
         metadata: { chartPanelAction: 'maximize' },
       })

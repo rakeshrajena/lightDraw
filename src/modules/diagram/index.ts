@@ -24,4 +24,14 @@ export {
   forceDirectedLayout,
   routeConnector,
 } from '../../diagram/registry';
+export {
+  DIAGRAM,
+  resolveDiagramTheme,
+  getActiveDiagram,
+  getDiagramTheme,
+  syncActiveDiagramTheme,
+  runWithDiagramTheme,
+} from '../../diagram/theme';
+export type { DiagramTheme } from '../../diagram/theme';
+export { refreshDiagram, installDiagramRebuild } from '../../diagram/refresh';
 export default diagramPlugin;

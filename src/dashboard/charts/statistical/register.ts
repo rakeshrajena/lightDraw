@@ -1,7 +1,7 @@
 import { attachRegionsHover, attachNearestHover, attachIndexXHover, attachGridHover, attachBandYHover } from '../core/interaction';
 import { registerDashboard } from '../../registryCore';
 import { createWidgetGroup, num, setState } from '../../helpers';
-import { DASHBOARD } from '../../theme';
+import { getActiveDashboard } from '../../theme';
 import { installChartRebuild } from '../core/refresh';
 import type { App } from '../../../App';
 import type { Group } from '../../../shapes/Group';
@@ -9,12 +9,24 @@ import { defaultLayout, dataBounds, computeTicks, addAxes, addGridLines } from '
 import { histogramBins, boxStats, kdeSamples, normalQuantiles, hexbinCenters } from '../core/stats';
 import { linearScale } from '../core/scales';
 import type { ScatterPoint } from '../types';
+import { colorWithAlpha, mixColors } from '../../../utils/color';
+
+/** Interpolate two CSS colors by t in [0,1]. */
+function mixHexColors(low: string, high: string, t: number): string {
+  return mixColors(low, high, t);
+}
+
+function primaryAlpha(t: number): string {
+  const primary = getActiveDashboard().primary;
+  const a = 0.2 + Math.min(1, Math.max(0, t)) * 0.8;
+  return colorWithAlpha(primary, a) ?? getActiveDashboard().heatmapHigh;
+}
 
 function plotChrome(app: import('../../../App').App, group: import('../../../shapes/Group').Group, width: number, height: number, bounds: { min: number; max: number }) {
   const layout = defaultLayout(width, height);
   const yTicks = computeTicks(bounds.min, bounds.max, 5);
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
-  group.add(app.rect({ x: layout.plotX, y: layout.plotY, width: layout.plotWidth, height: layout.plotHeight, fill: DASHBOARD.chartPlot, listening: false }));
+  group.add(app.rect({ width, height, fill: getActiveDashboard().chartBg, listening: true }));
+  group.add(app.rect({ x: layout.plotX, y: layout.plotY, width: layout.plotWidth, height: layout.plotHeight, fill: getActiveDashboard().chartPlot, listening: false }));
   addGridLines(app, group, layout, yTicks, bounds);
   addAxes(app, group, layout, bounds, yTicks);
   return layout;
@@ -31,7 +43,7 @@ registerDashboard('histogram', (props, app) => {
   const bw = layout.plotWidth / bins.length;
   bins.forEach((b, i) => {
     const h = (b.count / max) * layout.plotHeight;
-    group.add(app.rect({ x: layout.plotX + i * bw, y: layout.plotY + layout.plotHeight - h, width: bw - 2, height: h, fill: DASHBOARD.barFill, listening: false }));
+    group.add(app.rect({ x: layout.plotX + i * bw, y: layout.plotY + layout.plotHeight - h, width: bw - 2, height: h, fill: getActiveDashboard().barFill, listening: false }));
   });
   attachIndexXHover(
     app,
@@ -66,9 +78,9 @@ registerDashboard('boxPlot', (props, app) => {
     const yQ3 = scale(s.q3);
     const yMed = scale(s.median);
     group.add(
-      app.rect({ x: cx - 16, y: yQ3, width: 32, height: yQ1 - yQ3, fill: DASHBOARD.chartArea, stroke: DASHBOARD.chartLine, strokeWidth: 1, listening: false }),
-      app.line({ x: cx - 16, y: yMed, x2: 32, y2: 0, stroke: DASHBOARD.chartLine, strokeWidth: 2, listening: false }),
-      app.line({ x: cx, y: scale(s.min), x2: 0, y2: scale(s.max) - scale(s.min), stroke: DASHBOARD.textMuted, strokeWidth: 1, listening: false })
+      app.rect({ x: cx - 16, y: yQ3, width: 32, height: yQ1 - yQ3, fill: getActiveDashboard().chartArea, stroke: getActiveDashboard().chartLine, strokeWidth: 1, listening: false }),
+      app.line({ x: cx - 16, y: yMed, x2: 32, y2: 0, stroke: getActiveDashboard().chartLine, strokeWidth: 2, listening: false }),
+      app.line({ x: cx, y: scale(s.min), x2: 0, y2: scale(s.max) - scale(s.min), stroke: getActiveDashboard().textMuted, strokeWidth: 1, listening: false })
     );
   });
   attachIndexXHover(app, group, props, layout, sets.length, (i) => {
@@ -95,9 +107,9 @@ registerDashboard('boxAndWhiskerChart', (props, app) => {
     const yQ3 = scale(s.q3);
     const yMed = scale(s.median);
     group.add(
-      app.rect({ x: cx - 16, y: yQ3, width: 32, height: yQ1 - yQ3, fill: DASHBOARD.chartArea, stroke: DASHBOARD.chartLine, strokeWidth: 1, listening: false }),
-      app.line({ x: cx - 16, y: yMed, x2: 32, y2: 0, stroke: DASHBOARD.chartLine, strokeWidth: 2, listening: false }),
-      app.line({ x: cx, y: scale(s.min), x2: 0, y2: scale(s.max) - scale(s.min), stroke: DASHBOARD.textMuted, strokeWidth: 1, listening: false })
+      app.rect({ x: cx - 16, y: yQ3, width: 32, height: yQ1 - yQ3, fill: getActiveDashboard().chartArea, stroke: getActiveDashboard().chartLine, strokeWidth: 1, listening: false }),
+      app.line({ x: cx - 16, y: yMed, x2: 32, y2: 0, stroke: getActiveDashboard().chartLine, strokeWidth: 2, listening: false }),
+      app.line({ x: cx, y: scale(s.min), x2: 0, y2: scale(s.max) - scale(s.min), stroke: getActiveDashboard().textMuted, strokeWidth: 1, listening: false })
     );
   });
   attachIndexXHover(app, group, props, layout, sets.length, (i) => {
@@ -123,7 +135,7 @@ registerDashboard('violinPlot', (props, app) => {
     const y = layout.plotY + (layout.plotHeight / dens.length) * i;
     pts.push(cx - (d / maxD) * 40, y, cx + (d / maxD) * 40, y);
   });
-  group.add(app.polygon({ points: pts, fill: DASHBOARD.chartArea, stroke: DASHBOARD.chartLine, strokeWidth: 1, listening: false }));
+  group.add(app.polygon({ points: pts, fill: getActiveDashboard().chartArea, stroke: getActiveDashboard().chartLine, strokeWidth: 1, listening: false }));
   attachIndexXHover(app, group, props, layout, 20, (i) => {
     const y = layout.plotY + (layout.plotHeight / 19) * i;
     const v = layout.plotY + layout.plotHeight - (y - layout.plotY);
@@ -149,7 +161,7 @@ registerDashboard('densityPlot', (props, app) => {
     const py = layout.plotY + layout.plotHeight - (dens[i] / maxD) * layout.plotHeight;
     pts.push(px, py);
   });
-  group.add(app.polyline({ points: pts, fill: null, stroke: DASHBOARD.chartLine, strokeWidth: 2, listening: false }));
+  group.add(app.polyline({ points: pts, fill: null, stroke: getActiveDashboard().chartLine, strokeWidth: 2, listening: false }));
   attachIndexXHover(app, group, props, layout, xs.length, (i) => `x=${xs[i].toFixed(1)} ρ=${dens[i].toFixed(3)}`);
   setState(group, { width, height, data });
   return group;
@@ -172,10 +184,18 @@ registerDashboard('heatmap', (props, app) => {
   matrix.forEach((row, ri) => {
     row.forEach((v, ci) => {
       const t = v / max;
-      const r = Math.round(59 + t * 100);
-      const g = Math.round(130 - t * 80);
-      const b = Math.round(246 - t * 100);
-      group.add(app.rect({ x: ci * cw, y: ri * ch, width: cw - 1, height: ch - 1, fill: `rgb(${r},${g},${b})`, listening: false }));
+      const high = getActiveDashboard().heatmapHigh;
+      const low = getActiveDashboard().heatmapLow;
+      group.add(
+        app.rect({
+          x: ci * cw,
+          y: ri * ch,
+          width: cw - 1,
+          height: ch - 1,
+          fill: mixHexColors(low, high, t),
+          listening: false,
+        })
+      );
     });
   });
   attachGridHover(app, group, props, width, height, rows, cols, (ri, ci) => String(matrix[ri][ci]));
@@ -188,11 +208,11 @@ registerDashboard('hexbinChart', (props, app) => {
   const height = num(props, 'height', 150);
   const points = (props.points as ScatterPoint[]) ?? Array.from({ length: 40 }, () => ({ x: Math.random() * 280, y: Math.random() * 130 }));
   const group = createWidgetGroup(app, 'hexbinChart', props);
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  group.add(app.rect({ width, height, fill: getActiveDashboard().chartBg, listening: true }));
   const bins = hexbinCenters(points.map((p) => [p.x, p.y]), width, height, 12);
   const max = Math.max(...[...bins.values()].map((b) => b.count), 1);
   for (const b of bins.values()) {
-    group.add(app.circle({ x: b.x - 10, y: b.y - 10, radius: 10, fill: DASHBOARD.primary, opacity: b.count / max, listening: false }));
+    group.add(app.circle({ x: b.x - 10, y: b.y - 10, radius: 10, fill: getActiveDashboard().primary, opacity: b.count / max, listening: false }));
   }
   attachNearestHover(
     app,
@@ -209,10 +229,10 @@ registerDashboard('contourChart', (props, app) => {
   const width = num(props, 'width', 300);
   const height = num(props, 'height', 150);
   const group = createWidgetGroup(app, 'contourChart', props);
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  group.add(app.rect({ width, height, fill: getActiveDashboard().chartBg, listening: true }));
   for (let i = 1; i <= 5; i++) {
     const inset = i * 12;
-    group.add(app.rect({ x: inset, y: inset, width: width - inset * 2, height: height - inset * 2, fill: null, stroke: DASHBOARD.chartLine, strokeWidth: 1, listening: false }));
+    group.add(app.rect({ x: inset, y: inset, width: width - inset * 2, height: height - inset * 2, fill: null, stroke: getActiveDashboard().chartLine, strokeWidth: 1, listening: false }));
   }
   attachGridHover(app, group, props, width, height, 5, 5, (_r, _c) => 'contour');
   setState(group, { width, height });
@@ -233,7 +253,7 @@ registerDashboard('qqPlot', (props, app) => {
     const tx = theoretical[i];
     const range = bounds.max - bounds.min || 1;
     const py = layout.plotY + layout.plotHeight - ((tx - bounds.min) / range) * layout.plotHeight;
-    group.add(app.circle({ x: x - 3, y: py - 3, radius: 3, fill: DASHBOARD.chartDot, listening: false }));
+    group.add(app.circle({ x: x - 3, y: py - 3, radius: 3, fill: getActiveDashboard().chartDot, listening: false }));
   });
   attachIndexXHover(app, group, props, layout, sorted.length, (i) => `obs ${sorted[i]} / q ${theoretical[i].toFixed(2)}`);
   setState(group, { width, height, data });
@@ -251,7 +271,7 @@ registerDashboard('beeswarmChart', (props, app) => {
   data.forEach((v, i) => {
     const y = layout.plotY + layout.plotHeight - ((v - db.min) / (db.max - db.min || 1)) * layout.plotHeight;
     const x = cx + ((i % 7) - 3) * 8;
-    group.add(app.circle({ x: x - 3, y: y - 3, radius: 4, fill: DASHBOARD.chartDot, listening: false }));
+    group.add(app.circle({ x: x - 3, y: y - 3, radius: 4, fill: getActiveDashboard().chartDot, listening: false }));
   });
   attachNearestHover(
     app,
@@ -273,7 +293,7 @@ registerDashboard('ridgelinePlot', (props, app) => {
   const height = num(props, 'height', 200);
   const series = (props.series as number[][]) ?? [[2, 3, 4, 5], [3, 5, 7, 9], [1, 2, 3, 8]];
   const group = createWidgetGroup(app, 'ridgelinePlot', props);
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  group.add(app.rect({ width, height, fill: getActiveDashboard().chartBg, listening: true }));
   const band = height / series.length;
   series.forEach((data, si) => {
     const bounds = dataBounds(data);
@@ -282,7 +302,7 @@ registerDashboard('ridgelinePlot', (props, app) => {
     data.forEach((v, i) => {
       pts.push(30 + (width - 60) * (i / Math.max(data.length - 1, 1)), y0 + band - 10 - ((v - bounds.min) / (bounds.max - bounds.min || 1)) * (band - 20));
     });
-    group.add(app.polyline({ points: pts, fill: null, stroke: DASHBOARD.series[si % DASHBOARD.series.length], strokeWidth: 2, listening: false }));
+    group.add(app.polyline({ points: pts, fill: null, stroke: getActiveDashboard().series[si % getActiveDashboard().series.length], strokeWidth: 2, listening: false }));
   });
   attachBandYHover(app, group, props, width, height, series.length, (i) => `series ${i + 1}`);
   setState(group, { width, height, series });
@@ -294,12 +314,12 @@ registerDashboard('parallelCoordinatesPlot', (props, app) => {
   const height = num(props, 'height', 150);
   const dimensions = (props.dimensions as number[][]) ?? [[1, 5, 3], [2, 4, 6], [3, 2, 8]];
   const group = createWidgetGroup(app, 'parallelCoordinatesPlot', props);
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  group.add(app.rect({ width, height, fill: getActiveDashboard().chartBg, listening: true }));
   const cols = dimensions[0]?.length ?? 3;
   const step = (width - 40) / Math.max(cols - 1, 1);
   for (let c = 0; c < cols; c++) {
     const x = 20 + c * step;
-    group.add(app.line({ x, y: 20, x2: 0, y2: height - 40, stroke: DASHBOARD.chartGrid, strokeWidth: 1, listening: false }));
+    group.add(app.line({ x, y: 20, x2: 0, y2: height - 40, stroke: getActiveDashboard().chartGrid, strokeWidth: 1, listening: false }));
   }
   dimensions.forEach((row, ri) => {
     const pts: number[] = [];
@@ -307,7 +327,7 @@ registerDashboard('parallelCoordinatesPlot', (props, app) => {
     row.forEach((v, ci) => {
       pts.push(20 + ci * step, height - 20 - (v / max) * (height - 40));
     });
-    group.add(app.polyline({ points: pts, fill: null, stroke: DASHBOARD.series[ri % DASHBOARD.series.length], strokeWidth: 1.5, listening: false }));
+    group.add(app.polyline({ points: pts, fill: null, stroke: getActiveDashboard().series[ri % getActiveDashboard().series.length], strokeWidth: 1.5, listening: false }));
   });
   attachIndexXHover(
     app,
@@ -338,7 +358,7 @@ registerDashboard('mosaicChart', (props, app) => {
     const cw = c.w * width;
     const ch = c.h * height;
     regions.push({ x, y, width: cw - 1, height: ch - 1, label: String(c.value) });
-    group.add(app.rect({ x, y, width: cw - 1, height: ch - 1, fill: DASHBOARD.series[i % DASHBOARD.series.length], listening: false }));
+    group.add(app.rect({ x, y, width: cw - 1, height: ch - 1, fill: getActiveDashboard().series[i % getActiveDashboard().series.length], listening: false }));
     x += cw;
     if (x >= width - 1) {
       x = 0;
@@ -365,7 +385,7 @@ registerDashboard('marimekkoChart', (props, app) => {
     const w = s.widthFrac * width;
     const h = s.heightFrac * height;
     regions.push({ x, y: height - h, width: w - 1, height: h, label: `${Math.round(s.widthFrac * 100)}%` });
-    group.add(app.rect({ x, y: height - h, width: w - 1, height: h, fill: DASHBOARD.series[i % DASHBOARD.series.length], listening: false }));
+    group.add(app.rect({ x, y: height - h, width: w - 1, height: h, fill: getActiveDashboard().series[i % getActiveDashboard().series.length], listening: false }));
     x += w;
   });
   attachRegionsHover(app, group, props, width, height, regions);
@@ -387,7 +407,7 @@ registerDashboard('mekkoChart', (props, app) => {
     const w = s.widthFrac * width;
     const h = s.heightFrac * height;
     regions.push({ x, y: height - h, width: w - 1, height: h, label: `${Math.round(s.widthFrac * 100)}%` });
-    group.add(app.rect({ x, y: height - h, width: w - 1, height: h, fill: DASHBOARD.series[i % DASHBOARD.series.length], listening: false }));
+    group.add(app.rect({ x, y: height - h, width: w - 1, height: h, fill: getActiveDashboard().series[i % getActiveDashboard().series.length], listening: false }));
     x += w;
   });
   attachRegionsHover(app, group, props, width, height, regions);
@@ -412,7 +432,7 @@ registerDashboard('waffleChart', (props, app) => {
         y: row * cell,
         width: cell - 2,
         height: cell - 2,
-        fill: i < filled ? DASHBOARD.primary : DASHBOARD.inactive,
+        fill: i < filled ? getActiveDashboard().primary : getActiveDashboard().inactive,
         cornerRadius: 2,
         listening: false,
       })
@@ -458,7 +478,7 @@ function buildCalendarHeatmap(group: Group, app: App, props: Record<string, unkn
         y: offsetY + row * (cell + gap),
         width: cell,
         height: cell,
-        fill: `rgba(59,130,246,${0.2 + t * 0.8})`,
+        fill: primaryAlpha(t),
         cornerRadius: Math.min(2, cell * 0.15),
         listening: false,
       })
@@ -486,7 +506,7 @@ registerDashboard('stemLeafPlot', (props, app) => {
   let y = 8;
   for (const [stem, leaves] of [...stems.entries()].sort((a, b) => a[0] - b[0])) {
     group.add(
-      app.text({ text: `${stem} | ${leaves.join(' ')}`, x: 8, y, fontSize: 12, fill: DASHBOARD.text, listening: false })
+      app.text({ text: `${stem} | ${leaves.join(' ')}`, x: 8, y, fontSize: 12, fill: getActiveDashboard().text, listening: false })
     );
     y += 16;
   }
@@ -517,7 +537,7 @@ registerDashboard('scatterChart', (props, app) => {
   const xScale = linearScale([Math.min(...xs), Math.max(...xs)], [layout.plotX, layout.plotX + layout.plotWidth]);
   const yScale = linearScale([Math.min(...ys), Math.max(...ys)], [layout.plotY + layout.plotHeight, layout.plotY]);
   points.forEach((p) => {
-    group.add(app.circle({ x: xScale(p.x) - 4, y: yScale(p.y) - 4, radius: 4, fill: DASHBOARD.chartDot, listening: false }));
+    group.add(app.circle({ x: xScale(p.x) - 4, y: yScale(p.y) - 4, radius: 4, fill: getActiveDashboard().chartDot, listening: false }));
   });
   attachNearestHover(
     app,
@@ -550,7 +570,7 @@ registerDashboard('bubbleChart', (props, app) => {
   const yScale = linearScale([Math.min(...ys), Math.max(...ys)], [layout.plotY + layout.plotHeight, layout.plotY]);
   points.forEach((p) => {
     const r = (p.size ?? 8) / 2;
-    group.add(app.circle({ x: xScale(p.x) - r, y: yScale(p.y) - r, radius: r, fill: DASHBOARD.chartArea, stroke: DASHBOARD.chartLine, strokeWidth: 1, listening: false }));
+    group.add(app.circle({ x: xScale(p.x) - r, y: yScale(p.y) - r, radius: r, fill: getActiveDashboard().chartArea, stroke: getActiveDashboard().chartLine, strokeWidth: 1, listening: false }));
   });
   attachNearestHover(
     app,

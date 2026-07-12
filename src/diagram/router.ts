@@ -2,7 +2,7 @@ import type { App } from '../App';
 import type { Node } from '../Node';
 import { Line, Polyline } from '../shapes/index';
 import type { Obstacle } from './types';
-import { DIAGRAM } from './theme';
+import { getActiveDiagram } from './theme';
 
 export type RouteStyle = 'straight' | 'orthogonal' | 'smart';
 
@@ -130,7 +130,7 @@ export function routeConnector(
   y2: number,
   style: RouteStyle = 'orthogonal',
   obstacles: Obstacle[] = [],
-  stroke = DIAGRAM.edge
+  stroke = getActiveDiagram().edge
 ): Line | Polyline {
   const points = computeRoutePoints(x1, y1, x2, y2, style, obstacles);
   if (style === 'straight' && points.length === 4) {

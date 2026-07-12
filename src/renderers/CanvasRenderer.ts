@@ -24,6 +24,7 @@ import { isBatchableRect, paintStyleKey } from '../performance/styleKey';
 import { traceArcSector } from './arcSector';
 import { isSubtreeDirty } from '../performance/bounds';
 import { toHighContrastColor } from '../utils/a11y';
+import { unwrapThemeBackgroundSrc } from '../components/uiTheme';
 
 export class CanvasRenderer extends Renderer {
   private canvas!: HTMLCanvasElement;
@@ -38,6 +39,10 @@ export class CanvasRenderer extends Renderer {
   /** Exposed for tests — fill calls in last render. */
   lastFillCallCount = 0;
   private drawCallCount = 0;
+  private bgImage: HTMLImageElement | null = null;
+  private bgImageKey: string | null = null;
+  private lastRoot: Group | null = null;
+  private lastCamera: Matrix2D | undefined;
 
   init(container: HTMLElement, options: RenderContext): void {
     this.width = options.width;
@@ -76,6 +81,8 @@ export class CanvasRenderer extends Renderer {
   }
 
   render(root: Group, cameraMatrix?: Matrix2D): void {
+    this.lastRoot = root;
+    this.lastCamera = cameraMatrix;
     const ctx = this.ctx;
     this.lastClearRectCount = 0;
     this.lastFillCallCount = 0;
@@ -94,8 +101,7 @@ export class CanvasRenderer extends Renderer {
     }
 
     if (this.background && this.background !== 'transparent') {
-      ctx.fillStyle = this.background;
-      ctx.fillRect(0, 0, this.width, this.height);
+      this.paintBackground(ctx);
     }
 
     if (cameraMatrix) {
@@ -113,6 +119,43 @@ export class CanvasRenderer extends Renderer {
     ctx.restore();
     this.clearSceneDirty(root);
     this.clearDirty();
+  }
+
+  private paintBackground(ctx: CanvasRenderingContext2D): void {
+    const src = unwrapThemeBackgroundSrc(this.background);
+    if (src) {
+      this.ensureBackgroundImage(src);
+      const img = this.bgImage;
+      if (img && img.complete && img.naturalWidth > 0) {
+        const iw = img.naturalWidth;
+        const ih = img.naturalHeight;
+        const scale = Math.max(this.width / iw, this.height / ih);
+        const dw = iw * scale;
+        const dh = ih * scale;
+        ctx.drawImage(img, (this.width - dw) / 2, (this.height - dh) / 2, dw, dh);
+      }
+      return;
+    }
+    ctx.fillStyle = this.background;
+    ctx.fillRect(0, 0, this.width, this.height);
+  }
+
+  private ensureBackgroundImage(src: string): void {
+    if (this.bgImageKey === src && this.bgImage) return;
+    this.bgImageKey = src;
+    const img = new Image();
+    img.decoding = 'async';
+    img.onload = () => {
+      if (this.bgImageKey !== src) return;
+      this.bgImage = img;
+      this.forceFullRedraw();
+      if (this.lastRoot) this.render(this.lastRoot, this.lastCamera);
+    };
+    img.onerror = () => {
+      if (this.bgImageKey === src) this.bgImage = null;
+    };
+    img.src = src;
+    this.bgImage = img.complete && img.naturalWidth > 0 ? img : null;
   }
 
   private clearSceneDirty(node: Node): void {

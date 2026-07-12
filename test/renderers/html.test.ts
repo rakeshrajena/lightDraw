@@ -145,16 +145,17 @@ describe('HTMLRenderer', () => {
     app.destroy();
   });
 
-  it('applies dark theme mode via uiTheme', () => {
+  it('applies dark preset via uiTheme tokens', () => {
     container = createTestContainer();
     const app = createTestApp(container, {
       renderer: 'html',
-      uiTheme: { mode: 'dark', primary: '#8b5cf6' },
+      uiTheme: { preset: 'dark', primary: '#8b5cf6' },
     });
     app.render();
     const root = container.querySelector('.lightdraw-html-root') as HTMLElement;
-    expect(root.getAttribute('data-ld-theme')).toBe('dark');
+    expect(root.hasAttribute('data-ld-theme')).toBe(false);
     expect(root.style.getPropertyValue('--ld-primary')).toBe('#8b5cf6');
+    expect(root.style.getPropertyValue('--ld-surface')).toBe('#1e293b');
     app.destroy();
   });
 

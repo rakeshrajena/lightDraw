@@ -1,4 +1,5 @@
 import type { App } from '../App';
+import type { Node } from '../Node';
 import type { Group } from '../shapes/Group';
 import { registerComponent } from './registryCore';
 import {
@@ -21,7 +22,17 @@ import {
   wireSelectFromList,
   wireToggle,
 } from './interaction';
-import { UI } from './theme';
+import { getActiveUi } from './resolveCanvasTheme';
+import {
+  hasCustomFontSize,
+  hasCustomTextColor,
+  resolveNodeTypography,
+} from './nodeTheme';
+
+/** Live canvas UI palette (synced from app theme). */
+function UI() {
+  return getActiveUi();
+}
 
 function createGroup(
   app: App,
@@ -29,15 +40,23 @@ function createGroup(
   props: Record<string, unknown>,
   extra: Record<string, unknown> = {}
 ): Group {
+  const extraMeta = (extra.metadata as Record<string, unknown> | undefined) ?? {};
+  const extraState =
+    extraMeta.componentState && typeof extraMeta.componentState === 'object'
+      ? (extraMeta.componentState as Record<string, unknown>)
+      : {};
+  const extraRest = { ...extra };
+  delete extraRest.metadata;
   const group = app.group({
     ...(props as Record<string, unknown>),
     listening: true,
+    ...extraRest,
     metadata: {
       componentType: type,
-      componentState: { ...props },
-      ...((props.metadata as Record<string, unknown>) ?? {}),
+      ...extraMeta,
+      // Keep props (including uiTheme) then factory-specific state
+      componentState: { ...props, ...extraState },
     },
-    ...extra,
   }) as Group;
   bindApp(group, app);
   return group;
@@ -53,11 +72,11 @@ function canvasSurface(
   return app.roundedRect({
     width,
     height,
-    cornerRadius: opts.radius ?? UI.radius,
-    fill: UI.surface,
-    stroke: UI.border,
+    cornerRadius: opts.radius ?? UI().radius,
+    fill: UI().surface,
+    stroke: UI().border,
     strokeWidth: 1,
-    shadow: opts.elevated ? UI.shadowLg : UI.shadowSm,
+    shadow: opts.elevated ? UI().shadowLg : UI().shadowSm,
     listening: false,
   });
 }
@@ -67,39 +86,93 @@ registerComponent('button', (props, app) => {
   const width = num(props, 'width', 128);
   const size = str(props, 'size', 'md');
   const height =
-    size === 'sm' ? 32 : size === 'lg' ? 44 : num(props, 'height', UI.controlHeight);
-  const fontSize = size === 'sm' ? UI.fontSizeSm : size === 'lg' ? UI.fontSizeLg : UI.fontSize;
+    size === 'sm' ? 32 : size === 'lg' ? 44 : num(props, 'height', UI().controlHeight);
+  const customFont = hasCustomFontSize(props);
+  const customText = hasCustomTextColor(props);
+  const typo = resolveNodeTypography(app, props, {
+    text: UI().textInverse,
+    textMuted: UI().textMuted,
+    fontSize: UI().fontSize,
+    fontSizeSm: UI().fontSizeSm,
+    fontSizeLg: UI().fontSizeLg,
+  });
+  const fontSize = customFont
+    ? typo.fontSize
+    : size === 'sm'
+      ? UI().fontSizeSm
+      : size === 'lg'
+        ? UI().fontSizeLg
+        : UI().fontSize;
   const label = str(props, 'label', 'Button');
   const disabled = bool(props, 'disabled', false);
   const variant = str(props, 'variant', 'primary');
+  const hasCustomFill = Boolean(str(props, 'fill', ''));
   const fill =
     str(props, 'fill', '') ||
-    (variant === 'secondary' ? UI.secondary : variant === 'ghost' ? UI.surface : variant === 'danger' ? UI.danger : UI.primary);
+    (variant === 'secondary' ? UI().secondary : variant === 'ghost' ? UI().surface : variant === 'danger' ? UI().danger : UI().primary);
 
   const group = createGroup(app, 'button', props, {
     focusable: !disabled,
     role: 'button',
-    metadata: { componentType: 'button', label, componentState: { label, width, height, disabled, fill, variant, size } },
+    metadata: {
+      componentType: 'button',
+      label,
+      componentState: {
+        label,
+        width,
+        height,
+        disabled,
+        fill,
+        variant,
+        size,
+        hasCustomFill,
+        hasCustomFontSize: customFont,
+        hasCustomColor: customText,
+        fontSize: customFont ? fontSize : undefined,
+        textColor: customText ? typo.text : undefined,
+        color: props.color,
+        uiTheme: props.uiTheme,
+      },
+    },
   });
-  setState(group, { label, width, height, disabled, fill, variant, size });
+  setState(group, {
+    label,
+    width,
+    height,
+    disabled,
+    fill,
+    variant,
+    size,
+    hasCustomFill,
+    hasCustomFontSize: customFont,
+    hasCustomColor: customText,
+    fontSize: customFont ? fontSize : undefined,
+    textColor: customText ? typo.text : undefined,
+    color: props.color,
+    uiTheme: props.uiTheme,
+  });
 
-  const textColor =
-    variant === 'ghost' ? UI.textSecondary : variant === 'danger' ? UI.textInverse : UI.textInverse;
+  const textColor = customText
+    ? typo.text
+    : variant === 'ghost'
+      ? UI().textSecondary
+      : UI().textInverse;
   const bg = app.roundedRect({
     width,
     height,
-    cornerRadius: UI.radius,
-    fill: disabled ? UI.borderStrong : fill,
-    stroke: variant === 'ghost' ? UI.border : null,
+    cornerRadius: UI().radius,
+    fill: disabled ? UI().borderStrong : fill,
+    stroke: variant === 'ghost' ? UI().border : null,
     strokeWidth: variant === 'ghost' ? 1 : 0,
-    shadow: disabled ? null : variant === 'primary' || variant === 'danger' ? UI.shadowPrimary : UI.shadowSm,
+    shadow: disabled ? null : variant === 'primary' || variant === 'danger' ? UI().shadowPrimary : UI().shadowSm,
   });
   const text = app.text({
     text: label,
     fontSize,
     fontWeight: '600',
-    fill: disabled ? UI.textMuted : textColor,
-    x: 0,
+    fill: disabled ? UI().textMuted : textColor,
+    // Canvas textAlign centers on x — must be mid-button, not the left edge.
+    x: width / 2,
     y: (height - fontSize) / 2,
     textAlign: 'center',
   });
@@ -108,27 +181,38 @@ registerComponent('button', (props, app) => {
 
   wireButtonStates(group, ({ hover, active, disabled: dis }) => {
     const parts = getParts(group);
+    const ui = UI();
+    const st = getState(group);
+    const v = String(st.variant ?? variant);
     if (dis) {
-      (parts.bg as { fill: string }).fill = UI.borderStrong;
+      (parts.bg as { fill: string }).fill = ui.borderStrong;
       return group.getApp()?.requestRender();
     }
-    const base = fill;
+    const base = st.hasCustomFill
+      ? String(st.fill ?? fill)
+      : v === 'secondary'
+        ? ui.secondary
+        : v === 'ghost'
+          ? ui.surface
+          : v === 'danger'
+            ? ui.danger
+            : ui.primary;
     const hoverColor =
-      variant === 'secondary'
-        ? UI.secondaryHover
-        : variant === 'ghost'
-          ? UI.surfaceInset
-          : variant === 'danger'
+      v === 'secondary'
+        ? ui.secondaryHover
+        : v === 'ghost'
+          ? ui.surfaceInset
+          : v === 'danger'
             ? '#b91c1c'
-            : UI.primaryHover;
+            : ui.primaryHover;
     const activeColor =
-      variant === 'secondary'
-        ? UI.textSecondary
-        : variant === 'ghost'
-          ? UI.surfaceMuted
-          : variant === 'danger'
+      v === 'secondary'
+        ? ui.textSecondary
+        : v === 'ghost'
+          ? ui.surfaceMuted
+          : v === 'danger'
             ? '#991b1b'
-            : UI.primaryActive;
+            : ui.primaryActive;
     (parts.bg as { fill: string }).fill = active ? activeColor : hover ? hoverColor : base;
     group.getApp()?.requestRender();
   });
@@ -137,15 +221,40 @@ registerComponent('button', (props, app) => {
 });
 
 registerComponent('label', (props, app) => {
+  const hasCustomColor = hasCustomTextColor(props);
+  const hasCustomFs = hasCustomFontSize(props);
+  const typo = resolveNodeTypography(app, props, {
+    text: UI().textMuted,
+    textMuted: UI().textMuted,
+    fontSize: UI().fontSizeSm,
+    fontSizeSm: UI().fontSizeSm,
+    fontSizeLg: UI().fontSizeLg,
+  });
+  const fontSize = hasCustomFs ? typo.fontSize : typo.fontSizeSm;
   const node = app.text({
     text: str(props, 'text', ''),
-    fontSize: num(props, 'fontSize', UI.fontSizeSm),
+    fontSize,
     fontWeight: str(props, 'fontWeight', '600'),
-    fill: str(props, 'color', UI.textMuted),
+    fill: hasCustomColor ? typo.text : UI().textMuted,
     ...props,
   });
+  // Re-apply after spread so props.fontSize/color do not fight resolved values incorrectly
+  if (!hasCustomFs) (node as { fontSize: number }).fontSize = typo.fontSizeSm;
+  else (node as { fontSize: number }).fontSize = typo.fontSize;
+  if (!hasCustomColor) (node as { fill: string }).fill = UI().textMuted;
+  else (node as { fill: string }).fill = typo.text;
   node.metadata.componentType = 'label';
-  setState(node, { text: str(props, 'text', ''), fontSize: num(props, 'fontSize', UI.fontSizeSm) });
+  setState(node, {
+    text: str(props, 'text', ''),
+    fontSize,
+    color: props.color,
+    textColor: props.textColor,
+    uiTheme: props.uiTheme,
+    demoId: props.demoId,
+    hasCustomColor,
+    hasCustomFontSize: hasCustomFs,
+  });
+  if (props.demoId != null) node.metadata.demoId = props.demoId;
   return node;
 });
 
@@ -156,48 +265,54 @@ registerComponent('card', (props, app) => {
   const subtitle = str(props, 'subtitle', '');
   const elevated = bool(props, 'elevated', false);
   const group = createGroup(app, 'card', props);
-  const bg = canvasSurface(app, width, height, { radius: UI.radiusLg, elevated });
+  const bg = canvasSurface(app, width, height, { radius: UI().radiusLg, elevated });
   group.add(bg);
   const headerH = title || subtitle ? 40 : 0;
+  let header: ReturnType<typeof app.roundedRect> | undefined;
+  let titleNode: ReturnType<typeof app.text> | undefined;
+  let subtitleNode: ReturnType<typeof app.text> | undefined;
   if (headerH > 0) {
-    group.add(
-      app.roundedRect({
-        width,
-        height: headerH,
-        cornerRadius: UI.radiusLg,
-        fill: UI.surfaceMuted,
-        stroke: UI.border,
-        strokeWidth: 1,
-        listening: false,
-      })
-    );
+    header = app.roundedRect({
+      width,
+      height: headerH,
+      cornerRadius: UI().radiusLg,
+      fill: UI().surfaceMuted,
+      stroke: UI().border,
+      strokeWidth: 1,
+      listening: false,
+    });
+    group.add(header);
     if (title) {
-      group.add(
-        app.text({
-          text: String(title).toUpperCase(),
-          fontSize: UI.fontSizeSm,
-          fontWeight: '700',
-          fill: UI.textMuted,
-          x: 16,
-          y: 12,
-          listening: false,
-        })
-      );
+      titleNode = app.text({
+        text: String(title).toUpperCase(),
+        fontSize: UI().fontSizeSm,
+        fontWeight: '700',
+        fill: UI().textMuted,
+        x: 16,
+        y: 12,
+        listening: false,
+      });
+      group.add(titleNode);
     }
     if (subtitle) {
-      group.add(
-        app.text({
-          text: subtitle,
-          fontSize: UI.fontSize,
-          fontWeight: '500',
-          fill: UI.textSecondary,
-          x: 16,
-          y: title ? 26 : 12,
-          listening: false,
-        })
-      );
+      subtitleNode = app.text({
+        text: subtitle,
+        fontSize: UI().fontSize,
+        fontWeight: '500',
+        fill: UI().textSecondary,
+        x: 16,
+        y: title ? 26 : 12,
+        listening: false,
+      });
+      group.add(subtitleNode);
     }
   }
+  setParts(group, {
+    bg,
+    ...(header ? { header } : {}),
+    ...(titleNode ? { title: titleNode } : {}),
+    ...(subtitleNode ? { subtitle: subtitleNode } : {}),
+  });
   setState(group, { width, height, title: props.title, subtitle, actions: props.actions, elevated: props.elevated });
   return group;
 });
@@ -210,19 +325,19 @@ registerComponent('progressBar', (props, app) => {
   const variant = str(props, 'variant', 'default');
   const fillColor =
     variant === 'success'
-      ? UI.success
+      ? UI().success
       : variant === 'warning'
-        ? UI.warning
+        ? UI().warning
         : variant === 'danger'
-          ? UI.danger
-          : str(props, 'fill', UI.primary);
+          ? UI().danger
+          : str(props, 'fill', UI().primary);
   const group = createGroup(app, 'progressBar', props, {
     role: 'progressbar',
     ariaValueNow: value,
     ariaValueMin: 0,
     ariaValueMax: 100,
   });
-  const track = app.roundedRect({ width, height, cornerRadius: height / 2, fill: UI.surfaceInset, listening: false });
+  const track = app.roundedRect({ width, height, cornerRadius: height / 2, fill: UI().surfaceInset, listening: false });
   const fillBar = app.roundedRect({
     width: (width * value) / 100,
     height,
@@ -235,9 +350,9 @@ registerComponent('progressBar', (props, app) => {
     group.add(
       app.text({
         text: props.label as string,
-        fontSize: UI.fontSizeSm,
+        fontSize: UI().fontSizeSm,
         fontWeight: '600',
-        fill: UI.textSecondary,
+        fill: UI().textSecondary,
         x: 0,
         y: -18,
         listening: false,
@@ -265,16 +380,16 @@ registerComponent('slider', (props, app) => {
     metadata: { componentType: 'slider', label: props.label ?? 'Slider' },
   });
 
-  const track = app.roundedRect({ width, height: 6, y: 12, cornerRadius: 3, fill: UI.surfaceInset, listening: false });
-  const fill = app.roundedRect({ width: 0, height: 6, y: 12, cornerRadius: 3, fill: UI.primary, listening: false });
+  const track = app.roundedRect({ width, height: 6, y: 12, cornerRadius: 3, fill: UI().surfaceInset, listening: false });
+  const fill = app.roundedRect({ width: 0, height: 6, y: 12, cornerRadius: 3, fill: UI().primary, listening: false });
   const thumb = app.circle({
     x: 0,
     y: 12,
     radius: 10,
-    fill: UI.surface,
-    stroke: UI.primary,
+    fill: UI().surface,
+    stroke: UI().primary,
     strokeWidth: 2,
-    shadow: UI.shadowMd,
+    shadow: UI().shadowMd,
     listening: false,
   });
   group.add(track, fill, thumb);
@@ -320,10 +435,10 @@ registerComponent('checkbox', (props, app) => {
     width: 20,
     height: 20,
     cornerRadius: 5,
-    fill: disabled ? UI.surfaceMuted : checked ? UI.primary : UI.surface,
-    stroke: disabled ? UI.border : checked ? UI.primary : UI.borderStrong,
+    fill: disabled ? UI().surfaceMuted : checked ? UI().primary : UI().surface,
+    stroke: disabled ? UI().border : checked ? UI().primary : UI().borderStrong,
     strokeWidth: 1.5,
-    shadow: checked && !disabled ? UI.shadowSm : null,
+    shadow: checked && !disabled ? UI().shadowSm : null,
     listening: false,
   });
   const mark = app.text({
@@ -332,7 +447,7 @@ registerComponent('checkbox', (props, app) => {
     y: 1,
     fontSize: 14,
     fontWeight: 'bold',
-    fill: UI.textInverse,
+    fill: UI().textInverse,
     visible: checked,
     listening: false,
   });
@@ -343,8 +458,8 @@ registerComponent('checkbox', (props, app) => {
         text: props.label as string,
         x: 30,
         y: 2,
-        fontSize: UI.fontSize,
-        fill: UI.textSecondary,
+        fontSize: UI().fontSize,
+        fill: UI().textSecondary,
         listening: false,
       })
     );
@@ -359,8 +474,8 @@ registerComponent('checkbox', (props, app) => {
   }
 
   wireToggle(group, 'checked', (v) => {
-    (box as { fill: string; stroke: string }).fill = v ? UI.primary : UI.surface;
-    (box as { stroke: string }).stroke = v ? UI.primary : UI.borderStrong;
+    (box as { fill: string; stroke: string }).fill = v ? UI().primary : UI().surface;
+    (box as { stroke: string }).stroke = v ? UI().primary : UI().borderStrong;
     (mark as { visible: boolean }).visible = v;
     group.ariaChecked = v;
   });
@@ -383,15 +498,15 @@ registerComponent('toggle', (props, app) => {
     width: 48,
     height: 26,
     cornerRadius: 13,
-    fill: disabled ? UI.border : on ? UI.primary : UI.borderStrong,
+    fill: disabled ? UI().border : on ? UI().primary : UI().borderStrong,
     listening: false,
   });
   const knob = app.circle({
     x: on ? 24 : 2,
     y: 3,
     radius: 10,
-    fill: UI.surface,
-    shadow: UI.shadowMd,
+    fill: UI().surface,
+    shadow: UI().shadowMd,
     listening: false,
   });
   group.add(track, knob);
@@ -405,7 +520,7 @@ registerComponent('toggle', (props, app) => {
   }
 
   wireToggle(group, 'value', (v) => {
-    (track as { fill: string }).fill = v ? UI.primary : UI.borderStrong;
+    (track as { fill: string }).fill = v ? UI().primary : UI().borderStrong;
     (knob as { x: number }).x = v ? 24 : 2;
     group.ariaChecked = v;
   });
@@ -416,11 +531,21 @@ registerComponent('toggle', (props, app) => {
 /** Input — text field (native in HTML renderer) */
 registerComponent('input', (props, app) => {
   const width = num(props, 'width', 240);
-  const height = num(props, 'height', UI.inputHeight);
+  const height = num(props, 'height', UI().inputHeight);
   const value = str(props, 'value', '');
   const placeholder = str(props, 'placeholder', '');
   const disabled = bool(props, 'disabled', false);
   const invalid = bool(props, 'invalid', false);
+  const customFont = hasCustomFontSize(props);
+  const customText = hasCustomTextColor(props);
+  const typo = resolveNodeTypography(app, props, {
+    text: UI().text,
+    textMuted: UI().textPlaceholder,
+    fontSize: UI().fontSize,
+    fontSizeSm: UI().fontSizeSm,
+    fontSizeLg: UI().fontSizeLg,
+  });
+  const fontSize = customFont ? typo.fontSize : UI().fontSize;
   const group = createGroup(app, 'input', props, {
     focusable: !disabled,
     role: 'textbox',
@@ -429,24 +554,43 @@ registerComponent('input', (props, app) => {
   const bg = app.roundedRect({
     width,
     height,
-    cornerRadius: UI.radius,
-    fill: disabled ? UI.surfaceMuted : UI.surface,
-    stroke: invalid ? UI.danger : UI.border,
+    cornerRadius: UI().radius,
+    fill: disabled ? UI().surfaceMuted : UI().surface,
+    stroke: invalid ? UI().danger : UI().border,
     strokeWidth: invalid ? 2 : 1,
-    shadow: disabled ? null : UI.shadowSm,
+    shadow: disabled ? null : UI().shadowSm,
     listening: false,
   });
   const text = app.text({
     text: value || placeholder,
-    fontSize: UI.fontSize,
-    fill: value ? UI.text : UI.textPlaceholder,
+    fontSize,
+    fill: value
+      ? customText
+        ? typo.text
+        : UI().text
+      : UI().textPlaceholder,
     x: 12,
-    y: (height - UI.fontSize) / 2,
+    y: (height - fontSize) / 2,
     listening: false,
   });
   group.add(bg, text);
   setParts(group, { bg, text });
-  setState(group, { width, height, value, placeholder, label: props.label, disabled, invalid, error: props.error });
+  setState(group, {
+    width,
+    height,
+    value,
+    placeholder,
+    label: props.label,
+    disabled,
+    invalid,
+    error: props.error,
+    hasCustomFontSize: customFont,
+    hasCustomColor: customText,
+    fontSize: customFont ? fontSize : undefined,
+    textColor: customText ? typo.text : undefined,
+    color: props.color,
+    uiTheme: props.uiTheme,
+  });
   if (disabled) group.opacity = 0.65;
   return group;
 });
@@ -466,17 +610,17 @@ registerComponent('textarea', (props, app) => {
   const bg = app.roundedRect({
     width,
     height,
-    cornerRadius: UI.radius,
-    fill: disabled ? UI.surfaceMuted : UI.surface,
-    stroke: invalid ? UI.danger : UI.border,
+    cornerRadius: UI().radius,
+    fill: disabled ? UI().surfaceMuted : UI().surface,
+    stroke: invalid ? UI().danger : UI().border,
     strokeWidth: invalid ? 2 : 1,
-    shadow: disabled ? null : UI.shadowSm,
+    shadow: disabled ? null : UI().shadowSm,
     listening: false,
   });
   const text = app.text({
     text: value || str(props, 'placeholder', ''),
-    fontSize: UI.fontSize,
-    fill: value ? UI.text : UI.textPlaceholder,
+    fontSize: UI().fontSize,
+    fill: value ? UI().text : UI().textPlaceholder,
     x: 12,
     y: 12,
     listening: false,
@@ -500,20 +644,21 @@ registerComponent('radio', (props, app) => {
     metadata: { componentType: 'radio', group: groupName, label: props.label },
   });
 
+  // Circle nodes draw with center at (radius, radius) in local space.
   const outer = app.circle({
-    x: 10,
-    y: 10,
+    x: 0,
+    y: 0,
     radius: 10,
-    fill: disabled ? UI.surfaceMuted : UI.surface,
-    stroke: disabled ? UI.border : selected ? UI.primary : UI.borderStrong,
+    fill: disabled ? UI().surfaceMuted : UI().surface,
+    stroke: disabled ? UI().border : selected ? UI().primary : UI().borderStrong,
     strokeWidth: selected ? 2 : 1.5,
     listening: false,
   });
   const inner = app.circle({
-    x: 10,
-    y: 10,
+    x: 5,
+    y: 5,
     radius: 5,
-    fill: selected ? UI.primary : 'transparent',
+    fill: selected ? UI().primary : 'transparent',
     listening: false,
   });
   group.add(outer, inner);
@@ -522,9 +667,9 @@ registerComponent('radio', (props, app) => {
       app.text({
         text: props.label as string,
         x: 28,
-        y: 2,
-        fontSize: UI.fontSize,
-        fill: UI.textSecondary,
+        y: 3,
+        fontSize: UI().fontSize,
+        fill: UI().textSecondary,
         listening: false,
       })
     );
@@ -541,8 +686,8 @@ registerComponent('radio', (props, app) => {
   group.on('click', () => {
     setState(group, { selected: true });
     group.ariaChecked = true;
-    (inner as { fill: string }).fill = UI.primary;
-    (outer as { stroke: string }).stroke = UI.primary;
+    (inner as { fill: string }).fill = UI().primary;
+    (outer as { stroke: string }).stroke = UI().primary;
     group.emit('change', syntheticEvent('change', group, { value: groupName, payload: groupName }));
     group.getApp()?.requestRender();
   });
@@ -563,8 +708,8 @@ registerComponent('tooltip', (props, app) => {
   const bubbleX = placement === 'right' ? anchor.length * 7 + 12 : 0;
   const anchorText = app.text({
     text: anchor,
-    fontSize: UI.fontSize,
-    fill: UI.primary,
+    fontSize: UI().fontSize,
+    fill: UI().primary,
     x: 0,
     y: 4,
     listening: false,
@@ -572,9 +717,9 @@ registerComponent('tooltip', (props, app) => {
   const bg = app.roundedRect({
     width: tw,
     height: 32,
-    cornerRadius: UI.radiusSm,
+    cornerRadius: UI().radiusSm,
     fill: '#1e293b',
-    shadow: UI.shadowMd,
+    shadow: UI().shadowMd,
     x: bubbleX,
     y: bubbleY,
     listening: false,
@@ -582,14 +727,15 @@ registerComponent('tooltip', (props, app) => {
   });
   const label = app.text({
     text,
-    fontSize: UI.fontSizeSm,
-    fill: UI.textInverse,
+    fontSize: UI().fontSizeSm,
+    fill: UI().textInverse,
     x: bubbleX + pad,
     y: bubbleY + 8,
     listening: false,
     visible: group.visible,
   });
   group.add(anchorText, bg, label);
+  setParts(group, { anchor: anchorText, bg, label });
   setState(group, { text, anchor, placement, delay, visible: group.visible });
 
   let delayTimer: ReturnType<typeof setTimeout> | undefined;
@@ -637,11 +783,11 @@ registerComponent('menu', (props, app) => {
   const bg = app.roundedRect({
     width,
     height,
-    cornerRadius: UI.radius,
-    fill: UI.surface,
-    stroke: UI.border,
+    cornerRadius: UI().radius,
+    fill: UI().surface,
+    stroke: UI().border,
     strokeWidth: 1,
-    shadow: UI.shadowLg,
+    shadow: UI().shadowLg,
     listening: false,
   });
   group.add(bg);
@@ -654,12 +800,13 @@ registerComponent('menu', (props, app) => {
         text: item,
         x: 14,
         y: 10 + i * rowH,
-        fontSize: UI.fontSize,
-        fill: isDanger(item, i) ? UI.danger : UI.text,
+        fontSize: UI().fontSize,
+        fill: isDanger(item, i) ? UI().danger : UI().text,
         listening: false,
       })
     );
   });
+  setParts(group, { bg });
   setState(group, { items, open, width, selectedIndex: -1, triggerLabel: props.triggerLabel, itemVariants: variants });
 
   group.on('click', (e: { stopPropagation?: () => void }) => {
@@ -698,7 +845,7 @@ registerComponent('dialog', (props, app) => {
   const overlay = app.rect({
     width: num(props, 'overlayWidth', 800),
     height: num(props, 'overlayHeight', 600),
-    fill: UI.overlay,
+    fill: UI().overlay,
     x: -num(props, 'x', 0),
     y: -num(props, 'y', 0),
     listening: true,
@@ -706,34 +853,34 @@ registerComponent('dialog', (props, app) => {
   const panel = app.roundedRect({
     width,
     height,
-    cornerRadius: UI.radiusLg,
-    fill: UI.surface,
-    stroke: UI.border,
+    cornerRadius: UI().radiusLg,
+    fill: UI().surface,
+    stroke: UI().border,
     strokeWidth: 1,
-    shadow: UI.shadowLg,
+    shadow: UI().shadowLg,
     x: 0,
     y: 0,
   });
   const titleText = app.text({
     text: title,
-    fontSize: UI.fontSizeLg,
+    fontSize: UI().fontSizeLg,
     fontWeight: 'bold',
-    fill: UI.text,
+    fill: UI().text,
     x: 20,
     y: 18,
   });
   const divider = app.rect({
     width: width - 40,
     height: 1,
-    fill: UI.border,
+    fill: UI().border,
     x: 20,
     y: 48,
     listening: false,
   });
   const bodyText = app.text({
     text: str(props, 'message', 'Are you sure you want to continue?'),
-    fontSize: UI.fontSize,
-    fill: UI.textSecondary,
+    fontSize: UI().fontSize,
+    fill: UI().textSecondary,
     x: 20,
     y: 64,
     listening: false,
@@ -786,9 +933,9 @@ registerComponent('tabs', (props, app) => {
     app.roundedRect({
       width,
       height: tabH + 4,
-      cornerRadius: UI.radius,
-      fill: UI.surface,
-      stroke: UI.border,
+      cornerRadius: UI().radius,
+      fill: UI().surface,
+      stroke: UI().border,
       strokeWidth: 1,
       listening: false,
     })
@@ -800,7 +947,7 @@ registerComponent('tabs', (props, app) => {
       x: activeTab * tabW + 4,
       y: tabH + 1,
       cornerRadius: 1,
-      fill: UI.primary,
+      fill: UI().primary,
       listening: false,
     })
   );
@@ -810,9 +957,9 @@ registerComponent('tabs', (props, app) => {
     tab.add(
       app.text({
         text: label,
-        fontSize: UI.fontSize,
+        fontSize: UI().fontSize,
         fontWeight: active ? '600' : '500',
-        fill: active ? UI.primary : UI.textMuted,
+        fill: active ? UI().primary : UI().textMuted,
         x: (tabW - 8) / 2,
         y: 10,
         textAlign: 'center',
@@ -847,17 +994,17 @@ registerComponent('accordion', (props, app) => {
       app.roundedRect({
         width: num(props, 'width', 280),
         height: 40,
-        cornerRadius: UI.radiusSm,
-        fill: isOpen ? UI.primaryMuted : UI.surfaceMuted,
-        stroke: UI.border,
+        cornerRadius: UI().radiusSm,
+        fill: isOpen ? UI().primaryMuted : UI().surfaceMuted,
+        stroke: UI().border,
         strokeWidth: 1,
         listening: false,
       }),
       app.text({
         text: (isOpen ? '▼  ' : '▶  ') + sec.title,
-        fontSize: UI.fontSize,
+        fontSize: UI().fontSize,
         fontWeight: '600',
-        fill: UI.text,
+        fill: UI().text,
         x: 14,
         y: 11,
         listening: false,
@@ -875,8 +1022,8 @@ registerComponent('accordion', (props, app) => {
           text: sec.content,
           x: 14,
           y: y + 46,
-          fontSize: UI.fontSize,
-          fill: UI.textSecondary,
+          fontSize: UI().fontSize,
+          fill: UI().textSecondary,
           listening: false,
         })
       );
@@ -903,13 +1050,13 @@ registerComponent('table', (props, app) => {
   const selectedRow = num(props, 'selectedRow', -1);
   const group = createGroup(app, 'table', props, { focusable: true, role: 'grid' });
 
-  group.add(canvasSurface(app, width, tableH, { radius: UI.radius }));
+  group.add(canvasSurface(app, width, tableH, { radius: UI().radius }));
 
   group.add(
     app.rect({
       width,
       height: rowH,
-      fill: UI.surfaceMuted,
+      fill: UI().surfaceMuted,
       stroke: null,
       listening: false,
     })
@@ -923,9 +1070,9 @@ registerComponent('table', (props, app) => {
         text: col.toUpperCase() + arrow,
         x: ci * colW + 14,
         y: 10,
-        fontSize: UI.fontSizeSm,
+        fontSize: UI().fontSizeSm,
         fontWeight: 'bold',
-        fill: sorted ? UI.primary : UI.textMuted,
+        fill: sorted ? UI().primary : UI().textMuted,
         listening: false,
       })
     );
@@ -941,7 +1088,7 @@ registerComponent('table', (props, app) => {
           width,
           height: rowH,
           y: rowY,
-          fill: selected ? UI.primarySubtle : UI.surfaceMuted,
+          fill: selected ? UI().primarySubtle : UI().surfaceMuted,
           opacity: selected ? 1 : 0.5,
           listening: false,
         })
@@ -953,7 +1100,7 @@ registerComponent('table', (props, app) => {
           width: 3,
           height: rowH,
           y: rowY,
-          fill: UI.primary,
+          fill: UI().primary,
           listening: false,
         })
       );
@@ -965,8 +1112,8 @@ registerComponent('table', (props, app) => {
           text: cell,
           x: ci * colW + 14,
           y: 10,
-          fontSize: UI.fontSize,
-          fill: selected ? UI.primary : UI.text,
+          fontSize: UI().fontSize,
+          fill: selected ? UI().primary : UI().text,
           listening: false,
         })
       );
@@ -1014,8 +1161,8 @@ registerComponent('tree', (props, app) => {
         app.roundedRect({
           width,
           height: 24,
-          cornerRadius: UI.radiusSm,
-          fill: UI.primarySubtle,
+          cornerRadius: UI().radiusSm,
+          fill: UI().primarySubtle,
           listening: false,
         })
       );
@@ -1023,9 +1170,9 @@ registerComponent('tree', (props, app) => {
     header.add(
       app.text({
         text: (expanded.has(i) ? '▾  ' : '▸  ') + node.label,
-        fontSize: UI.fontSize,
+        fontSize: UI().fontSize,
         fontWeight: '600',
-        fill: parentSelected ? UI.primary : UI.text,
+        fill: parentSelected ? UI().primary : UI().text,
         x: 8,
         y: 4,
         listening: false,
@@ -1047,7 +1194,7 @@ registerComponent('tree', (props, app) => {
           y,
           width: 1,
           height: node.children.length * 22,
-          fill: UI.border,
+          fill: UI().border,
           listening: false,
         })
       );
@@ -1060,8 +1207,8 @@ registerComponent('tree', (props, app) => {
             app.roundedRect({
               width: width - 22,
               height: 22,
-              cornerRadius: UI.radiusSm,
-              fill: UI.primarySubtle,
+              cornerRadius: UI().radiusSm,
+              fill: UI().primarySubtle,
               listening: false,
             })
           );
@@ -1069,7 +1216,7 @@ registerComponent('tree', (props, app) => {
             app.rect({
               width: 3,
               height: 22,
-              fill: UI.primary,
+              fill: UI().primary,
               listening: false,
             })
           );
@@ -1079,8 +1226,8 @@ registerComponent('tree', (props, app) => {
             text: child.label,
             x: leafSelected ? 10 : 8,
             y: 4,
-            fontSize: UI.fontSize,
-            fill: leafSelected ? UI.primary : UI.textSecondary,
+            fontSize: UI().fontSize,
+            fill: leafSelected ? UI().primary : UI().textSecondary,
             listening: false,
           })
         );
@@ -1115,7 +1262,7 @@ registerComponent('toolbar', (props, app) => {
           y: 6,
           width: 1,
           height: 20,
-          fill: UI.border,
+          fill: UI().border,
           listening: false,
         })
       );
@@ -1131,19 +1278,19 @@ registerComponent('toolbar', (props, app) => {
       app.roundedRect({
         width: btnW,
         height: 32,
-        cornerRadius: UI.radiusSm,
-        fill: UI.surface,
-        stroke: UI.border,
+        cornerRadius: UI().radiusSm,
+        fill: UI().surface,
+        stroke: UI().border,
         strokeWidth: 1,
-        shadow: UI.shadowSm,
+        shadow: UI().shadowSm,
         listening: false,
       }),
       app.text({
         text: icon + label,
-        fontSize: UI.fontSizeSm,
+        fontSize: UI().fontSizeSm,
         fontWeight: '600',
-        fill: UI.textSecondary,
-        x: 0,
+        fill: UI().textSecondary,
+        x: btnW / 2,
         y: 8,
         textAlign: 'center',
       })
@@ -1166,10 +1313,10 @@ registerComponent('toast', (props, app) => {
   const dismissible = bool(props, 'dismissible', true);
   const duration = num(props, 'duration', 3000);
   const fills: Record<string, string> = {
-    success: '#1e293b',
-    error: '#450a0a',
-    warning: '#451a03',
-    info: '#0c2340',
+    success: UI().surfaceInset,
+    error: UI().surfaceInset,
+    warning: UI().surfaceInset,
+    info: UI().primaryMuted,
   };
   const group = createGroup(app, 'toast', props, {
     role: 'status',
@@ -1177,17 +1324,24 @@ registerComponent('toast', (props, app) => {
     metadata: { componentType: 'toast', ariaLive: 'polite' },
   });
   const tw = Math.max(message.length * 7 + 32, 160);
-  group.add(
-    app.roundedRect({
-      width: tw,
-      height: 40,
-      cornerRadius: UI.radius,
-      fill: fills[variant] ?? fills.success,
-      shadow: UI.shadowLg,
-      listening: false,
-    }),
-    app.text({ text: message, fontSize: UI.fontSize, fill: UI.textInverse, x: 16, y: 11, listening: false })
-  );
+  const bg = app.roundedRect({
+    width: tw,
+    height: 40,
+    cornerRadius: UI().radius,
+    fill: fills[variant] ?? fills.success,
+    shadow: UI().shadowLg,
+    listening: false,
+  });
+  const textNode = app.text({
+    text: message,
+    fontSize: UI().fontSize,
+    fill: UI().textInverse,
+    x: 16,
+    y: 11,
+    listening: false,
+  });
+  group.add(bg, textNode);
+  setParts(group, { bg, text: textNode });
   setState(group, { message, duration, variant, position, dismissible });
   group.emit('open', syntheticEvent('open', group));
   scheduleAutoDismiss(group, duration, () => {
@@ -1204,42 +1358,47 @@ registerComponent('statusBar', (props, app) => {
   const primaryIndex = num(props, 'primaryIndex', 0);
   const mono = bool(props, 'mono', false);
   const group = createGroup(app, 'statusBar', props, { role: 'status' });
-  group.add(
-    app.rect({
-      width,
-      height,
-      fill: '#1e293b',
-      stroke: '#334155',
-      strokeWidth: 1,
-      listening: false,
-    })
-  );
+  const bg = app.rect({
+    width,
+    height,
+    fill: UI().surfaceInset,
+    stroke: UI().border,
+    strokeWidth: 1,
+    listening: false,
+  });
+  group.add(bg);
   const segW = width / segments.length;
+  let primarySeg: ReturnType<typeof app.rect> | undefined;
+  const texts: Node[] = [];
   segments.forEach((seg, i) => {
     if (i === primaryIndex) {
-      group.add(
-        app.rect({
-          x: i * segW,
-          y: 0,
-          width: segW,
-          height,
-          fill: 'rgba(59, 130, 246, 0.2)',
-          listening: false,
-        })
-      );
-    }
-    group.add(
-      app.text({
-        text: seg,
-        x: i * segW + 12,
-        y: 6,
-        fontSize: mono ? 11 : UI.fontSizeSm,
-        fontFamily: mono ? 'monospace' : UI.font,
-        fontWeight: i === primaryIndex ? '600' : '500',
-        fill: i === primaryIndex ? '#e2e8f0' : '#94a3b8',
+      primarySeg = app.rect({
+        x: i * segW,
+        y: 0,
+        width: segW,
+        height,
+        fill: UI().primaryMuted,
         listening: false,
-      })
-    );
+      });
+      group.add(primarySeg);
+    }
+    const textNode = app.text({
+      text: seg,
+      x: i * segW + 12,
+      y: 6,
+      fontSize: mono ? 11 : UI().fontSizeSm,
+      fontFamily: mono ? 'monospace' : UI().font,
+      fontWeight: i === primaryIndex ? '600' : '500',
+      fill: i === primaryIndex ? UI().text : UI().textMuted,
+      listening: false,
+    });
+    group.add(textNode);
+    texts.push(textNode);
+  });
+  setParts(group, {
+    bg,
+    ...(primarySeg ? { primarySeg } : {}),
+    ...Object.fromEntries(texts.map((t, i) => [`seg${i}`, t])),
   });
   setState(group, { segments, width, primaryIndex, mono });
   return group;

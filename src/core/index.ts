@@ -26,7 +26,23 @@ import { Timeline, parallel } from '../animation/Timeline';
 import { easings, getEasing, registerEasing } from '../animation/Easing';
 import { Layout } from '../layout/index';
 import { fromJSON, toJSON, registerJSONType } from '../io/json';
-import { exportScene, exportApp, downloadExport, validateSceneJSON, scenesEqual } from '../io/export';
+import {
+  exportScene,
+  exportApp,
+  downloadExport,
+  validateSceneJSON,
+  parseAndValidateSceneJSON,
+  formatJsonParseError,
+  locateJsonError,
+  formatValidationErrors,
+  validateThemePack,
+  listKnownSceneTypes,
+  formatExpectedValues,
+  formatInvalidValue,
+  suggestClosest,
+  scenesEqual,
+} from '../io/export';
+import type { ValidationResult, ValidationIssue, JsonErrorLocation } from '../io/schema';
 import { installPlugin, createPluginContext, getInstalledPlugins } from '../plugins/index';
 import type { AppOptions, Plugin, LightDrawStatic } from '../types';
 import { Matrix2D, ObjectPool, detectBestRenderer } from '../utils';
@@ -79,6 +95,15 @@ export const LightDraw: LightDrawStatic & {
   exportApp: typeof exportApp;
   downloadExport: typeof downloadExport;
   validateSceneJSON: typeof validateSceneJSON;
+  parseAndValidateSceneJSON: typeof parseAndValidateSceneJSON;
+  formatJsonParseError: typeof formatJsonParseError;
+  locateJsonError: typeof locateJsonError;
+  formatValidationErrors: typeof formatValidationErrors;
+  validateThemePack: typeof validateThemePack;
+  listKnownSceneTypes: typeof listKnownSceneTypes;
+  formatExpectedValues: typeof formatExpectedValues;
+  formatInvalidValue: typeof formatInvalidValue;
+  suggestClosest: typeof suggestClosest;
   scenesEqual: typeof scenesEqual;
   createPluginContext: typeof createPluginContext;
   getInstalledPlugins: typeof getInstalledPlugins;
@@ -125,6 +150,15 @@ export const LightDraw: LightDrawStatic & {
   exportApp,
   downloadExport,
   validateSceneJSON,
+  parseAndValidateSceneJSON,
+  formatJsonParseError,
+  locateJsonError,
+  formatValidationErrors,
+  validateThemePack,
+  listKnownSceneTypes,
+  formatExpectedValues,
+  formatInvalidValue,
+  suggestClosest,
   scenesEqual,
   createPluginContext,
   getInstalledPlugins,
@@ -170,6 +204,15 @@ export {
   exportApp,
   downloadExport,
   validateSceneJSON,
+  parseAndValidateSceneJSON,
+  formatJsonParseError,
+  locateJsonError,
+  formatValidationErrors,
+  validateThemePack,
+  listKnownSceneTypes,
+  formatExpectedValues,
+  formatInvalidValue,
+  suggestClosest,
   scenesEqual,
   createPluginContext,
   getInstalledPlugins,
@@ -180,6 +223,8 @@ export {
   use,
   createApp,
 };
+
+export type { ValidationResult, ValidationIssue, JsonErrorLocation };
 
 export default LightDraw;
 

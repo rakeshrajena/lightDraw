@@ -1,11 +1,13 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
 
 /**
- * Demo playground chrome (dark shell).
+ * Demo playground chrome.
  * Load ../dist/lightdraw.min.css on pages that use the HTML renderer so
  * components inside #app inherit --ld-* tokens from .lightdraw-html-root.
  */
-:root {
+:root,
+:root[data-site-theme='night'],
+:root[data-demo-theme='dark'] {
   --bg: #0b1120;
   --surface: #151d2e;
   --surface-elevated: #1c2740;
@@ -17,6 +19,28 @@
   --radius: 12px;
   --shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
   --demo-canvas-bg: #0d1322;
+  --scroll-track: rgba(255, 255, 255, 0.04);
+  --scroll-thumb: rgba(139, 156, 192, 0.45);
+  --scroll-thumb-hover: rgba(62, 207, 207, 0.55);
+  --btn-secondary-hover: #243352;
+}
+
+:root[data-site-theme='day'],
+:root[data-demo-theme='light'] {
+  --bg: #e8eef6;
+  --surface: #f4f7fb;
+  --surface-elevated: #ffffff;
+  --border: #c5d0e0;
+  --text: #152033;
+  --text-muted: #5a6b86;
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --shadow: 0 8px 28px rgba(21, 32, 51, 0.08);
+  --demo-canvas-bg: #dfe7f2;
+  --scroll-track: rgba(21, 32, 51, 0.06);
+  --scroll-thumb: rgba(90, 107, 134, 0.4);
+  --scroll-thumb-hover: rgba(37, 99, 235, 0.55);
+  --btn-secondary-hover: #e2eaf5;
 }
 
 * {
@@ -25,8 +49,41 @@
   padding: 0;
 }
 
+/* Slim themed scrollbars (Firefox + WebKit) */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scroll-thumb) var(--scroll-track);
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--scroll-track);
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--scroll-thumb);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--scroll-thumb-hover);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 body {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: 'Outfit', system-ui, -apple-system, sans-serif;
   background: var(--bg);
   color: var(--text);
   line-height: 1.5;
@@ -134,6 +191,18 @@ body {
 
 .demo-canvas-wrap.light {
   background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  /* Tall UI scenes scroll inside the frame (same as theme stage) */
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  align-items: flex-start;
+}
+
+.demo-canvas-wrap.light #app {
+  flex: 0 0 auto;
+  height: auto;
+  min-height: 100%;
+  overflow: visible;
 }
 
 .demo-toolbar {
@@ -168,7 +237,7 @@ body {
 }
 
 .demo-btn.secondary:hover {
-  background: #243352;
+  background: var(--btn-secondary-hover);
 }
 
 .demo-btn.is-active {
@@ -499,6 +568,18 @@ html.demo-embed .demo-main {
   height: 100%;
   padding: 0.5rem;
   gap: 0.5rem;
+  overflow: hidden;
+}
+
+html.demo-embed .demo-main.pg-has-live-dock {
+  overflow: hidden;
+}
+
+html.demo-embed #view-cluster .demo-canvas-wrap {
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  flex: 1 1 auto;
 }
 
 html.demo-embed .demo-options {
@@ -510,24 +591,110 @@ html.demo-embed .demo-log {
 }
 
 html.demo-embed .demo-layout-aside {
-  grid-template-columns: 1fr minmax(168px, 200px);
-  gap: 0.5rem;
+  grid-template-columns: 1fr;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0.45rem;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
 }
 
-html.demo-embed .demo-aside-panel {
-  padding: 0.65rem;
-  align-self: stretch;
-  overflow-y: auto;
+html.demo-embed .demo-layout-aside > .demo-aside-panel {
+  order: -1;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  max-height: none;
+  overflow: visible;
+  padding: 0.45rem 0.5rem;
+}
+
+html.demo-embed .demo-layout-aside > .demo-aside-panel h2,
+html.demo-embed .demo-layout-aside > .demo-aside-panel .demo-aside-hint,
+html.demo-embed .demo-layout-aside > .demo-aside-panel .demo-btn[onclick*='stopAll'] {
+  display: none;
 }
 
 html.demo-embed .demo-aside-panel .demo-btn {
-  font-size: 0.75rem;
-  padding: 0.35rem 0.55rem;
-  margin-bottom: 0.3rem;
+  width: auto;
+  flex: 0 0 auto;
+  font-size: 0.72rem;
+  padding: 0.32rem 0.55rem;
+  margin: 0;
 }
 
-html.demo-embed .demo-aside-hint {
+html.demo-embed .demo-layout-split {
+  grid-template-columns: 1fr;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0.45rem;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+}
+
+html.demo-embed .demo-diagram-sidebar,
+html.demo-embed .demo-layout-split > .demo-sidebar {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  max-height: none;
+  overflow: visible;
+  padding: 0.45rem 0.5rem;
+}
+
+html.demo-embed .demo-diagram-group {
+  display: contents;
+}
+
+html.demo-embed .demo-diagram-group h2,
+html.demo-embed .demo-diagram-info,
+html.demo-embed .demo-sidebar h2 {
   display: none;
+}
+
+html.demo-embed .demo-sidebar .demo-btn,
+html.demo-embed .demo-diagram-sidebar .demo-btn {
+  width: auto;
+  flex: 0 0 auto;
+  font-size: 0.72rem;
+  padding: 0.32rem 0.55rem;
+  margin: 0;
+}
+
+/* Help host already shows type tabs — drop the duplicate in-iframe picker */
+html.demo-embed-no-picker .demo-diagram-sidebar,
+html.demo-embed-no-picker .demo-layout-split > .demo-sidebar,
+html.demo-embed-no-picker .demo-layout-aside > .demo-aside-panel {
+  display: none !important;
+}
+
+html.demo-embed-no-picker .demo-layout-split,
+html.demo-embed-no-picker .demo-layout-aside {
+  grid-template-columns: 1fr;
+  grid-template-rows: minmax(0, 1fr);
+  gap: 0;
+}
+
+/* Keep JSON/API dock visible under the stage in help embeds */
+html.demo-embed .demo-main.pg-has-live-dock > .demo-layout-split,
+html.demo-embed .demo-main.pg-has-live-dock > .demo-layout-aside {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+html.demo-embed .demo-main.pg-has-live-dock > #live-dock-host {
+  flex: 0 0 auto;
+  min-height: 200px;
+}
+
+html.demo-embed .demo-main.pg-has-live-dock > #live-dock-host .pg-code-dock {
+  height: min(260px, 34vh);
+  min-height: 200px;
 }
 
 html.demo-embed .demo-canvas-wrap {
@@ -538,12 +705,6 @@ html.demo-embed .demo-canvas-wrap {
   border-radius: 8px;
   box-shadow: none;
   padding: 0;
-}
-
-html.demo-embed #view-cluster .demo-canvas-wrap {
-  height: auto;
-  min-height: 0;
-  max-height: none;
 }
 
 html.demo-embed .demo-toolbar {
@@ -561,6 +722,7 @@ html.demo-embed .cluster-status {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  overflow: hidden;
 }
 
 #view-cluster .demo-canvas-wrap {
@@ -569,6 +731,23 @@ html.demo-embed .cluster-status {
   height: clamp(360px, calc(100vh - 280px), 640px);
   min-height: 360px;
   max-height: 640px;
+}
+
+/* With a live code dock, canvas must flex into remaining space — not 100vh clamps */
+.demo-main.pg-has-live-dock #view-dashboard,
+.demo-main.pg-has-live-dock #view-cluster,
+.demo-main.pg-has-live-dock .chart-catalog-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.demo-main.pg-has-live-dock #view-cluster .demo-canvas-wrap,
+.demo-main.pg-has-live-dock #view-dashboard .demo-canvas-wrap {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+  max-height: none;
 }
 
 .cluster-toolbar {
@@ -866,4 +1045,460 @@ html.demo-embed .demo-section-pills .demo-btn {
   .catalog-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* ── Live code playground (theme lab, etc.) ─────────────────────────────── */
+.pg-workspace {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  flex: 1;
+  min-height: 0;
+  gap: 0.65rem;
+}
+
+.pg-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  justify-content: space-between;
+}
+
+.pg-toolbar-left,
+.pg-toolbar-right {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.pg-live-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.pg-live-pill[data-state='on'] {
+  color: #86efac;
+  border-color: rgba(34, 197, 94, 0.35);
+  background: rgba(34, 197, 94, 0.1);
+}
+
+.pg-live-pill[data-state='err'] {
+  color: #fda4af;
+  border-color: rgba(244, 63, 94, 0.4);
+  background: rgba(244, 63, 94, 0.1);
+}
+
+.pg-live-toggle {
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+  cursor: pointer;
+  user-select: none;
+}
+
+.pg-live-toggle input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+
+.pg-live-toggle-ui {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.pg-live-toggle[data-state='on'] .pg-live-toggle-ui,
+.pg-live-toggle:has(input:checked) .pg-live-toggle-ui {
+  color: #86efac;
+  border-color: rgba(34, 197, 94, 0.35);
+  background: rgba(34, 197, 94, 0.1);
+}
+
+.pg-live-toggle[data-state='off'] .pg-live-toggle-ui,
+.pg-live-toggle:not(:has(input:checked)) .pg-live-toggle-ui {
+  color: var(--text-muted);
+}
+
+.pg-live-toggle[data-state='err'] .pg-live-toggle-ui {
+  color: #fda4af;
+  border-color: rgba(244, 63, 94, 0.4);
+  background: rgba(244, 63, 94, 0.1);
+}
+
+.pg-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0 0 0 currentColor;
+  animation: pg-pulse 1.6s ease-out infinite;
+}
+
+.pg-live-toggle[data-state='off'] .pg-live-dot,
+.pg-live-toggle:not(:has(input:checked)) .pg-live-dot,
+.pg-live-toggle[data-state='err'] .pg-live-dot,
+.pg-live-pill[data-state='off'] .pg-live-dot,
+.pg-live-pill[data-state='err'] .pg-live-dot {
+  animation: none;
+}
+
+@keyframes pg-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(134, 239, 172, 0.45);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(134, 239, 172, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(134, 239, 172, 0);
+  }
+}
+
+.pg-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 260px);
+  gap: 0.75rem;
+  min-height: 0;
+  align-items: stretch;
+}
+
+.pg-stage .demo-canvas-wrap {
+  min-height: 280px;
+  overflow: auto;
+}
+
+.pg-code-dock {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, #10182a 0%, #0a0f1a 100%);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  /* Tall enough to read ~14–18 lines of JSON without feeling full-height */
+  height: min(340px, 40vh);
+  transition: height 0.2s ease;
+}
+
+.pg-code-dock.is-collapsed {
+  height: 42px;
+}
+
+.pg-code-dock.is-collapsed .pg-code-body {
+  display: none;
+}
+
+.pg-code-chrome {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.02);
+  flex-shrink: 0;
+}
+
+.pg-code-tabs {
+  display: flex;
+  gap: 0.25rem;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.pg-code-tab {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 0.35rem 0.65rem;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.pg-code-tab:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.pg-code-tab.is-active {
+  color: #93c5fd;
+  background: rgba(59, 130, 246, 0.15);
+}
+
+.pg-code-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-shrink: 0;
+}
+
+.pg-code-actions .demo-btn {
+  padding: 0.28rem 0.55rem;
+  font-size: 0.75rem;
+}
+
+.pg-code-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.pg-code-pane {
+  display: none;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.pg-code-pane.is-active {
+  display: flex;
+}
+
+.pg-code-editor {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  border: 0;
+  resize: none;
+  padding: 0.75rem 0.9rem;
+  background: transparent;
+  color: #bfdbfe;
+  font: 0.78rem/1.55 ui-monospace, 'Cascadia Code', 'SF Mono', Menlo, monospace;
+  tab-size: 2;
+  outline: none;
+}
+
+.pg-code-editor[readonly] {
+  color: #94a3b8;
+}
+
+.pg-code-status {
+  flex-shrink: 0;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.6875rem;
+  font-family: ui-monospace, monospace;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.25);
+  white-space: pre-wrap;
+  max-height: 7.5rem;
+  overflow-y: auto;
+  line-height: 1.35;
+}
+
+.pg-code-status[data-tone='ok'] {
+  color: #86efac;
+}
+
+.pg-code-status[data-tone='err'] {
+  color: #fda4af;
+}
+
+.pg-code-status[data-tone='warn'] {
+  color: #fde68a;
+}
+
+html.demo-embed .pg-workspace {
+  height: 100%;
+}
+
+html.demo-embed .pg-stage {
+  grid-template-columns: minmax(0, 1fr) minmax(168px, 210px);
+  gap: 0.5rem;
+}
+
+html.demo-embed .pg-workspace {
+  height: 100%;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+html.demo-embed .pg-toolbar-right .pg-live-pill,
+html.demo-embed .pg-toolbar-right .theme-check {
+  display: none;
+}
+
+html.demo-embed .pg-code-dock {
+  /* Readable JSON in help/hub iframes — not full viewport, not a one-line strip */
+  height: min(280px, 36vh);
+  min-height: 240px;
+}
+
+html.demo-embed .pg-code-dock.is-collapsed {
+  height: 40px;
+}
+
+html.demo-embed .pg-code-dock.is-collapsed .pg-code-body {
+  display: none;
+}
+
+html.demo-embed .pg-btn-secondary {
+  display: none;
+}
+
+html.demo-embed .pg-code-status {
+  display: block;
+  font-size: 0.65rem;
+  padding: 0.2rem 0.5rem;
+}
+
+html.demo-embed .pg-code-chrome {
+  flex-wrap: nowrap;
+  gap: 0.25rem;
+  overflow-x: auto;
+}
+
+html.demo-embed .demo-main.pg-has-live-dock {
+  height: 100%;
+}
+
+html.demo-embed .demo-main.pg-has-live-dock > .demo-layout-aside {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+html.demo-embed .demo-aside-panel {
+  max-height: none;
+}
+
+html.demo-embed .demo-main.pg-has-live-dock > .demo-layout-aside > .demo-aside-panel {
+  flex: 0 0 auto;
+  max-height: none;
+  overflow: visible;
+}
+
+/* Prefer canvas over aside chrome in tight embeds with a live dock */
+html.demo-embed .demo-main.pg-has-live-dock .demo-aside-panel h3,
+html.demo-embed .demo-main.pg-has-live-dock .demo-aside-panel p {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .pg-stage {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(240px, 1fr) auto;
+  }
+
+  .pg-code-dock {
+    height: min(300px, 38vh);
+  }
+}
+
+/* When LivePlayground injects a dock into a classic demo-main */
+.demo-main.pg-has-live-dock {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Grow the canvas / stage — not the control bar / pills row */
+.demo-main.pg-has-live-dock > .demo-canvas-wrap,
+.demo-main.pg-has-live-dock > .demo-layout-aside,
+.demo-main.pg-has-live-dock > .demo-layout-split,
+.demo-main.pg-has-live-dock > .pg-stage {
+  flex: 1;
+  min-height: 0;
+}
+
+.demo-main.pg-has-live-dock > .demo-control-bar,
+.demo-main.pg-has-live-dock > .demo-view-tabs {
+  flex: 0 0 auto;
+}
+
+.demo-main.pg-has-live-dock #live-dock-host {
+  flex: 0 0 auto;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 2;
+  background: var(--bg);
+}
+
+.demo-main.pg-has-live-dock #live-dock-host .pg-code-dock {
+  position: relative;
+  z-index: 2;
+}
+
+.pg-live-check {
+  color: var(--text-muted);
+  gap: 0.3rem;
+  cursor: pointer;
+}
+
+html.demo-embed .theme-aside .theme-cat:not([open]) {
+  /* keep collapsed cats compact */
+}
+
+html.demo-embed .theme-aside .theme-tokens {
+  font-size: 0.65rem;
+}
+
+html.demo-embed .theme-aside {
+  max-height: 100%;
+  overflow-y: auto;
+}
+
+html.demo-embed .pg-stage {
+  min-height: 0;
+}
+
+html.demo-embed .pg-stage .demo-canvas-wrap {
+  min-height: 0;
+}
+
+html.demo-embed .demo-main.pg-has-live-dock > .demo-canvas-wrap {
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  align-items: flex-start;
+  min-height: 160px;
+}
+
+html.demo-embed .demo-main.pg-has-live-dock > .demo-canvas-wrap #app {
+  flex: 0 0 auto;
+  height: auto;
+  min-height: 100%;
+  overflow: visible;
+}
+
+html.demo-embed .pg-code-dock.is-collapsed .pg-code-tabs {
+  display: none;
+}
+
+html.demo-embed .pg-code-dock.is-collapsed .pg-live-toggle,
+html.demo-embed .pg-code-dock.is-collapsed #pg-btn-run,
+html.demo-embed .pg-code-dock.is-collapsed .pg-btn-secondary {
+  display: none;
 }

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — Live playground & theme lab
+
+- Website hub (`website/`) with Day/Night chrome (defaults to **Night**), help center (`help.html`), and single-stage demo rail
+- Shared `examples/demo-live-playground.js` — Scene JSON · Theme JSON · editable API with Live auto-apply
+- `examples/demo-theme.html` — theme lab with presets, typography targets, automotive bar, live editors
+- JSON validation with locations and expected values: `parseAndValidateSceneJSON`, `validateThemePack`, `formatJsonParseError`, catalog in `src/io/sceneCatalog.ts`
+- Button / radio layout fixes; embed flex layout so control bars no longer steal canvas height
+
+### Docs
+
+- End-to-end updates: `docs/README.md`, `getting-started.md`, AI / export validation guides, CONTRIBUTING website workflow
+- `.gitignore` excludes generated `website/public/{examples,docs,lightdraw*}`, TypeDoc `docs/api/`, internal plan files, audit scratch HTML
+
 ### Added (Phase UI-10 — Documentation & release)
 
 - `docs/responsive-guide.md` — breakpoints, fluid layouts, `fullWidth`, `autoResize`

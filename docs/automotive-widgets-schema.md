@@ -28,21 +28,32 @@ Load widgets via `app.loadJSON({ type: '<widget>', props: { ... } })`.
 
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
-| theme | string | `"classic"` | `classic`, `sport`, or `digital` |
-| width | number | 800 | Cluster width |
-| height | number | 400 | Cluster height |
-| speed | number | 0 | Speedometer value (km/h) |
-| rpm | number | 0 | Tachometer value |
-| fuel | number | 75 | Fuel level 0–100 |
-| engineTemp | number | 90 | Engine temp °C |
-| batteryVoltage | number | 12.4 | Battery volts |
-| tpms | number[] | `[32,32,32,32]` | FL, FR, RL, RR PSI |
-| gear | string | `"D"` | Gear indicator |
-| parkingBrake | boolean | false | Parking brake lamp |
-| headlights | boolean | false | Headlights lamp |
-| cruiseSpeed | number | 0 | Cruise set speed (0 = off) |
-| turnLeft / turnRight | boolean | false | Turn indicators |
-| signals | object | sample | CAN viewer signal map |
+| theme | string | `"classic"` | `classic`, `sport`, or `digital` — **not** driven by `app.setUiTheme()` |
+
+## Theming (Phase 5 — dual system)
+
+App brand theme (`setUiTheme` / UI presets) styles UI, dashboard, and diagram modules.
+
+Automotive HMI widgets use **named presets** only:
+
+| Preset | Character |
+|--------|-----------|
+| `classic` | Dark dials, red speed needle, green tach |
+| `sport` | Orange/yellow sport needles, red accent |
+| `digital` | Cyan digital cluster look |
+
+```javascript
+// Create
+{ type: 'instrumentCluster', props: { theme: 'sport', speed: 95, rpm: 3200 } }
+
+// Live switch (rebuilds chrome; keeps values)
+import { updateAutoWidgetProps } from 'lightdraw/automotive';
+updateAutoWidgetProps(cluster, { theme: 'digital' });
+```
+
+Calling `app.setUiTheme({ preset: 'violet' })` will **not** change cluster needle colors.
+
+See [theme-architecture.md](./theme-architecture.md).
 
 ## Live updates
 

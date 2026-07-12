@@ -1,7 +1,7 @@
 import type { App } from '../../App';
 import type { Group } from '../../shapes/Group';
 import { connectNodes } from '../connectors';
-import { DIAGRAM } from '../theme';
+import { getActiveDiagram } from '../theme';
 import { collectObstacles } from '../router';
 import {
   collectEditableNodes,
@@ -33,9 +33,9 @@ export function rerouteDiagramEdges(app: App, root: Group, edges?: EditorEdgeRec
     edgeLayer.add(
       connectNodes(app, from, to, obstacles, {
         parent: root,
-        stroke: edge.options?.stroke ?? DIAGRAM.edge,
-        glowColor: edge.options?.glowColor ?? DIAGRAM.edgeGlow,
-        strokeWidth: edge.options?.strokeWidth ?? DIAGRAM.stroke.edge,
+        stroke: edge.options?.stroke ?? getActiveDiagram().edge,
+        glowColor: edge.options?.glowColor ?? getActiveDiagram().edgeGlow,
+        strokeWidth: edge.options?.strokeWidth ?? getActiveDiagram().stroke.edge,
         label: edge.label,
         style: edge.options?.style ?? 'smart',
         arrowEnd: edge.options?.arrowEnd ?? 'filled',

@@ -8,7 +8,7 @@ import {
   addLeftStripe,
   addTopSheen,
 } from './chrome';
-import { DIAGRAM } from './theme';
+import { DIAGRAM, getActiveDiagram } from './theme';
 
 let measureCtx: CanvasRenderingContext2D | null = null;
 
@@ -26,7 +26,7 @@ export function measureTextWidth(
   text: string,
   fontSize: number,
   fontWeight: string | number = '600',
-  fontFamily = DIAGRAM.fontFamily
+  fontFamily = getActiveDiagram().fontFamily
 ): number {
   const ctx = getMeasureCtx();
   if (!ctx) return text.length * fontSize * 0.55;
@@ -37,12 +37,12 @@ export function measureTextWidth(
 export function centerTextX(
   label: string,
   boxWidth: number,
-  fontSize: number = DIAGRAM.fontSize.base,
+  fontSize: number = getActiveDiagram().fontSize.base,
   fontWeight: string | number = '600',
-  fontFamily = DIAGRAM.fontFamily
+  fontFamily = getActiveDiagram().fontFamily
 ): number {
   const w = measureTextWidth(label, fontSize, fontWeight, fontFamily);
-  return Math.max(DIAGRAM.spacing.sm, (boxWidth - w) / 2);
+  return Math.max(getActiveDiagram().spacing.sm, (boxWidth - w) / 2);
 }
 
 export interface BoxStyle {
@@ -55,8 +55,8 @@ export interface BoxStyle {
 }
 
 const defaultBoxStyle = (): Required<Pick<BoxStyle, 'strokeWidth' | 'shadow'>> => ({
-  strokeWidth: DIAGRAM.stroke.node,
-  shadow: DIAGRAM.shadowSoft,
+  strokeWidth: getActiveDiagram().stroke.node,
+  shadow: getActiveDiagram().shadowSoft,
 });
 
 /** Labeled rounded rectangle — shared node chrome for all diagram types. */
@@ -70,15 +70,15 @@ export function createLabeledBox(
 ): Group {
   const { strokeWidth, shadow } = defaultBoxStyle();
   const node = app.group();
-  const fontSize = textOpts.fontSize ?? DIAGRAM.fontSize.base;
-  const radius = style.cornerRadius ?? DIAGRAM.radii.md;
+  const fontSize = textOpts.fontSize ?? getActiveDiagram().fontSize.base;
+  const radius = style.cornerRadius ?? getActiveDiagram().radii.md;
 
   addCardChrome(app, node, {
     width,
     height,
     cornerRadius: radius,
-    fill: style.fill ?? DIAGRAM.nodeFill,
-    stroke: style.stroke ?? DIAGRAM.nodeStroke,
+    fill: style.fill ?? getActiveDiagram().nodeFill,
+    stroke: style.stroke ?? getActiveDiagram().nodeStroke,
     strokeWidth: style.strokeWidth ?? strokeWidth,
     shadow: style.shadow !== null ? (style.shadow ?? shadow) : null,
     accentColor: style.accentColor,
@@ -91,8 +91,8 @@ export function createLabeledBox(
       y: textOpts.y ?? height / 2 - fontSize / 2 - 1,
       fontSize,
       fontWeight: textOpts.fontWeight ?? '600',
-      fontFamily: DIAGRAM.fontFamily,
-      fill: textOpts.fill ?? DIAGRAM.nodeText,
+      fontFamily: getActiveDiagram().fontFamily,
+      fill: textOpts.fill ?? getActiveDiagram().nodeText,
       listening: false,
     })
   );
@@ -114,12 +114,12 @@ export function createFlowchartNode(
   const node = app.group();
 
   const palette = isStart
-    ? DIAGRAM.flowchartStart
+    ? getActiveDiagram().flowchartStart
     : isEnd
-      ? DIAGRAM.flowchartEnd
+      ? getActiveDiagram().flowchartEnd
       : isDecision
-        ? DIAGRAM.flowchartDecision
-        : DIAGRAM.flowchartProcess;
+        ? getActiveDiagram().flowchartDecision
+        : getActiveDiagram().flowchartProcess;
 
   if (isDecision) {
     node.add(
@@ -136,12 +136,12 @@ export function createFlowchartNode(
         points: [66, 2, 130, 23, 66, 44, 2, 23],
         fill: palette.fill,
         stroke: palette.stroke,
-        strokeWidth: DIAGRAM.stroke.nodeEmphasis,
-        shadow: DIAGRAM.shadowElevated,
+        strokeWidth: getActiveDiagram().stroke.nodeEmphasis,
+        shadow: getActiveDiagram().shadowElevated,
         listening: false,
       })
     );
-    const fs = DIAGRAM.fontSize.sm;
+    const fs = getActiveDiagram().fontSize.sm;
     node.add(
       app.text({
         text: label,
@@ -149,8 +149,8 @@ export function createFlowchartNode(
         y: 23 - fs / 2 - 1,
         fontSize: fs,
         fontWeight: '600',
-        fontFamily: DIAGRAM.fontFamily,
-        fill: DIAGRAM.nodeText,
+        fontFamily: getActiveDiagram().fontFamily,
+        fill: getActiveDiagram().nodeText,
         listening: false,
       })
     );
@@ -161,17 +161,17 @@ export function createFlowchartNode(
     app.roundedRect({
       width,
       height,
-      cornerRadius: isTerminal ? DIAGRAM.radii.pill : DIAGRAM.radii.md,
+      cornerRadius: isTerminal ? getActiveDiagram().radii.pill : getActiveDiagram().radii.md,
       fill: palette.fill,
       stroke: palette.stroke,
-      strokeWidth: DIAGRAM.stroke.nodeEmphasis,
-      shadow: isTerminal ? DIAGRAM.shadowElevated : DIAGRAM.shadowSoft,
+      strokeWidth: getActiveDiagram().stroke.nodeEmphasis,
+      shadow: isTerminal ? getActiveDiagram().shadowElevated : getActiveDiagram().shadowSoft,
       listening: false,
     })
   );
   if (!isTerminal) {
     addAccentBar(app, node, width, palette.accent, 3);
-    addTopSheen(app, node, width, DIAGRAM.radii.md);
+    addTopSheen(app, node, width, getActiveDiagram().radii.md);
   } else {
     node.add(
       app.roundedRect({
@@ -179,7 +179,7 @@ export function createFlowchartNode(
         y: 2,
         width: width - 4,
         height: height - 4,
-        cornerRadius: isTerminal ? DIAGRAM.radii.pill - 2 : DIAGRAM.radii.md,
+        cornerRadius: isTerminal ? getActiveDiagram().radii.pill - 2 : getActiveDiagram().radii.md,
         fill: null,
         stroke: palette.accent,
         strokeWidth: 1,
@@ -192,13 +192,13 @@ export function createFlowchartNode(
     node.add(
       app.text({
         text: label.toUpperCase(),
-        x: centerTextX(label, width, DIAGRAM.fontSize.sm),
+        x: centerTextX(label, width, getActiveDiagram().fontSize.sm),
         y: height / 2 - 6,
-        fontSize: DIAGRAM.fontSize.sm,
+        fontSize: getActiveDiagram().fontSize.sm,
         fontWeight: '700',
         letterSpacing: 0.06,
-        fontFamily: DIAGRAM.fontFamily,
-        fill: isStart ? palette.accent : DIAGRAM.nodeText,
+        fontFamily: getActiveDiagram().fontFamily,
+        fill: isStart ? palette.accent : getActiveDiagram().nodeText,
         listening: false,
       })
     );
@@ -208,10 +208,10 @@ export function createFlowchartNode(
         text: label,
         x: centerTextX(label, width),
         y: height / 2 - 6,
-        fontSize: DIAGRAM.fontSize.base,
+        fontSize: getActiveDiagram().fontSize.base,
         fontWeight: '600',
-        fontFamily: DIAGRAM.fontFamily,
-        fill: DIAGRAM.nodeText,
+        fontFamily: getActiveDiagram().fontFamily,
+        fill: getActiveDiagram().nodeText,
         listening: false,
       })
     );
@@ -236,12 +236,12 @@ export function createClassNode(
   addCardChrome(app, node, {
     width,
     height,
-    cornerRadius: DIAGRAM.radii.md,
-    fill: DIAGRAM.classFill,
-    stroke: DIAGRAM.classStroke,
-    strokeWidth: DIAGRAM.stroke.node,
-    shadow: DIAGRAM.shadowElevated,
-    accentColor: DIAGRAM.umlInheritance,
+    cornerRadius: getActiveDiagram().radii.md,
+    fill: getActiveDiagram().classFill,
+    stroke: getActiveDiagram().classStroke,
+    strokeWidth: getActiveDiagram().stroke.node,
+    shadow: getActiveDiagram().shadowElevated,
+    accentColor: getActiveDiagram().umlInheritance,
     sheen: false,
   });
   node.add(
@@ -250,22 +250,22 @@ export function createClassNode(
       y: 1,
       width: width - 2,
       height: headerH - 1,
-      fill: DIAGRAM.classHeaderBg,
+      fill: getActiveDiagram().classHeaderBg,
       stroke: null,
       listening: false,
     })
   );
-  addTopSheen(app, node, width, DIAGRAM.radii.md);
+  addTopSheen(app, node, width, getActiveDiagram().radii.md);
   node.add(
     app.text({
       text: name,
-      x: DIAGRAM.spacing.sm,
+      x: getActiveDiagram().spacing.sm,
       y: 10,
-      fontSize: DIAGRAM.fontSize.lg,
+      fontSize: getActiveDiagram().fontSize.lg,
       fontWeight: 'bold',
       fontStyle: 'italic',
-      fontFamily: DIAGRAM.fontFamily,
-      fill: DIAGRAM.classHeader,
+      fontFamily: getActiveDiagram().fontFamily,
+      fill: getActiveDiagram().classHeader,
       listening: false,
     })
   );
@@ -275,8 +275,8 @@ export function createClassNode(
       y: headerH,
       x2: width,
       y2: 0,
-      stroke: DIAGRAM.classDivider,
-      strokeWidth: DIAGRAM.stroke.label,
+      stroke: getActiveDiagram().classDivider,
+      strokeWidth: getActiveDiagram().stroke.label,
       listening: false,
     })
   );
@@ -286,11 +286,11 @@ export function createClassNode(
     node.add(
       app.text({
         text: attr,
-        x: DIAGRAM.spacing.sm,
+        x: getActiveDiagram().spacing.sm,
         y,
-        fontSize: DIAGRAM.fontSize.md,
-        fontFamily: DIAGRAM.fontMono,
-        fill: DIAGRAM.classBody,
+        fontSize: getActiveDiagram().fontSize.md,
+        fontFamily: getActiveDiagram().fontMono,
+        fill: getActiveDiagram().classBody,
         listening: false,
       })
     );
@@ -303,8 +303,8 @@ export function createClassNode(
         y: y - 2,
         x2: width,
         y2: 0,
-        stroke: DIAGRAM.classDivider,
-        strokeWidth: DIAGRAM.stroke.label,
+        stroke: getActiveDiagram().classDivider,
+        strokeWidth: getActiveDiagram().stroke.label,
         listening: false,
       })
     );
@@ -314,11 +314,11 @@ export function createClassNode(
     node.add(
       app.text({
         text: method,
-        x: DIAGRAM.spacing.sm,
+        x: getActiveDiagram().spacing.sm,
         y,
-        fontSize: DIAGRAM.fontSize.md,
-        fontFamily: DIAGRAM.fontMono,
-        fill: DIAGRAM.classBody,
+        fontSize: getActiveDiagram().fontSize.md,
+        fontFamily: getActiveDiagram().fontMono,
+        fill: getActiveDiagram().classBody,
         listening: false,
       })
     );
@@ -333,11 +333,11 @@ const NETWORK_STYLES: Record<
   NetworkType,
   { fill: string; stroke: string; glyph: string; edge: string }
 > = {
-  router: DIAGRAM.networkRouter,
-  server: DIAGRAM.networkServer,
-  switch: DIAGRAM.networkSwitch,
-  client: DIAGRAM.networkClient,
-  default: DIAGRAM.networkDefault,
+  router: getActiveDiagram().networkRouter,
+  server: getActiveDiagram().networkServer,
+  switch: getActiveDiagram().networkSwitch,
+  client: getActiveDiagram().networkClient,
+  default: getActiveDiagram().networkDefault,
 };
 
 function addNetworkGlyph(
@@ -443,11 +443,11 @@ export function createNetworkNode(app: App, label: string, type: string): Group 
   addCardChrome(app, node, {
     width: size,
     height: size,
-    cornerRadius: netType === 'server' ? DIAGRAM.radii.sm : size / 2,
+    cornerRadius: netType === 'server' ? getActiveDiagram().radii.sm : size / 2,
     fill: style.fill,
     stroke: style.stroke,
-    strokeWidth: DIAGRAM.stroke.nodeEmphasis,
-    shadow: DIAGRAM.shadowElevated,
+    strokeWidth: getActiveDiagram().stroke.nodeEmphasis,
+    shadow: getActiveDiagram().shadowElevated,
     sheen: netType === 'server',
   });
   node.add(
@@ -464,19 +464,19 @@ export function createNetworkNode(app: App, label: string, type: string): Group 
   );
   addNetworkGlyph(app, node, netType, size, style.glyph);
 
-  const labelW = Math.max(size, measureTextWidth(label, DIAGRAM.fontSize.sm) + 16);
-  const labelX = centerTextX(label, labelW, DIAGRAM.fontSize.sm);
-  const tw = measureTextWidth(label, DIAGRAM.fontSize.sm);
-  addCaptionPill(app, node, tw, labelX, size + DIAGRAM.spacing.xs - 2, style.stroke);
+  const labelW = Math.max(size, measureTextWidth(label, getActiveDiagram().fontSize.sm) + 16);
+  const labelX = centerTextX(label, labelW, getActiveDiagram().fontSize.sm);
+  const tw = measureTextWidth(label, getActiveDiagram().fontSize.sm);
+  addCaptionPill(app, node, tw, labelX, size + getActiveDiagram().spacing.xs - 2, style.stroke);
   node.add(
     app.text({
       text: label,
-      x: centerTextX(label, labelW, DIAGRAM.fontSize.sm),
-      y: size + DIAGRAM.spacing.xs,
-      fontSize: DIAGRAM.fontSize.sm,
+      x: centerTextX(label, labelW, getActiveDiagram().fontSize.sm),
+      y: size + getActiveDiagram().spacing.xs,
+      fontSize: getActiveDiagram().fontSize.sm,
       fontWeight: '600',
-      fontFamily: DIAGRAM.fontFamily,
-      fill: DIAGRAM.nodeText,
+      fontFamily: getActiveDiagram().fontFamily,
+      fill: getActiveDiagram().nodeText,
       listening: false,
     })
   );
@@ -492,7 +492,7 @@ export function createOrgNode(
   collapsed = false,
   depth = 0
 ): { node: Group; indicator?: ReturnType<App['text']> } {
-  const tier = DIAGRAM.orgTier[Math.min(depth, DIAGRAM.orgTier.length - 1)];
+  const tier = getActiveDiagram().orgTier[Math.min(depth, getActiveDiagram().orgTier.length - 1)];
   const width = 156;
   const height = role ? 60 : 52;
   const node = app.group();
@@ -500,11 +500,11 @@ export function createOrgNode(
   addCardChrome(app, node, {
     width,
     height,
-    cornerRadius: DIAGRAM.radii.md,
+    cornerRadius: getActiveDiagram().radii.md,
     fill: tier.fill,
     stroke: tier.stroke,
-    strokeWidth: DIAGRAM.stroke.node,
-    shadow: DIAGRAM.shadowElevated,
+    strokeWidth: getActiveDiagram().stroke.node,
+    shadow: getActiveDiagram().shadowElevated,
     accentColor: tier.accent,
   });
   node.add(
@@ -523,12 +523,12 @@ export function createOrgNode(
   node.add(
     app.text({
       text: name,
-      x: DIAGRAM.spacing.md,
+      x: getActiveDiagram().spacing.md,
       y: role ? 10 : 16,
-      fontSize: DIAGRAM.fontSize.lg,
+      fontSize: getActiveDiagram().fontSize.lg,
       fontWeight: '600',
-      fontFamily: DIAGRAM.fontFamily,
-      fill: DIAGRAM.nodeText,
+      fontFamily: getActiveDiagram().fontFamily,
+      fill: getActiveDiagram().nodeText,
       listening: false,
     })
   );
@@ -536,11 +536,11 @@ export function createOrgNode(
     node.add(
       app.text({
         text: role,
-        x: DIAGRAM.spacing.md,
+        x: getActiveDiagram().spacing.md,
         y: 32,
-        fontSize: DIAGRAM.fontSize.sm,
-        fontFamily: DIAGRAM.fontFamily,
-        fill: DIAGRAM.orgRole,
+        fontSize: getActiveDiagram().fontSize.sm,
+        fontFamily: getActiveDiagram().fontFamily,
+        fill: getActiveDiagram().orgRole,
         listening: false,
       })
     );
@@ -554,10 +554,10 @@ export function createOrgNode(
         y: 12,
         width: 20,
         height: 20,
-        cornerRadius: DIAGRAM.radii.sm,
-        fill: DIAGRAM.orgToggleBg,
-        stroke: DIAGRAM.labelPillStroke,
-        strokeWidth: DIAGRAM.stroke.label,
+        cornerRadius: getActiveDiagram().radii.sm,
+        fill: getActiveDiagram().orgToggleBg,
+        stroke: getActiveDiagram().labelPillStroke,
+        strokeWidth: getActiveDiagram().stroke.label,
         listening: false,
       })
     );
@@ -565,10 +565,10 @@ export function createOrgNode(
       text: collapsed ? `+${childCount}` : '−',
       x: width - 23,
       y: 15,
-      fontSize: DIAGRAM.fontSize.base,
+      fontSize: getActiveDiagram().fontSize.base,
       fontWeight: 'bold',
-      fontFamily: DIAGRAM.fontFamily,
-      fill: DIAGRAM.orgToggle,
+      fontFamily: getActiveDiagram().fontFamily,
+      fill: getActiveDiagram().orgToggle,
     });
     node.add(indicator);
   }
@@ -582,10 +582,10 @@ export function createPipelineStage(
   status: 'pending' | 'active' | 'done' | 'error' | string
 ): Group {
   const colors: Record<string, { fill: string; stroke: string }> = {
-    pending: { fill: DIAGRAM.pipelinePendingFill, stroke: DIAGRAM.pipelinePending },
-    active: { fill: DIAGRAM.pipelineActiveFill, stroke: DIAGRAM.pipelineActive },
-    done: { fill: DIAGRAM.pipelineDoneFill, stroke: DIAGRAM.pipelineDone },
-    error: { fill: DIAGRAM.pipelineErrorFill, stroke: DIAGRAM.pipelineErrorStroke },
+    pending: { fill: getActiveDiagram().pipelinePendingFill, stroke: getActiveDiagram().pipelinePending },
+    active: { fill: getActiveDiagram().pipelineActiveFill, stroke: getActiveDiagram().pipelineActive },
+    done: { fill: getActiveDiagram().pipelineDoneFill, stroke: getActiveDiagram().pipelineDone },
+    error: { fill: getActiveDiagram().pipelineErrorFill, stroke: getActiveDiagram().pipelineErrorStroke },
   };
   const c = colors[status] ?? colors.pending;
   const width = 118;
@@ -599,28 +599,28 @@ export function createPipelineStage(
   };
 
   if (status === 'active') {
-    addEmphasisRing(app, node, width, height, c.stroke, DIAGRAM.radii.md);
+    addEmphasisRing(app, node, width, height, c.stroke, getActiveDiagram().radii.md);
   }
 
   addCardChrome(app, node, {
     width,
     height,
-    cornerRadius: DIAGRAM.radii.md,
+    cornerRadius: getActiveDiagram().radii.md,
     fill: c.fill,
     stroke: c.stroke,
-    strokeWidth: DIAGRAM.stroke.node,
-    shadow: status === 'active' ? DIAGRAM.shadowElevated : DIAGRAM.shadowSoft,
+    strokeWidth: getActiveDiagram().stroke.node,
+    shadow: status === 'active' ? getActiveDiagram().shadowElevated : getActiveDiagram().shadowSoft,
     sheen: false,
   });
   addLeftStripe(app, node, height, c.stroke, 4);
   const badgeW = 34;
   node.add(
     app.roundedRect({
-      x: DIAGRAM.spacing.sm,
+      x: getActiveDiagram().spacing.sm,
       y: height / 2 - 9,
       width: badgeW,
       height: 18,
-      cornerRadius: DIAGRAM.radii.sm,
+      cornerRadius: getActiveDiagram().radii.sm,
       fill: c.stroke,
       stroke: null,
       opacity: status === 'pending' ? 0.35 : 0.9,
@@ -630,25 +630,25 @@ export function createPipelineStage(
   node.add(
     app.text({
       text: statusLabels[status] ?? 'WAIT',
-      x: DIAGRAM.spacing.sm + 5,
+      x: getActiveDiagram().spacing.sm + 5,
       y: height / 2 - 7,
-      fontSize: DIAGRAM.fontSize.xs,
+      fontSize: getActiveDiagram().fontSize.xs,
       fontWeight: '700',
       letterSpacing: 0.04,
-      fontFamily: DIAGRAM.fontFamily,
-      fill: status === 'pending' ? DIAGRAM.nodeTextMuted : '#fff',
+      fontFamily: getActiveDiagram().fontFamily,
+      fill: status === 'pending' ? getActiveDiagram().nodeTextMuted : '#fff',
       listening: false,
     })
   );
   node.add(
     app.text({
       text: label,
-      x: DIAGRAM.spacing.sm + badgeW + 6,
+      x: getActiveDiagram().spacing.sm + badgeW + 6,
       y: height / 2 - 7,
-      fontSize: DIAGRAM.fontSize.base,
+      fontSize: getActiveDiagram().fontSize.base,
       fontWeight: '600',
-      fontFamily: DIAGRAM.fontFamily,
-      fill: DIAGRAM.nodeText,
+      fontFamily: getActiveDiagram().fontFamily,
+      fill: getActiveDiagram().nodeText,
       listening: false,
     })
   );
@@ -673,7 +673,7 @@ export function createStateNode(
         y: radius - 6,
         radius: radius + 1,
         fill: null,
-        stroke: DIAGRAM.stateFinalStroke,
+        stroke: getActiveDiagram().stateFinalStroke,
         strokeWidth: 1,
         opacity: 0.35,
         listening: false,
@@ -684,10 +684,10 @@ export function createStateNode(
         x: radius - 6,
         y: radius - 6,
         radius: radius - 2,
-        fill: DIAGRAM.stateFinalFill,
-        stroke: DIAGRAM.stateFinalStroke,
-        strokeWidth: DIAGRAM.stroke.nodeEmphasis,
-        shadow: DIAGRAM.shadowElevated,
+        fill: getActiveDiagram().stateFinalFill,
+        stroke: getActiveDiagram().stateFinalStroke,
+        strokeWidth: getActiveDiagram().stroke.nodeEmphasis,
+        shadow: getActiveDiagram().shadowElevated,
         listening: false,
       })
     );
@@ -697,13 +697,13 @@ export function createStateNode(
         y: radius - 6,
         radius: radius - 9,
         fill: null,
-        stroke: DIAGRAM.stateFinalStroke,
-        strokeWidth: DIAGRAM.stroke.node,
+        stroke: getActiveDiagram().stateFinalStroke,
+        strokeWidth: getActiveDiagram().stroke.node,
         listening: false,
       })
     );
     if (label) {
-      const fs = DIAGRAM.fontSize.sm;
+      const fs = getActiveDiagram().fontSize.sm;
       node.add(
         app.text({
           text: label,
@@ -711,8 +711,8 @@ export function createStateNode(
           y: radius * 2 - 6,
           fontSize: fs,
           fontWeight: '600',
-          fontFamily: DIAGRAM.fontFamily,
-          fill: DIAGRAM.stateFinalStroke,
+          fontFamily: getActiveDiagram().fontFamily,
+          fill: getActiveDiagram().stateFinalStroke,
           listening: false,
         })
       );
@@ -727,10 +727,10 @@ export function createStateNode(
       width: w,
       height: h,
       cornerRadius: h / 2,
-      fill: DIAGRAM.stateInitialFill,
-      stroke: DIAGRAM.stateInitialStroke,
-      strokeWidth: DIAGRAM.stroke.nodeEmphasis,
-      shadow: DIAGRAM.shadowElevated,
+      fill: getActiveDiagram().stateInitialFill,
+      stroke: getActiveDiagram().stateInitialStroke,
+      strokeWidth: getActiveDiagram().stroke.nodeEmphasis,
+      shadow: getActiveDiagram().shadowElevated,
       sheen: false,
     });
     node.add(
@@ -738,7 +738,7 @@ export function createStateNode(
         x: 14,
         y: h / 2,
         radius: 6,
-        fill: DIAGRAM.stateInitialStroke,
+        fill: getActiveDiagram().stateInitialStroke,
         stroke: null,
         listening: false,
       })
@@ -748,16 +748,16 @@ export function createStateNode(
     addCardChrome(app, node, {
       width: w,
       height: w,
-      cornerRadius: DIAGRAM.radii.lg,
-      fill: DIAGRAM.stateFill,
-      stroke: DIAGRAM.stateStroke,
-      strokeWidth: DIAGRAM.stroke.nodeEmphasis,
-      shadow: DIAGRAM.shadowSoft,
-      accentColor: DIAGRAM.stateStroke,
+      cornerRadius: getActiveDiagram().radii.lg,
+      fill: getActiveDiagram().stateFill,
+      stroke: getActiveDiagram().stateStroke,
+      strokeWidth: getActiveDiagram().stroke.nodeEmphasis,
+      shadow: getActiveDiagram().shadowSoft,
+      accentColor: getActiveDiagram().stateStroke,
     });
   }
 
-  const fs = DIAGRAM.fontSize.md;
+  const fs = getActiveDiagram().fontSize.md;
   const boxW = radius * 2 - 4;
   node.add(
     app.text({
@@ -766,8 +766,8 @@ export function createStateNode(
       y: radius - fs / 2 - 3,
       fontSize: fs,
       fontWeight: '600',
-      fontFamily: DIAGRAM.fontFamily,
-      fill: DIAGRAM.nodeText,
+      fontFamily: getActiveDiagram().fontFamily,
+      fill: getActiveDiagram().nodeText,
       listening: false,
     })
   );
@@ -780,7 +780,7 @@ export function createCanEcuNode(
   label: string,
   address: string | undefined,
   color: string,
-  strokeWidth: number = DIAGRAM.stroke.node
+  strokeWidth: number = getActiveDiagram().stroke.node
 ): Group {
   const width = 88;
   const height = 56;
@@ -789,22 +789,22 @@ export function createCanEcuNode(
   addCardChrome(app, ecuGroup, {
     width,
     height,
-    cornerRadius: DIAGRAM.radii.md,
-    fill: DIAGRAM.nodeFill,
+    cornerRadius: getActiveDiagram().radii.md,
+    fill: getActiveDiagram().nodeFill,
     stroke: color,
     strokeWidth,
-    shadow: DIAGRAM.shadowElevated,
+    shadow: getActiveDiagram().shadowElevated,
     accentColor: color,
   });
   ecuGroup.add(
     app.text({
       text: label,
-      x: DIAGRAM.spacing.sm,
+      x: getActiveDiagram().spacing.sm,
       y: 12,
-      fontSize: DIAGRAM.fontSize.md,
-      fill: DIAGRAM.nodeText,
+      fontSize: getActiveDiagram().fontSize.md,
+      fill: getActiveDiagram().nodeText,
       fontWeight: 'bold',
-      fontFamily: DIAGRAM.fontFamily,
+      fontFamily: getActiveDiagram().fontFamily,
       listening: false,
     })
   );
@@ -812,11 +812,11 @@ export function createCanEcuNode(
     ecuGroup.add(
       app.text({
         text: address,
-        x: DIAGRAM.spacing.sm,
+        x: getActiveDiagram().spacing.sm,
         y: 30,
-        fontSize: DIAGRAM.fontSize.xs,
-        fontFamily: DIAGRAM.fontMono,
-        fill: DIAGRAM.edgeLabel,
+        fontSize: getActiveDiagram().fontSize.xs,
+        fontFamily: getActiveDiagram().fontMono,
+        fill: getActiveDiagram().edgeLabel,
         listening: false,
       })
     );
@@ -827,7 +827,7 @@ export function createCanEcuNode(
       y: 0,
       radius: 3,
       fill: color,
-      stroke: DIAGRAM.surface,
+      stroke: getActiveDiagram().surface,
       strokeWidth: 1,
       listening: false,
     })
@@ -853,9 +853,9 @@ export function createEdgeLabel(
   text: string,
   x: number,
   y: number,
-  accentStroke: string = DIAGRAM.edge
+  accentStroke: string = getActiveDiagram().edge
 ): Group {
-  const fontSize = DIAGRAM.fontSize.sm;
+  const fontSize = getActiveDiagram().fontSize.sm;
   const tw = measureTextWidth(text, fontSize, '600');
   const padX = 8;
   const padY = 4;
@@ -868,11 +868,11 @@ export function createEdgeLabel(
       y: y - ph / 2,
       width: pw,
       height: ph,
-      cornerRadius: DIAGRAM.radii.sm,
-      fill: DIAGRAM.labelPillFill,
+      cornerRadius: getActiveDiagram().radii.sm,
+      fill: getActiveDiagram().labelPillFill,
       stroke: accentStroke,
-      strokeWidth: DIAGRAM.stroke.label,
-      shadow: DIAGRAM.shadowSoft,
+      strokeWidth: getActiveDiagram().stroke.label,
+      shadow: getActiveDiagram().shadowSoft,
       listening: false,
     })
   );
@@ -883,8 +883,8 @@ export function createEdgeLabel(
       y: y - fontSize / 2 - 1,
       fontSize,
       fontWeight: '600',
-      fontFamily: DIAGRAM.fontFamily,
-      fill: DIAGRAM.edgeLabel,
+      fontFamily: getActiveDiagram().fontFamily,
+      fill: getActiveDiagram().edgeLabel,
       listening: false,
     })
   );

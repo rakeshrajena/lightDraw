@@ -15,12 +15,13 @@ import {
   wireStackedHorizontalBarChartInteraction,
 } from '../../chartPrimitives';
 import { createWidgetGroup, setParts, setState } from '../../helpers';
-import { DASHBOARD } from '../../theme';
+import { getActiveDashboard } from '../../theme';
+import { resolveValueColor } from '../../colorStops';
 import { attachIndexYHover } from '../core/interaction';
 import { attachPlotWheelZoom } from '../core/zoom';
 import { installChartRebuild } from '../core/refresh';
 import { buildChartContext } from '../core/layout';
-import { normalizeBumpRanks, parseSeries, stackSeries } from '../core/series';
+import { normalizeBumpRanks, parseSeries, stackSeries, detectUserSeriesColors, seriesForWidgetState } from '../core/series';
 import { bandWidth, linearScale } from '../core/scales';
 import { catmullRomPath, pointsToPairs, stepPoints } from '../core/spline';
 import type { ChartSeries, CartesianVariant } from '../types';
@@ -43,14 +44,14 @@ function addPlotChrome(
 ): void {
   const { width, height, layout, bounds, yTicks } = ctx;
   const minimal = ctx.series.length === 0 || props.minimalAxes === true || ['sparkline'].includes(String(props.variant));
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  group.add(app.rect({ width, height, fill: getActiveDashboard().chartBg, listening: true }));
   group.add(
     app.rect({
       x: layout.plotX,
       y: layout.plotY,
       width: layout.plotWidth,
       height: layout.plotHeight,
-      fill: DASHBOARD.chartPlot,
+      fill: getActiveDashboard().chartPlot,
       stroke: null,
       listening: false,
     })
@@ -76,7 +77,7 @@ function addInteraction(
     y: layout.plotY,
     x2: 0,
     y2: layout.plotHeight,
-    stroke: DASHBOARD.chartCrosshair,
+    stroke: getActiveDashboard().chartCrosshair,
     strokeWidth: 1,
     dash: [4, 4],
     visible: false,
@@ -86,8 +87,8 @@ function addInteraction(
     x: 0,
     y: 0,
     radius: 5,
-    fill: DASHBOARD.chartDot,
-    stroke: DASHBOARD.chartLine,
+    fill: getActiveDashboard().chartDot,
+    stroke: getActiveDashboard().chartLine,
     strokeWidth: 2,
     visible: false,
     listening: false,
@@ -96,8 +97,8 @@ function addInteraction(
     width: 52,
     height: 24,
     cornerRadius: 6,
-    fill: DASHBOARD.chartTooltipBg,
-    stroke: DASHBOARD.chartTooltipBorder,
+    fill: getActiveDashboard().chartTooltipBg,
+    stroke: getActiveDashboard().chartTooltipBorder,
     strokeWidth: 1,
     visible: false,
     listening: false,
@@ -107,7 +108,7 @@ function addInteraction(
     text: '',
     fontSize: 11,
     fontWeight: 'bold',
-    fill: DASHBOARD.text,
+    fill: getActiveDashboard().text,
     textAlign: 'center',
     x: 0,
     y: 0,
@@ -159,7 +160,7 @@ function drawLineSeries(
   variant: CartesianVariant
 ): void {
   const { layout, bounds } = ctx;
-  const color = series.color ?? DASHBOARD.chartLine;
+  const color = series.color ?? getActiveDashboard().chartLine;
   const toXY = (i: number, v: number): [number, number] => [
     layout.plotX + (layout.plotWidth / Math.max(series.data.length - 1, 1)) * i,
     valueToY(v, layout, bounds),
@@ -215,7 +216,11 @@ function drawBarSeries(
   const n = series.data.length;
   const gap = 0.2;
   const bars: Node[] = [];
-  const color = series.color ?? DASHBOARD.barFill;
+  const fallback = series.color ?? getActiveDashboard().barFill;
+  const barFill = (val: number) =>
+    series.colorStops?.length
+      ? resolveValueColor(val, series.colorStops, fallback)
+      : fallback;
 
   if (horizontal) {
     const bw = bandWidth(n, layout.plotHeight, gap);
@@ -231,7 +236,7 @@ function drawBarSeries(
         y,
         width: Math.max(1, x1 - x0),
         height: bw,
-        fill: color,
+        fill: barFill(val),
         listening: false,
       });
       bars.push(bar);
@@ -249,7 +254,7 @@ function drawBarSeries(
         y: Math.min(yTop, yBase),
         width: bw,
         height: Math.max(1, Math.abs(yBase - yTop)),
-        fill: color,
+        fill: barFill(val),
         listening: false,
       });
       bars.push(bar);
@@ -281,7 +286,7 @@ function drawWaterfall(
         y: Math.min(y0, y1),
         width: bw,
         height: Math.max(1, Math.abs(y1 - y0)),
-        fill: delta >= 0 ? DASHBOARD.success : DASHBOARD.danger,
+        fill: delta >= 0 ? getActiveDashboard().success : getActiveDashboard().danger,
         listening: false,
       })
     );
@@ -294,7 +299,7 @@ function drawPareto(
   ctx: ReturnType<typeof buildChartContext>,
   data: number[]
 ): void {
-  drawBarSeries(app, group, ctx, { data, color: DASHBOARD.barFill }, false);
+  drawBarSeries(app, group, ctx, { data, color: getActiveDashboard().barFill }, false);
   const sorted = [...data];
   const total = sorted.reduce((a, b) => a + b, 0) || 1;
   const cum: number[] = [];
@@ -309,7 +314,7 @@ function drawPareto(
     app.polyline({
       points: pts,
       fill: null,
-      stroke: DASHBOARD.warning,
+      stroke: getActiveDashboard().warning,
       strokeWidth: 2,
       listening: false,
     })
@@ -323,16 +328,16 @@ function drawControlChart(
   data: number[],
   limits?: { mean: number; ucl: number; lcl: number }
 ): void {
-  drawLineSeries(app, group, ctx, { data, color: DASHBOARD.chartLine }, 'step');
+  drawLineSeries(app, group, ctx, { data, color: getActiveDashboard().chartLine }, 'step');
   if (!limits) {
     const mean = data.reduce((a, b) => a + b, 0) / (data.length || 1);
     const sd = Math.sqrt(data.reduce((a, b) => a + (b - mean) ** 2, 0) / (data.length || 1));
     limits = { mean, ucl: mean + 2 * sd, lcl: mean - 2 * sd };
   }
   for (const [val, label, color] of [
-    [limits.mean, 'μ', DASHBOARD.textMuted],
-    [limits.ucl, 'UCL', DASHBOARD.danger],
-    [limits.lcl, 'LCL', DASHBOARD.danger],
+    [limits.mean, 'μ', getActiveDashboard().textMuted],
+    [limits.ucl, 'UCL', getActiveDashboard().danger],
+    [limits.lcl, 'LCL', getActiveDashboard().danger],
   ] as const) {
     const y = valueToY(val, ctx.layout, ctx.bounds);
     group.add(
@@ -375,8 +380,8 @@ function drawPopulationPyramid(
     const lw = ((left[i] ?? 0) / max) * (ctx.layout.plotWidth / 2 - 4);
     const rw = ((right[i] ?? 0) / max) * (ctx.layout.plotWidth / 2 - 4);
     group.add(
-      app.rect({ x: cx - lw, y, width: lw, height: bh, fill: DASHBOARD.primary, listening: false }),
-      app.rect({ x: cx, y, width: rw, height: bh, fill: DASHBOARD.secondary, listening: false })
+      app.rect({ x: cx - lw, y, width: lw, height: bh, fill: getActiveDashboard().primary, listening: false }),
+      app.rect({ x: cx, y, width: rw, height: bh, fill: getActiveDashboard().secondary, listening: false })
     );
   }
   ctx.bounds.min = bounds.min;
@@ -396,8 +401,8 @@ function drawLollipop(
     const y = valueToY(val, layout, bounds);
     const y0 = layout.plotY + layout.plotHeight;
     group.add(
-      app.line({ x, y: y0, x2: 0, y2: y - y0, stroke: DASHBOARD.chartLine, strokeWidth: 2, listening: false }),
-      app.circle({ x: x - 4, y: y - 4, radius: 4, fill: DASHBOARD.chartDot, listening: false })
+      app.line({ x, y: y0, x2: 0, y2: y - y0, stroke: getActiveDashboard().chartLine, strokeWidth: 2, listening: false }),
+      app.circle({ x: x - 4, y: y - 4, radius: 4, fill: getActiveDashboard().chartDot, listening: false })
     );
   });
 }
@@ -414,7 +419,7 @@ function drawDotStrip(
     const jitter = strip ? ((i % 5) - 2) * 4 : (Math.sin(i * 12.9898) * 43758.5453 % 1) * 10 - 5;
     const x = layout.plotX + (layout.plotWidth / Math.max(data.length, 1)) * (i + 0.5) + jitter;
     const y = valueToY(val, layout, bounds);
-    group.add(app.circle({ x: x - 3, y: y - 3, radius: 3, fill: DASHBOARD.chartDot, listening: false }));
+    group.add(app.circle({ x: x - 3, y: y - 3, radius: 3, fill: getActiveDashboard().chartDot, listening: false }));
   });
 }
 
@@ -432,10 +437,10 @@ function drawErrorBars(
     const yLo = valueToY(lo, layout, bounds);
     const yHi = valueToY(hi, layout, bounds);
     group.add(
-      app.line({ x, y: yLo, x2: 0, y2: yHi - yLo, stroke: DASHBOARD.textMuted, strokeWidth: 1, listening: false }),
-      app.line({ x: x - 4, y: yLo, x2: 8, y2: 0, stroke: DASHBOARD.textMuted, strokeWidth: 1, listening: false }),
-      app.line({ x: x - 4, y: yHi, x2: 8, y2: 0, stroke: DASHBOARD.textMuted, strokeWidth: 1, listening: false }),
-      app.circle({ x: x - 3, y: valueToY(val, layout, bounds) - 3, radius: 3, fill: DASHBOARD.chartLine, listening: false })
+      app.line({ x, y: yLo, x2: 0, y2: yHi - yLo, stroke: getActiveDashboard().textMuted, strokeWidth: 1, listening: false }),
+      app.line({ x: x - 4, y: yLo, x2: 8, y2: 0, stroke: getActiveDashboard().textMuted, strokeWidth: 1, listening: false }),
+      app.line({ x: x - 4, y: yHi, x2: 8, y2: 0, stroke: getActiveDashboard().textMuted, strokeWidth: 1, listening: false }),
+      app.circle({ x: x - 3, y: valueToY(val, layout, bounds) - 3, radius: 3, fill: getActiveDashboard().chartLine, listening: false })
     );
   });
 }
@@ -462,11 +467,11 @@ function drawRangeBand(
     let d = `M ${all[0]} ${all[1]}`;
     for (let i = 2; i < all.length; i += 2) d += ` L ${all[i]} ${all[i + 1]}`;
     d += ' Z';
-    group.add(app.path({ d, fill: DASHBOARD.chartArea, stroke: null, listening: false }));
+    group.add(app.path({ d, fill: getActiveDashboard().chartArea, stroke: null, listening: false }));
   } else {
     group.add(
-      app.polyline({ points: ptsTop, fill: null, stroke: DASHBOARD.chartLine, strokeWidth: 1.5, listening: false }),
-      app.polyline({ points: ptsBot.reverse(), fill: null, stroke: DASHBOARD.chartLine, strokeWidth: 1.5, listening: false })
+      app.polyline({ points: ptsTop, fill: null, stroke: getActiveDashboard().chartLine, strokeWidth: 1.5, listening: false }),
+      app.polyline({ points: ptsBot.reverse(), fill: null, stroke: getActiveDashboard().chartLine, strokeWidth: 1.5, listening: false })
     );
   }
   drawLineSeries(app, group, ctx, series, 'line');
@@ -490,7 +495,7 @@ function drawHorizon(
     group.add(
       app.path({
         d: areaPathFromPoints(pts, layout.plotY + (b + 1) * bandH),
-        fill: series.color ?? DASHBOARD.series[b % DASHBOARD.series.length],
+        fill: series.color ?? getActiveDashboard().series[b % getActiveDashboard().series.length],
         opacity: 0.55,
         stroke: null,
         listening: false,
@@ -520,7 +525,7 @@ function drawHorizonRows(
         x: ctx.layout.plotX - 2,
         y: rowLayout.plotY + 2,
         fontSize: 9,
-        fill: DASHBOARD.textMuted,
+        fill: getActiveDashboard().textMuted,
         listening: false,
       })
     );
@@ -534,7 +539,8 @@ export function buildCartesianChart(
   options: CartesianBuildOptions
 ): void {
   const variant = options.variant;
-  let series = parseSeries(props);
+  const seriesHasUserColors = detectUserSeriesColors(props);
+  let series = parseSeries(props, [10, 30, 20, 50, 40, 60], { keepColors: seriesHasUserColors });
   const rawSeries = series.map((s) => ({
     name: s.name,
     data: [...s.data],
@@ -614,7 +620,7 @@ export function buildCartesianChart(
     addLegend(
       app,
       group,
-      series.map((s) => ({ label: s.name ?? 'Series', color: s.color ?? DASHBOARD.chartLine })),
+      series.map((s) => ({ label: s.name ?? 'Series', color: s.color ?? getActiveDashboard().chartLine })),
       ctx.layout.plotX,
       ctx.layout.plotY + ctx.layout.plotHeight + 4
     );
@@ -631,7 +637,7 @@ export function buildCartesianChart(
       if (stackedMulti) {
         const highlight = app.rect({
           fill: 'rgba(96,165,250,0.28)',
-          stroke: DASHBOARD.chartLine,
+          stroke: getActiveDashboard().chartLine,
           strokeWidth: 2,
           visible: false,
           listening: false,
@@ -640,8 +646,8 @@ export function buildCartesianChart(
           width: 52,
           height: 24,
           cornerRadius: 6,
-          fill: DASHBOARD.chartTooltipBg,
-          stroke: DASHBOARD.chartTooltipBorder,
+          fill: getActiveDashboard().chartTooltipBg,
+          stroke: getActiveDashboard().chartTooltipBorder,
           strokeWidth: 1,
           visible: false,
           listening: false,
@@ -650,7 +656,7 @@ export function buildCartesianChart(
           text: '',
           fontSize: 11,
           fontWeight: 'bold',
-          fill: DASHBOARD.text,
+          fill: getActiveDashboard().text,
           textAlign: 'center',
           x: 0,
           y: 0,
@@ -695,9 +701,9 @@ export function buildCartesianChart(
         );
       }
     } else {
-      const highlight = app.rect({ fill: 'rgba(96,165,250,0.28)', stroke: DASHBOARD.chartLine, strokeWidth: 2, visible: false, listening: false });
-      const tooltip = app.roundedRect({ width: 52, height: 24, cornerRadius: 6, fill: DASHBOARD.chartTooltipBg, stroke: DASHBOARD.chartTooltipBorder, strokeWidth: 1, visible: false, listening: false });
-      const tooltipLabel = app.text({ text: '', fontSize: 11, fontWeight: 'bold', fill: DASHBOARD.text, textAlign: 'center', x: 0, y: 0, listening: false });
+      const highlight = app.rect({ fill: 'rgba(96,165,250,0.28)', stroke: getActiveDashboard().chartLine, strokeWidth: 2, visible: false, listening: false });
+      const tooltip = app.roundedRect({ width: 52, height: 24, cornerRadius: 6, fill: getActiveDashboard().chartTooltipBg, stroke: getActiveDashboard().chartTooltipBorder, strokeWidth: 1, visible: false, listening: false });
+      const tooltipLabel = app.text({ text: '', fontSize: 11, fontWeight: 'bold', fill: getActiveDashboard().text, textAlign: 'center', x: 0, y: 0, listening: false });
       const hitArea = app.rect({ x: ctx.layout.plotX, y: ctx.layout.plotY, width: ctx.layout.plotWidth, height: ctx.layout.plotHeight, fill: 'rgba(0,0,0,0.001)', listening: true });
       group.add(highlight, tooltip, tooltipLabel, hitArea);
       if (props.interactive !== false) {
@@ -727,8 +733,13 @@ export function buildCartesianChart(
     width: ctx.width,
     height: ctx.height,
     data: primaryData,
-    series,
+    series: seriesForWidgetState(props, seriesHasUserColors) ?? [],
+    seriesHasUserColors,
     variant,
+    ...(Array.isArray(props.colorStops) ? { colorStops: props.colorStops } : {}),
+    ...(Array.isArray(props.thresholds) && !props.colorStops
+      ? { thresholds: props.thresholds }
+      : {}),
   });
 }
 

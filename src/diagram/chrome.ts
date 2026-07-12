@@ -1,6 +1,6 @@
 import type { App } from '../App';
 import type { Group } from '../shapes/Group';
-import { DIAGRAM } from './theme';
+import { DIAGRAM, getActiveDiagram } from './theme';
 
 export interface CardChromeOptions {
   width: number;
@@ -20,9 +20,9 @@ export function addTopSheen(
   app: App,
   parent: Group,
   width: number,
-  cornerRadius: number = DIAGRAM.radii.md
+  cornerRadius: number = getActiveDiagram().radii.md
 ): void {
-  if (cornerRadius >= DIAGRAM.radii.pill) return;
+  if (cornerRadius >= getActiveDiagram().radii.pill) return;
   const inset = Math.min(10, cornerRadius + 2);
   parent.add(
     app.line({
@@ -30,7 +30,7 @@ export function addTopSheen(
       y: 1,
       x2: width - inset,
       y2: 1,
-      stroke: DIAGRAM.sheen,
+      stroke: getActiveDiagram().sheen,
       strokeWidth: 1,
       lineCap: 'round',
       listening: false,
@@ -82,8 +82,8 @@ export function addLeftStripe(
 
 /** Shared card body: rounded rect, optional accent, top sheen. */
 export function addCardChrome(app: App, parent: Group, opts: CardChromeOptions): void {
-  const radius = opts.cornerRadius ?? DIAGRAM.radii.md;
-  const strokeWidth = opts.strokeWidth ?? DIAGRAM.stroke.node;
+  const radius = opts.cornerRadius ?? getActiveDiagram().radii.md;
+  const strokeWidth = opts.strokeWidth ?? getActiveDiagram().stroke.node;
 
   parent.add(
     app.roundedRect({
@@ -93,8 +93,8 @@ export function addCardChrome(app: App, parent: Group, opts: CardChromeOptions):
       fill: opts.fill,
       stroke: opts.stroke,
       strokeWidth,
-      ...(opts.shadow !== null && (opts.shadow ?? DIAGRAM.shadowSoft)
-        ? { shadow: opts.shadow ?? DIAGRAM.shadowSoft }
+      ...(opts.shadow !== null && (opts.shadow ?? getActiveDiagram().shadowSoft)
+        ? { shadow: opts.shadow ?? getActiveDiagram().shadowSoft }
         : {}),
       listening: false,
     })
@@ -115,9 +115,9 @@ export function addCaptionPill(
   textWidth: number,
   x: number,
   y: number,
-  accent: string = DIAGRAM.labelPillStroke
+  accent: string = getActiveDiagram().labelPillStroke
 ): void {
-  const fontSize = DIAGRAM.fontSize.sm;
+  const fontSize = getActiveDiagram().fontSize.sm;
   const padX = 6;
   const pw = Math.max(textWidth + padX * 2, 24);
   const ph = fontSize + 6;
@@ -127,10 +127,10 @@ export function addCaptionPill(
       y: y - 2,
       width: pw,
       height: ph,
-      cornerRadius: DIAGRAM.radii.sm,
-      fill: DIAGRAM.labelPillFill,
+      cornerRadius: getActiveDiagram().radii.sm,
+      fill: getActiveDiagram().labelPillFill,
       stroke: accent,
-      strokeWidth: DIAGRAM.stroke.label,
+      strokeWidth: getActiveDiagram().stroke.label,
       opacity: 0.92,
       listening: false,
     })
@@ -146,7 +146,7 @@ export function addEmphasisRing(
   color: string,
   cornerRadius?: number
 ): void {
-  const radius = cornerRadius ?? DIAGRAM.radii.md;
+  const radius = cornerRadius ?? getActiveDiagram().radii.md;
   parent.add(
     app.roundedRect({
       x: -3,

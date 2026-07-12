@@ -49,7 +49,7 @@ describe('Coverage v0.9 — HTML native components (95% gate)', () => {
     const container = createTestContainer(900, 1200);
     const app = createTestApp(container, {
       renderer: 'html',
-      uiTheme: { preset: 'violet', mode: 'dark' },
+      uiTheme: { preset: 'darkViolet' },
     });
 
     const btn = createComponentFromJSON(

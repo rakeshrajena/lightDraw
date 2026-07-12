@@ -1,7 +1,7 @@
 import type { App } from '../App';
 import type { Group } from '../shapes/Group';
 import type { Node } from '../Node';
-import { registry } from './registryCore';
+import { registry, runFactory } from './registryCore';
 import { getState, num, setState } from './helpers';
 import { resolveBounds } from './layout';
 
@@ -27,8 +27,8 @@ export function installAutoWidgetRebuild(group: Group, app: App, autoType?: stri
     const factory = registry[type];
     if (!factory) return;
 
-    const props = { ...getState(group), x: group.x, y: group.y };
-    const fresh = factory(props, app);
+    const props = { ...getState(group), x: group.x, y: group.y } as Record<string, unknown>;
+    const fresh = runFactory(factory, props, app);
     if (!fresh || !isAutoGroup(fresh)) return;
 
     for (const child of [...group.children]) {
@@ -45,7 +45,12 @@ export function installAutoWidgetRebuild(group: Group, app: App, autoType?: stri
     group.metadata.textRefresh = fresh.metadata.textRefresh;
     group.metadata.linesRefresh = fresh.metadata.linesRefresh;
     group.metadata._digitalParts = fresh.metadata._digitalParts;
-    group.metadata.autoState = fresh.metadata.autoState;
+    group.metadata.autoState = {
+      ...(fresh.metadata.autoState as Record<string, unknown>),
+      ...(props.fontSize != null ? { fontSize: props.fontSize } : {}),
+      ...(props.demoId != null ? { demoId: props.demoId } : {}),
+      ...(props.theme != null ? { theme: props.theme } : {}),
+    };
 
     const w = num(props, 'width', 0);
     const h = num(props, 'height', 0);
@@ -111,4 +116,18 @@ export function updateAutoWidgetProps(group: Node, patch: Record<string, unknown
   if (w > 0 && h > 0) {
     syncAutoAppViewport(group, w, h);
   }
+}
+
+/** Rebuild automotive widgets after app typography / theme sync. */
+export function refreshAutomotive(root: Node): void {
+  const walk = (n: Node) => {
+    if (typeof n.metadata?.autoType === 'string') {
+      const rebuild = n.metadata.autoRebuild as (() => void) | undefined;
+      rebuild?.();
+    }
+    if ('children' in n) {
+      for (const child of (n as Group).children) walk(child);
+    }
+  };
+  walk(root);
 }

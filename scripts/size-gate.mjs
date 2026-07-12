@@ -13,19 +13,19 @@ import { gzipSync } from 'zlib';
 /**
  * Gzip limits in bytes (v1.0.0 measured baselines + headroom).
  *
- * Measured after UI polish program UI-0…UI-10 (2026-07):
- *   core 25.9 KB | svg 10.0 KB | html 18.4 KB | ui 11.1 KB
- *   dashboard 32.2 KB | automotive 29.1 KB | diagram 15.4 KB | full 100.7 KB
+ * Measured after theme system + live playground (2026-07):
+ *   core 38.7 KB | svg 12.6 KB | html 20.1 KB | ui 16.0 KB
+ *   dashboard 38.0 KB | automotive 30.8 KB | diagram 20.1 KB | full 115.6 KB
  */
 const TARGETS = {
-  'lightdraw.core.min.js': 26 * 1024,
-  'lightdraw.svg.min.js': 11 * 1024,
-  'lightdraw.html.min.js': 19 * 1024,
-  'lightdraw.ui.min.js': 12 * 1024,
-  'lightdraw.dashboard.min.js': 34 * 1024,
-  'lightdraw.automotive.min.js': 31 * 1024,
-  'lightdraw.diagram.min.js': 17 * 1024,
-  'lightdraw.min.js': 105 * 1024,
+  'lightdraw.core.min.js': 40 * 1024,
+  'lightdraw.svg.min.js': 13 * 1024,
+  'lightdraw.html.min.js': 21 * 1024,
+  'lightdraw.ui.min.js': 17 * 1024,
+  'lightdraw.dashboard.min.js': 39 * 1024,
+  'lightdraw.automotive.min.js': 32 * 1024,
+  'lightdraw.diagram.min.js': 21 * 1024,
+  'lightdraw.min.js': 118 * 1024,
 };
 
 const LEGACY_BUNDLES = [

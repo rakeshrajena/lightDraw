@@ -60,9 +60,9 @@ Building **interactive 2D graphics** in the browser usually means stacking tools
 | Benefit | What it means for you |
 |---------|------------------------|
 | **Zero runtime deps** | No `npm install react chart.js d3`. Smaller attack surface, simpler audits. |
-| **Pay for what you load** | `lightdraw/core` ~26 KB gzip; add `dashboard`, `automotive`, or `diagram` plugins only if needed. |
+| **Pay for what you load** | `lightdraw/core` ~39 KB gzip; add `dashboard`, `automotive`, or `diagram` plugins only if needed. |
 | **Ship faster** | `loadJSON(scene)` for whole dashboards; `app.setUiTheme({ preset: 'dark' })` — no custom CSS required. |
-| **AI-ready** | Schema docs + `validateSceneJSON` — LLM output becomes a live UI in one call. |
+| **AI-ready** | Schema docs + `validateSceneJSON` / `parseAndValidateSceneJSON` with path + expected-value hints — LLM output becomes a live UI in one call. |
 | **Embed anywhere** | CDN script tag, npm ESM, or ES5 UMD in Android WebView / Qt WebEngine. |
 | **Export & audit** | PNG, SVG, PDF, JSON, offline HTML from the same scene. |
 | **Production tested** | 1 600+ tests, size gates, benchmark regression, visual smoke on demos. |
@@ -138,7 +138,7 @@ if (!valid) return showErrors(errors);
 
 app.clear();
 app.loadJSON(scene);
-app.setUiTheme({ preset: 'slate', mode: 'dark' });
+app.setUiTheme({ preset: 'dark' });
 ```
 
 **Where:** Internal tools, copilot builders, config-driven SCADA screens.  
@@ -219,7 +219,7 @@ const app = LightDraw.createApp('#app', { renderer: 'html' });
 | Import path | Use case |
 |-------------|----------|
 | `lightdraw` | Everything in one bundle |
-| `lightdraw/core` | Shapes + canvas only (~26 KB gzip) |
+| `lightdraw/core` | Shapes + canvas only (~39 KB gzip) |
 | `lightdraw/dashboard` | Charts & gauges |
 | `lightdraw/automotive` | Cluster & vehicle widgets |
 | `lightdraw/diagram` | Flowchart, network, UML |
@@ -318,7 +318,7 @@ Honest positioning — pick the right tool for the job.
 ## AI & LLM integration
 
 ```
-User prompt → LLM + schema docs → scene JSON → validateSceneJSON → loadJSON → live UI
+User prompt → LLM + schema docs → scene JSON → parseAndValidateSceneJSON → loadJSON → live UI
 ```
 
 ```html
@@ -332,7 +332,10 @@ User prompt → LLM + schema docs → scene JSON → validateSceneJSON → loadJ
     { type: 'lineChart', props: { data: [22,35,28,48,41,55], x: 32, y: 56, width: 380, height: 140 } },
     { type: 'button', props: { label: 'Acknowledge', variant: 'primary', x: 480, y: 200 } },
   ]};
-  if (LightDraw.validateSceneJSON(scene).valid) app.loadJSON(scene);
+  const check = LightDraw.validateSceneJSON(scene);
+  if (check.valid) app.loadJSON(scene);
+  else console.error(check.errors.join('\n'));
+  // Invalid enums report expected values, e.g. variant "primry" → did you mean "primary"?
 </script>
 ```
 
@@ -352,7 +355,9 @@ Full guide: [ai-integration-guide.md](https://github.com/rakeshrajena/lightDraw/
 | Demo | Link |
 |------|------|
 | **Live playground** | [rakeshrajena.github.io/lightDraw](https://rakeshrajena.github.io/lightDraw/) |
-| Local dev | `npm run dev:website` → http://localhost:5173 |
+| **Help center** | [rakeshrajena.github.io/lightDraw/help.html](https://rakeshrajena.github.io/lightDraw/help.html) |
+| Local dev | `npm run build && npm run prepare:website && npm run dev:website` → http://localhost:5173 |
+| Theme lab (Scene / Theme / API) | [demo-theme.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-theme.html) |
 | Dashboard + 82 charts | [demo-dashboard.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-dashboard.html) |
 | UI + themes | [demo-ui.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-ui.html) |
 | UI variant catalog (AI) | [demo-ui-catalog.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-ui-catalog.html) |
@@ -360,6 +365,9 @@ Full guide: [ai-integration-guide.md](https://github.com/rakeshrajena/lightDraw/
 | Automotive cluster | [demo-automotive.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-automotive.html) |
 | Export PNG/PDF/SVG | [demo-export.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-export.html) |
 | Accessibility | [demo-a11y.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-a11y.html) |
+| Conditional colors | [demo-color-stops.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-color-stops.html) |
+
+Playground notes: **Night** site chrome by default; each demo mounts a live **Scene JSON · Theme JSON · API** dock with validation messages (line/column + expected values).
 
 ---
 
@@ -371,6 +379,7 @@ Full guide: [ai-integration-guide.md](https://github.com/rakeshrajena/lightDraw/
 | Performance & benchmarks | [performance-guide.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/performance-guide.md) |
 | AI integration | [ai-integration-guide.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/ai-integration-guide.md) |
 | UI themes | [ui-theme-guide.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/ui-theme-guide.md) |
+| Theme architecture | [theme-architecture.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/theme-architecture.md) |
 | v1.0 release notes | [v1-release-notes.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/v1-release-notes.md) |
 | All docs | [docs/README.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/README.md) |
 

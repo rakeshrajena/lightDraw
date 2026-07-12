@@ -13,6 +13,77 @@ No stylesheet edits required — buttons, inputs, cards, and overlays use the bu
 
 ## Programmatic themes
 
+### Theme pack (recommended)
+
+One JSON/JS object themes UI, charts, and diagrams:
+
+```javascript
+app.applyTheme({
+  preset: 'dark',
+  primary: '#0ea5e9',
+  series: ['#0ea5e9', '#f43f5e', '#22c55e', '#f59e0b'],
+  dashboard: { chartGrid: '#1e293b' },
+  diagram: { nodeStroke: '#38bdf8' },
+});
+```
+
+Or embed in scene JSON — `loadJSON` applies `theme` before mounting children:
+
+```json
+{
+  "theme": { "preset": "darkViolet" },
+  "type": "group",
+  "children": [{ "type": "button", "props": { "label": "Save" } }]
+}
+```
+
+Each **preset** can be:
+- a **built-in pack** (`dark`, `violet`, `rose`, …) — full surfaces + text + primary
+- any **CSS color** (`pink`, `#f472b6`, `rgba(...)`) — sets brand primary
+- an **image file path** (absolute or relative, with image extension) — sets stage background
+
+```javascript
+app.applyTheme({ preset: 'dark' });
+app.applyTheme({ preset: 'pink' });
+app.applyTheme({ preset: '#f472b6' });
+app.applyTheme({ preset: './assets/bg.png' });
+app.applyTheme({ preset: '/images/hero.jpg' });
+app.applyTheme({
+  preset: 'https://example.com/bg.jpg',
+  primary: 'pink',
+  text: '#f1f5f9',
+  textMuted: '#94a3b8',
+  fontSize: '12px',
+  fontSizeSm: '10px',
+});
+app.applyTheme({ preset: 'dark', primary: 'rgba(244, 114, 182, 1)' });
+```
+
+Image presets also load dark chrome (surfaces + light text) so charts stay readable over photos. Override with `text` / `fontSize` as needed.
+
+### Typography (`fontSize`)
+
+`fontSize` / `fontSizeSm` / `fontSizeLg` apply across modules from one pack:
+
+| Module | Effect |
+|--------|--------|
+| **HTML UI** | CSS `--ld-font-size*` on `.lightdraw-html-root` |
+| **Canvas UI** | Buttons, inputs, **labels**, etc. |
+| **Dashboard** | Chart axis / legend sizes |
+| **Diagram** | Scales `xs`…`xl` from base (default 12px) |
+| **Automotive** | Scales fluid label sizes (`fontSize` / 14); **colors** stay `classic` / `sport` / `digital` |
+
+```javascript
+app.applyTheme({
+  fontSize: '16px',
+  fontSizeSm: '12px',
+  fontSizeLg: '18px',
+  // optional per-module overrides:
+  diagram: { fontSize: { sm: 9, base: 11 } },
+  dashboard: { fontSize: 11, fontSizeSm: 9 },
+});
+```
+
 ### Named presets
 
 ```javascript
@@ -23,21 +94,19 @@ const app = LightDraw.createApp('#app', {
 
 // Switch at runtime
 app.setUiTheme({ preset: 'dark' });
-app.setUiTheme({ preset: 'emerald', mode: 'light' });
+app.setUiTheme({ preset: 'emerald' });
 ```
 
 | Preset | Description |
 |--------|-------------|
-| `default` | Light mode — CSS file defaults |
-| `dark` | Full dark palette, blue primary |
-| `violet` | Purple accent |
-| `emerald` | Green accent |
-| `slate` | Neutral corporate accent |
-| `ocean` | Sky-blue accent |
-| `rose` | Rose / marketing accent |
-| `darkViolet` | Dark mode with violet accent |
-
-Presets set brand colors and optional `mode`. Surface, border, and text tokens come from `lightdraw.css` unless overridden.
+| `default` | Full light pack |
+| `dark` | Full dark pack, blue primary |
+| `violet` | Light pack + purple accent |
+| `emerald` | Light pack + green accent |
+| `slate` | Light pack + slate accent |
+| `ocean` | Light pack + sky accent |
+| `rose` | Light pack + rose accent |
+| `darkViolet` | Full dark pack + violet accent |
 
 ### Token overrides
 
@@ -59,7 +128,6 @@ app.setUiTheme({
   primary: '#7c3aed',
   primaryHover: '#6d28d9',
   surface: '#fafafa',
-  mode: 'light',
 });
 ```
 
@@ -70,7 +138,7 @@ import { UI_PRESETS } from 'lightdraw';
 
 LightDraw.createApp('#app', {
   renderer: 'html',
-  uiTheme: { ...UI_PRESETS.rose, mode: 'dark' },
+  uiTheme: { ...UI_PRESETS.darkViolet },
 });
 ```
 
@@ -86,15 +154,17 @@ For apps that already load `lightdraw.min.css`, you can override tokens on the r
 }
 ```
 
-Or target dark mode:
+Or override CSS variables on the root:
 
 ```css
-.lightdraw-html-root[data-ld-theme='dark'] {
-  --ld-surface: #0f172a;
+.lightdraw-html-root {
+  --ld-primary: #7c3aed;
+  --ld-radius: 10px;
+  --ld-space-md: 20px;
 }
 ```
 
-**Step 3 is never required** for a polished result — use `uiTheme` when possible so canvas and HTML stay in sync.
+Prefer `uiTheme` / `applyTheme` with a preset (`dark`, `violet`, …) so canvas and HTML stay in sync.
 
 ## Token reference
 
@@ -136,6 +206,8 @@ Use `UI_THEME_VAR_MAP` in TypeScript for the full key → variable mapping.
 
 Canvas-drawn UI components read from `src/components/theme.ts` (`UI` object), aligned with the same hex values as `lightdraw.css`. HTML renderer uses CSS variables; canvas uses the `UI` constants directly.
 
+**Color formats:** theme tokens accept `#rgb` / `#rrggbb` / `#rrggbbaa`, `rgb()` / `rgba()`, `hsl()` / `hsla()` (comma or space syntax), and common named colors. Soft fills (chart area, glows, primary shadow) are derived from any of these via `colorWithAlpha`.
+
 ## JSON round-trip
 
 Components and themes survive export → import:
@@ -167,8 +239,90 @@ app.setHighContrast(true);
 
 Adds `lightdraw-high-contrast` and `data-ld-high-contrast="true"` on the HTML root and adjusts canvas stroke/fill for accessibility. CSS token overrides widen borders and use yellow focus rings.
 
+## Canvas UI parity (Phase 2)
+
+Canvas controls read `getActiveUi()` / `resolveUiCanvasTheme(app.getResolvedTheme())`.
+On `setUiTheme`, LightDraw:
+
+1. Syncs the active canvas palette
+2. Applies HTML CSS vars (HTML renderer)
+3. Calls `refreshCanvasUi(stage)` to update button/slider/toggle/… part colors
+4. Emits `themechange` and re-renders
+
+Custom `fill` on buttons (`hasCustomFill`) is preserved across theme changes.
+
+## Dashboard theme (Phase 3)
+
+Dashboard gauges and charts read `getActiveDashboard()` (from `resolveDashboardTheme(app.getResolvedTheme())`).
+
+Gauges, meters, batteries, thermometers, and bar charts also support **value-based colors** via `colorStops` (and dial `colorZones`). See [dashboard-widgets-schema.md](./dashboard-widgets-schema.md#conditional-colors-colorstops--colorzones).
+On `setUiTheme`, widgets with `chartRebuild` are rebuilt so needles, series colors, and chart strokes pick up the new primary/surface tokens.
+
+## Diagram theme (Phase 4)
+
+Diagrams read `getActiveDiagram()` (from `resolveDiagramTheme`).
+On `setUiTheme`, diagram roots with `diagramRebuild` recreate nodes/edges with the new stroke/edge palette.
+
+## Automotive presets (Phase 5)
+
+Automotive widgets use `props.theme`: `classic` | `sport` | `digital`.
+They are **not** retinted by `setUiTheme`. Switch with:
+
+```javascript
+updateAutoWidgetProps(cluster, { theme: 'sport' });
+```
+
+## Per-node uiTheme (Phase 6)
+
+```javascript
+{ type: 'gauge', props: { value: 72, uiTheme: 'violet' } }
+{ type: 'button', props: { label: 'OK', uiTheme: { primary: '#e11d48' } } }
+```
+
+### Typography cascade (text + fontSize)
+
+Priority:
+
+1. Flat component props: `textColor` / `color`, `fontSize`, `textMuted`
+2. Node `uiTheme: { text, fontSize, … }`
+3. App `setUiTheme` / `applyTheme`
+4. Module defaults
+
+```javascript
+// Sticky on this gauge only — survives later global fontSize/text changes
+{ type: 'gauge', props: { value: 40, textColor: '#fbbf24', fontSize: 18 } }
+
+// Via uiTheme tokens
+{ type: 'label', props: { text: 'Hi', uiTheme: { text: '#94a3b8', fontSize: '12px' } } }
+```
+
+Node override wins over app theme. See [theme-architecture.md](./theme-architecture.md).
+
+## App theme getters (Phase 1)
+
+```javascript
+app.getUiTheme();        // stored input (may include preset)
+app.getResolvedTheme();  // flat tokens after resolve
+
+app.on('themechange', (e) => {
+  // e.payload = { config, resolved }
+});
+
+// Merge (default) — omitted keys stick
+app.setUiTheme({ primary: '#ff00aa' });
+
+// Clean preset switch — drop sticky overrides
+app.setUiTheme({ preset: 'ocean' }, { replace: true });
+app.clearUiTheme();
+```
+
+Library-wide contract (all modules): [theme-architecture.md](./theme-architecture.md).
+
+Live demo: [`examples/demo-theme.html`](../examples/demo-theme.html) — live playground with Scene JSON (root `theme`), API code, presets, and automotive independence.
+
 ## Related
 
+- [Theme architecture](./theme-architecture.md)
 - [UI components schema](./ui-components-schema.md)
 - [Responsive layout guide](./responsive-guide.md)
 - [Legacy UI & CSS guide](./legacy-ui-guide.md)

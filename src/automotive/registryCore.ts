@@ -4,6 +4,10 @@ import type { Group } from '../shapes/Group';
 import { getState, num, setState } from './helpers';
 import { resolveBounds } from './layout';
 import { installAutoWidgetRebuild } from './refresh';
+import {
+  automotiveFontScaleFromProps,
+  runWithAutomotiveFontScale,
+} from './themes';
 
 type AutomotiveFactory = (props: Record<string, unknown>, app: App) => Node;
 
@@ -17,6 +21,16 @@ function isAutoGroup(node: Node): node is Group {
   return 'children' in node && typeof node.metadata?.autoType === 'string';
 }
 
+function runFactory(
+  factory: AutomotiveFactory,
+  props: Record<string, unknown>,
+  app: App
+): Node {
+  const scale = automotiveFontScaleFromProps(props);
+  if (scale == null) return factory(props, app);
+  return runWithAutomotiveFontScale(scale, () => factory(props, app));
+}
+
 export function createAutomotiveFromJSON(
   type: string,
   props: Record<string, unknown>,
@@ -24,7 +38,7 @@ export function createAutomotiveFromJSON(
 ): Node | null {
   const factory = registry[type];
   if (!factory) return null;
-  const node = factory(props, app);
+  const node = runFactory(factory, props, app);
   if (node && isAutoGroup(node)) {
     const state = getState(node);
     const bounds = resolveBounds(
@@ -39,9 +53,15 @@ export function createAutomotiveFromJSON(
       node.metadata.chartHeight = bounds.height;
       node.metadata.autoHeight = bounds.height;
     }
+    // Preserve component fontSize across rebuilds
+    if (props.fontSize != null) setState(node, { fontSize: props.fontSize });
+    if (props.demoId != null) {
+      setState(node, { demoId: props.demoId });
+      node.metadata.demoId = props.demoId;
+    }
     installAutoWidgetRebuild(node, app, type);
   }
   return node;
 }
 
-export { registry };
+export { registry, runFactory };

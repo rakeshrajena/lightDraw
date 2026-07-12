@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LightDraw — Conditional Colors</title>
+  <script src="demo-embed.js"></script>
+  <link rel="stylesheet" href="demo-common.css">
+  <link rel="stylesheet" href="../dist/lightdraw.min.css">
+  <style>
+    .stops-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.65rem 1.25rem;
+      align-items: center;
+      margin-bottom: 0.75rem;
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+    }
+    .stops-legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .stops-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      flex-shrink: 0;
+    }
+    .stops-code {
+      margin: 0;
+      padding: 0.75rem 0.9rem;
+      border-radius: 8px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      font-size: 0.72rem;
+      line-height: 1.45;
+      overflow-x: auto;
+      color: #93c5fd;
+      white-space: pre;
+    }
+    html.demo-embed .stops-legend {
+      margin: 0.5rem 0.75rem 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="demo-shell">
+    <header class="demo-header">
+      <span class="demo-badge">Dashboard</span>
+      <h1>Conditional colors</h1>
+      <p>
+        <code>colorStops</code> tint needles, fills, and bars by value.
+        Dial <code>colorZones</code> paint static arc bands. Semantic tokens follow the theme.
+      </p>
+    </header>
+    <main class="demo-main demo-layout-aside">
+      <div>
+        <div class="demo-toolbar">
+          <button type="button" class="demo-btn" id="btn-sweep">Sweep values</button>
+          <button type="button" class="demo-btn secondary" id="btn-live">Live pulse</button>
+          <button type="button" class="demo-btn secondary" id="btn-reset">Reset</button>
+        </div>
+        <div class="stops-legend" aria-hidden="true">
+          <span><i class="stops-dot" style="background:#22c55e"></i> success ≤ 40</span>
+          <span><i class="stops-dot" style="background:#f59e0b"></i> warning ≤ 75</span>
+          <span><i class="stops-dot" style="background:#ef4444"></i> danger &gt; 75</span>
+        </div>
+        <div class="demo-canvas-wrap">
+          <div id="app"></div>
+        </div>
+      </div>
+      <aside class="demo-aside-panel">
+        <p>Same stop list drives every widget below. Change a value and the color follows.</p>
+        <pre class="stops-code" id="stops-snippet"></pre>
+        <p class="demo-aside-hint">Aliases: <code>thresholds</code> → colorStops, <code>zones</code> → colorZones</p>
+      </aside>
+    </main>
+  </div>
+  <script src="../dist/lightdraw.min.js"></script>
+  <script src="demo-live-playground.js"></script>
+  <script>
+    const STOPS = [
+      { upTo: 40, color: 'success' },
+      { upTo: 75, color: 'warning' },
+      { color: 'danger' },
+    ];
+    const ZONES = [
+      { from: 0, to: 0.4, color: 'success' },
+      { from: 0.4, to: 0.75, color: 'warning' },
+      { from: 0.75, to: 1, color: 'danger' },
+    ];
+    const SPEEDO_STOPS = [
+      { upTo: 100, color: 'success' },
+      { upTo: 140, color: 'warning' },
+      { color: 'danger' },
+    ];
+    const SPEEDO_ZONES = [
+      { from: 0, to: 0.55, color: 'success' },
+      { from: 0.55, to: 0.78, color: 'warning' },
+      { from: 0.78, to: 1, color: 'danger' },
+    ];
+    const BAR_STOPS = [
+      { upTo: 30, color: 'success' },
+      { upTo: 60, color: 'warning' },
+      { color: 'danger' },
+    ];
+
+    const INITIAL = {
+      gauge: 68,
+      speedo: 118,
+      meter: 55,
+      thermo: 42,
+      battery: 78,
+      bars: [18, 42, 68, 88, 35],
+    };
+
+    document.getElementById('stops-snippet').textContent =
+      'colorStops: [\n' +
+      "  { upTo: 40, color: 'success' },\n" +
+      "  { upTo: 75, color: 'warning' },\n" +
+      "  { color: 'danger' },\n" +
+      ']';
+
+    const W = 920;
+    const H = 480;
+    let app;
+    let lastAuthorScene = null;
+    let nodes = {};
+    let liveTimer = null;
+    let t0 = 0;
+
+    function panel(x, y, w, h) {
+      return {
+        type: 'roundedRect',
+        props: {
+          x, y, width: w, height: h, cornerRadius: 12,
+          fill: '#151d2e', stroke: '#2a3654', strokeWidth: 1, listening: false,
+        },
+      };
+    }
+
+    function label(text, x, y) {
+      return {
+        type: 'text',
+        props: {
+          text, x, y, fontSize: 11, fontWeight: '600',
+          fill: '#8b9cc0', listening: false,
+        },
+      };
+    }
+
+    function buildScene(values) {
+      const v = { ...INITIAL, ...values };
+      const children = [
+        panel(16, 16, 200, 200),
+        label('GAUGE', 28, 28),
+        {
+          type: 'gauge',
+          props: {
+            id: 'demo-gauge',
+            value: v.gauge,
+            max: 100,
+            size: 140,
+            x: 46,
+            y: 48,
+            colorStops: STOPS,
+            colorZones: ZONES,
+          },
+        },
+
+        panel(232, 16, 220, 200),
+        label('SPEEDOMETER', 244, 28),
+        {
+          type: 'speedometer',
+          props: {
+            id: 'demo-speedo',
+            value: v.speedo,
+            max: 180,
+            size: 150,
+            unit: 'km/h',
+            x: 267,
+            y: 42,
+            colorStops: SPEEDO_STOPS,
+            colorZones: SPEEDO_ZONES,
+          },
+        },
+
+        panel(468, 16, 210, 200),
+        label('METER · THERMO · BATTERY', 480, 28),
+        {
+          type: 'meter',
+          props: {
+            id: 'demo-meter',
+            value: v.meter,
+            width: 170,
+            height: 22,
+            x: 488,
+            y: 64,
+            colorStops: STOPS,
+          },
+        },
+        {
+          type: 'thermometer',
+          props: {
+            id: 'demo-thermo',
+            value: v.thermo,
+            height: 110,
+            width: 22,
+            x: 508,
+            y: 100,
+            colorStops: STOPS,
+          },
+        },
+        {
+          type: 'battery',
+          props: {
+            id: 'demo-battery',
+            value: v.battery,
+            scale: 1.6,
+            x: 580,
+            y: 140,
+            colorStops: [
+              { upTo: 20, color: 'danger' },
+              { upTo: 50, color: 'warning' },
+              { color: 'success' },
+            ],
+          },
+        },
+
+        panel(694, 16, 210, 200),
+        label('THRESHOLDS', 706, 28),
+        {
+          type: 'meter',
+          props: {
+            id: 'demo-meter-low',
+            value: 28,
+            width: 170,
+            height: 18,
+            x: 714,
+            y: 64,
+            colorStops: STOPS,
+          },
+        },
+        {
+          type: 'meter',
+          props: {
+            id: 'demo-meter-mid',
+            value: 58,
+            width: 170,
+            height: 18,
+            x: 714,
+            y: 100,
+            colorStops: STOPS,
+          },
+        },
+        {
+          type: 'meter',
+          props: {
+            id: 'demo-meter-high',
+            value: 88,
+            width: 170,
+            height: 18,
+            x: 714,
+            y: 136,
+            colorStops: STOPS,
+          },
+        },
+        {
+          type: 'text',
+          props: {
+            text: '28 · 58 · 88',
+            x: 714,
+            y: 172,
+            fontSize: 12,
+            fill: '#8b9cc0',
+            listening: false,
+          },
+        },
+
+        panel(16, 232, 888, 232),
+        label('BAR CHART — each bar fill follows its value', 28, 244),
+        {
+          type: 'barChart',
+          props: {
+            id: 'demo-bars',
+            data: v.bars,
+            width: 860,
+            height: 180,
+            x: 30,
+            y: 268,
+            title: '',
+            showLegend: false,
+            categories: ['A', 'B', 'C', 'D', 'E'],
+            colorStops: BAR_STOPS,
+          },
+        },
+      ];
+
+      app.loadJSON({ type: 'group', props: { x: 0, y: 0 }, children });
+      lastAuthorScene = { type: 'group', props: { x: 0, y: 0 }, children };
+
+      nodes = {
+        gauge: findById('demo-gauge'),
+        speedo: findById('demo-speedo'),
+        meter: findById('demo-meter'),
+        thermo: findById('demo-thermo'),
+        battery: findById('demo-battery'),
+        bars: findById('demo-bars'),
+      };
+      if (window.LivePlayground) LivePlayground.syncScene(true);
+    }
+
+    function findById(id) {
+      const walk = (n) => {
+        if (n.id === id) return n;
+        if (n.children) {
+          for (const c of n.children) {
+            const hit = walk(c);
+            if (hit) return hit;
+          }
+        }
+        return null;
+      };
+      return walk(app.stage);
+    }
+
+    function clamp(v, min, max) {
+      return Math.min(max, Math.max(min, v));
+    }
+
+    function setValues(next, animate = true) {
+      const dur = animate ? 500 : 0;
+      const go = (node, key, value, d = dur) => {
+        if (!node) return;
+        if (d > 0 && LightDraw.animateLiveValue) {
+          LightDraw.animateLiveValue(node, key, value, d);
+        } else if (LightDraw.setLiveValue) {
+          LightDraw.setLiveValue(node, key, value);
+        }
+      };
+      go(nodes.gauge, 'value', clamp(next.gauge, 0, 100));
+      go(nodes.speedo, 'value', clamp(next.speedo, 0, 180));
+      go(nodes.meter, 'value', clamp(next.meter, 0, 100));
+      go(nodes.thermo, 'value', clamp(next.thermo, 0, 100));
+      go(nodes.battery, 'value', clamp(next.battery, 0, 100));
+      if (nodes.bars && LightDraw.updateChartProps) {
+        LightDraw.updateChartProps(nodes.bars, {
+          data: next.bars.map((n) => clamp(n, 0, 100)),
+          colorStops: BAR_STOPS,
+        });
+      }
+    }
+
+    function randomSweep() {
+      setValues({
+        gauge: 10 + Math.random() * 90,
+        speedo: 40 + Math.random() * 140,
+        meter: 10 + Math.random() * 90,
+        thermo: 10 + Math.random() * 90,
+        battery: 8 + Math.random() * 92,
+        bars: Array.from({ length: 5 }, () => 12 + Math.random() * 88),
+      });
+    }
+
+    function pulseFrame() {
+      t0 += 0.04;
+      const wave = (phase, min, max) => {
+        const n = (Math.sin(t0 + phase) + 1) / 2;
+        return min + n * (max - min);
+      };
+      setValues(
+        {
+          gauge: wave(0, 15, 95),
+          speedo: wave(0.7, 50, 170),
+          meter: wave(1.2, 18, 92),
+          thermo: wave(1.8, 20, 90),
+          battery: wave(2.4, 12, 95),
+          bars: [0, 1, 2, 3, 4].map((i) => wave(i * 0.55, 15, 95)),
+        },
+        false
+      );
+    }
+
+    function stopLive() {
+      if (liveTimer) {
+        clearInterval(liveTimer);
+        liveTimer = null;
+      }
+      const btn = document.getElementById('btn-live');
+      btn.classList.remove('is-active');
+      btn.textContent = 'Live pulse';
+    }
+
+    function startLive() {
+      stopLive();
+      t0 = 0;
+      liveTimer = setInterval(pulseFrame, 80);
+      const btn = document.getElementById('btn-live');
+      btn.classList.add('is-active');
+      btn.textContent = 'Stop pulse';
+    }
+
+    function init() {
+      if (app) app.destroy();
+      app = LightDraw.createApp('#app', {
+        width: W,
+        height: H,
+        background: '#0d1322',
+        renderer: 'canvas',
+      });
+      buildScene(INITIAL);
+    }
+
+    document.getElementById('btn-sweep').addEventListener('click', () => {
+      stopLive();
+      randomSweep();
+    });
+    document.getElementById('btn-live').addEventListener('click', () => {
+      if (liveTimer) stopLive();
+      else startLive();
+    });
+    document.getElementById('btn-reset').addEventListener('click', () => {
+      stopLive();
+      init();
+    });
+
+    init();
+    LivePlayground.mount({
+      app: () => app,
+      panes: ['scene', 'snippet'],
+      getScene: () => lastAuthorScene,
+      applyScene(parsed) {
+        stopLive();
+        app.clear();
+        app.loadJSON(parsed);
+        lastAuthorScene = parsed;
+        nodes = {
+          gauge: findById('demo-gauge'),
+          speedo: findById('demo-speedo'),
+          meter: findById('demo-meter'),
+          thermo: findById('demo-thermo'),
+          battery: findById('demo-battery'),
+          bars: findById('demo-bars'),
+        };
+      },
+      getSnippet(scene) {
+        return (
+          `const app = LightDraw.createApp('#app', { renderer: 'canvas' });\n` +
+          `app.loadJSON(${JSON.stringify(scene, null, 2)});\n`
+        );
+      },
+    });
+  </script>
+</body>
+</html>

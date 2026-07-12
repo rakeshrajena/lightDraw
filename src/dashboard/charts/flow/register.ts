@@ -1,7 +1,7 @@
 import { attachRegionsHover, attachIndexXHover, attachPolarSliceHover } from '../core/interaction';
 import { registerDashboard } from '../../registryCore';
 import { createWidgetGroup, num, setState } from '../../helpers';
-import { DASHBOARD } from '../../theme';
+import { getActiveDashboard } from '../../theme';
 import { layoutSankey, layoutChord } from '../core/sankey';
 import { arcSectorPath } from '../../../renderers/arcSector';
 import { layoutStreamgraph, streamTooltipLabel } from '../core/streamLayout';
@@ -23,15 +23,15 @@ registerDashboard('sankeyChart', (props, app) => {
   const nodes = (props.nodes as FlowNode[]) ?? SAMPLE_FLOW_NODES;
   const links = (props.links as FlowLink[]) ?? SAMPLE_FLOW_LINKS;
   const group = createWidgetGroup(app, 'sankeyChart', props);
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  group.add(app.rect({ width, height, fill: getActiveDashboard().chartBg, listening: true }));
   const layout = layoutSankey(nodes, links, width, height);
   layout.links.forEach((l) => {
-    group.add(app.path({ d: l.path, fill: null, stroke: DASHBOARD.flowLink, strokeWidth: Math.max(2, l.value / 10), listening: false }));
+    group.add(app.path({ d: l.path, fill: null, stroke: getActiveDashboard().flowLink, strokeWidth: Math.max(2, l.value / 10), listening: false }));
   });
   layout.nodes.forEach((n) => {
     group.add(
-      app.rect({ x: n.x, y: n.y, width: n.width, height: n.height, fill: DASHBOARD.primary, listening: false }),
-      app.text({ text: n.label, x: n.x, y: n.y - 12, fontSize: 10, fill: DASHBOARD.text, listening: false })
+      app.rect({ x: n.x, y: n.y, width: n.width, height: n.height, fill: getActiveDashboard().primary, listening: false }),
+      app.text({ text: n.label, x: n.x, y: n.y - 12, fontSize: 10, fill: getActiveDashboard().text, listening: false })
     );
   });
   attachRegionsHover(
@@ -62,14 +62,14 @@ registerDashboard('chordChart', (props, app) => {
     [1, 3, 0],
   ];
   const group = createWidgetGroup(app, 'chordChart', props);
-  group.add(app.rect({ width: size, height: size, fill: DASHBOARD.chartBg, listening: true }));
+  group.add(app.rect({ width: size, height: size, fill: getActiveDashboard().chartBg, listening: true }));
   const chord = layoutChord(matrix, size);
 
   chord.ribbons.forEach((ribbon) => {
     group.add(
       app.path({
         d: ribbon.path,
-        fill: DASHBOARD.flowLink,
+        fill: getActiveDashboard().flowLink,
         opacity: 0.35 + (ribbon.value / 10) * 0.15,
         stroke: null,
         listening: false,
@@ -81,8 +81,8 @@ registerDashboard('chordChart', (props, app) => {
     group.add(
       app.path({
         d: arcSectorPath(chord.cx, chord.cy, chord.outerR, seg.startAngle, seg.endAngle, chord.innerR),
-        fill: DASHBOARD.series[seg.index % DASHBOARD.series.length],
-        stroke: DASHBOARD.pieStroke,
+        fill: getActiveDashboard().series[seg.index % getActiveDashboard().series.length],
+        stroke: getActiveDashboard().pieStroke,
         strokeWidth: 1,
         listening: false,
       })
@@ -98,7 +98,7 @@ registerDashboard('chordChart', (props, app) => {
         x: lx - 10,
         y: ly - 6,
         fontSize: 9,
-        fill: DASHBOARD.text,
+        fill: getActiveDashboard().text,
         listening: false,
       })
     );
@@ -125,7 +125,7 @@ registerDashboard('alluvialChart', (props, app) => {
     ['C1', 'C2'],
   ];
   const group = createWidgetGroup(app, 'alluvialChart', props);
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  group.add(app.rect({ width, height, fill: getActiveDashboard().chartBg, listening: true }));
   const colW = width / stages.length;
   const regions: { x: number; y: number; width: number; height: number; label: string }[] = [];
   stages.forEach((col, ci) => {
@@ -135,13 +135,13 @@ registerDashboard('alluvialChart', (props, app) => {
       const y = step * (ri + 1);
       regions.push({ x, y, width: colW - 20, height: 24, label });
       group.add(
-        app.rect({ x, y, width: colW - 20, height: 24, fill: DASHBOARD.series[ri % DASHBOARD.series.length], cornerRadius: 4, listening: false }),
-        app.text({ text: label, x: x + 6, y: y + 5, fontSize: 10, fill: DASHBOARD.text, listening: false })
+        app.rect({ x, y, width: colW - 20, height: 24, fill: getActiveDashboard().series[ri % getActiveDashboard().series.length], cornerRadius: 4, listening: false }),
+        app.text({ text: label, x: x + 6, y: y + 5, fontSize: 10, fill: getActiveDashboard().text, listening: false })
       );
       if (ci < stages.length - 1) {
         const nx = (ci + 1) * colW + 10;
         const ny = step * (ri + 1) + 12;
-        group.add(app.path({ d: `M ${x + colW - 20} ${y + 12} C ${x + colW} ${y + 12} ${nx - 20} ${ny} ${nx} ${ny}`, fill: null, stroke: DASHBOARD.flowLink, strokeWidth: 8, listening: false }));
+        group.add(app.path({ d: `M ${x + colW - 20} ${y + 12} C ${x + colW} ${y + 12} ${nx - 20} ${ny} ${nx} ${ny}`, fill: null, stroke: getActiveDashboard().flowLink, strokeWidth: 8, listening: false }));
       }
     });
   });
@@ -160,7 +160,7 @@ registerDashboard('streamgraph', (props, app) => {
   ];
   const names = (props.seriesNames as string[]) ?? series.map((_, i) => `S${i + 1}`);
   const group = createWidgetGroup(app, 'streamgraph', props);
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  group.add(app.rect({ width, height, fill: getActiveDashboard().chartBg, listening: true }));
   const layers = layoutStreamgraph(series, width, height);
   const len = Math.max(...series.map((s) => s.length), 1);
 
@@ -168,9 +168,9 @@ registerDashboard('streamgraph', (props, app) => {
     group.add(
       app.path({
         d: layer.path,
-        fill: DASHBOARD.series[layer.index % DASHBOARD.series.length],
+        fill: getActiveDashboard().series[layer.index % getActiveDashboard().series.length],
         opacity: 0.82,
-        stroke: DASHBOARD.chartBg,
+        stroke: getActiveDashboard().chartBg,
         strokeWidth: 0.5,
         listening: false,
       })

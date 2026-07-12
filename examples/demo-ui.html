@@ -13,7 +13,7 @@
     <header class="demo-header">
       <span class="demo-badge">UI Module</span>
       <h1>UI Components</h1>
-      <p>17 interactive controls — buttons, forms, tables, dialogs, and more.</p>
+      <p>17 interactive controls — buttons, forms, tables, dialogs, and more. Edit Scene JSON below for live updates.</p>
     </header>
     <main class="demo-main">
       <div class="demo-control-bar">
@@ -31,6 +31,7 @@
     </main>
   </div>
   <script src="../dist/lightdraw.min.js"></script>
+  <script src="demo-live-playground.js"></script>
   <script>
     const logEl = document.getElementById('log');
     const isEmbed = () => document.documentElement.classList.contains('demo-embed');
@@ -40,6 +41,7 @@
     }
 
     let app;
+    let lastAuthorScene = null;
     let activeTheme = 'default';
     let activeSection = isEmbed() ? 'forms' : 'all';
     let activeRenderer = 'html';
@@ -507,14 +509,27 @@
 
       appEl.style.height = canvasH + 'px';
       wrap.scrollTop = 0;
-      app.loadJSON({ type: 'group', children });
+      lastAuthorScene = { type: 'group', children };
+      app.loadJSON(lastAuthorScene);
       bindEvents();
+      if (window.LivePlayground) LivePlayground.syncScene(true);
     }
 
     buildThemeGallery();
     buildSectionNav();
     buildControls();
     initApp();
+    LivePlayground.mount({
+      app: () => app,
+      panes: ['scene', 'snippet'],
+      getScene: () => lastAuthorScene,
+      applyScene(parsed) {
+        app.clear();
+        app.loadJSON(parsed);
+        lastAuthorScene = parsed;
+        bindEvents();
+      },
+    });
     window.addEventListener('resize', () => {
       clearTimeout(window._ldUiResize);
       window._ldUiResize = setTimeout(initApp, 150);
