@@ -253,7 +253,8 @@ export const UI_PRESETS: Record<string, UiThemeTokens> = {
 
 /** Drop legacy `mode` from raw inputs so old JSON does not stick. */
 function stripLegacyMode(input: Record<string, unknown>): Record<string, unknown> {
-  const { mode: _drop, ...rest } = input;
+  const rest = { ...input };
+  delete rest.mode;
   return rest;
 }
 

@@ -45,7 +45,8 @@ function createGroup(
     extraMeta.componentState && typeof extraMeta.componentState === 'object'
       ? (extraMeta.componentState as Record<string, unknown>)
       : {};
-  const { metadata: _ignored, ...extraRest } = extra;
+  const extraRest = { ...extra };
+  delete extraRest.metadata;
   const group = app.group({
     ...(props as Record<string, unknown>),
     listening: true,

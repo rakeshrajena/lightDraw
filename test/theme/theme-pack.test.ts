@@ -10,7 +10,6 @@ import {
   mergeThemePacks,
 } from '../../src/theme/themePack';
 import { resolveDashboardTheme, getActiveDashboard, syncActiveDashboardTheme, DASHBOARD } from '../../src/dashboard/theme';
-import { createDashboardFromJSON } from '../../src/dashboard/registry';
 import type { Group } from '../../src/shapes/Group';
 import type { Node } from '../../src/Node';
 

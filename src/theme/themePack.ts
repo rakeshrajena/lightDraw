@@ -162,7 +162,8 @@ export function extractSceneTheme(data: Record<string, unknown>): {
     return { theme: null, scene: data };
   }
   const theme = normalizeThemePack(data.theme);
-  const { theme: _drop, ...rest } = data;
+  const rest = { ...data };
+  delete rest.theme;
   return { theme, scene: rest };
 }
 

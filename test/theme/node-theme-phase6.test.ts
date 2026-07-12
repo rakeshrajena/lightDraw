@@ -10,8 +10,8 @@ import { createAutomotiveFromJSON } from '../../src/automotive/registry';
 import { getParts, getState as getUiState } from '../../src/components/helpers';
 import { getParts as getDashParts } from '../../src/dashboard/helpers';
 import { getState as getAutoState } from '../../src/automotive/helpers';
-import { getActiveDashboard, syncActiveDashboardTheme, DASHBOARD } from '../../src/dashboard/theme';
 import { getActiveDiagram, syncActiveDiagramTheme, DIAGRAM } from '../../src/diagram/theme';
+import { syncActiveDashboardTheme, DASHBOARD } from '../../src/dashboard/theme';
 import { syncActiveCanvasUiTheme } from '../../src/components/resolveCanvasTheme';
 import { UI } from '../../src/components/theme';
 import {
