@@ -60,7 +60,7 @@ Building **interactive 2D graphics** in the browser usually means stacking tools
 | Benefit | What it means for you |
 |---------|------------------------|
 | **Zero runtime deps** | No `npm install react chart.js d3`. Smaller attack surface, simpler audits. |
-| **Pay for what you load** | `lightdraw/core` ~26 KB gzip; add `dashboard`, `automotive`, or `diagram` plugins only if needed. |
+| **Pay for what you load** | `lightdraw/core` ~39 KB gzip; add `dashboard`, `automotive`, or `diagram` plugins only if needed. |
 | **Ship faster** | `loadJSON(scene)` for whole dashboards; `app.setUiTheme({ preset: 'dark' })` — no custom CSS required. |
 | **AI-ready** | Schema docs + `validateSceneJSON` / `parseAndValidateSceneJSON` with path + expected-value hints — LLM output becomes a live UI in one call. |
 | **Embed anywhere** | CDN script tag, npm ESM, or ES5 UMD in Android WebView / Qt WebEngine. |
@@ -219,7 +219,7 @@ const app = LightDraw.createApp('#app', { renderer: 'html' });
 | Import path | Use case |
 |-------------|----------|
 | `lightdraw` | Everything in one bundle |
-| `lightdraw/core` | Shapes + canvas only (~26 KB gzip) |
+| `lightdraw/core` | Shapes + canvas only (~39 KB gzip) |
 | `lightdraw/dashboard` | Charts & gauges |
 | `lightdraw/automotive` | Cluster & vehicle widgets |
 | `lightdraw/diagram` | Flowchart, network, UML |
