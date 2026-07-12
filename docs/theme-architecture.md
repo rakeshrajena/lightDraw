@@ -41,6 +41,17 @@ app.loadJSON(scene, { theme: pack });   // override / companion theme
 app.exportJSON({ includeTheme: true }); // round-trip the pack
 ```
 
+Validate packs before apply (playground / AI):
+
+```javascript
+import { validateThemePack, formatValidationErrors } from 'lightdraw/core';
+
+const check = validateThemePack({ preset: 'drak', automotive: 'spor' });
+if (!check.valid) console.error(formatValidationErrors(check));
+// theme.preset: … did you mean "dark"?
+// theme.automotive: expected one of: "classic" | "sport" | "digital"
+```
+
 | Field | Effect |
 |-------|--------|
 | `preset` | Pack name, CSS color, **or image file path** (`./bg.png`, `/img/hero.jpg`, `assets/a.webp`) |

@@ -1,7 +1,0 @@
-<!DOCTYPE html><html><head><link rel=stylesheet href=http://127.0.0.1:4181/dist/lightdraw.min.css><style>body{margin:0;background:#0a0a0a}#h{width:200px;height:200px}</style></head><body><div id=h></div><script src=http://127.0.0.1:4181/dist/lightdraw.min.js></script><script src=http://127.0.0.1:4181/examples/demo-auto-catalog.js></script><script>
-const widgetType='engineTemp';
-const props=window.ldAutoProps(widgetType,200,200); props.display='analog';
-props.value = widgetType==='tachometer'?4200:widgetType==='speedometer'?88:widgetType==='engineTemp'?95:65;
-const app=LightDraw.createApp(document.getElementById('h'),{renderer:'canvas',width:200,height:200,background:'#0a0a0a',autoResize:false});
-app.loadJSON({type:widgetType,props:{...props,x:0,y:0}}); app.render();
-</script></body></html>
