@@ -3,7 +3,7 @@ import type { Group } from '../../shapes/Group';
 import type { Node } from '../../Node';
 import { TextNode } from '../../shapes/index';
 import { createAutoGroup, setState, str } from '../helpers';
-import { getTheme, type ThemePalette } from '../themes';
+import { themeFromProps, type ThemePalette } from '../themes';
 import type { WidgetBounds } from '../layout';
 import {
   autoCenteredText,
@@ -16,7 +16,7 @@ import {
 export type PanelApp = App;
 
 export function panelTheme(props: Record<string, unknown>): ThemePalette {
-  return getTheme(str(props, 'theme', 'classic'));
+  return themeFromProps(props);
 }
 
 export function panelBounds(props: Record<string, unknown>, dw = 220, dh = 130): WidgetBounds {

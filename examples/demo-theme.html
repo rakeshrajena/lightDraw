@@ -1,0 +1,1813 @@
+<!DOCTYPE html>
+<html lang="en" data-site-theme="night">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LightDraw — Theme Playground</title>
+  <script src="demo-embed.js"></script>
+  <link rel="stylesheet" href="demo-common.css">
+  <link rel="stylesheet" href="../dist/lightdraw.min.css">
+  <style>
+    .theme-aside {
+      max-height: 100%;
+      overflow-y: auto;
+      align-self: stretch;
+    }
+    .theme-preset-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.35rem;
+      margin-bottom: 0.65rem;
+    }
+    .theme-preset-grid .demo-btn {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      width: 100%;
+      margin: 0;
+      text-align: left;
+      padding: 0.4rem 0.5rem;
+      font-size: 0.75rem;
+    }
+    .theme-swatch {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      flex-shrink: 0;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+    }
+    .theme-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.3rem;
+      margin-bottom: 0.65rem;
+    }
+    .theme-row .demo-btn {
+      width: auto;
+      flex: 1 1 auto;
+      margin: 0;
+      text-align: center;
+      min-width: 0;
+      font-size: 0.75rem;
+      padding: 0.35rem 0.5rem;
+    }
+    .theme-field {
+      margin-bottom: 0.65rem;
+    }
+    .theme-field label {
+      margin-top: 0;
+    }
+    .theme-color-row {
+      display: flex;
+      gap: 0.35rem;
+      align-items: center;
+    }
+    .theme-color-row input[type='color'] {
+      width: 36px;
+      height: 30px;
+      padding: 0;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: transparent;
+      cursor: pointer;
+    }
+    .theme-color-row input[type='text'],
+    .theme-field select {
+      flex: 1;
+      min-width: 0;
+      height: 30px;
+      padding: 0 0.45rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+      color: var(--text);
+      font: inherit;
+      font-size: 0.75rem;
+    }
+    .theme-field select {
+      width: 100%;
+      margin-bottom: 0.3rem;
+    }
+    .theme-check {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin: 0 0 0.55rem;
+      cursor: pointer;
+    }
+    .theme-check input {
+      accent-color: var(--accent);
+    }
+    .theme-tokens {
+      display: grid;
+      gap: 0.3rem;
+      font-size: 0.6875rem;
+      font-family: ui-monospace, 'Cascadia Code', monospace;
+      margin: 0;
+    }
+    .theme-tokens div {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.4rem;
+      padding: 0.28rem 0.35rem;
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.2);
+      border: 1px solid var(--border);
+    }
+    .theme-tokens dt {
+      color: var(--text-muted);
+    }
+    .theme-tokens dd {
+      margin: 0;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+      max-width: 58%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .theme-token-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      flex-shrink: 0;
+    }
+    html.demo-embed .theme-aside {
+      max-height: none;
+    }
+    .theme-cat {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 0.45rem;
+      background: rgba(0, 0, 0, 0.12);
+      overflow: hidden;
+    }
+    :root[data-site-theme='day'] .theme-cat {
+      background: rgba(21, 32, 51, 0.04);
+    }
+    .theme-cat > summary {
+      list-style: none;
+      cursor: pointer;
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      padding: 0.45rem 0.55rem;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.35rem;
+    }
+    .theme-cat > summary::-webkit-details-marker {
+      display: none;
+    }
+    .theme-cat > summary::after {
+      content: '▸';
+      font-size: 0.7rem;
+      opacity: 0.7;
+    }
+    .theme-cat[open] > summary::after {
+      content: '▾';
+    }
+    .theme-cat[open] > summary {
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+    }
+    .theme-cat-body {
+      padding: 0.55rem;
+    }
+    .theme-aside > .theme-cat:first-child {
+      margin-top: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="demo-shell">
+    <header class="demo-header">
+      <span class="demo-badge">Live playground</span>
+      <h1>Theme lab</h1>
+      <p>
+        Edit <strong>Scene</strong> or <strong>Theme</strong> JSON below — the canvas
+        re-renders live. Presets and controls sync both ways.
+      </p>
+    </header>
+    <main class="demo-main">
+      <div class="pg-workspace">
+        <div class="pg-toolbar">
+          <div class="pg-toolbar-left">
+            <div class="demo-section-pills" id="scene-nav" role="tablist" aria-label="Scene modules"></div>
+          </div>
+          <div class="pg-toolbar-right">
+            <label class="pg-live-toggle" for="opt-live" title="Auto-apply JSON edits" data-state="on">
+              <input type="checkbox" id="opt-live" checked>
+              <span class="pg-live-toggle-ui">
+                <span class="pg-live-dot" aria-hidden="true"></span>
+                <span id="live-pill-label">Live</span>
+              </span>
+            </label>
+            <button type="button" class="demo-btn secondary" id="btn-rebuild">Rebuild</button>
+          </div>
+        </div>
+
+        <div class="pg-stage">
+          <div class="demo-canvas-wrap" id="canvas-wrap">
+            <div id="app"></div>
+          </div>
+          <aside class="demo-aside-panel theme-aside" aria-label="Theme controls">
+            <details class="theme-cat" open>
+              <summary>Presets</summary>
+              <div class="theme-cat-body">
+                <div class="theme-preset-grid" id="app-theme-bar" role="group" aria-label="App theme presets"></div>
+                <div class="theme-row" id="preset-examples" role="group" aria-label="Preset examples"></div>
+                <div class="theme-field">
+                  <label for="preset-freeform">Custom preset</label>
+                  <div class="theme-color-row">
+                    <input type="text" id="preset-freeform" value="" spellcheck="false" placeholder="pink · #f472b6 · ./bg.png" aria-label="Freeform preset">
+                    <button type="button" class="demo-btn secondary" id="btn-apply-preset">Go</button>
+                  </div>
+                </div>
+                <label class="theme-check">
+                  <input type="checkbox" id="opt-replace" checked>
+                  Replace on preset switch
+                </label>
+              </div>
+            </details>
+
+            <details class="theme-cat" open>
+              <summary>Colors</summary>
+              <div class="theme-cat-body">
+                <div class="theme-field">
+                  <label for="typo-target">Apply to</label>
+                  <select id="typo-target" aria-label="Theme apply target">
+                    <option value="global">Global</option>
+                    <option value="ui-labels">UI labels</option>
+                    <option value="accent-gauge">Accent gauge</option>
+                    <option value="diagram">Diagram</option>
+                    <option value="auto">Automotive</option>
+                  </select>
+                </div>
+                <div class="theme-field">
+                  <label for="primary-hex">Primary</label>
+                  <div class="theme-color-row">
+                    <input type="color" id="primary-color" value="#7c3aed" aria-label="Primary color picker">
+                    <input type="text" id="primary-hex" value="#7c3aed" spellcheck="false" placeholder="#hex · rgb · name" aria-label="Primary color">
+                    <button type="button" class="demo-btn secondary" id="btn-apply-primary">Go</button>
+                  </div>
+                </div>
+                <div class="theme-field">
+                  <label for="text-hex">Text</label>
+                  <div class="theme-color-row">
+                    <input type="color" id="text-color" value="#f1f5f9" aria-label="Text color picker">
+                    <input type="text" id="text-hex" value="#f1f5f9" spellcheck="false" aria-label="Text color">
+                    <button type="button" class="demo-btn secondary" id="btn-apply-text">Go</button>
+                  </div>
+                </div>
+                <div class="theme-field">
+                  <label for="text-muted-hex">Muted</label>
+                  <div class="theme-color-row">
+                    <input type="color" id="text-muted-color" value="#94a3b8" aria-label="Muted text color picker">
+                    <input type="text" id="text-muted-hex" value="#94a3b8" spellcheck="false" aria-label="Muted text color">
+                    <button type="button" class="demo-btn secondary" id="btn-apply-text-muted">Go</button>
+                  </div>
+                </div>
+              </div>
+            </details>
+
+            <details class="theme-cat">
+              <summary>Typography</summary>
+              <div class="theme-cat-body">
+                <div class="theme-field">
+                  <label for="font-size">Font size</label>
+                  <div class="theme-color-row">
+                    <input type="range" id="font-size" min="10" max="22" value="14" aria-label="Font size">
+                    <span id="font-size-label" style="min-width:2.4rem;font-size:0.75rem;color:var(--text-muted)">14px</span>
+                    <button type="button" class="demo-btn secondary" id="btn-apply-font">Go</button>
+                  </div>
+                  <div class="theme-row" style="margin-top:0.3rem;margin-bottom:0">
+                    <button type="button" class="demo-btn secondary" id="btn-clear-typo-target">Clear override</button>
+                  </div>
+                </div>
+              </div>
+            </details>
+
+            <details class="theme-cat">
+              <summary>Samples</summary>
+              <div class="theme-cat-body">
+                <div class="theme-row">
+                  <button type="button" class="demo-btn secondary" id="btn-sample-json">Dark pack</button>
+                  <button type="button" class="demo-btn secondary" id="btn-sample-photo">Photo pack</button>
+                  <button type="button" class="demo-btn secondary" id="btn-clear">Clear theme</button>
+                </div>
+              </div>
+            </details>
+
+            <details class="theme-cat">
+              <summary>Automotive</summary>
+              <div class="theme-cat-body">
+                <div class="theme-row" id="auto-theme-bar" role="group" aria-label="Automotive presets"></div>
+              </div>
+            </details>
+
+            <details class="theme-cat">
+              <summary>Resolved tokens</summary>
+              <div class="theme-cat-body">
+                <dl class="theme-tokens" id="token-panel"></dl>
+              </div>
+            </details>
+          </aside>
+        </div>
+
+        <section class="pg-code-dock" id="code-dock" aria-label="Live code editors">
+          <div class="pg-code-chrome">
+            <div class="pg-code-tabs" role="tablist" aria-label="Code panes">
+              <button type="button" class="pg-code-tab is-active" role="tab" aria-selected="true" data-pane="scene">Scene JSON</button>
+              <button type="button" class="pg-code-tab" role="tab" aria-selected="false" data-pane="theme">Theme JSON</button>
+              <button type="button" class="pg-code-tab" role="tab" aria-selected="false" data-pane="snippet">API code</button>
+            </div>
+            <div class="pg-code-actions">
+              <button type="button" class="demo-btn" id="btn-run-code">Run</button>
+              <button type="button" class="demo-btn secondary pg-btn-secondary" id="btn-format-code">Format</button>
+              <button type="button" class="demo-btn secondary pg-btn-secondary" id="btn-copy-code">Copy</button>
+              <button type="button" class="demo-btn secondary pg-btn-secondary" id="btn-reset-snippet" title="Reset API from Scene/Theme">Reset</button>
+              <button type="button" class="demo-btn secondary" id="btn-toggle-dock" aria-expanded="true" title="Collapse code">Code ▾</button>
+            </div>
+          </div>
+          <div class="pg-code-body">
+            <div class="pg-code-pane is-active" id="pane-scene" role="tabpanel">
+              <textarea id="scene-json" class="pg-code-editor" spellcheck="false" aria-label="Scene JSON editor"></textarea>
+            </div>
+            <div class="pg-code-pane" id="pane-theme" role="tabpanel" hidden>
+              <textarea id="theme-json" class="pg-code-editor" spellcheck="false" aria-label="Theme pack JSON editor"></textarea>
+            </div>
+            <div class="pg-code-pane" id="pane-snippet" role="tabpanel" hidden>
+              <textarea id="api-snippet" class="pg-code-editor" spellcheck="false" aria-label="API code editor"></textarea>
+            </div>
+            <div class="pg-code-status" id="code-status" data-tone="ok">Edit Scene · Theme · API — live updates</div>
+          </div>
+        </section>
+      </div>
+      <div class="demo-log" id="log">Theme playground ready — edit code below to re-render live…</div>
+    </main>
+  </div>
+  <script src="../dist/lightdraw.min.js"></script>
+  <script>
+    const logEl = document.getElementById('log');
+    const isEmbed = () => document.documentElement.classList.contains('demo-embed');
+
+    function log(msg) {
+      logEl.textContent = msg + '\n' + logEl.textContent.slice(0, 700);
+    }
+
+    const APP_THEMES = [
+      { id: 'default', label: 'Default', swatch: '#2563eb' },
+      { id: 'dark', label: 'Dark', swatch: '#3b82f6' },
+      { id: 'darkViolet', label: 'Dark violet', swatch: '#8b5cf6' },
+      { id: 'violet', label: 'Violet', swatch: '#7c3aed' },
+      { id: 'emerald', label: 'Emerald', swatch: '#059669' },
+      { id: 'slate', label: 'Slate', swatch: '#334155' },
+      { id: 'ocean', label: 'Ocean', swatch: '#0284c7' },
+      { id: 'rose', label: 'Rose', swatch: '#e11d48' },
+    ];
+
+    /** Inline sample wallpaper so image presets work without an external file. */
+    const SAMPLE_IMAGE_PRESET =
+      'data:image/svg+xml,' +
+      encodeURIComponent(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="960" height="640">' +
+          '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">' +
+          '<stop stop-color="#0b1220"/><stop offset="1" stop-color="#1e3a5f"/>' +
+          '</linearGradient></defs>' +
+          '<rect width="100%" height="100%" fill="url(#g)"/>' +
+          '<circle cx="220" cy="160" r="90" fill="#38bdf8" opacity="0.28"/>' +
+          '<circle cx="720" cy="420" r="140" fill="#a78bfa" opacity="0.22"/>' +
+          '<text x="48" y="56" fill="#94a3b8" font-family="system-ui,sans-serif" font-size="22">theme · image preset</text>' +
+          '</svg>'
+      );
+
+    const PRESET_EXAMPLES = [
+      { id: 'pink', label: 'pink', value: 'pink' },
+      { id: 'hex', label: '#f472b6', value: '#f472b6' },
+      { id: 'rgba', label: 'rgba(…)', value: 'rgba(14, 165, 233, 1)' },
+      { id: 'image', label: 'Sample image', value: SAMPLE_IMAGE_PRESET },
+    ];
+
+    const AUTO_THEMES = ['classic', 'sport', 'digital'];
+    const DEFAULT_STAGE_BG = '#0d1322';
+    const SCENES = [
+      { id: 'all', label: 'All' },
+      { id: 'ui', label: 'UI' },
+      { id: 'dashboard', label: 'Charts' },
+      { id: 'diagram', label: 'Diagram' },
+      { id: 'automotive', label: 'Auto' },
+    ];
+
+    let app;
+    let activeAppTheme = 'dark';
+    let activeAutoTheme = 'sport';
+    let activeScene = isEmbed() ? 'ui' : 'ui';
+    let clusterNode = null;
+    let chartTick = 0;
+    let chartTimer = null;
+    let activeCodePane = 'scene';
+    let sceneFromEditor = false;
+    let syncingEditors = false;
+    let snippetDirty = false;
+    let sceneDebounce = null;
+    let themeDebounce = null;
+    let snippetDebounce = null;
+    /** Last authoring scene JSON (children array source). */
+    let lastAuthorScene = null;
+    /** Remembered component overrides (demoId → { primary?, textColor?, fontSize?, … }). */
+    const componentOverrides = {
+      'ui-labels': null,
+      'accent-gauge': null,
+      diagram: null,
+      auto: null,
+    };
+
+    const samplePack = {
+      preset: 'dark',
+      primary: '#0ea5e9',
+      text: '#f1f5f9',
+      textMuted: '#94a3b8',
+      fontSize: '14px',
+      fontSizeSm: '12px',
+      fontSizeLg: '16px',
+      series: ['#0ea5e9', '#f43f5e', '#22c55e', '#f59e0b'],
+      dashboard: { chartGrid: '#1e293b', heatmapLow: '#0c4a6e' },
+      diagram: { canvasBg: '#0b1220', nodeStroke: '#38bdf8' },
+      automotive: 'sport',
+    };
+
+    function isLiveApply() {
+      const el = document.getElementById('opt-live');
+      return !el || el.checked;
+    }
+
+    function setCodeStatus(msg, tone) {
+      const el = document.getElementById('code-status');
+      if (!el) return;
+      el.textContent = msg;
+      el.dataset.tone = tone || 'ok';
+      const pill = document.querySelector('.pg-live-toggle');
+      const label = document.getElementById('live-pill-label');
+      if (!pill) return;
+      if (tone === 'err') {
+        pill.dataset.state = 'err';
+        if (label) label.textContent = 'Error';
+      } else if (!isLiveApply()) {
+        pill.dataset.state = 'off';
+        if (label) label.textContent = 'Paused';
+      } else {
+        pill.dataset.state = 'on';
+        if (label) label.textContent = 'Live';
+      }
+    }
+
+    function editorFocused(id) {
+      return document.activeElement && document.activeElement.id === id;
+    }
+
+    function packForEditor(pack) {
+      const out = { ...pack };
+      if (typeof out.preset === 'string' && out.preset.startsWith('data:')) {
+        out.preset = 'https://example.com/your-photo.jpg';
+      }
+      return out;
+    }
+
+    function syncThemeEditor(force) {
+      if (!app || syncingEditors) return;
+      if (!force && editorFocused('theme-json')) return;
+      const pack =
+        typeof app.getTheme === 'function' ? app.getTheme() : (app.getUiTheme && app.getUiTheme()) || {};
+      const el = document.getElementById('theme-json');
+      if (!el) return;
+      syncingEditors = true;
+      el.value = JSON.stringify(packForEditor(pack), null, 2);
+      syncingEditors = false;
+      updateApiSnippet();
+    }
+
+    function syncSceneEditor(scene, force) {
+      const el = document.getElementById('scene-json');
+      if (!el) return;
+      if (!force && editorFocused('scene-json')) return;
+      lastAuthorScene = scene;
+      syncingEditors = true;
+      el.value = JSON.stringify(scene, null, 2);
+      syncingEditors = false;
+      updateApiSnippet();
+    }
+
+    function updateApiSnippet(force) {
+      const el = document.getElementById('api-snippet');
+      if (!el || !app) return;
+      if (!force && (snippetDirty || editorFocused('api-snippet'))) return;
+      let theme = {};
+      try {
+        theme = JSON.parse(document.getElementById('theme-json').value || '{}');
+      } catch (_) {
+        theme =
+          typeof app.getTheme === 'function' ? app.getTheme() : (app.getUiTheme && app.getUiTheme()) || {};
+      }
+      const themePretty = JSON.stringify(packForEditor(theme), null, 2)
+        .split('\n')
+        .map((line, i) => (i === 0 ? line : '  ' + line))
+        .join('\n');
+      let scenePretty = '{ type: "group", children: [ /* see Scene JSON tab */ ] }';
+      try {
+        const scene = JSON.parse(document.getElementById('scene-json').value || 'null');
+        if (scene) {
+          scenePretty = JSON.stringify(scene, null, 2);
+        }
+      } catch (_) {
+        /* keep placeholder */
+      }
+      syncingEditors = true;
+      el.value =
+        `// Editable API — Run or Ctrl/Cmd+Enter to execute against the live app\n` +
+        `// Tip: prefer Scene JSON / Theme JSON tabs for structured edits.\n\n` +
+        `app.clear();\n` +
+        `app.loadJSON(${scenePretty});\n\n` +
+        `app.applyTheme(${themePretty});\n`;
+      snippetDirty = false;
+      syncingEditors = false;
+    }
+
+    function applyApiSnippet(opts) {
+      const silent = opts && opts.silent;
+      const el = document.getElementById('api-snippet');
+      try {
+        const code = el.value
+          .replace(/^import\s+.+?;?\s*$/gm, '')
+          .replace(/const\s+app\s*=\s*LightDraw\.createApp\([^)]*\)\s*;?/g, '// app already live');
+        const runner = new Function('LightDraw', 'app', '"use strict";\n' + code + '\n');
+        runner(LightDraw, app);
+        bindClusterNode();
+        resizeCanvas();
+        syncTokenPanel();
+        syncStageBackground();
+        syncTextControlsFromTheme();
+        syncThemeEditor();
+        setCodeStatus('API code executed', 'ok');
+        if (!silent) log('API code → canvas');
+        return true;
+      } catch (err) {
+        setCodeStatus('API: ' + (err && err.message ? err.message : err), 'err');
+        if (!silent) log('API error: ' + (err && err.message ? err.message : err));
+        return false;
+      }
+    }
+
+    function bindClusterNode() {
+      clusterNode = null;
+      function walkFindCluster(node) {
+        if (node.metadata && node.metadata.autoType === 'instrumentCluster') {
+          clusterNode = node;
+          return true;
+        }
+        if (node.children) {
+          for (let i = 0; i < node.children.length; i++) {
+            if (walkFindCluster(node.children[i])) return true;
+          }
+        }
+        return false;
+      }
+      if (app && app.stage) walkFindCluster(app.stage);
+    }
+
+    function resizeCanvas() {
+      const wrap = document.getElementById('canvas-wrap');
+      const w = Math.max(960, wrap.clientWidth || 960);
+      const h = Math.max(sceneHeight(), isEmbed() ? 360 : 480);
+      if (app && typeof app.resize === 'function') app.resize(w, h);
+    }
+
+    function formatJsonErr(raw, err, label) {
+      if (typeof LightDraw.formatJsonParseError === 'function') {
+        return label + ' — ' + LightDraw.formatJsonParseError(raw, err);
+      }
+      return label + ': ' + (err && err.message ? err.message : err);
+    }
+
+    function applySceneFromEditor(opts) {
+      const silent = opts && opts.silent;
+      const el = document.getElementById('scene-json');
+      const raw = el.value;
+      try {
+        let parsed;
+        if (typeof LightDraw.parseAndValidateSceneJSON === 'function') {
+          const { json, validation } = LightDraw.parseAndValidateSceneJSON(raw);
+          if (!validation.valid) {
+            const text =
+              typeof LightDraw.formatValidationErrors === 'function'
+                ? LightDraw.formatValidationErrors(validation)
+                : validation.errors.join('\n');
+            setCodeStatus(text, 'err');
+            if (!silent) log('Invalid scene JSON');
+            return false;
+          }
+          parsed = json;
+        } else {
+          parsed = JSON.parse(raw);
+        }
+        if (!parsed || typeof parsed !== 'object') throw new Error('Scene must be a JSON object');
+        sceneFromEditor = true;
+        app.clear();
+        app.loadJSON(parsed);
+        lastAuthorScene = parsed;
+        bindClusterNode();
+        resizeCanvas();
+        // Re-apply active theme so chrome stays in sync after loadJSON
+        const pack =
+          typeof app.getTheme === 'function' ? app.getTheme() : (app.getUiTheme && app.getUiTheme()) || {};
+        if (pack && Object.keys(pack).length) {
+          if (typeof app.applyTheme === 'function') app.applyTheme(pack, { merge: false });
+          else app.setUiTheme(pack, { replace: true });
+        }
+        if (show('automotive') && clusterNode && LightDraw.updateAutoWidgetProps) {
+          LightDraw.updateAutoWidgetProps(clusterNode, { theme: activeAutoTheme });
+        }
+        syncTokenPanel();
+        syncStageBackground();
+        updateApiSnippet();
+        setCodeStatus('Scene applied · live', 'ok');
+        if (!silent) log('Scene JSON → canvas');
+        return true;
+      } catch (err) {
+        const msg =
+          err instanceof SyntaxError || (err && String(err.name) === 'SyntaxError')
+            ? formatJsonErr(raw, err, 'Scene JSON')
+            : 'Scene JSON: ' + (err && err.message ? err.message : err);
+        setCodeStatus(msg, 'err');
+        if (!silent) log(msg.split('\n')[0]);
+        return false;
+      }
+    }
+
+    function applyThemeFromEditor(opts) {
+      const silent = opts && opts.silent;
+      const el = document.getElementById('theme-json');
+      const raw = el.value;
+      try {
+        const pack = JSON.parse(raw);
+        if (pack === null || typeof pack !== 'object' || Array.isArray(pack)) {
+          setCodeStatus(
+            'Theme JSON: root must be an object, got ' +
+              (pack === null ? 'null' : Array.isArray(pack) ? 'array' : typeof pack),
+            'err'
+          );
+          return false;
+        }
+        if (typeof LightDraw.validateThemePack === 'function') {
+          const validation = LightDraw.validateThemePack(pack);
+          if (!validation.valid) {
+            const text =
+              typeof LightDraw.formatValidationErrors === 'function'
+                ? LightDraw.formatValidationErrors(validation)
+                : validation.errors.join('\n');
+            setCodeStatus(text, 'err');
+            if (!silent) log(text.split('\n')[0]);
+            return false;
+          }
+        }
+        if (
+          typeof pack.preset === 'string' &&
+          (pack.preset.includes('sample image') || pack.preset.includes('example.com/your-photo'))
+        ) {
+          pack.preset = SAMPLE_IMAGE_PRESET;
+        }
+        if (typeof app.applyTheme === 'function') app.applyTheme(pack);
+        else app.setUiTheme(pack, { replace: true });
+        activeAppTheme = pack.preset
+          ? isImagePresetValue(pack.preset)
+            ? 'image…'
+            : pack.preset
+          : 'custom';
+        if (pack.automotive && AUTO_THEMES.includes(pack.automotive)) {
+          activeAutoTheme = pack.automotive;
+          if (clusterNode && LightDraw.updateAutoWidgetProps) {
+            LightDraw.updateAutoWidgetProps(clusterNode, { theme: activeAutoTheme });
+          }
+        }
+        if (pack.preset && !isImagePresetValue(pack.preset) && isCssColorInput(pack.preset)) {
+          document.getElementById('preset-freeform').value = pack.preset;
+        }
+        highlightControls();
+        syncTokenPanel();
+        syncStageBackground();
+        syncTextControlsFromTheme();
+        updateApiSnippet();
+        setCodeStatus('Theme applied · live', 'ok');
+        if (!silent) log('Theme JSON → canvas');
+        return true;
+      } catch (err) {
+        const msg = formatJsonErr(raw, err, 'Theme JSON');
+        setCodeStatus(msg, 'err');
+        if (!silent) log(msg.split('\n')[0]);
+        return false;
+      }
+    }
+
+    function scheduleSceneApply() {
+      if (syncingEditors) return;
+      clearTimeout(sceneDebounce);
+      if (!isLiveApply()) {
+        setCodeStatus('Paused — click Run to apply Scene JSON', 'warn');
+        return;
+      }
+      sceneDebounce = setTimeout(() => applySceneFromEditor({ silent: true }), 320);
+    }
+
+    function scheduleThemeApply() {
+      if (syncingEditors) return;
+      clearTimeout(themeDebounce);
+      if (!isLiveApply()) {
+        setCodeStatus('Paused — click Run to apply Theme JSON', 'warn');
+        return;
+      }
+      themeDebounce = setTimeout(() => applyThemeFromEditor({ silent: true }), 320);
+    }
+
+    function scheduleSnippetApply() {
+      if (syncingEditors) return;
+      snippetDirty = true;
+      clearTimeout(snippetDebounce);
+      if (!isLiveApply()) {
+        setCodeStatus('Paused — click Run to execute API code', 'warn');
+        return;
+      }
+      setCodeStatus('API — applying…', 'warn');
+      snippetDebounce = setTimeout(() => applyApiSnippet({ silent: true }), 500);
+    }
+
+    function runActiveCode() {
+      if (activeCodePane === 'theme') applyThemeFromEditor();
+      else if (activeCodePane === 'snippet') applyApiSnippet();
+      else applySceneFromEditor();
+    }
+
+    function formatActiveCode() {
+      const map = {
+        scene: 'scene-json',
+        theme: 'theme-json',
+        snippet: 'api-snippet',
+      };
+      const id = map[activeCodePane];
+      const el = document.getElementById(id);
+      if (!el) {
+        setCodeStatus('Nothing to format', 'warn');
+        return;
+      }
+      if (activeCodePane === 'snippet') {
+        setCodeStatus('API code — use Format on JSON tabs', 'warn');
+        return;
+      }
+      try {
+        el.value = JSON.stringify(JSON.parse(el.value), null, 2);
+        setCodeStatus('Formatted', 'ok');
+      } catch (err) {
+        setCodeStatus(formatJsonErr(el.value, err, 'Format'), 'err');
+      }
+    }
+
+    async function copyActiveCode() {
+      const map = {
+        scene: 'scene-json',
+        theme: 'theme-json',
+        snippet: 'api-snippet',
+      };
+      const el = document.getElementById(map[activeCodePane]);
+      try {
+        await navigator.clipboard.writeText(el.value);
+        setCodeStatus('Copied to clipboard', 'ok');
+      } catch (_) {
+        el.select();
+        setCodeStatus('Select-all ready — use Ctrl/Cmd+C', 'warn');
+      }
+    }
+
+    function setCodePane(pane) {
+      activeCodePane = pane;
+      document.querySelectorAll('.pg-code-tab').forEach((tab) => {
+        const on = tab.dataset.pane === pane;
+        tab.classList.toggle('is-active', on);
+        tab.setAttribute('aria-selected', on ? 'true' : 'false');
+      });
+      ['scene', 'theme', 'snippet'].forEach((id) => {
+        const panel = document.getElementById('pane-' + id);
+        if (!panel) return;
+        const on = id === pane;
+        panel.classList.toggle('is-active', on);
+        panel.hidden = !on;
+      });
+    }
+
+    function show(module) {
+      return activeScene === 'all' || activeScene === module;
+    }
+
+    /** Props safe to spread onto scene nodes (never overwrites label content `text`). */
+    function propsFromOverride(raw) {
+      if (!raw) return {};
+      const out = { ...raw };
+      if (out.text && !out.textColor) {
+        out.textColor = out.text;
+        out.color = out.text;
+      }
+      delete out.text; // content string must not be overwritten by a color
+      if (out.fontSizeSm) delete out.fontSizeSm;
+      if (out.fontSizeLg) delete out.fontSizeLg;
+      if (out.primary) {
+        out.uiTheme = { ...(typeof out.uiTheme === 'object' && out.uiTheme ? out.uiTheme : {}), primary: out.primary };
+        delete out.primary;
+      }
+      return out;
+    }
+
+    function findDemoNodes(demoId) {
+      const hits = [];
+      const walk = (n) => {
+        const meta = n.metadata || {};
+        const id =
+          meta.demoId ||
+          meta.widgetState?.demoId ||
+          meta.componentState?.demoId ||
+          meta.autoState?.demoId ||
+          meta.diagramState?.demoId;
+        if (id === demoId) hits.push(n);
+        if (n.children) {
+          for (let i = 0; i < n.children.length; i++) walk(n.children[i]);
+        }
+      };
+      if (app && app.stage) walk(app.stage);
+      return hits;
+    }
+
+    function patchNodeState(node, patch) {
+      if (!node.metadata) node.metadata = {};
+      const meta = node.metadata;
+      if (meta.diagramType || meta.diagramState) {
+        meta.diagramState = { ...(meta.diagramState || {}), ...patch };
+        if (patch.demoId != null) meta.demoId = patch.demoId;
+        return meta.diagramState;
+      }
+      if (meta.autoType || meta.autoState) {
+        meta.autoState = { ...(meta.autoState || {}), ...patch };
+        if (patch.demoId != null) meta.demoId = patch.demoId;
+        return meta.autoState;
+      }
+      if (meta.componentType || meta.componentState) {
+        meta.componentState = { ...(meta.componentState || {}), ...patch };
+        if (patch.demoId != null) meta.demoId = patch.demoId;
+        return meta.componentState;
+      }
+      meta.widgetState = { ...(meta.widgetState || {}), ...patch };
+      if (patch.demoId != null) meta.demoId = patch.demoId;
+      return meta.widgetState;
+    }
+
+    function rebuildNode(node) {
+      if (typeof node.metadata?.chartRebuild === 'function') node.metadata.chartRebuild();
+      else if (typeof node.metadata?.diagramRebuild === 'function') node.metadata.diagramRebuild();
+      else if (typeof node.metadata?.autoRebuild === 'function') node.metadata.autoRebuild();
+      else if (typeof node.metadata?.uiRebuild === 'function') node.metadata.uiRebuild();
+    }
+
+    function applyOverrideToTarget(patch, label) {
+      const target = document.getElementById('typo-target').value;
+      if (target === 'global') {
+        app.setUiTheme(patch);
+        syncTokenPanel();
+        syncThemeEditor();
+        log(label + ' → global app theme');
+        return;
+      }
+      if (target === 'auto' && patch.primary) {
+        log('Automotive colors stay classic/sport/digital — use the Automotive bar. Font/text still apply.');
+      }
+      const storePatch = { ...patch };
+      // Persist text as textColor in the override map
+      if (storePatch.text && !storePatch.textColor) {
+        storePatch.textColor = storePatch.text;
+        delete storePatch.text;
+      }
+      componentOverrides[target] = { ...(componentOverrides[target] || {}), ...storePatch };
+      const nodes = findDemoNodes(target);
+      if (!nodes.length) {
+        log('No ' + target + ' in this scene — switch scene tab or Rebuild');
+        return;
+      }
+      const flat = propsFromOverride(componentOverrides[target]);
+      nodes.forEach((node) => {
+        patchNodeState(node, {
+          ...flat,
+          demoId: target,
+          hasCustomColor: Boolean(flat.textColor || flat.color),
+          hasCustomTextColor: Boolean(flat.textColor || flat.color),
+          hasCustomFontSize: flat.fontSize != null,
+          hasCustomFill: Boolean(flat.fill),
+        });
+        if (node.metadata?.componentType === 'label') {
+          if (flat.textColor || flat.color) node.fill = flat.textColor || flat.color;
+          if (flat.fontSize != null) {
+            const n = parseFloat(flat.fontSize);
+            if (Number.isFinite(n)) node.fontSize = n;
+          }
+        }
+        rebuildNode(node);
+      });
+      if (target === 'auto' && LightDraw.updateAutoWidgetProps && nodes[0]) {
+        LightDraw.updateAutoWidgetProps(nodes[0], {
+          fontSize: flat.fontSize != null ? parseFloat(flat.fontSize) || flat.fontSize : undefined,
+        });
+      }
+      app.requestRender();
+      syncTokenPanel();
+      log(label + ' → component “' + target + '” (sticky over global)');
+    }
+
+    function clearTypoTarget() {
+      const target = document.getElementById('typo-target').value;
+      if (target === 'global') {
+        log('Switch Apply-to a component to clear its override');
+        return;
+      }
+      componentOverrides[target] = null;
+      buildScene();
+      reapplyActiveTheme();
+      if (show('automotive')) applyAutoTheme(activeAutoTheme);
+      log('Cleared component override → ' + target + ' (falls back to global)');
+    }
+
+    function buildScene() {
+      const children = [];
+      const PAD = 20;
+      const GAP = 20;
+      const ROW = 16;
+      let y = PAD;
+      let contentBottom = PAD;
+
+      function mark(bottom) {
+        contentBottom = Math.max(contentBottom, bottom);
+      }
+
+      /** Push one node at (PAD, y) and advance by height + gap. */
+      function stack(type, props, height) {
+        children.push({ type, props: { ...props, x: PAD, y } });
+        y += height + ROW;
+        mark(y);
+      }
+
+      /** Push several nodes on one row with fixed slots; advance by max height. */
+      function row(items) {
+        let x = PAD;
+        let maxH = 0;
+        for (let i = 0; i < items.length; i++) {
+          const it = items[i];
+          children.push({
+            type: it.type,
+            props: { ...it.props, x, y: y + (it.dy || 0) },
+          });
+          x += it.w + GAP;
+          maxH = Math.max(maxH, (it.dy || 0) + it.h);
+        }
+        y += maxH + ROW;
+        mark(y);
+      }
+
+      function title(text) {
+        children.push({ type: 'label', props: { text, x: PAD, y } });
+        y += 26;
+        mark(y);
+      }
+
+      function spacer(px) {
+        y += px;
+        mark(y);
+      }
+
+      if (show('ui')) {
+        title('1 · Actions');
+        row([
+          { type: 'button', w: 112, h: 40, props: { label: 'Primary', variant: 'primary', width: 112 } },
+          { type: 'button', w: 88, h: 32, dy: 4, props: { label: 'Small', variant: 'primary', size: 'sm', width: 88 } },
+          { type: 'button', w: 104, h: 44, props: { label: 'Large', variant: 'primary', size: 'lg', width: 104 } },
+        ]);
+        row([
+          { type: 'button', w: 120, h: 40, props: { label: 'Rose node', variant: 'primary', uiTheme: 'rose', width: 120 } },
+          { type: 'button', w: 96, h: 40, props: { label: 'Ghost', variant: 'ghost', width: 96 } },
+          { type: 'button', w: 104, h: 40, props: { label: 'Danger', variant: 'danger', width: 104 } },
+        ]);
+        row([
+          { type: 'toggle', w: 56, h: 28, props: { value: true } },
+          { type: 'checkbox', w: 140, h: 24, dy: 2, props: { label: 'Alerts', checked: true } },
+        ]);
+
+        spacer(8);
+        title('2 · Typography');
+        // Own rows so large fontSize cannot spill into neighbors
+        stack(
+          'label',
+          {
+            text: 'Themed label (Apply-to → UI labels)',
+            ...(propsFromOverride(componentOverrides['ui-labels'])),
+            demoId: 'ui-labels',
+          },
+          32
+        );
+        stack('label', { text: 'Fixed 22px (does not follow theme)', fontSize: 22 }, 36);
+
+        spacer(4);
+        title('3 · Inputs');
+        row([
+          { type: 'radio', w: 150, h: 28, props: { label: 'Option A', selected: true, group: 'theme-demo' } },
+          { type: 'radio', w: 150, h: 28, props: { label: 'Option B', selected: false, group: 'theme-demo' } },
+        ]);
+        stack('slider', { value: 62, width: 320 }, 36);
+        stack('input', { value: 'Theme lab', width: 280 }, 44);
+        stack(
+          'tabs',
+          { tabs: ['Overview', 'Traffic', 'Alerts'], activeTab: 1, width: 360 },
+          44
+        );
+
+        spacer(4);
+        title('4 · Surfaces');
+        stack('progressBar', { value: 72, width: 320 }, 20);
+        stack(
+          'card',
+          { title: 'Status', subtitle: 'Live tokens', width: 280, height: 100, elevated: true },
+          108
+        );
+        stack(
+          'table',
+          {
+            columns: ['Service', 'State'],
+            rows: [
+              ['API', 'OK'],
+              ['DB', 'OK'],
+              ['Cache', 'Warm'],
+            ],
+            selectedRow: 0,
+            colWidth: 140,
+            width: 280,
+          },
+          36 * 4 + 8
+        );
+        stack(
+          'statusBar',
+          { segments: ['Ready', 'Theme', 'UTF-8'], width: 400, primaryIndex: 1 },
+          36
+        );
+        stack('toolbar', { items: ['New', 'Save', '|', 'Export'] }, 40);
+        spacer(20);
+      }
+
+      if (show('dashboard')) {
+        title('5 · Dials (App vs Accent override)');
+        const accentOv = propsFromOverride(componentOverrides['accent-gauge']);
+        const { uiTheme: accentUi, ...accentRest } = accentOv;
+        const dial = 120;
+        row([
+          { type: 'gauge', w: dial, h: dial, props: { value: 68, size: dial, label: 'App' } },
+          {
+            type: 'gauge',
+            w: dial,
+            h: dial,
+            props: {
+              value: 74,
+              size: dial,
+              label: 'Accent',
+              demoId: 'accent-gauge',
+              uiTheme: {
+                primary: '#7c3aed',
+                ...(accentUi && typeof accentUi === 'object' ? accentUi : {}),
+              },
+              ...accentRest,
+            },
+          },
+        ]);
+        stack('meter', { value: 55, width: 280, height: 28 }, 40);
+        // legend alone — series colors from theme
+        stack('legend', {}, 48);
+
+        spacer(4);
+        title('6 · Pie charts');
+        row([
+          {
+            type: 'pieChart',
+            w: 130,
+            h: 130,
+            props: { data: [30, 25, 20, 25], size: 130, showLabels: false },
+          },
+          {
+            type: 'doughnutChart',
+            w: 130,
+            h: 130,
+            props: { data: [40, 20, 25, 15], size: 130, showLabels: false },
+          },
+        ]);
+
+        spacer(4);
+        title('7 · Charts (one per row — no overlap)');
+        const cw = 420;
+        const ch = 150;
+        stack(
+          'lineChart',
+          {
+            data: [18, 28, 22, 40, 35, 48, 42, 55],
+            width: cw,
+            height: ch,
+            title: 'Line',
+            showLegend: false,
+          },
+          ch + 8
+        );
+        stack(
+          'barChart',
+          {
+            data: [12, 22, 18, 30, 26],
+            width: cw,
+            height: ch,
+            title: 'Bar',
+            showLegend: false,
+          },
+          ch + 8
+        );
+        stack(
+          'areaChart',
+          {
+            data: [10, 18, 14, 28, 22, 30],
+            width: cw,
+            height: ch,
+            title: 'Area',
+            showLegend: false,
+          },
+          ch + 8
+        );
+        stack(
+          'heatmap',
+          {
+            matrix: [
+              [1, 3, 5, 2],
+              [4, 1, 6, 3],
+              [2, 5, 1, 4],
+            ],
+            width: cw,
+            height: ch,
+          },
+          ch + 8
+        );
+        spacer(20);
+      }
+
+      if (show('diagram')) {
+        const diagramOv = propsFromOverride(componentOverrides.diagram);
+        // Stack vertically — side-by-side diagrams spill past group bounds
+        title('8 · Network');
+        const netW = 420;
+        const netH = 180;
+        stack(
+          'networkTopology',
+          {
+            width: netW,
+            height: netH,
+            demoId: 'diagram',
+            ...diagramOv,
+            data: {
+              nodes: [
+                { id: 'gw', label: 'Gateway', type: 'router', x: 160, y: 20 },
+                { id: 'api', label: 'API', type: 'server', x: 40, y: 110 },
+                { id: 'db', label: 'DB', type: 'server', x: 280, y: 110 },
+              ],
+              edges: [
+                { from: 'gw', to: 'api' },
+                { from: 'gw', to: 'db' },
+              ],
+            },
+          },
+          netH + 8
+        );
+
+        title('9 · Flowchart');
+        const flowW = 420;
+        const flowH = 200;
+        stack(
+          'flowchart',
+          {
+            width: flowW,
+            height: flowH,
+            demoId: 'diagram',
+            ...diagramOv,
+            data: {
+              nodes: [
+                { id: 's', label: 'Start', type: 'start', x: 40, y: 12 },
+                { id: 'p', label: 'Process', type: 'process', x: 40, y: 72 },
+                { id: 'd', label: 'OK?', type: 'decision', x: 220, y: 72 },
+                { id: 'e', label: 'End', type: 'end', x: 220, y: 140 },
+              ],
+              edges: [
+                { from: 's', to: 'p' },
+                { from: 'p', to: 'd' },
+                { from: 'd', to: 'e' },
+              ],
+            },
+          },
+          flowH + 8
+        );
+        spacer(20);
+      }
+
+      if (show('automotive')) {
+        const autoOv = propsFromOverride(componentOverrides.auto);
+        title('10 · Instrument cluster');
+        const autoW = 640;
+        const autoH = 260;
+        stack(
+          'instrumentCluster',
+          {
+            theme: activeAutoTheme,
+            width: autoW,
+            height: autoH,
+            speed: 95,
+            rpm: 3200,
+            fuel: 68,
+            demoId: 'auto',
+            ...(autoOv.fontSize != null
+              ? { fontSize: parseFloat(autoOv.fontSize) || autoOv.fontSize }
+              : {}),
+          },
+          autoH + 8
+        );
+        spacer(12);
+      }
+
+      window.__ldThemeSceneH = Math.max(contentBottom + PAD, y + PAD);
+
+      app.clear();
+      app.loadJSON({ type: 'group', children });
+      lastAuthorScene = { type: 'group', children };
+      sceneFromEditor = false;
+      syncSceneEditor(lastAuthorScene, true);
+
+      resizeCanvas();
+      bindClusterNode();
+      syncTokenPanel();
+      updateApiSnippet();
+    }
+
+    function applyAppTheme(id, opts = {}) {
+      activeAppTheme = id;
+      const replace =
+        opts.replace !== undefined
+          ? opts.replace
+          : document.getElementById('opt-replace').checked;
+      const preset = id === 'default' ? 'default' : id;
+      if (typeof app.applyTheme === 'function') {
+        app.applyTheme({ preset }, { merge: !replace });
+      } else {
+        app.setUiTheme({ preset }, { replace });
+      }
+      const swatch = APP_THEMES.find((t) => t.id === id);
+      if (swatch) {
+        document.getElementById('primary-color').value = swatch.swatch;
+        document.getElementById('primary-hex').value = swatch.swatch;
+      }
+      document.getElementById('preset-freeform').value = '';
+      highlightControls();
+      syncTokenPanel();
+      syncStageBackground();
+      syncTextControlsFromTheme();
+      syncThemeEditor();
+      const primary = app.getResolvedTheme().primary || '(css default)';
+      log('App theme → ' + id + (replace ? ' · replace' : ' · merge') + ' · primary ' + primary);
+    }
+
+    function isImagePresetValue(value) {
+      const s = String(value || '').trim();
+      if (!s) return false;
+      if (/^url\(/i.test(s) || /^data:image\//i.test(s)) return true;
+      if (/^(https?:|blob:|file:)/i.test(s)) return true;
+      if (/\.(png|jpe?g|gif|webp|svg|avif|bmp|ico)(\?|#|$)/i.test(s)) return true;
+      if (s.startsWith('./') || s.startsWith('../')) return true;
+      return false;
+    }
+
+    function toCssImage(value) {
+      const s = String(value).trim();
+      if (/^url\(/i.test(s)) return s;
+      return `url(${JSON.stringify(s)})`;
+    }
+
+    function getThemeStageBackground() {
+      const pack =
+        typeof app.getTheme === 'function' ? app.getTheme() : (app.getUiTheme && app.getUiTheme()) || {};
+      if (pack.background && isImagePresetValue(pack.background)) return pack.background;
+      if (pack.preset && isImagePresetValue(pack.preset)) return pack.preset;
+      return null;
+    }
+
+    function syncStageBackground() {
+      const wrap = document.getElementById('canvas-wrap');
+      const bg = typeof app.getBackground === 'function' ? app.getBackground() : DEFAULT_STAGE_BG;
+      if (!wrap) return;
+      if (isImagePresetValue(bg) || String(bg).startsWith('url(')) {
+        wrap.style.background = `center / cover no-repeat ${toCssImage(bg)}`;
+      } else {
+        wrap.style.background = bg || DEFAULT_STAGE_BG;
+      }
+    }
+
+    /** Normalize a CSS color for the native color picker (#rrggbb), or null if translucent/unknown. */
+    function toPickerHex(value) {
+      try {
+        const ctx = document.createElement('canvas').getContext('2d');
+        if (!ctx) return null;
+        ctx.fillStyle = '#000000';
+        ctx.fillStyle = value;
+        const normalized = String(ctx.fillStyle);
+        if (/^#[0-9a-f]{6}$/i.test(normalized)) return normalized.toLowerCase();
+        const m = normalized.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+        if (m) {
+          const hex = (n) => Number(n).toString(16).padStart(2, '0');
+          return '#' + hex(m[1]) + hex(m[2]) + hex(m[3]);
+        }
+      } catch (_) { /* ignore */ }
+      return null;
+    }
+
+    function isCssColorInput(value) {
+      if (!value || !String(value).trim()) return false;
+      const s = String(value).trim();
+      if (isImagePresetValue(s)) return false;
+      if (/^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(s)) return true;
+      if (/^(rgba?|hsla?)\(/i.test(s)) return true;
+      const el = document.createElement('span');
+      el.style.color = '';
+      el.style.color = s;
+      return el.style.color !== '';
+    }
+
+    function applyCustomPrimary() {
+      const raw = document.getElementById('primary-hex').value.trim();
+      if (!isCssColorInput(raw)) {
+        log('Invalid color: ' + raw + ' — use #hex, rgb()/rgba(), hsl(), or a CSS name');
+        return;
+      }
+      const pickerHex = toPickerHex(raw);
+      if (pickerHex) document.getElementById('primary-color').value = pickerHex;
+      document.getElementById('primary-hex').value = raw;
+      applyOverrideToTarget({ primary: raw }, 'Primary ' + raw);
+      highlightControls();
+      syncTextControlsFromTheme();
+    }
+
+    function applyTextColor(kind) {
+      const inputId = kind === 'muted' ? 'text-muted-hex' : 'text-hex';
+      const pickerId = kind === 'muted' ? 'text-muted-color' : 'text-color';
+      const raw = document.getElementById(inputId).value.trim();
+      if (!isCssColorInput(raw)) {
+        log('Invalid text color: ' + raw);
+        return;
+      }
+      const pickerHex = toPickerHex(raw);
+      if (pickerHex) document.getElementById(pickerId).value = pickerHex;
+      document.getElementById(inputId).value = raw;
+      const patch = kind === 'muted' ? { textMuted: raw } : { text: raw };
+      applyOverrideToTarget(patch, kind === 'muted' ? 'Muted text' : 'Text');
+    }
+
+    function applyFontSize() {
+      const n = Number(document.getElementById('font-size').value) || 14;
+      const px = n + 'px';
+      const sm = Math.max(8, Math.round(n * (12 / 14))) + 'px';
+      const lg = Math.max(n, Math.round(n * (16 / 14))) + 'px';
+      document.getElementById('font-size-label').textContent = px;
+      applyOverrideToTarget(
+        { fontSize: px, fontSizeSm: sm, fontSizeLg: lg },
+        'Font size ' + px
+      );
+    }
+
+    function syncTextControlsFromTheme() {
+      const t = app.getResolvedTheme();
+      if (t.text) {
+        document.getElementById('text-hex').value = t.text;
+        const hex = toPickerHex(t.text);
+        if (hex) document.getElementById('text-color').value = hex;
+      }
+      if (t.textMuted) {
+        document.getElementById('text-muted-hex').value = t.textMuted;
+        const hex = toPickerHex(t.textMuted);
+        if (hex) document.getElementById('text-muted-color').value = hex;
+      }
+      if (t.fontSize) {
+        const n = parseFloat(t.fontSize);
+        if (Number.isFinite(n)) {
+          document.getElementById('font-size').value = String(Math.round(n));
+          document.getElementById('font-size-label').textContent = Math.round(n) + 'px';
+        }
+      }
+      if (t.primary) {
+        document.getElementById('primary-hex').value = t.primary;
+        const hex = toPickerHex(t.primary);
+        if (hex) document.getElementById('primary-color').value = hex;
+      }
+    }
+
+    function applyFreeformPreset(rawValue) {
+      const fromField = document.getElementById('preset-freeform').value.trim();
+      const raw = String(rawValue != null && rawValue !== '' ? rawValue : fromField).trim();
+      if (!raw || raw === '(image preset)') {
+        log('Enter a preset: pack name, color, or image path');
+        return;
+      }
+      const replace = document.getElementById('opt-replace').checked;
+      if (typeof app.applyTheme === 'function') {
+        app.applyTheme({ preset: raw }, { merge: !replace });
+      } else {
+        app.setUiTheme({ preset: raw }, { replace });
+      }
+      activeAppTheme = raw.length > 40 ? raw.slice(0, 28) + '…' : raw;
+      document.getElementById('preset-freeform').value = isImagePresetValue(raw)
+        ? '(image preset)'
+        : raw;
+      const pickerHex = toPickerHex(raw);
+      if (pickerHex) {
+        document.getElementById('primary-color').value = pickerHex;
+        document.getElementById('primary-hex').value = raw;
+      }
+      highlightControls();
+      syncTokenPanel();
+      syncStageBackground();
+      syncTextControlsFromTheme();
+      syncThemeEditor();
+      if (isImagePresetValue(raw)) {
+        log('Preset → image background (+ dark chrome for readable charts)');
+      } else {
+        log('Preset → ' + raw + ' · primary ' + (app.getResolvedTheme().primary || '—'));
+      }
+    }
+
+    function applyAutoTheme(id) {
+      activeAutoTheme = id;
+      if (clusterNode && LightDraw.updateAutoWidgetProps) {
+        LightDraw.updateAutoWidgetProps(clusterNode, { theme: id });
+      } else if (show('automotive')) {
+        buildScene();
+        reapplyActiveTheme();
+      }
+      highlightControls();
+      log('Automotive theme → ' + id + ' (independent of setUiTheme)');
+    }
+
+    function reapplyActiveTheme() {
+      const known = APP_THEMES.some((t) => t.id === activeAppTheme);
+      if (known) {
+        applyAppTheme(activeAppTheme, { replace: true });
+      } else {
+        const free = document.getElementById('preset-freeform').value.trim();
+        const preset =
+          free && free !== '(image preset)'
+            ? free
+            : getThemeStageBackground() || activeAppTheme;
+        applyFreeformPreset(preset);
+      }
+    }
+
+    function clearTheme() {
+      app.clearUiTheme();
+      activeAppTheme = 'default';
+      document.getElementById('preset-freeform').value = '';
+      highlightControls();
+      syncTokenPanel();
+      syncStageBackground();
+      syncThemeEditor(true);
+      log('Theme cleared → module defaults');
+    }
+
+    function syncTokenPanel() {
+      const t = app.getResolvedTheme();
+      const pack =
+        typeof app.getTheme === 'function' ? app.getTheme() : (app.getUiTheme && app.getUiTheme()) || {};
+      const stageBg = getThemeStageBackground() || (app.getBackground && app.getBackground()) || '—';
+      let stageLabel = stageBg;
+      if (isImagePresetValue(stageBg)) {
+        stageLabel = String(stageBg).startsWith('data:')
+          ? 'data:image… (sample)'
+          : stageBg.length > 36
+            ? stageBg.slice(0, 34) + '…'
+            : stageBg;
+      }
+      const keys = [
+        ['preset', pack.preset && isImagePresetValue(pack.preset) ? 'image…' : pack.preset || '—'],
+        ['primary', t.primary],
+        ['text', t.text],
+        ['fontSize', t.fontSize],
+        ['fontSizeSm', t.fontSizeSm],
+        ['fontSizeLg', t.fontSizeLg],
+        ['surface', t.surface],
+        ['stage bg', stageLabel],
+        ['auto palette', activeAutoTheme],
+      ];
+      const panel = document.getElementById('token-panel');
+      panel.innerHTML = keys
+        .map(([k, v]) => {
+          const showDot =
+            typeof v === 'string' &&
+            (v.startsWith('#') ||
+              v.startsWith('rgb') ||
+              v.startsWith('hsl') ||
+              (/^[a-z]+$/i.test(v) && v !== '—'));
+          const color = showDot
+            ? `<span class="theme-token-dot" style="background:${v}"></span>`
+            : String(v).includes('image') || String(v).includes('data:')
+              ? `<span class="theme-token-dot" style="background:#38bdf8"></span>`
+              : '';
+          return `<div><dt>${k}</dt><dd>${color}<span>${v || '—'}</span></dd></div>`;
+        })
+        .join('');
+    }
+
+    function highlightControls() {
+      document.querySelectorAll('#app-theme-bar .demo-btn').forEach((btn) => {
+        btn.classList.toggle('is-active', btn.dataset.id === activeAppTheme);
+      });
+      document.querySelectorAll('#auto-theme-bar .demo-btn').forEach((btn) => {
+        btn.classList.toggle('is-active', btn.dataset.id === activeAutoTheme);
+      });
+      document.querySelectorAll('#scene-nav .demo-btn').forEach((btn) => {
+        btn.classList.toggle('is-active', btn.dataset.id === activeScene);
+      });
+    }
+
+    function mountControls() {
+      const appBar = document.getElementById('app-theme-bar');
+      APP_THEMES.forEach((t) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'demo-btn secondary';
+        b.dataset.id = t.id;
+        b.innerHTML = `<span class="theme-swatch" style="background:${t.swatch}"></span>${t.label}`;
+        b.addEventListener('click', () => applyAppTheme(t.id));
+        appBar.appendChild(b);
+      });
+
+      const examples = document.getElementById('preset-examples');
+      PRESET_EXAMPLES.forEach((ex) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'demo-btn secondary';
+        b.dataset.id = ex.id;
+        b.textContent = ex.label;
+        b.title = ex.id === 'image' ? 'Apply sample image as preset' : 'Apply preset: ' + ex.value;
+        b.addEventListener('click', () => applyFreeformPreset(ex.value));
+        examples.appendChild(b);
+      });
+
+      const autoBar = document.getElementById('auto-theme-bar');
+      AUTO_THEMES.forEach((id) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'demo-btn secondary';
+        b.dataset.id = id;
+        b.textContent = id;
+        b.addEventListener('click', () => applyAutoTheme(id));
+        autoBar.appendChild(b);
+      });
+
+      const sceneNav = document.getElementById('scene-nav');
+      SCENES.forEach((s) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'demo-btn secondary';
+        b.dataset.id = s.id;
+        b.setAttribute('role', 'tab');
+        b.textContent = s.label;
+        b.addEventListener('click', () => {
+          activeScene = s.id;
+          buildScene();
+          reapplyActiveTheme();
+          if (show('automotive')) applyAutoTheme(activeAutoTheme);
+          highlightControls();
+          log('Scene → ' + s.label);
+        });
+        sceneNav.appendChild(b);
+      });
+
+      document.getElementById('btn-apply-primary').addEventListener('click', applyCustomPrimary);
+      document.getElementById('primary-hex').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') applyCustomPrimary();
+      });
+      document.getElementById('btn-apply-text').addEventListener('click', () => applyTextColor('text'));
+      document.getElementById('text-hex').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') applyTextColor('text');
+      });
+      document.getElementById('btn-apply-text-muted').addEventListener('click', () => applyTextColor('muted'));
+      document.getElementById('text-muted-hex').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') applyTextColor('muted');
+      });
+      document.getElementById('btn-apply-font').addEventListener('click', applyFontSize);
+      document.getElementById('btn-clear-typo-target').addEventListener('click', clearTypoTarget);
+      document.getElementById('font-size').addEventListener('input', (e) => {
+        document.getElementById('font-size-label').textContent = e.target.value + 'px';
+      });
+      document.getElementById('font-size').addEventListener('change', applyFontSize);
+      document.getElementById('text-color').addEventListener('input', (e) => {
+        document.getElementById('text-hex').value = e.target.value;
+      });
+      document.getElementById('text-muted-color').addEventListener('input', (e) => {
+        document.getElementById('text-muted-hex').value = e.target.value;
+      });
+      document.getElementById('btn-apply-preset').addEventListener('click', () => applyFreeformPreset());
+      document.getElementById('preset-freeform').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') applyFreeformPreset();
+      });
+      document.getElementById('primary-color').addEventListener('input', (e) => {
+        document.getElementById('primary-hex').value = e.target.value;
+      });
+      document.getElementById('btn-clear').addEventListener('click', clearTheme);
+      document.getElementById('btn-rebuild').addEventListener('click', () => {
+        sceneFromEditor = false;
+        buildScene();
+        reapplyActiveTheme();
+        if (show('automotive')) applyAutoTheme(activeAutoTheme);
+        setCodeStatus('Scene rebuilt from templates', 'ok');
+        log('Scene rebuilt');
+      });
+
+      const photoPack = {
+        preset: SAMPLE_IMAGE_PRESET,
+        primary: 'pink',
+        text: '#f1f5f9',
+        textMuted: '#94a3b8',
+        fontSize: '16px',
+        fontSizeSm: '13px',
+        fontSizeLg: '18px',
+        series: ['#0ea5e9', '#f43f5e', '#22c55e', '#f59e0b'],
+        dashboard: { chartGrid: '#1e293b', heatmapLow: '#0c4a6e' },
+        diagram: { canvasBg: '#0b1220', nodeStroke: '#38bdf8' },
+        automotive: 'sport',
+      };
+      const jsonEl = document.getElementById('theme-json');
+      jsonEl.value = JSON.stringify(samplePack, null, 2);
+
+      function loadAndApplyPack(pack, label) {
+        if (typeof app.applyTheme === 'function') app.applyTheme(pack);
+        else app.setUiTheme(pack, { replace: true });
+        activeAppTheme = isImagePresetValue(pack.preset) ? 'image…' : pack.preset || 'custom';
+        highlightControls();
+        syncTokenPanel();
+        syncStageBackground();
+        syncTextControlsFromTheme();
+        syncThemeEditor(true);
+        setCodeStatus(label, 'ok');
+        log(label);
+      }
+
+      document.getElementById('btn-sample-json').addEventListener('click', () => {
+        setCodePane('theme');
+        loadAndApplyPack(samplePack, 'Dark sample theme applied');
+      });
+      document.getElementById('btn-sample-photo').addEventListener('click', () => {
+        setCodePane('theme');
+        loadAndApplyPack(photoPack, 'Photo sample applied — pink primary, light chart text');
+      });
+
+      // Code dock
+      document.querySelectorAll('.pg-code-tab').forEach((tab) => {
+        tab.addEventListener('click', () => setCodePane(tab.dataset.pane));
+      });
+      document.getElementById('btn-run-code').addEventListener('click', runActiveCode);
+      document.getElementById('btn-format-code').addEventListener('click', formatActiveCode);
+      document.getElementById('btn-copy-code').addEventListener('click', () => {
+        copyActiveCode();
+      });
+      document.getElementById('btn-reset-snippet').addEventListener('click', () => {
+        snippetDirty = false;
+        updateApiSnippet(true);
+        setCodeStatus('API code reset from Scene / Theme', 'ok');
+      });
+      document.getElementById('btn-toggle-dock').addEventListener('click', () => {
+        const dock = document.getElementById('code-dock');
+        const collapsed = dock.classList.toggle('is-collapsed');
+        const btn = document.getElementById('btn-toggle-dock');
+        btn.textContent = collapsed ? 'Code ▸' : 'Code ▾';
+        btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+        btn.title = collapsed ? 'Expand code' : 'Collapse code';
+      });
+      document.getElementById('opt-live').addEventListener('change', () => {
+        setCodeStatus(
+          isLiveApply() ? 'Live auto-apply on' : 'Paused — click Run to apply',
+          isLiveApply() ? 'ok' : 'warn'
+        );
+        if (isLiveApply()) runActiveCode();
+      });
+      document.getElementById('scene-json').addEventListener('input', scheduleSceneApply);
+      document.getElementById('theme-json').addEventListener('input', scheduleThemeApply);
+      document.getElementById('api-snippet').addEventListener('input', () => {
+        if (!syncingEditors) scheduleSnippetApply();
+      });
+      document.getElementById('scene-json').addEventListener('keydown', (e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+          e.preventDefault();
+          applySceneFromEditor();
+        }
+      });
+      document.getElementById('theme-json').addEventListener('keydown', (e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+          e.preventDefault();
+          applyThemeFromEditor();
+        }
+      });
+      document.getElementById('api-snippet').addEventListener('keydown', (e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+          e.preventDefault();
+          applyApiSnippet();
+        }
+      });
+    }
+
+    function sceneHeight() {
+      if (window.__ldThemeSceneH && Number.isFinite(window.__ldThemeSceneH)) {
+        return Math.ceil(window.__ldThemeSceneH);
+      }
+      if (activeScene === 'ui') return 900;
+      if (activeScene === 'dashboard') return 1300;
+      if (activeScene === 'diagram') return 560;
+      if (activeScene === 'automotive') return 380;
+      return 2800;
+    }
+
+    function boot() {
+      const wrap = document.getElementById('canvas-wrap');
+      const w = Math.max(720, wrap.clientWidth || 900);
+      const h = Math.max(sceneHeight(), wrap.clientHeight || 480);
+      app = LightDraw.createApp('#app', {
+        width: w,
+        height: h,
+        renderer: 'canvas',
+        background: DEFAULT_STAGE_BG,
+        autoResize: false,
+        uiTheme: { preset: 'dark' },
+      });
+      app.on('themechange', () => {
+        syncTokenPanel();
+        syncTextControlsFromTheme();
+        syncStageBackground();
+      });
+      window.__ldThemeDemo = { getApp: () => app };
+
+      mountControls();
+      // Keep code dock open so Scene/Theme/API live-edit works in the hub iframe
+      const dock = document.getElementById('code-dock');
+      const btn = document.getElementById('btn-toggle-dock');
+      if (dock) dock.classList.remove('is-collapsed');
+      if (btn) {
+        btn.textContent = 'Code ▾';
+        btn.setAttribute('aria-expanded', 'true');
+        btn.title = 'Collapse code';
+      }
+      buildScene();
+      applyAppTheme('dark', { replace: true });
+      syncTextControlsFromTheme();
+      syncThemeEditor(true);
+      highlightControls();
+      setCodeStatus('Live playground ready — edit Scene, Theme, or API', 'ok');
+      log('Theme playground ready — edit code below for live re-render');
+
+      // Gentle live pulse on charts when visible
+      chartTimer = setInterval(() => {
+        if (!show('dashboard') || !app || !LightDraw.pushChartValue) return;
+        chartTick += 1;
+        const walk = (n) => {
+          if (n.metadata?.widgetType === 'lineChart') return n;
+          if (n.children) {
+            for (const c of n.children) {
+              const hit = walk(c);
+              if (hit) return hit;
+            }
+          }
+          return null;
+        };
+        const line = walk(app.stage);
+        if (line) {
+          LightDraw.pushChartValue(line, 20 + Math.round(30 + 20 * Math.sin(chartTick / 4)), 10);
+        }
+      }, 1200);
+    }
+
+    boot();
+  </script>
+</body>
+</html>

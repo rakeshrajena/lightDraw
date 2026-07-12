@@ -13,7 +13,7 @@
     <header class="demo-header">
       <span class="demo-badge">Export Pipeline</span>
       <h1>Scene Export</h1>
-      <p>PNG, JPEG, SVG, PDF, JSON, and offline HTML via unified <code>app.export()</code>.</p>
+      <p>PNG, JPEG, SVG, PDF, JSON, and offline HTML via unified <code>app.export()</code>. Edit Scene JSON below for live updates.</p>
     </header>
     <main class="demo-main demo-layout-aside">
       <div class="demo-canvas-wrap">
@@ -36,6 +36,7 @@
     </main>
   </div>
   <script src="../dist/lightdraw.min.js"></script>
+  <script src="demo-live-playground.js"></script>
   <script>
     const app = LightDraw.createApp('#app', {
       width: 680,
@@ -45,22 +46,74 @@
       pixelRatio: 2,
     });
 
-    const target = app.rect({
-      x: 120,
-      y: 80,
-      width: 200,
-      height: 120,
-      fill: '#2563eb',
-      stroke: '#93c5fd',
-      strokeWidth: 2,
+    let lastAuthorScene = {
+      type: 'group',
+      children: [
+        {
+          type: 'roundedRect',
+          props: { x: 40, y: 40, width: 100, height: 60, cornerRadius: 8, fill: '#dc2626' },
+        },
+        {
+          type: 'rect',
+          id: 'export-target',
+          props: {
+            x: 120,
+            y: 80,
+            width: 200,
+            height: 120,
+            fill: '#2563eb',
+            stroke: '#93c5fd',
+            strokeWidth: 2,
+          },
+        },
+        {
+          type: 'text',
+          props: {
+            text: 'Export Demo',
+            x: 250,
+            y: 280,
+            fontSize: 28,
+            fill: '#e2e8f0',
+            fontWeight: 'bold',
+          },
+        },
+        {
+          type: 'circle',
+          props: { x: 580, y: 100, radius: 50, fill: '#22c55e' },
+        },
+      ],
+    };
+
+    let target = null;
+
+    function findExportTarget() {
+      const root = app.stage;
+      if (root && typeof root.getChildById === 'function') {
+        return root.getChildById('export-target');
+      }
+      const layer = app.stage?.children?.[0];
+      const nodes = layer?.children || [];
+      return nodes.find((n) => n.id === 'export-target') || null;
+    }
+
+    function loadAuthorScene(scene) {
+      app.clear();
+      app.loadJSON(scene);
+      lastAuthorScene = scene;
+      target = findExportTarget();
+      app.render();
+    }
+
+    loadAuthorScene(lastAuthorScene);
+
+    LivePlayground.mount({
+      app: () => app,
+      panes: ['scene', 'theme', 'snippet'],
+      getScene: () => lastAuthorScene,
+      applyScene(parsed) {
+        loadAuthorScene(parsed);
+      },
     });
-    app.add(
-      app.roundedRect({ x: 40, y: 40, width: 100, height: 60, cornerRadius: 8, fill: '#dc2626' }),
-      target,
-      app.text({ text: 'Export Demo', x: 250, y: 280, fontSize: 28, fill: '#e2e8f0', fontWeight: 'bold' }),
-      app.circle({ x: 580, y: 100, radius: 50, fill: '#22c55e' })
-    );
-    app.render();
 
     function setStatus(msg) {
       document.getElementById('status').textContent = msg;

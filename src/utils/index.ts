@@ -43,39 +43,15 @@ export function uid(prefix = 'ld'): string {
   return prefix + '_' + Math.random().toString(36).slice(2, 11);
 }
 
-export function parseColor(color: string): { r: number; g: number; b: number; a: number } {
-  if (!color || color === 'transparent') {
-    return { r: 0, g: 0, b: 0, a: 0 };
-  }
-  if (color.startsWith('#')) {
-    const hex = color.slice(1);
-    const full =
-      hex.length === 3
-        ? hex
-            .split('')
-            .map((c) => c + c)
-            .join('')
-        : hex;
-    const n = parseInt(full, 16);
-    return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255, a: 1 };
-  }
-  const match = color.match(/rgba?\(([^)]+)\)/);
-  if (match) {
-    const parts = match[1].split(',').map((s) => parseFloat(s.trim()));
-    return { r: parts[0], g: parts[1], b: parts[2], a: parts[3] ?? 1 };
-  }
-  return { r: 0, g: 0, b: 0, a: 1 };
-}
-
-export function interpolateColor(from: string, to: string, t: number): string {
-  const a = parseColor(from);
-  const b = parseColor(to);
-  const r = Math.round(lerp(a.r, b.r, t));
-  const g = Math.round(lerp(a.g, b.g, t));
-  const bl = Math.round(lerp(a.b, b.b, t));
-  const alpha = lerp(a.a, b.a, t);
-  return alpha < 1 ? `rgba(${r},${g},${bl},${alpha})` : `rgb(${r},${g},${bl})`;
-}
+export {
+  type RgbaColor,
+  tryParseColor,
+  parseColor,
+  colorWithAlpha,
+  mixColors,
+  interpolateColor,
+  isCssColorString,
+} from './color';
 
 export function resolveContainer(container: string | HTMLElement): HTMLElement {
   if (typeof container === 'string') {

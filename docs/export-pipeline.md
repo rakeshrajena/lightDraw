@@ -46,9 +46,24 @@ downloadExport(result, 'scene.png');
 ## JSON validation
 
 ```javascript
-import { validateSceneJSON } from 'lightdraw/core';
+import {
+  validateSceneJSON,
+  parseAndValidateSceneJSON,
+  validateThemePack,
+  formatValidationErrors,
+} from 'lightdraw/core';
 
-const { valid, errors } = validateSceneJSON(sceneJson);
+const { valid, errors, issues } = validateSceneJSON(sceneJson);
+// errors look like:
+// root.children[0].props.variant: invalid value "primry"; expected one of: "primary" | "secondary" | "ghost" | "danger" did you mean "primary"?
+
+const parsed = parseAndValidateSceneJSON(rawText);
+if (!parsed.validation.valid) {
+  console.error(formatValidationErrors(parsed.validation));
+}
+
+const themeCheck = validateThemePack({ preset: 'drak' });
+// theme.preset: invalid value "drak"; expected one of: "default" | "dark" | … did you mean "dark"?
 ```
 
 ## Performance targets

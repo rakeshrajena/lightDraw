@@ -76,6 +76,7 @@
   "test:phase11": "vitest run test/phase11.test.ts test/phase11-coverage.test.ts test/phase11-integration.test.ts test/phase11-shapes.test.ts test/phase11-renderers.test.ts test/doc-snippets.test.ts",
   "test:phase12": "vitest run test/phase12.test.ts test/phase12-legacy.test.ts test/phase12-coverage.test.ts",
   "test:docs": "vitest run test/doc-snippets.test.ts",
+    "test:theme": "vitest run test/theme/ test/ui/theme-tokens.test.ts",
     "test:visual": "playwright test",
     "test:visual:update": "playwright test --update-snapshots",
     "test:ci:full": "npm test -- --exclude test/perf.test.ts && npm run test:perf && npm run test:coverage -- --exclude test/perf.test.ts && npm run test:phase12 && npm run test:phase11 && npm run test:memory && npm test -- test/renderers/",

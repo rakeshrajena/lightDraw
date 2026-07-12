@@ -19,6 +19,7 @@
 | [Performance](./performance-guide.md) | Benchmarks, spatial index, dirty regions |
 | [Legacy Browsers](./legacy-browser-guide.md) | ES5 build, polyfills, WebView |
 | [UI Theme](./ui-theme-guide.md) | Presets, tokens, high contrast — no mandatory CSS |
+| [Theme architecture](./theme-architecture.md) | Library-wide theme contract, phases, resolve order |
 | [Responsive Layout](./responsive-guide.md) | Breakpoints, `fullWidth`, `autoResize` |
 | [Legacy UI & CSS](./legacy-ui-guide.md) | ES5 + `lightdraw.min.css` compatibility |
 | [Automotive Examples](./automotive-examples.md) | Cluster, CAN viewer, drive simulation |
@@ -68,3 +69,9 @@ Interactive HTML demos live in [`../examples/`](../examples/):
 - `demo-diagram.html` — flowchart, state machine, network
 - `demo-export.html` — download all export formats
 - `demo-a11y.html` — keyboard & ARIA
+- `demo-theme.html` — live theme playground (Scene/Theme JSON editors, presets, automotive)
+- All major demos mount shared `demo-live-playground.js` (edit Scene/Config JSON → live re-render)
+- Website: single-stage Playground hub (`website/`) with hero + demo rail
+- Help center: [`website/help.html`](../website/help.html) — short topics with live demo embeds
+- Day / Night site chrome (persists into demo iframes)
+- `demo-color-stops.html` — conditional `colorStops` / `colorZones` on gauges, meters, bars

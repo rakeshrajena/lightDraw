@@ -1,7 +1,7 @@
 import { attachRegionsHover, attachNearestHover } from '../core/interaction';
 import { registerDashboard } from '../../registryCore';
 import { createWidgetGroup, num, setState } from '../../helpers';
-import { DASHBOARD } from '../../theme';
+import { getActiveDashboard } from '../../theme';
 import { forceDirectedLayout } from '../../../diagram/layouts';
 import type { GanttTask, TimelineEvent } from '../types';
 
@@ -21,20 +21,20 @@ registerDashboard('networkChart', (props, app) => {
     { from: 'd', to: 'c' },
   ];
   const group = createWidgetGroup(app, 'networkChart', props);
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  group.add(app.rect({ width, height, fill: getActiveDashboard().chartBg, listening: true }));
   const positions = forceDirectedLayout(nodes, edges, { width, height, iterations: 50, seed: 7 });
   edges.forEach((e) => {
     const a = positions.get(e.from);
     const b = positions.get(e.to);
     if (!a || !b) return;
-    group.add(app.line({ x: a.x, y: a.y, x2: b.x - a.x, y2: b.y - a.y, stroke: DASHBOARD.chartGrid, strokeWidth: 1, listening: false }));
+    group.add(app.line({ x: a.x, y: a.y, x2: b.x - a.x, y2: b.y - a.y, stroke: getActiveDashboard().chartGrid, strokeWidth: 1, listening: false }));
   });
   nodes.forEach((n) => {
     const p = positions.get(n.id);
     if (!p) return;
     group.add(
-      app.circle({ x: p.x - 10, y: p.y - 10, radius: 10, fill: DASHBOARD.primary, listening: false }),
-      app.text({ text: n.label ?? n.id, x: p.x - 8, y: p.y + 16, fontSize: 9, fill: DASHBOARD.text, listening: false })
+      app.circle({ x: p.x - 10, y: p.y - 10, radius: 10, fill: getActiveDashboard().primary, listening: false }),
+      app.text({ text: n.label ?? n.id, x: p.x - 8, y: p.y + 16, fontSize: 9, fill: getActiveDashboard().text, listening: false })
     );
   });
   attachNearestHover(
@@ -64,16 +64,16 @@ registerDashboard('timeline', (props, app) => {
   ];
   const group = createWidgetGroup(app, 'timeline', props);
   const max = Math.max(...events.map((e) => e.end ?? e.start ?? 0), 10);
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
-  group.add(app.line({ x: 20, y: height / 2, x2: width - 40, y2: 0, stroke: DASHBOARD.timelineLine, strokeWidth: 2, listening: false }));
+  group.add(app.rect({ width, height, fill: getActiveDashboard().chartBg, listening: true }));
+  group.add(app.line({ x: 20, y: height / 2, x2: width - 40, y2: 0, stroke: getActiveDashboard().timelineLine, strokeWidth: 2, listening: false }));
   events.forEach((ev, i) => {
     const start = ev.start ?? i * 2;
     const end = ev.end ?? start + 1;
     const x = 20 + ((start / max) * (width - 60));
     const w = ((end - start) / max) * (width - 60);
     group.add(
-      app.roundedRect({ x, y: height / 2 - 14, width: Math.max(w, 20), height: 28, cornerRadius: 4, fill: DASHBOARD.series[i % DASHBOARD.series.length], listening: false }),
-      app.text({ text: ev.label, x: x + 4, y: height / 2 - 6, fontSize: 10, fill: DASHBOARD.text, listening: false })
+      app.roundedRect({ x, y: height / 2 - 14, width: Math.max(w, 20), height: 28, cornerRadius: 4, fill: getActiveDashboard().series[i % getActiveDashboard().series.length], listening: false }),
+      app.text({ text: ev.label, x: x + 4, y: height / 2 - 6, fontSize: 10, fill: getActiveDashboard().text, listening: false })
     );
   });
   attachRegionsHover(
@@ -106,14 +106,14 @@ registerDashboard('ganttChart', (props, app) => {
   const group = createWidgetGroup(app, 'ganttChart', props);
   const max = Math.max(...tasks.map((t) => t.end), 12);
   const rowH = height / tasks.length;
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  group.add(app.rect({ width, height, fill: getActiveDashboard().chartBg, listening: true }));
   tasks.forEach((t, i) => {
     const y = i * rowH + 8;
     const x = 80 + (t.start / max) * (width - 100);
     const w = ((t.end - t.start) / max) * (width - 100);
     group.add(
-      app.text({ text: t.label, x: 4, y: y + 4, fontSize: 11, fill: DASHBOARD.text, listening: false }),
-      app.roundedRect({ x, y, width: Math.max(w, 8), height: rowH - 16, cornerRadius: 3, fill: t.color ?? DASHBOARD.series[i % DASHBOARD.series.length], listening: false })
+      app.text({ text: t.label, x: 4, y: y + 4, fontSize: 11, fill: getActiveDashboard().text, listening: false }),
+      app.roundedRect({ x, y, width: Math.max(w, 8), height: rowH - 16, cornerRadius: 3, fill: t.color ?? getActiveDashboard().series[i % getActiveDashboard().series.length], listening: false })
     );
   });
   attachRegionsHover(

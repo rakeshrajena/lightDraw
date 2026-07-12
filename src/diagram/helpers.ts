@@ -48,6 +48,7 @@ export function createDiagramGroup(
     metadata: {
       diagramType: type,
       diagramState: { ...props },
+      ...(props.demoId != null ? { demoId: props.demoId } : {}),
     },
     ...extra,
   }) as Group;

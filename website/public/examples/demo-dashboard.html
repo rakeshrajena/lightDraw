@@ -13,7 +13,7 @@
     <header class="demo-header">
       <span class="demo-badge">Dashboard Module</span>
       <h1>Analytics Dashboard</h1>
-      <p>Live widgets plus the full <strong>82-chart</strong> catalog — gauges, status indicators, and every dashboard chart type.</p>
+      <p>Live widgets plus the full <strong>82-chart</strong> catalog — gauges, status indicators, and every dashboard chart type. Edit Scene JSON below for live updates.</p>
     </header>
     <main class="demo-main">
       <div class="demo-view-tabs" id="view-tabs">
@@ -47,6 +47,7 @@
   </div>
   <script src="demo-chart-catalog.js"></script>
   <script src="../lightdraw.min.js"></script>
+  <script src="demo-live-playground.js"></script>
   <script>
     const PANEL = { fill: '#151d2e', stroke: '#2a3654' };
     const isEmbed = () => document.documentElement.classList.contains('demo-embed');
@@ -54,6 +55,7 @@
     let liveTimer = null;
     let clockTimer = null;
     let app;
+    let lastAuthorScene = null;
 
     function panel(x, y, w, h) {
       return {
@@ -421,9 +423,18 @@
       });
 
       document.getElementById('app').style.height = layout.height + 'px';
-      app.loadJSON({ type: 'group', children: layout.children });
+      lastAuthorScene = { type: 'group', children: layout.children };
+      app.loadJSON(lastAuthorScene);
       app.render();
 
+      startClockTimer();
+
+      window.__ldDashAudit = auditScene;
+      if (window.LivePlayground) LivePlayground.syncScene(true);
+    }
+
+    function startClockTimer() {
+      if (clockTimer) clearInterval(clockTimer);
       clockTimer = setInterval(() => {
         const clock = findWidget('clock');
         if (clock?.metadata?.refresh) {
@@ -431,8 +442,6 @@
           app.requestRender();
         }
       }, 1000);
-
-      window.__ldDashAudit = auditScene;
     }
 
     function widgets() {
@@ -614,6 +623,24 @@
     });
 
     buildDashboard();
+    LivePlayground.mount({
+      app: () => app,
+      panes: ['scene', 'theme', 'snippet'],
+      getScene: () => lastAuthorScene,
+      applyScene(parsed) {
+        if (liveTimer) {
+          clearInterval(liveTimer);
+          liveTimer = null;
+          document.getElementById('btn-live')?.classList.remove('is-active');
+        }
+        if (clockTimer) clearInterval(clockTimer);
+        app.clear();
+        app.loadJSON(parsed);
+        lastAuthorScene = parsed;
+        app.render();
+        startClockTimer();
+      },
+    });
     if (location.hash === '#charts' && !isEmbed()) {
       setView('charts');
     }

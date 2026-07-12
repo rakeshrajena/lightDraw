@@ -2,6 +2,8 @@ import type { App } from '../../../App';
 import type { Group } from '../../../shapes/Group';
 import type { Node } from '../../../Node';
 import { getState, setRefresh, setState } from '../../helpers';
+import { syncActiveDashboardTheme, runWithDashboardTheme, dashboardPackFromApp } from '../../theme';
+import { resolveEffectiveUiTokens } from '../../../components/nodeTheme';
 
 export type ChartBuildFn = (group: Group, app: App, props: Record<string, unknown>) => void;
 export type ChartFactory = (props: Record<string, unknown>, app: App) => Group;
@@ -16,12 +18,25 @@ export function clearChartWidgetListeners(group: Group): void {
 
 /** Full rebuild — clears children and runs build (used for live/streaming data). */
 export function installChartRebuild(group: Group, app: App, build: ChartBuildFn): void {
+  let initialized = false;
   const rebuild = () => {
     clearChartWidgetListeners(group);
-    for (const child of [...group.children]) {
-      group.remove(child);
-    }
-    build(group, app, { ...getState(group) });
+    const props = {
+      ...getState(group),
+      ...(initialized ? { _chartRebuild: true } : {}),
+    };
+    const theme = syncActiveDashboardTheme(
+      resolveEffectiveUiTokens(app, props),
+      app,
+      dashboardPackFromApp(app)
+    );
+    runWithDashboardTheme(theme, () => {
+      for (const child of [...group.children]) {
+        group.remove(child);
+      }
+      build(group, app, props);
+    });
+    initialized = true;
     app.requestRender();
   };
   group.metadata.chartRebuild = rebuild;
@@ -35,23 +50,45 @@ export function installRegistryChartRebuild(
   app: App,
   factory: ChartFactory
 ): void {
+  let initialized = false;
   const rebuild = () => {
     clearChartWidgetListeners(group);
-    const props = { ...getState(group), x: group.x, y: group.y };
-    for (const child of [...group.children]) {
-      group.remove(child);
-    }
-    const fresh = factory(props, app) as Group;
-    for (const child of [...fresh.children]) {
-      fresh.remove(child);
-      group.add(child);
-    }
-    group.metadata._parts = fresh.metadata._parts;
-    group.metadata.widgetState = fresh.metadata.widgetState;
+    const props = {
+      ...getState(group),
+      x: group.x,
+      y: group.y,
+      ...(initialized ? { _chartRebuild: true } : {}),
+    };
+    const theme = syncActiveDashboardTheme(
+      resolveEffectiveUiTokens(app, props),
+      app,
+      dashboardPackFromApp(app)
+    );
+    runWithDashboardTheme(theme, () => {
+      for (const child of [...group.children]) {
+        group.remove(child);
+      }
+      const fresh = factory(props, app) as Group;
+      for (const child of [...fresh.children]) {
+        fresh.remove(child);
+        group.add(child);
+      }
+      group.metadata._parts = fresh.metadata._parts;
+      group.metadata.widgetState = fresh.metadata.widgetState;
+      // Prefer the factory's value refresh (gauges/meters) over a full rebuild on setLiveValue.
+      if (typeof fresh.metadata.refresh === 'function') {
+        group.metadata.refresh = fresh.metadata.refresh;
+      }
+    });
+    initialized = true;
     app.requestRender();
   };
   group.metadata.chartRebuild = rebuild;
-  setRefresh(group, () => rebuild());
+  // Keep incremental refresh when the factory already registered one (needle/fill updates).
+  // Charts that need rebuild-on-refresh use installChartRebuild instead.
+  if (typeof group.metadata.refresh !== 'function') {
+    setRefresh(group, () => rebuild());
+  }
 }
 
 /** Patch widget state and rebuild chart layers. */

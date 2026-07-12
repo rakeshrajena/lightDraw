@@ -27,5 +27,7 @@ export {
 export { updateAutoWidgetProps, installAutoWidgetRebuild } from '../../automotive/refresh';
 export { applyDriveState, sampleDriveFrames } from '../../automotive/simulation';
 export { animateAutoValue, setAutoValue } from '../../automotive/helpers';
+export { THEMES, getTheme, AUTOMOTIVE_THEME_PRESETS } from '../../automotive/themes';
+export type { ClusterTheme, ThemePalette } from '../../automotive/themes';
 export type { DriveState } from '../../automotive/simulation';
 export default automotivePlugin;

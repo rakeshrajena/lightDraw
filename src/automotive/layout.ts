@@ -1,4 +1,5 @@
 import { bool, num, str } from './helpers';
+import { getAutomotiveFontScale } from './themes';
 
 export interface WidgetBounds {
   width: number;
@@ -110,7 +111,8 @@ export function autoCenteredText(
 
 export function fluidFont(base: number, bounds: WidgetBounds, min = 8, max = 24): number {
   const scale = Math.min(bounds.innerWidth, bounds.innerHeight) / 120;
-  return Math.round(Math.min(max, Math.max(min, base * scale)));
+  const themeScale = getAutomotiveFontScale();
+  return Math.round(Math.min(max, Math.max(min, base * scale * themeScale)));
 }
 
 export function centerInBounds(

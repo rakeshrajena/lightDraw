@@ -87,6 +87,252 @@ function hasRenderer(type) {
   return factories.has(type);
 }
 
+// src/utils/color.ts
+var NAMED = {
+  transparent: "rgba(0,0,0,0)",
+  black: "#000000",
+  white: "#ffffff",
+  red: "#ff0000",
+  green: "#008000",
+  blue: "#0000ff",
+  yellow: "#ffff00",
+  cyan: "#00ffff",
+  aqua: "#00ffff",
+  magenta: "#ff00ff",
+  fuchsia: "#ff00ff",
+  orange: "#ffa500",
+  purple: "#800080",
+  pink: "#ffc0cb",
+  gray: "#808080",
+  grey: "#808080",
+  silver: "#c0c0c0",
+  maroon: "#800000",
+  navy: "#000080",
+  olive: "#808000",
+  teal: "#008080",
+  lime: "#00ff00",
+  indigo: "#4b0082",
+  violet: "#ee82ee",
+  coral: "#ff7f50",
+  gold: "#ffd700",
+  tomato: "#ff6347",
+  crimson: "#dc143c",
+  slategray: "#708090",
+  slategrey: "#708090",
+  darkslategray: "#2f4f4f",
+  darkslategrey: "#2f4f4f",
+  steelblue: "#4682b4",
+  royalblue: "#4169e1",
+  dodgerblue: "#1e90ff",
+  deepskyblue: "#00bfff",
+  skyblue: "#87ceeb",
+  lightblue: "#add8e6",
+  lightskyblue: "#87cefa",
+  mediumblue: "#0000cd",
+  darkblue: "#00008b",
+  midnightblue: "#191970",
+  forestgreen: "#228b22",
+  seagreen: "#2e8b57",
+  mediumseagreen: "#3cb371",
+  lightgreen: "#90ee90",
+  darkgreen: "#006400",
+  springgreen: "#00ff7f",
+  chartreuse: "#7fff00",
+  darkorange: "#ff8c00",
+  orangered: "#ff4500",
+  hotpink: "#ff69b4",
+  deeppink: "#ff1493",
+  lightpink: "#ffb6c1",
+  brown: "#a52a2a",
+  chocolate: "#d2691e",
+  sienna: "#a0522d",
+  peru: "#cd853f",
+  wheat: "#f5deb3",
+  tan: "#d2b48c",
+  beige: "#f5f5dc",
+  ivory: "#fffff0",
+  snow: "#fffafa",
+  ghostwhite: "#f8f8ff",
+  whitesmoke: "#f5f5f5",
+  gainsboro: "#dcdcdc",
+  lightgray: "#d3d3d3",
+  lightgrey: "#d3d3d3",
+  darkgray: "#a9a9a9",
+  darkgrey: "#a9a9a9",
+  dimgray: "#696969",
+  dimgrey: "#696969"
+};
+function clamp01(n) {
+  return n < 0 ? 0 : n > 1 ? 1 : n;
+}
+function clamp255(n) {
+  return n < 0 ? 0 : n > 255 ? 255 : n;
+}
+function parseHexByte(pair) {
+  return parseInt(pair, 16);
+}
+function parseHexColor(hex) {
+  const raw = hex.slice(1);
+  if (![3, 4, 6, 8].includes(raw.length))
+    return null;
+  if (![...raw].every((c) => /[0-9a-f]/i.test(c)))
+    return null;
+  const expand = (s) => s.split("").map((c) => c + c).join("");
+  const full = raw.length <= 4 ? expand(raw) : raw;
+  const r = parseHexByte(full.slice(0, 2));
+  const g = parseHexByte(full.slice(2, 4));
+  const b = parseHexByte(full.slice(4, 6));
+  const a = full.length === 8 ? parseHexByte(full.slice(6, 8)) / 255 : 1;
+  if ([r, g, b, a].some((n) => Number.isNaN(n)))
+    return null;
+  return { r, g, b, a };
+}
+function parseChannel(raw, kind) {
+  const s = raw.trim();
+  if (!s || s === "none")
+    return null;
+  if (s.endsWith("%")) {
+    const pct = parseFloat(s.slice(0, -1));
+    if (Number.isNaN(pct))
+      return null;
+    return kind === "rgb" ? pct / 100 * 255 : pct / 100;
+  }
+  const n = parseFloat(s);
+  return Number.isNaN(n) ? null : n;
+}
+function parseAlpha(raw, fallback = 1) {
+  if (raw == null || raw === "")
+    return fallback;
+  const s = raw.trim();
+  if (s.endsWith("%")) {
+    const pct = parseFloat(s.slice(0, -1));
+    return Number.isNaN(pct) ? fallback : clamp01(pct / 100);
+  }
+  const n = parseFloat(s);
+  return Number.isNaN(n) ? fallback : clamp01(n);
+}
+function splitCssArgs(inner) {
+  const slash = inner.split("/");
+  const main = slash[0].trim();
+  const alpha = slash[1]?.trim();
+  const parts = main.includes(",") ? main.split(",").map((p) => p.trim()).filter(Boolean) : main.split(/\s+/).filter(Boolean);
+  if (alpha)
+    parts.push(alpha);
+  return parts;
+}
+function hslToRgb(h, s, l) {
+  const hue = (h % 360 + 360) % 360;
+  const sat = clamp01(s);
+  const light = clamp01(l);
+  const c = (1 - Math.abs(2 * light - 1)) * sat;
+  const x = c * (1 - Math.abs(hue / 60 % 2 - 1));
+  const m = light - c / 2;
+  let rp = 0;
+  let gp = 0;
+  let bp = 0;
+  if (hue < 60)
+    [rp, gp, bp] = [c, x, 0];
+  else if (hue < 120)
+    [rp, gp, bp] = [x, c, 0];
+  else if (hue < 180)
+    [rp, gp, bp] = [0, c, x];
+  else if (hue < 240)
+    [rp, gp, bp] = [0, x, c];
+  else if (hue < 300)
+    [rp, gp, bp] = [x, 0, c];
+  else
+    [rp, gp, bp] = [c, 0, x];
+  return [
+    Math.round(clamp255((rp + m) * 255)),
+    Math.round(clamp255((gp + m) * 255)),
+    Math.round(clamp255((bp + m) * 255))
+  ];
+}
+function parseFunctional(color) {
+  const rgbMatch = color.match(/^rgba?\(\s*([\s\S]+)\)$/i);
+  if (rgbMatch) {
+    const parts = splitCssArgs(rgbMatch[1]);
+    if (parts.length < 3)
+      return null;
+    const r = parseChannel(parts[0], "rgb");
+    const g = parseChannel(parts[1], "rgb");
+    const b = parseChannel(parts[2], "rgb");
+    if (r == null || g == null || b == null)
+      return null;
+    return {
+      r: clamp255(r),
+      g: clamp255(g),
+      b: clamp255(b),
+      a: parseAlpha(parts[3])
+    };
+  }
+  const hslMatch = color.match(/^hsla?\(\s*([\s\S]+)\)$/i);
+  if (hslMatch) {
+    const parts = splitCssArgs(hslMatch[1]);
+    if (parts.length < 3)
+      return null;
+    const h = parseFloat(parts[0]);
+    const s = parseChannel(parts[1], "hsl");
+    const l = parseChannel(parts[2], "hsl");
+    if (Number.isNaN(h) || s == null || l == null)
+      return null;
+    const [r, g, b] = hslToRgb(h, s, l);
+    return { r, g, b, a: parseAlpha(parts[3]) };
+  }
+  return null;
+}
+function tryParseColor(color) {
+  if (!color)
+    return null;
+  const trimmed = color.trim();
+  if (!trimmed)
+    return null;
+  const lower = trimmed.toLowerCase();
+  if (lower === "transparent")
+    return { r: 0, g: 0, b: 0, a: 0 };
+  if (trimmed.startsWith("#"))
+    return parseHexColor(trimmed);
+  const functional = parseFunctional(trimmed);
+  if (functional)
+    return functional;
+  const named = NAMED[lower.replace(/\s+/g, "")];
+  if (named)
+    return tryParseColor(named);
+  return null;
+}
+function colorWithAlpha(color, alpha) {
+  const c = tryParseColor(color);
+  if (!c)
+    return null;
+  const a = clamp01(alpha);
+  return `rgba(${Math.round(c.r)}, ${Math.round(c.g)}, ${Math.round(c.b)}, ${a})`;
+}
+function mixColors(from, to, t) {
+  const a = tryParseColor(from);
+  const b = tryParseColor(to);
+  if (!a || !b)
+    return to;
+  const u = clamp01(t);
+  const r = Math.round(a.r + (b.r - a.r) * u);
+  const g = Math.round(a.g + (b.g - a.g) * u);
+  const bl = Math.round(a.b + (b.b - a.b) * u);
+  const alpha = a.a + (b.a - a.a) * u;
+  return alpha < 1 ? `rgba(${r},${g},${bl},${alpha})` : `rgb(${r},${g},${bl})`;
+}
+function interpolateColor(from, to, t) {
+  return mixColors(from, to, t);
+}
+function isCssColorString(color) {
+  if (!color)
+    return false;
+  const t = color.trim().toLowerCase();
+  if (t.startsWith("#") || t.startsWith("rgb") || t.startsWith("hsl"))
+    return true;
+  if (t === "transparent")
+    return true;
+  return t.replace(/\s+/g, "") in NAMED;
+}
+
 // src/utils/index.ts
 function now() {
   return typeof performance !== "undefined" && performance.now ? performance.now() : Date.now();
@@ -115,32 +361,6 @@ function radToDeg(rad) {
 }
 function uid(prefix = "ld") {
   return prefix + "_" + Math.random().toString(36).slice(2, 11);
-}
-function parseColor(color) {
-  if (!color || color === "transparent") {
-    return { r: 0, g: 0, b: 0, a: 0 };
-  }
-  if (color.startsWith("#")) {
-    const hex = color.slice(1);
-    const full = hex.length === 3 ? hex.split("").map((c) => c + c).join("") : hex;
-    const n = parseInt(full, 16);
-    return { r: n >> 16 & 255, g: n >> 8 & 255, b: n & 255, a: 1 };
-  }
-  const match = color.match(/rgba?\(([^)]+)\)/);
-  if (match) {
-    const parts = match[1].split(",").map((s) => parseFloat(s.trim()));
-    return { r: parts[0], g: parts[1], b: parts[2], a: parts[3] ?? 1 };
-  }
-  return { r: 0, g: 0, b: 0, a: 1 };
-}
-function interpolateColor(from, to, t) {
-  const a = parseColor(from);
-  const b = parseColor(to);
-  const r = Math.round(lerp(a.r, b.r, t));
-  const g = Math.round(lerp(a.g, b.g, t));
-  const bl = Math.round(lerp(a.b, b.b, t));
-  const alpha = lerp(a.a, b.a, t);
-  return alpha < 1 ? `rgba(${r},${g},${bl},${alpha})` : `rgb(${r},${g},${bl})`;
 }
 function resolveContainer(container) {
   if (typeof container === "string") {
@@ -1217,20 +1437,20 @@ var Renderer = class {
   get needsFullRedraw() {
     return this.fullRedraw || !this.hasRendered;
   }
-  applyFillStyle(_ctx, fill, setFill) {
+  applyFillStyle(_ctx, fill, setFill2) {
     if (!fill)
       return;
     if (typeof fill === "string") {
-      setFill(fill);
+      setFill2(fill);
     } else if (fill.type === "linear" || fill.type === "radial") {
       const g = fill;
     }
   }
-  applyStrokeStyle(_ctx, stroke, setStroke) {
+  applyStrokeStyle(_ctx, stroke, setStroke2) {
     if (!stroke)
       return;
     if (typeof stroke === "string") {
-      setStroke(stroke);
+      setStroke2(stroke);
     }
   }
   applyShadow(ctx, shadow) {
@@ -2117,6 +2337,280 @@ function toHighContrastColor(color, kind = "fill") {
   return HC_PALETTE.accent;
 }
 
+// src/components/uiTheme.ts
+var UI_THEME_VAR_MAP = {
+  primary: "--ld-primary",
+  primaryHover: "--ld-primary-hover",
+  primaryActive: "--ld-primary-active",
+  primarySubtle: "--ld-primary-subtle",
+  secondary: "--ld-secondary",
+  secondaryHover: "--ld-secondary-hover",
+  danger: "--ld-danger",
+  dangerSubtle: "--ld-danger-subtle",
+  success: "--ld-success",
+  successSubtle: "--ld-success-subtle",
+  warning: "--ld-warning",
+  warningSubtle: "--ld-warning-subtle",
+  surface: "--ld-surface",
+  surfaceMuted: "--ld-surface-muted",
+  surfaceInset: "--ld-surface-inset",
+  overlay: "--ld-overlay",
+  border: "--ld-border",
+  borderStrong: "--ld-border-strong",
+  text: "--ld-text",
+  textSecondary: "--ld-text-secondary",
+  textMuted: "--ld-text-muted",
+  textInverse: "--ld-text-inverse",
+  placeholder: "--ld-placeholder",
+  radius: "--ld-radius",
+  radiusSm: "--ld-radius-sm",
+  radiusLg: "--ld-radius-lg",
+  fontFamily: "--ld-font-family",
+  fontSize: "--ld-font-size",
+  fontSizeSm: "--ld-font-size-sm",
+  fontSizeLg: "--ld-font-size-lg",
+  controlHeight: "--ld-control-h",
+  shadowMd: "--ld-shadow-md",
+  statusBarBg: "--ld-statusbar-bg",
+  statusBarText: "--ld-statusbar-text",
+  statusBarBorder: "--ld-statusbar-border",
+  tooltipBg: "--ld-tooltip-bg",
+  spaceXs: "--ld-space-xs",
+  spaceSm: "--ld-space-sm",
+  spaceMd: "--ld-space-md",
+  spaceLg: "--ld-space-lg",
+  spaceXl: "--ld-space-xl",
+  bpSm: "--ld-bp-sm",
+  bpMd: "--ld-bp-md",
+  bpLg: "--ld-bp-lg"
+};
+var UI_THEME_TOKEN_KEYS = Object.keys(UI_THEME_VAR_MAP);
+function applyUiTheme(el, tokens) {
+  el.removeAttribute("data-ld-theme");
+  for (const key of UI_THEME_TOKEN_KEYS) {
+    const value = tokens[key];
+    const cssVar = UI_THEME_VAR_MAP[key];
+    if (value !== void 0 && value !== "") {
+      el.style.setProperty(cssVar, value);
+    } else {
+      el.style.removeProperty(cssVar);
+    }
+  }
+}
+var DARK_BASE = {
+  surface: "#1e293b",
+  surfaceMuted: "#0f172a",
+  surfaceInset: "#334155",
+  border: "#334155",
+  borderStrong: "#475569",
+  text: "#f1f5f9",
+  textSecondary: "#cbd5e1",
+  textMuted: "#94a3b8",
+  textInverse: "#0f172a",
+  placeholder: "#64748b",
+  primarySubtle: "#1e3a5f",
+  successSubtle: "#14532d",
+  warningSubtle: "#422006",
+  dangerSubtle: "#450a0a",
+  overlay: "rgba(0, 0, 0, 0.65)",
+  statusBarBg: "#0f172a",
+  statusBarText: "#94a3b8",
+  statusBarBorder: "#334155",
+  tooltipBg: "#0f172a"
+};
+var LIGHT_BASE = {
+  surface: "#ffffff",
+  surfaceMuted: "#f8fafc",
+  surfaceInset: "#f1f5f9",
+  border: "#e2e8f0",
+  borderStrong: "#cbd5e1",
+  text: "#0f172a",
+  textSecondary: "#475569",
+  textMuted: "#64748b",
+  textInverse: "#ffffff",
+  placeholder: "#94a3b8",
+  primarySubtle: "#eff6ff",
+  successSubtle: "#ecfdf5",
+  warningSubtle: "#fffbeb",
+  dangerSubtle: "#fef2f2",
+  overlay: "rgba(15, 23, 42, 0.5)",
+  statusBarBg: "#f8fafc",
+  statusBarText: "#64748b",
+  statusBarBorder: "#e2e8f0",
+  tooltipBg: "#0f172a"
+};
+var UI_DARK_PACK = { ...DARK_BASE };
+var UI_LIGHT_PACK = { ...LIGHT_BASE };
+var UI_DARK_MODE_PACK = UI_DARK_PACK;
+var UI_LIGHT_MODE_PACK = UI_LIGHT_PACK;
+var UI_PRESETS = {
+  /** Full light theme (CSS / canvas defaults). */
+  default: { ...LIGHT_BASE },
+  /** Full dark theme with blue primary. */
+  dark: {
+    ...DARK_BASE,
+    primary: "#3b82f6",
+    primaryHover: "#2563eb",
+    primaryActive: "#1d4ed8"
+  },
+  /** Light theme + purple accent. */
+  violet: {
+    ...LIGHT_BASE,
+    primary: "#7c3aed",
+    primaryHover: "#6d28d9",
+    primaryActive: "#5b21b6",
+    primarySubtle: "#ede9fe"
+  },
+  /** Light theme + green accent. */
+  emerald: {
+    ...LIGHT_BASE,
+    primary: "#059669",
+    primaryHover: "#047857",
+    primaryActive: "#065f46",
+    primarySubtle: "#d1fae5"
+  },
+  /** Light theme + slate accent. */
+  slate: {
+    ...LIGHT_BASE,
+    primary: "#334155",
+    primaryHover: "#1e293b",
+    primaryActive: "#0f172a",
+    primarySubtle: "#f1f5f9"
+  },
+  /** Light theme + sky accent. */
+  ocean: {
+    ...LIGHT_BASE,
+    primary: "#0284c7",
+    primaryHover: "#0369a1",
+    primaryActive: "#075985",
+    primarySubtle: "#e0f2fe"
+  },
+  /** Light theme + rose accent. */
+  rose: {
+    ...LIGHT_BASE,
+    primary: "#e11d48",
+    primaryHover: "#be123c",
+    primaryActive: "#9f1239",
+    primarySubtle: "#ffe4e6"
+  },
+  /** Dark theme + violet accent. */
+  darkViolet: {
+    ...DARK_BASE,
+    primary: "#8b5cf6",
+    primaryHover: "#7c3aed",
+    primaryActive: "#6d28d9",
+    primarySubtle: "#2e1065"
+  }
+};
+function stripLegacyMode(input) {
+  const { mode: _drop, ...rest } = input;
+  return rest;
+}
+var IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|svg|avif|bmp|ico)(\?|#|$)/i;
+function isThemeImageValue(value) {
+  const s = value.trim();
+  if (!s)
+    return false;
+  if (/^url\(/i.test(s))
+    return true;
+  if (/^data:image\//i.test(s))
+    return true;
+  if (/^(https?:|blob:|file:)/i.test(s))
+    return true;
+  if (IMAGE_EXT_RE.test(s))
+    return true;
+  return false;
+}
+function toThemeBackgroundCss(value) {
+  const s = value.trim();
+  if (/^url\(/i.test(s))
+    return s;
+  if (/^data:image\//i.test(s))
+    return `url(${JSON.stringify(s)})`;
+  if (isThemeImageValue(s))
+    return `url(${JSON.stringify(s)})`;
+  return s;
+}
+function unwrapThemeBackgroundSrc(value) {
+  const s = value.trim();
+  if (!s)
+    return null;
+  const m = s.match(/^url\(\s*(['"]?)([\s\S]*?)\1\s*\)$/i);
+  if (m)
+    return m[2];
+  if (isThemeImageValue(s))
+    return s;
+  return null;
+}
+function cssStageBackground(value) {
+  if (!value || value === "transparent")
+    return "transparent";
+  if (isThemeImageValue(value) || /^url\(/i.test(value)) {
+    return `center / cover no-repeat ${toThemeBackgroundCss(value)}`;
+  }
+  return value;
+}
+function derivePrimaryVariants(primary, target, locked, replaceMissingOnly) {
+  if (!tryParseColor(primary))
+    return;
+  const canWrite = (key) => !locked.has(key) && (!replaceMissingOnly || target[key] == null);
+  if (canWrite("primaryHover")) {
+    target.primaryHover = mixColors(primary, "#000000", 0.14);
+  }
+  if (canWrite("primaryActive")) {
+    target.primaryActive = mixColors(primary, "#000000", 0.28);
+  }
+  if (canWrite("primarySubtle")) {
+    target.primarySubtle = colorWithAlpha(primary, 0.14) ?? mixColors(primary, "#ffffff", 0.85);
+  }
+}
+function expandPreset(preset) {
+  if (!preset || typeof preset !== "string")
+    return { tokens: {}, kind: "none" };
+  const key = preset.trim();
+  if (!key)
+    return { tokens: {}, kind: "none" };
+  if (UI_PRESETS[key]) {
+    return { tokens: { ...UI_PRESETS[key] }, kind: "pack" };
+  }
+  if (isThemeImageValue(key)) {
+    return {
+      tokens: { ...DARK_BASE },
+      background: toThemeBackgroundCss(key),
+      kind: "image"
+    };
+  }
+  if (isCssColorString(key) || tryParseColor(key)) {
+    return { tokens: { primary: key }, kind: "color" };
+  }
+  return { tokens: {}, kind: "none" };
+}
+function resolveUiTheme(input) {
+  const cleaned = stripLegacyMode(input);
+  const { preset, ...overrides } = cleaned;
+  const expanded = expandPreset(typeof preset === "string" ? preset : void 0);
+  const merged = { ...expanded.tokens, ...overrides };
+  const locked = new Set(
+    Object.keys(overrides).filter((k) => overrides[k] !== void 0)
+  );
+  if (merged.primary) {
+    const replaceMissingOnly = expanded.kind === "pack" && !locked.has("primary");
+    derivePrimaryVariants(merged.primary, merged, locked, replaceMissingOnly);
+  }
+  return merged;
+}
+function resolveThemeBackground(input) {
+  if (input.background != null && String(input.background).trim() !== "") {
+    const bg = String(input.background).trim();
+    return isThemeImageValue(bg) ? toThemeBackgroundCss(bg) : bg;
+  }
+  const preset = typeof input.preset === "string" ? input.preset.trim() : "";
+  if (preset && !UI_PRESETS[preset] && isThemeImageValue(preset)) {
+    return toThemeBackgroundCss(preset);
+  }
+  return void 0;
+}
+
 // src/renderers/CanvasRenderer.ts
 var CanvasRenderer = class extends Renderer {
   constructor() {
@@ -2131,6 +2625,9 @@ var CanvasRenderer = class extends Renderer {
     /** Exposed for tests — fill calls in last render. */
     this.lastFillCallCount = 0;
     this.drawCallCount = 0;
+    this.bgImage = null;
+    this.bgImageKey = null;
+    this.lastRoot = null;
   }
   init(container, options) {
     this.width = options.width;
@@ -2165,6 +2662,8 @@ var CanvasRenderer = class extends Renderer {
     return this.canvas;
   }
   render(root, cameraMatrix) {
+    this.lastRoot = root;
+    this.lastCamera = cameraMatrix;
     const ctx = this.ctx;
     this.lastClearRectCount = 0;
     this.lastFillCallCount = 0;
@@ -2180,8 +2679,7 @@ var CanvasRenderer = class extends Renderer {
       }
     }
     if (this.background && this.background !== "transparent") {
-      ctx.fillStyle = this.background;
-      ctx.fillRect(0, 0, this.width, this.height);
+      this.paintBackground(ctx);
     }
     if (cameraMatrix) {
       ctx.transform(
@@ -2197,6 +2695,45 @@ var CanvasRenderer = class extends Renderer {
     ctx.restore();
     this.clearSceneDirty(root);
     this.clearDirty();
+  }
+  paintBackground(ctx) {
+    const src = unwrapThemeBackgroundSrc(this.background);
+    if (src) {
+      this.ensureBackgroundImage(src);
+      const img = this.bgImage;
+      if (img && img.complete && img.naturalWidth > 0) {
+        const iw = img.naturalWidth;
+        const ih = img.naturalHeight;
+        const scale = Math.max(this.width / iw, this.height / ih);
+        const dw = iw * scale;
+        const dh = ih * scale;
+        ctx.drawImage(img, (this.width - dw) / 2, (this.height - dh) / 2, dw, dh);
+      }
+      return;
+    }
+    ctx.fillStyle = this.background;
+    ctx.fillRect(0, 0, this.width, this.height);
+  }
+  ensureBackgroundImage(src) {
+    if (this.bgImageKey === src && this.bgImage)
+      return;
+    this.bgImageKey = src;
+    const img = new Image();
+    img.decoding = "async";
+    img.onload = () => {
+      if (this.bgImageKey !== src)
+        return;
+      this.bgImage = img;
+      this.forceFullRedraw();
+      if (this.lastRoot)
+        this.render(this.lastRoot, this.lastCamera);
+    };
+    img.onerror = () => {
+      if (this.bgImageKey === src)
+        this.bgImage = null;
+    };
+    img.src = src;
+    this.bgImage = img.complete && img.naturalWidth > 0 ? img : null;
   }
   clearSceneDirty(node) {
     node.clearDirty();
@@ -3413,6 +3950,86 @@ function automotiveToJSON(node) {
   };
 }
 
+// src/theme/themeScope.ts
+function createThemeScope(fallback) {
+  const byApp = /* @__PURE__ */ new WeakMap();
+  const stack = [];
+  let last = fallback();
+  return {
+    runWithResult(theme, fn) {
+      stack.push(theme);
+      try {
+        return fn();
+      } finally {
+        stack.pop();
+      }
+    },
+    getActive(app) {
+      if (stack.length > 0)
+        return stack[stack.length - 1];
+      if (app && byApp.has(app))
+        return byApp.get(app);
+      return last;
+    },
+    sync(theme, app) {
+      last = theme;
+      if (app)
+        byApp.set(app, theme);
+      return theme;
+    }
+  };
+}
+
+// src/theme/themeUtils.ts
+function parseCssPx(value, fallback) {
+  if (typeof value === "number" && Number.isFinite(value))
+    return value;
+  if (typeof value === "string" && value.trim()) {
+    const n = parseFloat(value);
+    if (Number.isFinite(n))
+      return n;
+  }
+  return fallback;
+}
+function toCssPxToken(value) {
+  if (value == null || value === "")
+    return void 0;
+  if (typeof value === "number" && Number.isFinite(value))
+    return `${value}px`;
+  if (typeof value === "string" && value.trim()) {
+    const s = value.trim();
+    return /^\d+(\.\d+)?$/.test(s) ? `${s}px` : s;
+  }
+  return void 0;
+}
+function relativeLuminance(color) {
+  const c = tryParseColor(color);
+  if (!c)
+    return null;
+  return (0.299 * c.r + 0.587 * c.g + 0.114 * c.b) / 255;
+}
+function pickChrome(uiColor, fallback) {
+  if (!uiColor)
+    return fallback;
+  const lum = relativeLuminance(uiColor);
+  if (lum != null && lum > 0.55)
+    return fallback;
+  return uiColor;
+}
+function contrastingInk(bg, light = "#f1f5f9", dark = "#0f172a") {
+  const lum = relativeLuminance(bg);
+  if (lum == null)
+    return light;
+  return lum > 0.55 ? dark : light;
+}
+function resolveFontSizeTriple(tokens, fallbacks) {
+  const hasBase = tokens.fontSize != null && String(tokens.fontSize).trim() !== "";
+  const fontSize = parseCssPx(tokens.fontSize, fallbacks.fontSize);
+  const fontSizeSm = tokens.fontSizeSm != null && String(tokens.fontSizeSm).trim() !== "" ? parseCssPx(tokens.fontSizeSm, fallbacks.fontSizeSm) : hasBase ? Math.round(fontSize * (fallbacks.fontSizeSm / Math.max(1, fallbacks.fontSize))) : fallbacks.fontSizeSm;
+  const fontSizeLg = tokens.fontSizeLg != null && String(tokens.fontSizeLg).trim() !== "" ? parseCssPx(tokens.fontSizeLg, fallbacks.fontSizeLg) : hasBase ? Math.round(fontSize * (fallbacks.fontSizeLg / Math.max(1, fallbacks.fontSize))) : fallbacks.fontSizeLg;
+  return { fontSize, fontSizeSm, fontSizeLg };
+}
+
 // src/diagram/theme.ts
 var DIAGRAM = {
   fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif",
@@ -3556,6 +4173,122 @@ var DIAGRAM = {
     arrow: 1.25
   }
 };
+function cloneDefaults() {
+  return JSON.parse(JSON.stringify(DIAGRAM));
+}
+function scaleDiagramFonts(theme, basePx) {
+  const scale = basePx / DIAGRAM.fontSize.base;
+  if (!Number.isFinite(scale) || scale <= 0)
+    return;
+  theme.fontSize = {
+    xs: Math.max(6, Math.round(DIAGRAM.fontSize.xs * scale)),
+    sm: Math.max(7, Math.round(DIAGRAM.fontSize.sm * scale)),
+    md: Math.max(8, Math.round(DIAGRAM.fontSize.md * scale)),
+    base: Math.max(8, Math.round(DIAGRAM.fontSize.base * scale)),
+    lg: Math.max(9, Math.round(DIAGRAM.fontSize.lg * scale)),
+    xl: Math.max(10, Math.round(DIAGRAM.fontSize.xl * scale))
+  };
+}
+function mergeDiagramFontSize(theme, packFont) {
+  if (!packFont || typeof packFont !== "object")
+    return;
+  const next = { ...theme.fontSize };
+  for (const [key, value] of Object.entries(packFont)) {
+    if (!(key in next))
+      continue;
+    next[key] = parseCssPx(value, next[key]);
+  }
+  theme.fontSize = next;
+}
+function resolveDiagramTheme(ui, pack) {
+  const theme = cloneDefaults();
+  const hasUi = Boolean(ui && Object.keys(ui).length > 0);
+  const hasPack = Boolean(pack && Object.keys(pack).length > 0);
+  if (!hasUi && !hasPack)
+    return theme;
+  if (hasUi && ui) {
+    const primary = ui.primary ?? theme.nodeStroke;
+    const success = ui.success ?? theme.terminalStroke;
+    const warning = ui.warning ?? theme.decisionStroke;
+    const danger = ui.danger ?? theme.pipelineErrorStroke;
+    const surface = pickChrome(ui.surface, theme.surface);
+    const text = ui.text ?? theme.nodeText;
+    const textMuted = ui.textMuted ?? theme.nodeTextMuted;
+    const accent = colorWithAlpha(primary, 0.18) ?? theme.edgeGlow;
+    theme.surface = surface;
+    theme.canvasBg = pickChrome(ui.surfaceMuted, theme.canvasBg);
+    theme.surfaceElevated = pickChrome(ui.surfaceInset, theme.surfaceElevated);
+    theme.nodeFill = pickChrome(ui.surfaceInset, theme.nodeFill);
+    theme.nodeStroke = primary;
+    theme.nodeText = text;
+    theme.nodeTextMuted = textMuted;
+    theme.edge = primary;
+    theme.edgeGlow = accent;
+    theme.umlAssociation = primary;
+    theme.umlInheritance = warning;
+    theme.flowchartProcess = { fill: theme.nodeFill, stroke: primary, accent: primary };
+    theme.flowchartStart = { ...theme.flowchartStart, stroke: success, accent: success };
+    theme.flowchartDecision = { ...theme.flowchartDecision, stroke: warning, accent: warning };
+    theme.decisionStroke = warning;
+    theme.terminalStroke = success;
+    theme.networkRouter = { fill: theme.networkRouter.fill, stroke: primary, glyph: primary, edge: primary };
+    theme.networkServer = { ...theme.networkServer, stroke: success, glyph: success, edge: success };
+    theme.pipelineActive = primary;
+    theme.pipelineDone = success;
+    theme.pipelineErrorStroke = danger;
+    theme.canBus = primary;
+    theme.canBusGlow = colorWithAlpha(primary, 0.25) ?? theme.canBusGlow;
+    theme.canTermination = success;
+    theme.canEcuPalette = [primary, ...theme.canEcuPalette.slice(1)];
+    theme.schematicWire = primary;
+    theme.schematicWireGlow = colorWithAlpha(primary, 0.2) ?? theme.schematicWireGlow;
+    theme.schematicBattery = success;
+    theme.schematicResistor = warning;
+    theme.schematicSwitch = primary;
+    theme.orgTier = [
+      { fill: theme.orgTier[0].fill, stroke: primary, accent: primary },
+      theme.orgTier[1],
+      theme.orgTier[2]
+    ];
+    theme.mindBranch = { ...theme.mindBranch, stroke: primary, accent: primary };
+    theme.mindCenter = { ...theme.mindCenter, stroke: warning, accent: warning };
+    if (ui.fontSize != null && String(ui.fontSize).trim() !== "") {
+      scaleDiagramFonts(theme, parseCssPx(ui.fontSize, DIAGRAM.fontSize.base));
+    }
+    if (ui.fontFamily) {
+      theme.fontFamily = ui.fontFamily;
+    }
+  }
+  if (hasPack && pack) {
+    for (const [key, value] of Object.entries(pack)) {
+      if (value === void 0)
+        continue;
+      if (key === "fontSize") {
+        mergeDiagramFontSize(theme, value);
+        continue;
+      }
+      theme[key] = value;
+    }
+  }
+  return theme;
+}
+var diagramScope = createThemeScope(cloneDefaults);
+function diagramPackFromApp(app) {
+  if (!app || typeof app.getTheme !== "function")
+    return {};
+  const t = app.getTheme();
+  return { ...t.diagram ?? {} };
+}
+function syncActiveDiagramTheme(tokens = {}, app, pack) {
+  const resolvedPack = pack ?? diagramPackFromApp(app);
+  return diagramScope.sync(resolveDiagramTheme(tokens, resolvedPack), app ?? void 0);
+}
+function getActiveDiagram(app) {
+  return diagramScope.getActive(app ?? void 0);
+}
+function runWithDiagramTheme(theme, fn) {
+  return diagramScope.runWithResult(theme, fn);
+}
 function resolveStrokeWidth(base, context = "screen") {
   if (context === "print")
     return Math.max(1.25, base * 0.92);
@@ -3571,8 +4304,8 @@ function strokeContextForCanvas(width, height) {
 }
 
 // src/diagram/chrome.ts
-function addTopSheen(app, parent, width, cornerRadius = DIAGRAM.radii.md) {
-  if (cornerRadius >= DIAGRAM.radii.pill)
+function addTopSheen(app, parent, width, cornerRadius = getActiveDiagram().radii.md) {
+  if (cornerRadius >= getActiveDiagram().radii.pill)
     return;
   const inset = Math.min(10, cornerRadius + 2);
   parent.add(
@@ -3581,7 +4314,7 @@ function addTopSheen(app, parent, width, cornerRadius = DIAGRAM.radii.md) {
       y: 1,
       x2: width - inset,
       y2: 1,
-      stroke: DIAGRAM.sheen,
+      stroke: getActiveDiagram().sheen,
       strokeWidth: 1,
       lineCap: "round",
       listening: false
@@ -3615,8 +4348,8 @@ function addLeftStripe(app, parent, height, color, width = 4) {
   );
 }
 function addCardChrome(app, parent, opts) {
-  const radius = opts.cornerRadius ?? DIAGRAM.radii.md;
-  const strokeWidth = opts.strokeWidth ?? DIAGRAM.stroke.node;
+  const radius = opts.cornerRadius ?? getActiveDiagram().radii.md;
+  const strokeWidth = opts.strokeWidth ?? getActiveDiagram().stroke.node;
   parent.add(
     app.roundedRect({
       width: opts.width,
@@ -3625,7 +4358,7 @@ function addCardChrome(app, parent, opts) {
       fill: opts.fill,
       stroke: opts.stroke,
       strokeWidth,
-      ...opts.shadow !== null && (opts.shadow ?? DIAGRAM.shadowSoft) ? { shadow: opts.shadow ?? DIAGRAM.shadowSoft } : {},
+      ...opts.shadow !== null && (opts.shadow ?? getActiveDiagram().shadowSoft) ? { shadow: opts.shadow ?? getActiveDiagram().shadowSoft } : {},
       listening: false
     })
   );
@@ -3636,8 +4369,8 @@ function addCardChrome(app, parent, opts) {
     addTopSheen(app, parent, opts.width, radius);
   }
 }
-function addCaptionPill(app, parent, textWidth, x, y, accent = DIAGRAM.labelPillStroke) {
-  const fontSize = DIAGRAM.fontSize.sm;
+function addCaptionPill(app, parent, textWidth, x, y, accent = getActiveDiagram().labelPillStroke) {
+  const fontSize = getActiveDiagram().fontSize.sm;
   const padX = 6;
   const pw = Math.max(textWidth + padX * 2, 24);
   const ph = fontSize + 6;
@@ -3647,17 +4380,17 @@ function addCaptionPill(app, parent, textWidth, x, y, accent = DIAGRAM.labelPill
       y: y - 2,
       width: pw,
       height: ph,
-      cornerRadius: DIAGRAM.radii.sm,
-      fill: DIAGRAM.labelPillFill,
+      cornerRadius: getActiveDiagram().radii.sm,
+      fill: getActiveDiagram().labelPillFill,
       stroke: accent,
-      strokeWidth: DIAGRAM.stroke.label,
+      strokeWidth: getActiveDiagram().stroke.label,
       opacity: 0.92,
       listening: false
     })
   );
 }
 function addEmphasisRing(app, parent, width, height, color, cornerRadius) {
-  const radius = cornerRadius ?? DIAGRAM.radii.md;
+  const radius = cornerRadius ?? getActiveDiagram().radii.md;
   parent.add(
     app.roundedRect({
       x: -3,
@@ -3685,32 +4418,32 @@ function getMeasureCtx() {
   }
   return measureCtx;
 }
-function measureTextWidth(text, fontSize, fontWeight = "600", fontFamily = DIAGRAM.fontFamily) {
+function measureTextWidth(text, fontSize, fontWeight = "600", fontFamily = getActiveDiagram().fontFamily) {
   const ctx = getMeasureCtx();
   if (!ctx)
     return text.length * fontSize * 0.55;
   ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
   return ctx.measureText(text).width;
 }
-function centerTextX(label, boxWidth, fontSize = DIAGRAM.fontSize.base, fontWeight = "600", fontFamily = DIAGRAM.fontFamily) {
+function centerTextX(label, boxWidth, fontSize = getActiveDiagram().fontSize.base, fontWeight = "600", fontFamily = getActiveDiagram().fontFamily) {
   const w = measureTextWidth(label, fontSize, fontWeight, fontFamily);
-  return Math.max(DIAGRAM.spacing.sm, (boxWidth - w) / 2);
+  return Math.max(getActiveDiagram().spacing.sm, (boxWidth - w) / 2);
 }
 var defaultBoxStyle = () => ({
-  strokeWidth: DIAGRAM.stroke.node,
-  shadow: DIAGRAM.shadowSoft
+  strokeWidth: getActiveDiagram().stroke.node,
+  shadow: getActiveDiagram().shadowSoft
 });
 function createLabeledBox(app, label, width, height, style = {}, textOpts = {}) {
   const { strokeWidth, shadow } = defaultBoxStyle();
   const node = app.group();
-  const fontSize = textOpts.fontSize ?? DIAGRAM.fontSize.base;
-  const radius = style.cornerRadius ?? DIAGRAM.radii.md;
+  const fontSize = textOpts.fontSize ?? getActiveDiagram().fontSize.base;
+  const radius = style.cornerRadius ?? getActiveDiagram().radii.md;
   addCardChrome(app, node, {
     width,
     height,
     cornerRadius: radius,
-    fill: style.fill ?? DIAGRAM.nodeFill,
-    stroke: style.stroke ?? DIAGRAM.nodeStroke,
+    fill: style.fill ?? getActiveDiagram().nodeFill,
+    stroke: style.stroke ?? getActiveDiagram().nodeStroke,
     strokeWidth: style.strokeWidth ?? strokeWidth,
     shadow: style.shadow !== null ? style.shadow ?? shadow : null,
     accentColor: style.accentColor
@@ -3722,8 +4455,8 @@ function createLabeledBox(app, label, width, height, style = {}, textOpts = {}) 
       y: textOpts.y ?? height / 2 - fontSize / 2 - 1,
       fontSize,
       fontWeight: textOpts.fontWeight ?? "600",
-      fontFamily: DIAGRAM.fontFamily,
-      fill: textOpts.fill ?? DIAGRAM.nodeText,
+      fontFamily: getActiveDiagram().fontFamily,
+      fill: textOpts.fill ?? getActiveDiagram().nodeText,
       listening: false
     })
   );
@@ -3737,7 +4470,7 @@ function createFlowchartNode(app, label, type) {
   const isTerminal = isStart || isEnd;
   const isDecision = type === "decision";
   const node = app.group();
-  const palette = isStart ? DIAGRAM.flowchartStart : isEnd ? DIAGRAM.flowchartEnd : isDecision ? DIAGRAM.flowchartDecision : DIAGRAM.flowchartProcess;
+  const palette = isStart ? getActiveDiagram().flowchartStart : isEnd ? getActiveDiagram().flowchartEnd : isDecision ? getActiveDiagram().flowchartDecision : getActiveDiagram().flowchartProcess;
   if (isDecision) {
     node.add(
       app.polygon({
@@ -3753,12 +4486,12 @@ function createFlowchartNode(app, label, type) {
         points: [66, 2, 130, 23, 66, 44, 2, 23],
         fill: palette.fill,
         stroke: palette.stroke,
-        strokeWidth: DIAGRAM.stroke.nodeEmphasis,
-        shadow: DIAGRAM.shadowElevated,
+        strokeWidth: getActiveDiagram().stroke.nodeEmphasis,
+        shadow: getActiveDiagram().shadowElevated,
         listening: false
       })
     );
-    const fs = DIAGRAM.fontSize.sm;
+    const fs = getActiveDiagram().fontSize.sm;
     node.add(
       app.text({
         text: label,
@@ -3766,8 +4499,8 @@ function createFlowchartNode(app, label, type) {
         y: 23 - fs / 2 - 1,
         fontSize: fs,
         fontWeight: "600",
-        fontFamily: DIAGRAM.fontFamily,
-        fill: DIAGRAM.nodeText,
+        fontFamily: getActiveDiagram().fontFamily,
+        fill: getActiveDiagram().nodeText,
         listening: false
       })
     );
@@ -3777,17 +4510,17 @@ function createFlowchartNode(app, label, type) {
     app.roundedRect({
       width,
       height,
-      cornerRadius: isTerminal ? DIAGRAM.radii.pill : DIAGRAM.radii.md,
+      cornerRadius: isTerminal ? getActiveDiagram().radii.pill : getActiveDiagram().radii.md,
       fill: palette.fill,
       stroke: palette.stroke,
-      strokeWidth: DIAGRAM.stroke.nodeEmphasis,
-      shadow: isTerminal ? DIAGRAM.shadowElevated : DIAGRAM.shadowSoft,
+      strokeWidth: getActiveDiagram().stroke.nodeEmphasis,
+      shadow: isTerminal ? getActiveDiagram().shadowElevated : getActiveDiagram().shadowSoft,
       listening: false
     })
   );
   if (!isTerminal) {
     addAccentBar(app, node, width, palette.accent, 3);
-    addTopSheen(app, node, width, DIAGRAM.radii.md);
+    addTopSheen(app, node, width, getActiveDiagram().radii.md);
   } else {
     node.add(
       app.roundedRect({
@@ -3795,7 +4528,7 @@ function createFlowchartNode(app, label, type) {
         y: 2,
         width: width - 4,
         height: height - 4,
-        cornerRadius: isTerminal ? DIAGRAM.radii.pill - 2 : DIAGRAM.radii.md,
+        cornerRadius: isTerminal ? getActiveDiagram().radii.pill - 2 : getActiveDiagram().radii.md,
         fill: null,
         stroke: palette.accent,
         strokeWidth: 1,
@@ -3808,13 +4541,13 @@ function createFlowchartNode(app, label, type) {
     node.add(
       app.text({
         text: label.toUpperCase(),
-        x: centerTextX(label, width, DIAGRAM.fontSize.sm),
+        x: centerTextX(label, width, getActiveDiagram().fontSize.sm),
         y: height / 2 - 6,
-        fontSize: DIAGRAM.fontSize.sm,
+        fontSize: getActiveDiagram().fontSize.sm,
         fontWeight: "700",
         letterSpacing: 0.06,
-        fontFamily: DIAGRAM.fontFamily,
-        fill: isStart ? palette.accent : DIAGRAM.nodeText,
+        fontFamily: getActiveDiagram().fontFamily,
+        fill: isStart ? palette.accent : getActiveDiagram().nodeText,
         listening: false
       })
     );
@@ -3824,10 +4557,10 @@ function createFlowchartNode(app, label, type) {
         text: label,
         x: centerTextX(label, width),
         y: height / 2 - 6,
-        fontSize: DIAGRAM.fontSize.base,
+        fontSize: getActiveDiagram().fontSize.base,
         fontWeight: "600",
-        fontFamily: DIAGRAM.fontFamily,
-        fill: DIAGRAM.nodeText,
+        fontFamily: getActiveDiagram().fontFamily,
+        fill: getActiveDiagram().nodeText,
         listening: false
       })
     );
@@ -3844,12 +4577,12 @@ function createClassNode(app, name, attributes, methods) {
   addCardChrome(app, node, {
     width,
     height,
-    cornerRadius: DIAGRAM.radii.md,
-    fill: DIAGRAM.classFill,
-    stroke: DIAGRAM.classStroke,
-    strokeWidth: DIAGRAM.stroke.node,
-    shadow: DIAGRAM.shadowElevated,
-    accentColor: DIAGRAM.umlInheritance,
+    cornerRadius: getActiveDiagram().radii.md,
+    fill: getActiveDiagram().classFill,
+    stroke: getActiveDiagram().classStroke,
+    strokeWidth: getActiveDiagram().stroke.node,
+    shadow: getActiveDiagram().shadowElevated,
+    accentColor: getActiveDiagram().umlInheritance,
     sheen: false
   });
   node.add(
@@ -3858,22 +4591,22 @@ function createClassNode(app, name, attributes, methods) {
       y: 1,
       width: width - 2,
       height: headerH - 1,
-      fill: DIAGRAM.classHeaderBg,
+      fill: getActiveDiagram().classHeaderBg,
       stroke: null,
       listening: false
     })
   );
-  addTopSheen(app, node, width, DIAGRAM.radii.md);
+  addTopSheen(app, node, width, getActiveDiagram().radii.md);
   node.add(
     app.text({
       text: name,
-      x: DIAGRAM.spacing.sm,
+      x: getActiveDiagram().spacing.sm,
       y: 10,
-      fontSize: DIAGRAM.fontSize.lg,
+      fontSize: getActiveDiagram().fontSize.lg,
       fontWeight: "bold",
       fontStyle: "italic",
-      fontFamily: DIAGRAM.fontFamily,
-      fill: DIAGRAM.classHeader,
+      fontFamily: getActiveDiagram().fontFamily,
+      fill: getActiveDiagram().classHeader,
       listening: false
     })
   );
@@ -3883,8 +4616,8 @@ function createClassNode(app, name, attributes, methods) {
       y: headerH,
       x2: width,
       y2: 0,
-      stroke: DIAGRAM.classDivider,
-      strokeWidth: DIAGRAM.stroke.label,
+      stroke: getActiveDiagram().classDivider,
+      strokeWidth: getActiveDiagram().stroke.label,
       listening: false
     })
   );
@@ -3893,11 +4626,11 @@ function createClassNode(app, name, attributes, methods) {
     node.add(
       app.text({
         text: attr,
-        x: DIAGRAM.spacing.sm,
+        x: getActiveDiagram().spacing.sm,
         y,
-        fontSize: DIAGRAM.fontSize.md,
-        fontFamily: DIAGRAM.fontMono,
-        fill: DIAGRAM.classBody,
+        fontSize: getActiveDiagram().fontSize.md,
+        fontFamily: getActiveDiagram().fontMono,
+        fill: getActiveDiagram().classBody,
         listening: false
       })
     );
@@ -3910,8 +4643,8 @@ function createClassNode(app, name, attributes, methods) {
         y: y - 2,
         x2: width,
         y2: 0,
-        stroke: DIAGRAM.classDivider,
-        strokeWidth: DIAGRAM.stroke.label,
+        stroke: getActiveDiagram().classDivider,
+        strokeWidth: getActiveDiagram().stroke.label,
         listening: false
       })
     );
@@ -3921,11 +4654,11 @@ function createClassNode(app, name, attributes, methods) {
     node.add(
       app.text({
         text: method,
-        x: DIAGRAM.spacing.sm,
+        x: getActiveDiagram().spacing.sm,
         y,
-        fontSize: DIAGRAM.fontSize.md,
-        fontFamily: DIAGRAM.fontMono,
-        fill: DIAGRAM.classBody,
+        fontSize: getActiveDiagram().fontSize.md,
+        fontFamily: getActiveDiagram().fontMono,
+        fill: getActiveDiagram().classBody,
         listening: false
       })
     );
@@ -3934,11 +4667,11 @@ function createClassNode(app, name, attributes, methods) {
   return node;
 }
 var NETWORK_STYLES = {
-  router: DIAGRAM.networkRouter,
-  server: DIAGRAM.networkServer,
-  switch: DIAGRAM.networkSwitch,
-  client: DIAGRAM.networkClient,
-  default: DIAGRAM.networkDefault
+  router: getActiveDiagram().networkRouter,
+  server: getActiveDiagram().networkServer,
+  switch: getActiveDiagram().networkSwitch,
+  client: getActiveDiagram().networkClient,
+  default: getActiveDiagram().networkDefault
 };
 function addNetworkGlyph(app, parent, type, size, color) {
   const cx = size / 2;
@@ -4034,11 +4767,11 @@ function createNetworkNode(app, label, type) {
   addCardChrome(app, node, {
     width: size,
     height: size,
-    cornerRadius: netType === "server" ? DIAGRAM.radii.sm : size / 2,
+    cornerRadius: netType === "server" ? getActiveDiagram().radii.sm : size / 2,
     fill: style.fill,
     stroke: style.stroke,
-    strokeWidth: DIAGRAM.stroke.nodeEmphasis,
-    shadow: DIAGRAM.shadowElevated,
+    strokeWidth: getActiveDiagram().stroke.nodeEmphasis,
+    shadow: getActiveDiagram().shadowElevated,
     sheen: netType === "server"
   });
   node.add(
@@ -4054,37 +4787,37 @@ function createNetworkNode(app, label, type) {
     })
   );
   addNetworkGlyph(app, node, netType, size, style.glyph);
-  const labelW = Math.max(size, measureTextWidth(label, DIAGRAM.fontSize.sm) + 16);
-  const labelX = centerTextX(label, labelW, DIAGRAM.fontSize.sm);
-  const tw = measureTextWidth(label, DIAGRAM.fontSize.sm);
-  addCaptionPill(app, node, tw, labelX, size + DIAGRAM.spacing.xs - 2, style.stroke);
+  const labelW = Math.max(size, measureTextWidth(label, getActiveDiagram().fontSize.sm) + 16);
+  const labelX = centerTextX(label, labelW, getActiveDiagram().fontSize.sm);
+  const tw = measureTextWidth(label, getActiveDiagram().fontSize.sm);
+  addCaptionPill(app, node, tw, labelX, size + getActiveDiagram().spacing.xs - 2, style.stroke);
   node.add(
     app.text({
       text: label,
-      x: centerTextX(label, labelW, DIAGRAM.fontSize.sm),
-      y: size + DIAGRAM.spacing.xs,
-      fontSize: DIAGRAM.fontSize.sm,
+      x: centerTextX(label, labelW, getActiveDiagram().fontSize.sm),
+      y: size + getActiveDiagram().spacing.xs,
+      fontSize: getActiveDiagram().fontSize.sm,
       fontWeight: "600",
-      fontFamily: DIAGRAM.fontFamily,
-      fill: DIAGRAM.nodeText,
+      fontFamily: getActiveDiagram().fontFamily,
+      fill: getActiveDiagram().nodeText,
       listening: false
     })
   );
   return node;
 }
 function createOrgNode(app, name, role, childCount = 0, collapsed = false, depth = 0) {
-  const tier = DIAGRAM.orgTier[Math.min(depth, DIAGRAM.orgTier.length - 1)];
+  const tier = getActiveDiagram().orgTier[Math.min(depth, getActiveDiagram().orgTier.length - 1)];
   const width = 156;
   const height = role ? 60 : 52;
   const node = app.group();
   addCardChrome(app, node, {
     width,
     height,
-    cornerRadius: DIAGRAM.radii.md,
+    cornerRadius: getActiveDiagram().radii.md,
     fill: tier.fill,
     stroke: tier.stroke,
-    strokeWidth: DIAGRAM.stroke.node,
-    shadow: DIAGRAM.shadowElevated,
+    strokeWidth: getActiveDiagram().stroke.node,
+    shadow: getActiveDiagram().shadowElevated,
     accentColor: tier.accent
   });
   node.add(
@@ -4103,12 +4836,12 @@ function createOrgNode(app, name, role, childCount = 0, collapsed = false, depth
   node.add(
     app.text({
       text: name,
-      x: DIAGRAM.spacing.md,
+      x: getActiveDiagram().spacing.md,
       y: role ? 10 : 16,
-      fontSize: DIAGRAM.fontSize.lg,
+      fontSize: getActiveDiagram().fontSize.lg,
       fontWeight: "600",
-      fontFamily: DIAGRAM.fontFamily,
-      fill: DIAGRAM.nodeText,
+      fontFamily: getActiveDiagram().fontFamily,
+      fill: getActiveDiagram().nodeText,
       listening: false
     })
   );
@@ -4116,11 +4849,11 @@ function createOrgNode(app, name, role, childCount = 0, collapsed = false, depth
     node.add(
       app.text({
         text: role,
-        x: DIAGRAM.spacing.md,
+        x: getActiveDiagram().spacing.md,
         y: 32,
-        fontSize: DIAGRAM.fontSize.sm,
-        fontFamily: DIAGRAM.fontFamily,
-        fill: DIAGRAM.orgRole,
+        fontSize: getActiveDiagram().fontSize.sm,
+        fontFamily: getActiveDiagram().fontFamily,
+        fill: getActiveDiagram().orgRole,
         listening: false
       })
     );
@@ -4133,10 +4866,10 @@ function createOrgNode(app, name, role, childCount = 0, collapsed = false, depth
         y: 12,
         width: 20,
         height: 20,
-        cornerRadius: DIAGRAM.radii.sm,
-        fill: DIAGRAM.orgToggleBg,
-        stroke: DIAGRAM.labelPillStroke,
-        strokeWidth: DIAGRAM.stroke.label,
+        cornerRadius: getActiveDiagram().radii.sm,
+        fill: getActiveDiagram().orgToggleBg,
+        stroke: getActiveDiagram().labelPillStroke,
+        strokeWidth: getActiveDiagram().stroke.label,
         listening: false
       })
     );
@@ -4144,10 +4877,10 @@ function createOrgNode(app, name, role, childCount = 0, collapsed = false, depth
       text: collapsed ? `+${childCount}` : "\u2212",
       x: width - 23,
       y: 15,
-      fontSize: DIAGRAM.fontSize.base,
+      fontSize: getActiveDiagram().fontSize.base,
       fontWeight: "bold",
-      fontFamily: DIAGRAM.fontFamily,
-      fill: DIAGRAM.orgToggle
+      fontFamily: getActiveDiagram().fontFamily,
+      fill: getActiveDiagram().orgToggle
     });
     node.add(indicator);
   }
@@ -4155,10 +4888,10 @@ function createOrgNode(app, name, role, childCount = 0, collapsed = false, depth
 }
 function createPipelineStage(app, label, status) {
   const colors = {
-    pending: { fill: DIAGRAM.pipelinePendingFill, stroke: DIAGRAM.pipelinePending },
-    active: { fill: DIAGRAM.pipelineActiveFill, stroke: DIAGRAM.pipelineActive },
-    done: { fill: DIAGRAM.pipelineDoneFill, stroke: DIAGRAM.pipelineDone },
-    error: { fill: DIAGRAM.pipelineErrorFill, stroke: DIAGRAM.pipelineErrorStroke }
+    pending: { fill: getActiveDiagram().pipelinePendingFill, stroke: getActiveDiagram().pipelinePending },
+    active: { fill: getActiveDiagram().pipelineActiveFill, stroke: getActiveDiagram().pipelineActive },
+    done: { fill: getActiveDiagram().pipelineDoneFill, stroke: getActiveDiagram().pipelineDone },
+    error: { fill: getActiveDiagram().pipelineErrorFill, stroke: getActiveDiagram().pipelineErrorStroke }
   };
   const c = colors[status] ?? colors.pending;
   const width = 118;
@@ -4171,27 +4904,27 @@ function createPipelineStage(app, label, status) {
     error: "FAIL"
   };
   if (status === "active") {
-    addEmphasisRing(app, node, width, height, c.stroke, DIAGRAM.radii.md);
+    addEmphasisRing(app, node, width, height, c.stroke, getActiveDiagram().radii.md);
   }
   addCardChrome(app, node, {
     width,
     height,
-    cornerRadius: DIAGRAM.radii.md,
+    cornerRadius: getActiveDiagram().radii.md,
     fill: c.fill,
     stroke: c.stroke,
-    strokeWidth: DIAGRAM.stroke.node,
-    shadow: status === "active" ? DIAGRAM.shadowElevated : DIAGRAM.shadowSoft,
+    strokeWidth: getActiveDiagram().stroke.node,
+    shadow: status === "active" ? getActiveDiagram().shadowElevated : getActiveDiagram().shadowSoft,
     sheen: false
   });
   addLeftStripe(app, node, height, c.stroke, 4);
   const badgeW = 34;
   node.add(
     app.roundedRect({
-      x: DIAGRAM.spacing.sm,
+      x: getActiveDiagram().spacing.sm,
       y: height / 2 - 9,
       width: badgeW,
       height: 18,
-      cornerRadius: DIAGRAM.radii.sm,
+      cornerRadius: getActiveDiagram().radii.sm,
       fill: c.stroke,
       stroke: null,
       opacity: status === "pending" ? 0.35 : 0.9,
@@ -4201,25 +4934,25 @@ function createPipelineStage(app, label, status) {
   node.add(
     app.text({
       text: statusLabels[status] ?? "WAIT",
-      x: DIAGRAM.spacing.sm + 5,
+      x: getActiveDiagram().spacing.sm + 5,
       y: height / 2 - 7,
-      fontSize: DIAGRAM.fontSize.xs,
+      fontSize: getActiveDiagram().fontSize.xs,
       fontWeight: "700",
       letterSpacing: 0.04,
-      fontFamily: DIAGRAM.fontFamily,
-      fill: status === "pending" ? DIAGRAM.nodeTextMuted : "#fff",
+      fontFamily: getActiveDiagram().fontFamily,
+      fill: status === "pending" ? getActiveDiagram().nodeTextMuted : "#fff",
       listening: false
     })
   );
   node.add(
     app.text({
       text: label,
-      x: DIAGRAM.spacing.sm + badgeW + 6,
+      x: getActiveDiagram().spacing.sm + badgeW + 6,
       y: height / 2 - 7,
-      fontSize: DIAGRAM.fontSize.base,
+      fontSize: getActiveDiagram().fontSize.base,
       fontWeight: "600",
-      fontFamily: DIAGRAM.fontFamily,
-      fill: DIAGRAM.nodeText,
+      fontFamily: getActiveDiagram().fontFamily,
+      fill: getActiveDiagram().nodeText,
       listening: false
     })
   );
@@ -4237,7 +4970,7 @@ function createStateNode(app, label, type) {
         y: radius - 6,
         radius: radius + 1,
         fill: null,
-        stroke: DIAGRAM.stateFinalStroke,
+        stroke: getActiveDiagram().stateFinalStroke,
         strokeWidth: 1,
         opacity: 0.35,
         listening: false
@@ -4248,10 +4981,10 @@ function createStateNode(app, label, type) {
         x: radius - 6,
         y: radius - 6,
         radius: radius - 2,
-        fill: DIAGRAM.stateFinalFill,
-        stroke: DIAGRAM.stateFinalStroke,
-        strokeWidth: DIAGRAM.stroke.nodeEmphasis,
-        shadow: DIAGRAM.shadowElevated,
+        fill: getActiveDiagram().stateFinalFill,
+        stroke: getActiveDiagram().stateFinalStroke,
+        strokeWidth: getActiveDiagram().stroke.nodeEmphasis,
+        shadow: getActiveDiagram().shadowElevated,
         listening: false
       })
     );
@@ -4261,13 +4994,13 @@ function createStateNode(app, label, type) {
         y: radius - 6,
         radius: radius - 9,
         fill: null,
-        stroke: DIAGRAM.stateFinalStroke,
-        strokeWidth: DIAGRAM.stroke.node,
+        stroke: getActiveDiagram().stateFinalStroke,
+        strokeWidth: getActiveDiagram().stroke.node,
         listening: false
       })
     );
     if (label) {
-      const fs2 = DIAGRAM.fontSize.sm;
+      const fs2 = getActiveDiagram().fontSize.sm;
       node.add(
         app.text({
           text: label,
@@ -4275,8 +5008,8 @@ function createStateNode(app, label, type) {
           y: radius * 2 - 6,
           fontSize: fs2,
           fontWeight: "600",
-          fontFamily: DIAGRAM.fontFamily,
-          fill: DIAGRAM.stateFinalStroke,
+          fontFamily: getActiveDiagram().fontFamily,
+          fill: getActiveDiagram().stateFinalStroke,
           listening: false
         })
       );
@@ -4290,10 +5023,10 @@ function createStateNode(app, label, type) {
       width: w,
       height: h,
       cornerRadius: h / 2,
-      fill: DIAGRAM.stateInitialFill,
-      stroke: DIAGRAM.stateInitialStroke,
-      strokeWidth: DIAGRAM.stroke.nodeEmphasis,
-      shadow: DIAGRAM.shadowElevated,
+      fill: getActiveDiagram().stateInitialFill,
+      stroke: getActiveDiagram().stateInitialStroke,
+      strokeWidth: getActiveDiagram().stroke.nodeEmphasis,
+      shadow: getActiveDiagram().shadowElevated,
       sheen: false
     });
     node.add(
@@ -4301,7 +5034,7 @@ function createStateNode(app, label, type) {
         x: 14,
         y: h / 2,
         radius: 6,
-        fill: DIAGRAM.stateInitialStroke,
+        fill: getActiveDiagram().stateInitialStroke,
         stroke: null,
         listening: false
       })
@@ -4311,15 +5044,15 @@ function createStateNode(app, label, type) {
     addCardChrome(app, node, {
       width: w,
       height: w,
-      cornerRadius: DIAGRAM.radii.lg,
-      fill: DIAGRAM.stateFill,
-      stroke: DIAGRAM.stateStroke,
-      strokeWidth: DIAGRAM.stroke.nodeEmphasis,
-      shadow: DIAGRAM.shadowSoft,
-      accentColor: DIAGRAM.stateStroke
+      cornerRadius: getActiveDiagram().radii.lg,
+      fill: getActiveDiagram().stateFill,
+      stroke: getActiveDiagram().stateStroke,
+      strokeWidth: getActiveDiagram().stroke.nodeEmphasis,
+      shadow: getActiveDiagram().shadowSoft,
+      accentColor: getActiveDiagram().stateStroke
     });
   }
-  const fs = DIAGRAM.fontSize.md;
+  const fs = getActiveDiagram().fontSize.md;
   const boxW = radius * 2 - 4;
   node.add(
     app.text({
@@ -4328,36 +5061,36 @@ function createStateNode(app, label, type) {
       y: radius - fs / 2 - 3,
       fontSize: fs,
       fontWeight: "600",
-      fontFamily: DIAGRAM.fontFamily,
-      fill: DIAGRAM.nodeText,
+      fontFamily: getActiveDiagram().fontFamily,
+      fill: getActiveDiagram().nodeText,
       listening: false
     })
   );
   return node;
 }
-function createCanEcuNode(app, label, address, color, strokeWidth = DIAGRAM.stroke.node) {
+function createCanEcuNode(app, label, address, color, strokeWidth = getActiveDiagram().stroke.node) {
   const width = 88;
   const height = 56;
   const ecuGroup = app.group();
   addCardChrome(app, ecuGroup, {
     width,
     height,
-    cornerRadius: DIAGRAM.radii.md,
-    fill: DIAGRAM.nodeFill,
+    cornerRadius: getActiveDiagram().radii.md,
+    fill: getActiveDiagram().nodeFill,
     stroke: color,
     strokeWidth,
-    shadow: DIAGRAM.shadowElevated,
+    shadow: getActiveDiagram().shadowElevated,
     accentColor: color
   });
   ecuGroup.add(
     app.text({
       text: label,
-      x: DIAGRAM.spacing.sm,
+      x: getActiveDiagram().spacing.sm,
       y: 12,
-      fontSize: DIAGRAM.fontSize.md,
-      fill: DIAGRAM.nodeText,
+      fontSize: getActiveDiagram().fontSize.md,
+      fill: getActiveDiagram().nodeText,
       fontWeight: "bold",
-      fontFamily: DIAGRAM.fontFamily,
+      fontFamily: getActiveDiagram().fontFamily,
       listening: false
     })
   );
@@ -4365,11 +5098,11 @@ function createCanEcuNode(app, label, address, color, strokeWidth = DIAGRAM.stro
     ecuGroup.add(
       app.text({
         text: address,
-        x: DIAGRAM.spacing.sm,
+        x: getActiveDiagram().spacing.sm,
         y: 30,
-        fontSize: DIAGRAM.fontSize.xs,
-        fontFamily: DIAGRAM.fontMono,
-        fill: DIAGRAM.edgeLabel,
+        fontSize: getActiveDiagram().fontSize.xs,
+        fontFamily: getActiveDiagram().fontMono,
+        fill: getActiveDiagram().edgeLabel,
         listening: false
       })
     );
@@ -4380,7 +5113,7 @@ function createCanEcuNode(app, label, address, color, strokeWidth = DIAGRAM.stro
       y: 0,
       radius: 3,
       fill: color,
-      stroke: DIAGRAM.surface,
+      stroke: getActiveDiagram().surface,
       strokeWidth: 1,
       listening: false
     })
@@ -4399,8 +5132,8 @@ function createCanEcuNode(app, label, address, color, strokeWidth = DIAGRAM.stro
   );
   return ecuGroup;
 }
-function createEdgeLabel(app, text, x, y, accentStroke = DIAGRAM.edge) {
-  const fontSize = DIAGRAM.fontSize.sm;
+function createEdgeLabel(app, text, x, y, accentStroke = getActiveDiagram().edge) {
+  const fontSize = getActiveDiagram().fontSize.sm;
   const tw = measureTextWidth(text, fontSize, "600");
   const padX = 8;
   const padY = 4;
@@ -4413,11 +5146,11 @@ function createEdgeLabel(app, text, x, y, accentStroke = DIAGRAM.edge) {
       y: y - ph / 2,
       width: pw,
       height: ph,
-      cornerRadius: DIAGRAM.radii.sm,
-      fill: DIAGRAM.labelPillFill,
+      cornerRadius: getActiveDiagram().radii.sm,
+      fill: getActiveDiagram().labelPillFill,
       stroke: accentStroke,
-      strokeWidth: DIAGRAM.stroke.label,
-      shadow: DIAGRAM.shadowSoft,
+      strokeWidth: getActiveDiagram().stroke.label,
+      shadow: getActiveDiagram().shadowSoft,
       listening: false
     })
   );
@@ -4428,8 +5161,8 @@ function createEdgeLabel(app, text, x, y, accentStroke = DIAGRAM.edge) {
       y: y - fontSize / 2 - 1,
       fontSize,
       fontWeight: "600",
-      fontFamily: DIAGRAM.fontFamily,
-      fill: DIAGRAM.edgeLabel,
+      fontFamily: getActiveDiagram().fontFamily,
+      fill: getActiveDiagram().edgeLabel,
       listening: false
     })
   );
@@ -4455,7 +5188,8 @@ function createDiagramGroup(app, type, props, extra = {}) {
     ...props,
     metadata: {
       diagramType: type,
-      diagramState: { ...props }
+      diagramState: { ...props },
+      ...props.demoId != null ? { demoId: props.demoId } : {}
     },
     ...extra
   });
@@ -4653,8 +5387,8 @@ function toJSON(node) {
   return node.toJSON();
 }
 
-// src/io/schema.ts
-var SHAPE_TYPES = /* @__PURE__ */ new Set([
+// src/io/sceneCatalog.ts
+var SHAPE_TYPES = [
   "rect",
   "circle",
   "ellipse",
@@ -4670,37 +5404,689 @@ var SHAPE_TYPES = /* @__PURE__ */ new Set([
   "sprite",
   "group",
   "layer"
+];
+var UI_COMPONENT_TYPES = [
+  "accordion",
+  "button",
+  "card",
+  "checkbox",
+  "dialog",
+  "input",
+  "label",
+  "menu",
+  "progressBar",
+  "radio",
+  "slider",
+  "statusBar",
+  "table",
+  "tabs",
+  "textarea",
+  "toast",
+  "toggle",
+  "toolbar",
+  "tooltip",
+  "tree"
+];
+var DASHBOARD_TYPES = [
+  "alluvialChart",
+  "areaChart",
+  "bandChart",
+  "barChart",
+  "battery",
+  "beeswarmChart",
+  "boxAndWhiskerChart",
+  "boxPlot",
+  "bubbleChart",
+  "bulletChart",
+  "bumpChart",
+  "calendar",
+  "calendarHeatmap",
+  "candlestickVolumeChart",
+  "chartPanel",
+  "chordChart",
+  "clock",
+  "columnChart",
+  "combinationChart",
+  "compass",
+  "coneChart",
+  "contourChart",
+  "controlChart",
+  "dendrogramChart",
+  "densityPlot",
+  "dotPlot",
+  "doughnutChart",
+  "errorBarChart",
+  "funnelChart",
+  "ganttChart",
+  "gauge",
+  "heatmap",
+  "hexbinChart",
+  "histogram",
+  "horizonChart",
+  "horizontalBarChart",
+  "kagiChart",
+  "knob",
+  "legend",
+  "lineChart",
+  "lollipopChart",
+  "marimekkoChart",
+  "mekkoChart",
+  "meshChart3d",
+  "meter",
+  "mixedChart",
+  "mosaicChart",
+  "networkChart",
+  "parallelCoordinatesPlot",
+  "paretoChart",
+  "pictogramChart",
+  "pieChart",
+  "polarAreaChart",
+  "populationPyramidChart",
+  "pyramidChart",
+  "qqPlot",
+  "radarChart",
+  "rangeAreaChart",
+  "rangeChart",
+  "ribbonChart",
+  "ridgelinePlot",
+  "runChart",
+  "sankeyChart",
+  "scatterChart",
+  "signalStrength",
+  "sparklineChart",
+  "speedometer",
+  "spiderChart",
+  "splineChart",
+  "stackedAreaChart",
+  "stackedBarChart",
+  "stackedColumnChart",
+  "stemLeafPlot",
+  "stepChart",
+  "streamgraph",
+  "stripPlot",
+  "sunburstChart",
+  "surfaceChart3d",
+  "thermometer",
+  "timeline",
+  "treeChart",
+  "treemap",
+  "vectorFieldChart",
+  "violinPlot",
+  "volumeChart",
+  "volumeProfileChart",
+  "waffleChart",
+  "waterfallChart",
+  "wireframeChart3d",
+  "wordCloudChart"
+];
+var AUTOMOTIVE_TYPES = [
+  "adasStatus",
+  "albumArt",
+  "batteryVoltage",
+  "calendar",
+  "callScreen",
+  "canViewer",
+  "climateControl",
+  "compass",
+  "cruiseControl",
+  "digitalInstrumentCluster",
+  "engineTemp",
+  "fmRadio",
+  "fuelGauge",
+  "gearIndicator",
+  "gpsNavigationMap",
+  "headlights",
+  "instrumentCluster",
+  "mediaPlayer",
+  "musicControls",
+  "navigationSearch",
+  "notificationCenter",
+  "nowPlaying",
+  "parkingBrake",
+  "podcastPlayer",
+  "quickSettingsPanel",
+  "rearViewCamera",
+  "routeGuidance",
+  "speedometer",
+  "sunriseSunset",
+  "tachometer",
+  "tpms",
+  "turnIndicators",
+  "warningAlertPanel",
+  "warningLamp"
+];
+var DIAGRAM_TYPES = [
+  "flowchart",
+  "stateMachine",
+  "classDiagram",
+  "mindMap",
+  "networkTopology",
+  "orgChart",
+  "electricalSchematic",
+  "canNetwork",
+  "processPipeline"
+];
+var UI_THEME_PRESETS = [
+  "default",
+  "dark",
+  "violet",
+  "emerald",
+  "slate",
+  "ocean",
+  "rose",
+  "darkViolet"
+];
+var AUTOMOTIVE_THEME_PRESETS = ["classic", "sport", "digital"];
+var PROP_ENUMS = {
+  button: {
+    variant: ["primary", "secondary", "ghost", "danger"],
+    size: ["sm", "md", "lg"]
+  },
+  progressBar: {
+    variant: ["default", "success", "warning", "danger"],
+    size: ["sm", "md", "lg"]
+  },
+  checkbox: { size: ["sm", "md", "lg"] },
+  toggle: { size: ["sm", "md"] },
+  toast: { variant: ["success", "error", "warning", "info"] },
+  tooltip: { placement: ["top", "bottom", "left", "right"] },
+  menu: {},
+  // Automotive cluster theme (also accepted on other auto widgets)
+  instrumentCluster: { theme: [...AUTOMOTIVE_THEME_PRESETS] },
+  digitalInstrumentCluster: { theme: [...AUTOMOTIVE_THEME_PRESETS] },
+  speedometer: { theme: [...AUTOMOTIVE_THEME_PRESETS] },
+  tachometer: { theme: [...AUTOMOTIVE_THEME_PRESETS] },
+  fuelGauge: { theme: [...AUTOMOTIVE_THEME_PRESETS] },
+  engineTemp: { theme: [...AUTOMOTIVE_THEME_PRESETS] }
+};
+var KNOWN_TYPE_SET = /* @__PURE__ */ new Set([
+  ...SHAPE_TYPES,
+  ...UI_COMPONENT_TYPES,
+  ...DASHBOARD_TYPES,
+  ...AUTOMOTIVE_TYPES,
+  ...DIAGRAM_TYPES
 ]);
-function validateSceneJSON(json) {
-  const errors = [];
+var extraTypes = /* @__PURE__ */ new Set();
+function listKnownSceneTypes() {
+  return [...KNOWN_TYPE_SET, ...extraTypes].sort();
+}
+function isKnownSceneType(type) {
+  return KNOWN_TYPE_SET.has(type) || extraTypes.has(type);
+}
+function editDistance(a, b) {
+  const m = a.length;
+  const n = b.length;
+  if (m === 0)
+    return n;
+  if (n === 0)
+    return m;
+  const prev = new Array(n + 1);
+  const cur = new Array(n + 1);
+  for (let j = 0; j <= n; j++)
+    prev[j] = j;
+  for (let i = 1; i <= m; i++) {
+    cur[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      cur[j] = Math.min(cur[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost);
+    }
+    for (let j = 0; j <= n; j++)
+      prev[j] = cur[j];
+  }
+  return prev[n];
+}
+function suggestClosest(value, allowed, limit = 5) {
+  const v = String(value ?? "");
+  if (!v || !allowed.length)
+    return [];
+  const lower = v.toLowerCase();
+  const scored = allowed.map((cand) => {
+    const c = String(cand);
+    const cl = c.toLowerCase();
+    let score = editDistance(lower, cl);
+    if (cl.startsWith(lower) || lower.startsWith(cl))
+      score = Math.min(score, 1);
+    if (cl.includes(lower) || lower.includes(cl))
+      score = Math.min(score, 2);
+    return { cand: c, score };
+  });
+  scored.sort((a, b) => a.score - b.score || a.cand.localeCompare(b.cand));
+  const maxDist = Math.max(2, Math.ceil(v.length / 3));
+  return scored.filter((s) => s.score <= maxDist).slice(0, limit).map((s) => s.cand);
+}
+function formatExpectedValues(allowed, maxShow = 8) {
+  const list = [...allowed];
+  if (list.length === 0)
+    return "expected a known value";
+  if (list.length <= maxShow) {
+    return `expected one of: ${list.map((v) => JSON.stringify(v)).join(" | ")}`;
+  }
+  const head = list.slice(0, maxShow).map((v) => JSON.stringify(v)).join(" | ");
+  return `expected one of: ${head} | \u2026 (+${list.length - maxShow} more)`;
+}
+function formatInvalidValue(got, allowed, opts) {
+  const maxShow = opts?.maxShow ?? 8;
+  const suggest = opts?.suggest !== false;
+  const gotStr = typeof got === "string" ? got : String(got);
+  const expected = formatExpectedValues(allowed, maxShow);
+  const parts = [`invalid value ${JSON.stringify(gotStr)}; ${expected}`];
+  if (suggest && typeof got === "string") {
+    const close = suggestClosest(got, allowed, 3);
+    if (close.length) {
+      parts.push(`did you mean ${close.map((c) => JSON.stringify(c)).join(", ")}?`);
+    }
+  }
+  return parts.join(" ");
+}
+function propEnumsForType(type) {
+  const specific = PROP_ENUMS[type] ?? {};
+  if (AUTOMOTIVE_TYPES.includes(type) && !specific.theme) {
+    return { ...specific, theme: AUTOMOTIVE_THEME_PRESETS };
+  }
+  return specific;
+}
+
+// src/io/schema.ts
+var TYPE_ID_RE = /^[a-zA-Z][a-zA-Z0-9]*$/;
+var CSS_COLOR_RE = /^(#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})|(rgba?|hsla?)\([^)]+\))$/i;
+var IMAGE_PRESET_RE = /\.(png|jpe?g|webp|gif|svg)(\?|#|$)/i;
+var CSS_NAMED_COLORS = /* @__PURE__ */ new Set([
+  "transparent",
+  "black",
+  "white",
+  "red",
+  "green",
+  "blue",
+  "yellow",
+  "orange",
+  "purple",
+  "pink",
+  "gray",
+  "grey",
+  "cyan",
+  "magenta",
+  "navy",
+  "teal",
+  "lime",
+  "olive",
+  "maroon",
+  "silver",
+  "gold",
+  "indigo",
+  "violet",
+  "coral",
+  "salmon",
+  "tomato",
+  "crimson",
+  "khaki",
+  "ivory",
+  "azure",
+  "beige",
+  "brown",
+  "chocolate",
+  "snow"
+]);
+function valueKind(value) {
+  if (value === null)
+    return "null";
+  if (Array.isArray(value))
+    return "array";
+  return typeof value;
+}
+function looksLikeColorOrImage(value) {
+  const s = value.trim();
+  if (!s)
+    return false;
+  if (IMAGE_PRESET_RE.test(s) || s.startsWith("data:image") || s.startsWith("./") || s.startsWith("/")) {
+    return true;
+  }
+  if (CSS_COLOR_RE.test(s))
+    return true;
+  return CSS_NAMED_COLORS.has(s.toLowerCase());
+}
+function extractJsonErrorOffset(message, sourceLength) {
+  const patterns = [/at position\s+(\d+)/i, /at offset\s+(\d+)/i, /column\s+(\d+)/i];
+  for (const re of patterns) {
+    const m = message.match(re);
+    if (!m)
+      continue;
+    if (re.source.includes("column") && !/position|offset/i.test(message))
+      continue;
+    const n = Number(m[1]);
+    if (Number.isFinite(n) && n >= 0)
+      return Math.min(n, Math.max(0, sourceLength));
+  }
+  return null;
+}
+function offsetFromLineColumn(source, line, column) {
+  const lines2 = source.split(/\r?\n/);
+  let offset = 0;
+  for (let i = 0; i < lines2.length; i++) {
+    if (i + 1 === line) {
+      return offset + Math.max(0, Math.min(column - 1, lines2[i].length));
+    }
+    offset += lines2[i].length + 1;
+  }
+  return Math.max(0, source.length - 1);
+}
+function locateJsonError(source, err) {
+  const message = err instanceof Error ? err.message : String(err);
+  const lines2 = source.split(/\r?\n/);
+  let offset = extractJsonErrorOffset(message, source.length);
+  const lc = message.match(/\(line\s+(\d+)\s+column\s+(\d+)\)/i);
+  if (offset == null && lc) {
+    offset = offsetFromLineColumn(source, Number(lc[1]), Number(lc[2]));
+  }
+  if (offset == null) {
+    offset = Math.max(0, source.length - 1);
+  }
+  let line = 1;
+  let column = 1;
+  let acc = 0;
+  for (let i = 0; i < lines2.length; i++) {
+    const len = lines2[i].length;
+    const lineEnd = acc + len;
+    if (offset <= lineEnd || i === lines2.length - 1) {
+      line = i + 1;
+      column = Math.max(1, offset - acc + 1);
+      break;
+    }
+    acc = lineEnd + 1;
+  }
+  const lineText = lines2[line - 1] ?? "";
+  const caretPad = Math.max(0, column - 1);
+  const marker = `${" ".repeat(caretPad)}^`;
+  const snippet = [`  ${line} | ${lineText}`, `  ${" ".repeat(String(line).length)} | ${marker}`].join("\n");
+  return { offset, line, column, lineText, snippet };
+}
+function formatJsonParseError(source, err) {
+  const message = err instanceof Error ? err.message : String(err);
+  const loc = locateJsonError(source, err);
+  const reason = message.replace(/\s*in JSON at position \d+/i, "").replace(/\s*\(line \d+ column \d+\)/i, "").trim();
+  return `JSON parse error at line ${loc.line}, column ${loc.column}: ${reason}
+` + loc.snippet;
+}
+function issue(path, message, code, expected) {
+  const out = { path, message };
+  if (code)
+    out.code = code;
+  if (expected && expected.length)
+    out.expected = expected;
+  return out;
+}
+function toErrorLines(issues) {
+  return issues.map((i) => `${i.path}: ${i.message}`);
+}
+function validatePropEnums(type, props, path, issues) {
+  const enums = propEnumsForType(type);
+  for (const [key, allowed] of Object.entries(enums)) {
+    if (!(key in props))
+      continue;
+    const got = props[key];
+    if (got === void 0 || got === null)
+      continue;
+    if (typeof got !== "string") {
+      issues.push(
+        issue(
+          `${path}.props.${key}`,
+          `must be a string (${formatExpectedValues(allowed)}), got ${valueKind(got)}`,
+          "prop_type",
+          [...allowed]
+        )
+      );
+      continue;
+    }
+    if (!allowed.includes(got)) {
+      issues.push(
+        issue(
+          `${path}.props.${key}`,
+          formatInvalidValue(got, allowed),
+          "prop_enum",
+          [...allowed]
+        )
+      );
+    }
+  }
+  if (typeof props.uiTheme === "string" && props.uiTheme && !looksLikeColorOrImage(props.uiTheme)) {
+    if (!UI_THEME_PRESETS.includes(props.uiTheme)) {
+      issues.push(
+        issue(
+          `${path}.props.uiTheme`,
+          formatInvalidValue(props.uiTheme, UI_THEME_PRESETS) + " \u2014 or a CSS color / image path / token object",
+          "uiTheme_preset",
+          [...UI_THEME_PRESETS]
+        )
+      );
+    }
+  }
+}
+function validateThemePack(pack, options = {}) {
+  const strictPreset = options.strictPreset !== false;
+  const issues = [];
+  if (pack === null || typeof pack !== "object" || Array.isArray(pack)) {
+    issues.push(
+      issue("theme", `expected a theme pack object, got ${valueKind(pack)}`, "theme_type")
+    );
+    return { valid: false, errors: toErrorLines(issues), issues };
+  }
+  const obj = pack;
+  if (obj.preset !== void 0 && obj.preset !== null) {
+    if (typeof obj.preset !== "string") {
+      issues.push(
+        issue(
+          "theme.preset",
+          `must be a string (${formatExpectedValues(UI_THEME_PRESETS)}), got ${valueKind(obj.preset)}`,
+          "preset_type",
+          [...UI_THEME_PRESETS]
+        )
+      );
+    } else if (strictPreset && !UI_THEME_PRESETS.includes(obj.preset) && !looksLikeColorOrImage(obj.preset)) {
+      issues.push(
+        issue(
+          "theme.preset",
+          formatInvalidValue(obj.preset, UI_THEME_PRESETS) + " \u2014 or a CSS color / image path",
+          "preset_enum",
+          [...UI_THEME_PRESETS]
+        )
+      );
+    }
+  }
+  if (obj.automotive !== void 0 && obj.automotive !== null) {
+    if (typeof obj.automotive !== "string") {
+      issues.push(
+        issue(
+          "theme.automotive",
+          `must be a string (${formatExpectedValues(AUTOMOTIVE_THEME_PRESETS)}), got ${valueKind(obj.automotive)}`,
+          "automotive_type",
+          [...AUTOMOTIVE_THEME_PRESETS]
+        )
+      );
+    } else if (!AUTOMOTIVE_THEME_PRESETS.includes(obj.automotive)) {
+      issues.push(
+        issue(
+          "theme.automotive",
+          formatInvalidValue(obj.automotive, AUTOMOTIVE_THEME_PRESETS),
+          "automotive_enum",
+          [...AUTOMOTIVE_THEME_PRESETS]
+        )
+      );
+    }
+  }
+  if (obj.series !== void 0 && obj.series !== null && !Array.isArray(obj.series)) {
+    issues.push(
+      issue(
+        "theme.series",
+        `must be an array of color strings when present, got ${valueKind(obj.series)}`,
+        "series_type"
+      )
+    );
+  }
+  for (const key of ["dashboard", "diagram"]) {
+    if (obj[key] !== void 0 && obj[key] !== null) {
+      if (typeof obj[key] !== "object" || Array.isArray(obj[key])) {
+        issues.push(
+          issue(
+            `theme.${key}`,
+            `must be an object when present, got ${valueKind(obj[key])}`,
+            `${key}_type`
+          )
+        );
+      }
+    }
+  }
+  return { valid: issues.length === 0, errors: toErrorLines(issues), issues };
+}
+function validateSceneJSON(json, options = {}) {
+  const strictTypes = Boolean(options.strictTypes);
+  const strictProps = options.strictProps !== false;
+  const checkTheme = options.validateTheme !== false;
+  const extra = new Set(options.extraTypes ?? []);
+  const issues = [];
+  const knownList = listKnownSceneTypes();
+  function typeAllowed(type) {
+    return isKnownSceneType(type) || extra.has(type);
+  }
   function visit(node, path) {
-    if (!node || typeof node !== "object") {
-      errors.push(`${path}: expected object`);
+    if (node === null || typeof node !== "object" || Array.isArray(node)) {
+      issues.push(
+        issue(path, `expected a scene node object, got ${valueKind(node)}`, "expected_object")
+      );
       return;
     }
     const scene = node;
-    if (typeof scene.type !== "string" || scene.type.length === 0) {
-      errors.push(`${path}.type: required string`);
+    if (scene.type === void 0 || scene.type === null) {
+      issues.push(
+        issue(
+          `${path}.type`,
+          `required \u2014 each node needs a type string (${formatExpectedValues(
+            ["group", "rect", "button", "lineChart", "instrumentCluster"],
+            5
+          )} \u2026)`,
+          "type_required",
+          ["group", "button", "rect", "lineChart"]
+        )
+      );
+    } else if (typeof scene.type !== "string") {
+      issues.push(
+        issue(`${path}.type`, `must be a string, got ${valueKind(scene.type)}`, "type_type")
+      );
+    } else if (scene.type.length === 0) {
+      issues.push(issue(`${path}.type`, "must be a non-empty string", "type_empty"));
+    } else if (!TYPE_ID_RE.test(scene.type)) {
+      issues.push(
+        issue(
+          `${path}.type`,
+          `invalid identifier "${scene.type}" \u2014 use letters/digits (e.g. "lineChart")`,
+          "type_invalid"
+        )
+      );
+    } else if (!typeAllowed(scene.type)) {
+      const suggestions = suggestClosest(scene.type, knownList, 5);
+      const nearTypo = suggestions.length > 0 && editDistance(scene.type.toLowerCase(), suggestions[0].toLowerCase()) <= 2;
+      if (strictTypes || nearTypo) {
+        issues.push(
+          issue(
+            `${path}.type`,
+            formatInvalidValue(scene.type, suggestions.length ? suggestions : knownList.slice(0, 12), {
+              maxShow: suggestions.length ? 5 : 8
+            }),
+            "type_unknown",
+            suggestions.length ? suggestions : knownList.slice(0, 20)
+          )
+        );
+      }
     }
-    if (scene.props !== void 0 && (typeof scene.props !== "object" || scene.props === null)) {
-      errors.push(`${path}.props: must be object when present`);
+    if (scene.props !== void 0) {
+      if (scene.props === null || typeof scene.props !== "object" || Array.isArray(scene.props)) {
+        issues.push(
+          issue(
+            `${path}.props`,
+            `must be an object when present, got ${valueKind(scene.props)}`,
+            "props_type"
+          )
+        );
+      } else if (strictProps && typeof scene.type === "string") {
+        validatePropEnums(scene.type, scene.props, path, issues);
+      }
     }
     if (scene.children !== void 0) {
       if (!Array.isArray(scene.children)) {
-        errors.push(`${path}.children: must be array when present`);
+        issues.push(
+          issue(
+            `${path}.children`,
+            `must be an array when present, got ${valueKind(scene.children)}`,
+            "children_type"
+          )
+        );
       } else {
         scene.children.forEach((child, i) => visit(child, `${path}.children[${i}]`));
       }
     }
-  }
-  visit(json, "root");
-  if (errors.length === 0 && json && typeof json === "object") {
-    const root = json;
-    if (!SHAPE_TYPES.has(root.type) && !root.type.match(/^[a-zA-Z][a-zA-Z0-9]*$/)) {
-      errors.push("root.type: invalid identifier");
+    if (path === "root" && checkTheme && scene.theme !== void 0) {
+      const themeResult = validateThemePack(scene.theme);
+      for (const th of themeResult.issues) {
+        issues.push({
+          ...th,
+          path: th.path.startsWith("theme") ? `root.${th.path}` : `root.theme.${th.path}`
+        });
+      }
     }
   }
-  return { valid: errors.length === 0, errors };
+  if (json === void 0) {
+    issues.push(issue("root", "missing scene JSON (got undefined)", "missing"));
+  } else {
+    visit(json, "root");
+  }
+  return {
+    valid: issues.length === 0,
+    errors: toErrorLines(issues),
+    issues
+  };
+}
+function formatValidationErrors(result) {
+  if (result.valid)
+    return "";
+  if (result.errors.length === 1)
+    return result.errors[0];
+  return `${result.errors.length} validation errors:
+` + result.errors.map((e, i) => `  ${i + 1}. ${e}`).join("\n");
+}
+function parseAndValidateSceneJSON(raw, options) {
+  const source = typeof raw === "string" ? raw : String(raw);
+  if (!source.trim()) {
+    const issues = [issue("root", "empty JSON \u2014 paste a scene object", "empty")];
+    return {
+      json: null,
+      validation: { valid: false, errors: toErrorLines(issues), issues }
+    };
+  }
+  let json;
+  try {
+    json = JSON.parse(source);
+  } catch (e) {
+    const formatted = formatJsonParseError(source, e);
+    const loc = locateJsonError(source, e);
+    const issues = [
+      issue(
+        `line ${loc.line}, column ${loc.column}`,
+        formatted.replace(/^JSON parse error at line \d+, column \d+:\s*/, "").split("\n")[0],
+        "parse"
+      )
+    ];
+    return {
+      json: null,
+      validation: {
+        valid: false,
+        errors: [formatted],
+        issues
+      }
+    };
+  }
+  const validation = validateSceneJSON(json, { strictTypes: false, ...options });
+  return {
+    json,
+    validation
+  };
 }
 
 // src/io/pdf.ts
@@ -4859,15 +6245,39 @@ var SVGRenderer = class extends Renderer {
     this.sceneRoot = document.createElementNS("http://www.w3.org/2000/svg", "g");
     this.sceneRoot.setAttribute("data-lightdraw-scene", "true");
     this.svg.appendChild(this.sceneRoot);
-    if (this.background && this.background !== "transparent") {
-      const bg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-      bg.setAttribute("data-lightdraw-bg", "true");
-      bg.setAttribute("width", "100%");
-      bg.setAttribute("height", "100%");
-      bg.setAttribute("fill", this.background);
-      this.svg.insertBefore(bg, this.sceneRoot);
-    }
+    this.syncBackgroundNode();
     container.appendChild(this.svg);
+  }
+  /** Update stage background (solid or image). */
+  setStageBackground(value) {
+    this.background = value;
+    this.syncBackgroundNode();
+    this.forceFullRedraw();
+  }
+  syncBackgroundNode() {
+    this.svg.querySelectorAll("[data-lightdraw-bg], [data-lightdraw-bg-image]").forEach((n) => n.remove());
+    this.svg.style.background = "";
+    if (!this.background || this.background === "transparent")
+      return;
+    const src = unwrapThemeBackgroundSrc(this.background);
+    if (src) {
+      this.svg.style.background = cssStageBackground(this.background);
+      const img = document.createElementNS("http://www.w3.org/2000/svg", "image");
+      img.setAttribute("data-lightdraw-bg-image", "true");
+      img.setAttribute("href", src);
+      img.setAttributeNS("http://www.w3.org/1999/xlink", "href", src);
+      img.setAttribute("width", "100%");
+      img.setAttribute("height", "100%");
+      img.setAttribute("preserveAspectRatio", "xMidYMid slice");
+      this.svg.insertBefore(img, this.sceneRoot);
+      return;
+    }
+    const bg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    bg.setAttribute("data-lightdraw-bg", "true");
+    bg.setAttribute("width", "100%");
+    bg.setAttribute("height", "100%");
+    bg.setAttribute("fill", this.background);
+    this.svg.insertBefore(bg, this.sceneRoot);
   }
   resize(width, height) {
     this.width = width;
@@ -5607,143 +7017,1287 @@ var SpatialIndex = class {
   }
 };
 
-// src/components/uiTheme.ts
-var UI_THEME_VAR_MAP = {
-  primary: "--ld-primary",
-  primaryHover: "--ld-primary-hover",
-  primaryActive: "--ld-primary-active",
-  primarySubtle: "--ld-primary-subtle",
-  secondary: "--ld-secondary",
-  secondaryHover: "--ld-secondary-hover",
-  danger: "--ld-danger",
-  dangerSubtle: "--ld-danger-subtle",
-  success: "--ld-success",
-  successSubtle: "--ld-success-subtle",
-  warning: "--ld-warning",
-  warningSubtle: "--ld-warning-subtle",
-  surface: "--ld-surface",
-  surfaceMuted: "--ld-surface-muted",
-  surfaceInset: "--ld-surface-inset",
-  overlay: "--ld-overlay",
-  border: "--ld-border",
-  borderStrong: "--ld-border-strong",
-  text: "--ld-text",
-  textSecondary: "--ld-text-secondary",
-  textMuted: "--ld-text-muted",
-  textInverse: "--ld-text-inverse",
-  placeholder: "--ld-placeholder",
-  radius: "--ld-radius",
-  radiusSm: "--ld-radius-sm",
-  radiusLg: "--ld-radius-lg",
-  fontFamily: "--ld-font-family",
-  controlHeight: "--ld-control-h",
-  shadowMd: "--ld-shadow-md",
-  statusBarBg: "--ld-statusbar-bg",
-  statusBarText: "--ld-statusbar-text",
-  statusBarBorder: "--ld-statusbar-border",
-  tooltipBg: "--ld-tooltip-bg",
-  spaceXs: "--ld-space-xs",
-  spaceSm: "--ld-space-sm",
-  spaceMd: "--ld-space-md",
-  spaceLg: "--ld-space-lg",
-  spaceXl: "--ld-space-xl",
-  bpSm: "--ld-bp-sm",
-  bpMd: "--ld-bp-md",
-  bpLg: "--ld-bp-lg"
+// src/components/theme.ts
+var UI = {
+  primary: "#2563eb",
+  primaryHover: "#1d4ed8",
+  primaryActive: "#163eb8",
+  primarySubtle: "#eff6ff",
+  /** @deprecated Use `primarySubtle` — kept for canvas definitions compatibility */
+  primaryMuted: "#eff6ff",
+  secondary: "#475569",
+  secondaryHover: "#334155",
+  success: "#059669",
+  successBg: "#ecfdf5",
+  warning: "#d97706",
+  danger: "#dc2626",
+  surface: "#ffffff",
+  surfaceMuted: "#f8fafc",
+  surfaceInset: "#f1f5f9",
+  overlay: "rgba(15, 23, 42, 0.5)",
+  border: "#e2e8f0",
+  borderStrong: "#cbd5e1",
+  borderFocus: "#2563eb",
+  text: "#0f172a",
+  textSecondary: "#475569",
+  textMuted: "#64748b",
+  textInverse: "#ffffff",
+  textPlaceholder: "#94a3b8",
+  radius: 8,
+  radiusSm: 6,
+  radiusLg: 12,
+  radiusFull: 999,
+  font: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+  fontSize: 14,
+  fontSizeSm: 12,
+  fontSizeLg: 16,
+  controlHeight: 40,
+  inputHeight: 40,
+  spaceXs: 4,
+  spaceSm: 8,
+  spaceMd: 16,
+  spaceLg: 24,
+  spaceXl: 32,
+  shadowSm: { color: "rgba(15, 23, 42, 0.05)", blur: 2, offsetX: 0, offsetY: 1 },
+  shadowMd: { color: "rgba(15, 23, 42, 0.08)", blur: 8, offsetX: 0, offsetY: 2 },
+  shadowLg: { color: "rgba(15, 23, 42, 0.12)", blur: 20, offsetX: 0, offsetY: 8 },
+  shadowPrimary: { color: "rgba(37, 99, 235, 0.28)", blur: 8, offsetX: 0, offsetY: 2 }
 };
-var UI_THEME_TOKEN_KEYS = Object.keys(UI_THEME_VAR_MAP);
-function applyUiTheme(el, tokens) {
-  if (tokens.mode) {
-    el.setAttribute("data-ld-theme", tokens.mode);
+
+// src/automotive/themes.ts
+var AUTOMOTIVE_THEME_PRESETS2 = ["classic", "sport", "digital"];
+var THEMES = {
+  classic: {
+    background: "#0a0a0a",
+    dialStroke: "#444444",
+    needleSpeed: "#ef4444",
+    needleTach: "#22c55e",
+    text: "#ffffff",
+    textMuted: "#9ca3af",
+    accent: "#2563eb",
+    warning: "#ef4444",
+    ok: "#22c55e",
+    lampOn: "#fbbf24",
+    lampOff: "#333333",
+    fontScale: 1
+  },
+  sport: {
+    background: "#111827",
+    dialStroke: "#1f2937",
+    needleSpeed: "#f97316",
+    needleTach: "#eab308",
+    text: "#f9fafb",
+    textMuted: "#6b7280",
+    accent: "#dc2626",
+    warning: "#dc2626",
+    ok: "#84cc16",
+    lampOn: "#fde047",
+    lampOff: "#374151",
+    fontScale: 1
+  },
+  digital: {
+    background: "#020617",
+    dialStroke: "#0ea5e9",
+    needleSpeed: "#38bdf8",
+    needleTach: "#22d3ee",
+    text: "#e0f2fe",
+    textMuted: "#64748b",
+    accent: "#0ea5e9",
+    warning: "#f43f5e",
+    ok: "#10b981",
+    lampOn: "#22d3ee",
+    lampOff: "#1e293b",
+    fontScale: 1
   }
-  for (const key of UI_THEME_TOKEN_KEYS) {
-    const value = tokens[key];
-    const cssVar = UI_THEME_VAR_MAP[key];
-    if (value !== void 0 && value !== "") {
-      el.style.setProperty(cssVar, value);
+};
+var fontScaleScope = createThemeScope(() => 1);
+var fontScaleStack = [];
+var presetScope = createThemeScope(() => "classic");
+function clampScale(n) {
+  return Math.max(0.5, Math.min(2, n));
+}
+function syncAutomotiveFontScale(ui, app, basePx = 14) {
+  let scale = 1;
+  if (ui && ui.fontSize != null && String(ui.fontSize).trim() !== "") {
+    scale = clampScale(parseCssPx(ui.fontSize, basePx) / basePx);
+  }
+  return fontScaleScope.sync(scale, app ?? void 0);
+}
+function syncAutomotiveDefaultPreset(name, app) {
+  const next = name === "classic" || name === "sport" || name === "digital" ? name : "classic";
+  return presetScope.sync(next, app ?? void 0);
+}
+function getAutomotiveFontScale(app) {
+  if (fontScaleStack.length)
+    return fontScaleStack[fontScaleStack.length - 1];
+  return fontScaleScope.getActive(app ?? void 0);
+}
+function getDefaultAutomotivePreset(app) {
+  return presetScope.getActive(app ?? void 0);
+}
+function autoThemeName(props, app) {
+  const t = props.theme;
+  if (t === "classic" || t === "sport" || t === "digital")
+    return t;
+  return getDefaultAutomotivePreset(app);
+}
+function runWithAutomotiveFontScale(scale, fn) {
+  fontScaleStack.push(clampScale(scale));
+  try {
+    return fn();
+  } finally {
+    fontScaleStack.pop();
+  }
+}
+function automotiveFontScaleFromProps(props, basePx = 14) {
+  if (props.fontSize == null || props.fontSize === "")
+    return null;
+  return clampScale(parseCssPx(props.fontSize, basePx) / basePx);
+}
+function getTheme(name, app) {
+  const base = THEMES[name] ?? THEMES.classic;
+  return { ...base, fontScale: getAutomotiveFontScale(app) };
+}
+function themeFromProps(props, app) {
+  return getTheme(autoThemeName(props, app), app);
+}
+
+// src/components/nodeTheme.ts
+var AUTOMOTIVE = new Set(AUTOMOTIVE_THEME_PRESETS2);
+function readNodeUiThemeProp(props) {
+  if (props.uiTheme !== void 0)
+    return props.uiTheme;
+  const theme = props.theme;
+  if (theme === void 0 || theme === null)
+    return void 0;
+  if (typeof theme === "object")
+    return theme;
+  if (typeof theme === "string") {
+    if (theme === "inherit")
+      return "inherit";
+    if (AUTOMOTIVE.has(theme))
+      return void 0;
+    if (theme in UI_PRESETS)
+      return theme;
+  }
+  return void 0;
+}
+function normalizeNodeUiTheme(raw) {
+  if (raw === void 0 || raw === "inherit")
+    return null;
+  if (typeof raw === "string") {
+    if (raw in UI_PRESETS)
+      return { preset: raw };
+    return null;
+  }
+  if (typeof raw === "object" && raw !== null)
+    return raw;
+  return null;
+}
+function flatTypographyFromProps(props = {}) {
+  const out = {};
+  const textColor = props.textColor ?? props.color;
+  if (textColor != null && textColor !== "")
+    out.text = String(textColor);
+  if (props.textMuted != null && props.textMuted !== "")
+    out.textMuted = String(props.textMuted);
+  const fontSize = toCssPxToken(props.fontSize);
+  if (fontSize)
+    out.fontSize = fontSize;
+  const fontSizeSm = toCssPxToken(props.fontSizeSm);
+  if (fontSizeSm)
+    out.fontSizeSm = fontSizeSm;
+  const fontSizeLg = toCssPxToken(props.fontSizeLg);
+  if (fontSizeLg)
+    out.fontSizeLg = fontSizeLg;
+  return out;
+}
+function hasCustomTextColor(props = {}) {
+  if (props.textColor != null && props.textColor !== "" || props.color != null && props.color !== "") {
+    return true;
+  }
+  const node = normalizeNodeUiTheme(readNodeUiThemeProp(props));
+  if (node && node.text != null && String(node.text).trim() !== "")
+    return true;
+  return false;
+}
+function hasCustomFontSize(props = {}) {
+  if (props.fontSize != null && props.fontSize !== "")
+    return true;
+  const node = normalizeNodeUiTheme(readNodeUiThemeProp(props));
+  if (node && node.fontSize != null && String(node.fontSize).trim() !== "")
+    return true;
+  return false;
+}
+function resolveEffectiveUiTokens(app, props = {}) {
+  const appTokens = app && typeof app.getResolvedTheme === "function" ? app.getResolvedTheme() : {};
+  const nodeInput = normalizeNodeUiTheme(readNodeUiThemeProp(props));
+  const nodeTokens = nodeInput ? resolveUiTheme(nodeInput) : {};
+  const flat = flatTypographyFromProps(props);
+  return { ...appTokens, ...nodeTokens, ...flat };
+}
+function resolveNodeTypography(app, props = {}, fallbacks) {
+  const tokens = resolveEffectiveUiTokens(app, props);
+  const sizes = resolveFontSizeTriple(tokens, fallbacks);
+  return {
+    text: tokens.text ?? fallbacks.text,
+    textMuted: tokens.textMuted ?? fallbacks.textMuted,
+    ...sizes
+  };
+}
+
+// src/components/resolveCanvasTheme.ts
+function cloneShadow(s) {
+  return { color: s.color, blur: s.blur, offsetX: s.offsetX, offsetY: s.offsetY };
+}
+function resolveUiCanvasTheme(tokens = {}) {
+  const primary = tokens.primary ?? UI.primary;
+  return {
+    primary,
+    primaryHover: tokens.primaryHover ?? UI.primaryHover,
+    primaryActive: tokens.primaryActive ?? UI.primaryActive,
+    primarySubtle: tokens.primarySubtle ?? UI.primarySubtle,
+    primaryMuted: tokens.primarySubtle ?? UI.primaryMuted,
+    secondary: tokens.secondary ?? UI.secondary,
+    secondaryHover: tokens.secondaryHover ?? UI.secondaryHover,
+    success: tokens.success ?? UI.success,
+    successBg: tokens.successSubtle ?? UI.successBg,
+    warning: tokens.warning ?? UI.warning,
+    danger: tokens.danger ?? UI.danger,
+    surface: tokens.surface ?? UI.surface,
+    surfaceMuted: tokens.surfaceMuted ?? UI.surfaceMuted,
+    surfaceInset: tokens.surfaceInset ?? UI.surfaceInset,
+    overlay: tokens.overlay ?? UI.overlay,
+    border: tokens.border ?? UI.border,
+    borderStrong: tokens.borderStrong ?? UI.borderStrong,
+    borderFocus: tokens.primary ?? UI.borderFocus,
+    text: tokens.text ?? UI.text,
+    textSecondary: tokens.textSecondary ?? UI.textSecondary,
+    textMuted: tokens.textMuted ?? UI.textMuted,
+    textInverse: tokens.textInverse ?? UI.textInverse,
+    textPlaceholder: tokens.placeholder ?? UI.textPlaceholder,
+    radius: parseCssPx(tokens.radius, UI.radius),
+    radiusSm: parseCssPx(tokens.radiusSm, UI.radiusSm),
+    radiusLg: parseCssPx(tokens.radiusLg, UI.radiusLg),
+    radiusFull: UI.radiusFull,
+    font: tokens.fontFamily ?? UI.font,
+    ...resolveFontSizeTriple(tokens, {
+      fontSize: UI.fontSize,
+      fontSizeSm: UI.fontSizeSm,
+      fontSizeLg: UI.fontSizeLg
+    }),
+    controlHeight: parseCssPx(tokens.controlHeight, UI.controlHeight),
+    inputHeight: parseCssPx(tokens.controlHeight, UI.inputHeight),
+    spaceXs: parseCssPx(tokens.spaceXs, UI.spaceXs),
+    spaceSm: parseCssPx(tokens.spaceSm, UI.spaceSm),
+    spaceMd: parseCssPx(tokens.spaceMd, UI.spaceMd),
+    spaceLg: parseCssPx(tokens.spaceLg, UI.spaceLg),
+    spaceXl: parseCssPx(tokens.spaceXl, UI.spaceXl),
+    shadowSm: cloneShadow(UI.shadowSm),
+    shadowMd: tokens.shadowMd ? { color: tokens.shadowMd, blur: UI.shadowMd.blur, offsetX: 0, offsetY: 2 } : cloneShadow(UI.shadowMd),
+    shadowLg: cloneShadow(UI.shadowLg),
+    shadowPrimary: {
+      color: colorWithAlpha(primary, 0.28) ?? UI.shadowPrimary.color,
+      blur: UI.shadowPrimary.blur,
+      offsetX: UI.shadowPrimary.offsetX,
+      offsetY: UI.shadowPrimary.offsetY
+    }
+  };
+}
+var canvasUiScope = createThemeScope(() => resolveUiCanvasTheme({}));
+function syncActiveCanvasUiTheme(tokens, app) {
+  return canvasUiScope.sync(resolveUiCanvasTheme(tokens), app ?? void 0);
+}
+function getActiveUi(app) {
+  return canvasUiScope.getActive(app ?? void 0);
+}
+function runWithCanvasUiTheme(theme, fn) {
+  return canvasUiScope.runWithResult(theme, fn);
+}
+var UI_COMPONENT_TYPES2 = /* @__PURE__ */ new Set([
+  "button",
+  "card",
+  "progressBar",
+  "slider",
+  "checkbox",
+  "toggle",
+  "input",
+  "textarea",
+  "radio",
+  "tooltip",
+  "menu",
+  "dialog",
+  "tabs",
+  "accordion",
+  "table",
+  "tree",
+  "toolbar",
+  "toast",
+  "statusBar",
+  "label"
+]);
+function setFill(node, fill) {
+  if (!node)
+    return;
+  node.fill = fill;
+}
+function setStroke(node, stroke) {
+  if (!node)
+    return;
+  node.stroke = stroke;
+}
+function setFontSize(node, size) {
+  if (!node || !Number.isFinite(size))
+    return;
+  node.fontSize = size;
+}
+function fontSizeForControl(ui, size) {
+  if (size === "sm")
+    return ui.fontSizeSm;
+  if (size === "lg")
+    return ui.fontSizeLg;
+  return ui.fontSize;
+}
+function buttonFill(ui, variant, customFill, disabled) {
+  if (disabled)
+    return ui.borderStrong;
+  if (customFill)
+    return customFill;
+  if (variant === "secondary")
+    return ui.secondary;
+  if (variant === "ghost")
+    return ui.surface;
+  if (variant === "danger")
+    return ui.danger;
+  return ui.primary;
+}
+function refreshUiNode(node, ui) {
+  const type = node.metadata?.componentType;
+  if (!type || !UI_COMPONENT_TYPES2.has(type))
+    return;
+  const rebuild = node.metadata?.uiRebuild;
+  if (typeof rebuild === "function") {
+    rebuild();
+    return;
+  }
+  const parts = getParts(node);
+  const state = getState(node);
+  if (type === "button") {
+    const variant = String(state.variant ?? "primary");
+    const disabled = Boolean(state.disabled);
+    const customFill = state.hasCustomFill ? String(state.fill ?? "") : "";
+    const nextFill = buttonFill(ui, variant, customFill, disabled);
+    if (!state.hasCustomFill) {
+      node.metadata.componentState = { ...state, fill: buttonFill(ui, variant, "", false) };
+    }
+    setFill(parts.bg, nextFill);
+    if (parts.text) {
+      const themedText = variant === "ghost" ? ui.textSecondary : ui.textInverse;
+      const textColor = state.hasCustomColor ? String(state.textColor ?? state.color ?? themedText) : themedText;
+      setFill(parts.text, disabled ? ui.textMuted : textColor);
+      const bw = Number(state.width);
+      if (Number.isFinite(bw) && bw > 0) {
+        parts.text.x = bw / 2;
+      }
+      if (state.hasCustomFontSize) {
+        const fs = Number(state.fontSize);
+        if (Number.isFinite(fs))
+          setFontSize(parts.text, fs);
+      } else {
+        setFontSize(parts.text, fontSizeForControl(ui, String(state.size ?? "md")));
+      }
+    }
+    if (variant === "ghost")
+      setStroke(parts.bg, ui.border);
+    return;
+  }
+  if (type === "label") {
+    if (!state.hasCustomColor) {
+      setFill(node, ui.textMuted);
+    }
+    if (!state.hasCustomFontSize) {
+      setFontSize(node, ui.fontSizeSm);
+    }
+    return;
+  }
+  if (type === "toggle") {
+    const on = Boolean(state.value ?? state.checked);
+    const disabled = Boolean(state.disabled);
+    setFill(parts.track, disabled ? ui.border : on ? ui.primary : ui.borderStrong);
+    setFill(parts.knob, ui.surface);
+    return;
+  }
+  if (type === "checkbox") {
+    const checked = Boolean(state.checked ?? state.value);
+    const disabled = Boolean(state.disabled);
+    setFill(parts.box, disabled ? ui.surfaceMuted : checked ? ui.primary : ui.surface);
+    setStroke(parts.box, disabled ? ui.border : checked ? ui.primary : ui.borderStrong);
+    return;
+  }
+  if (type === "slider") {
+    setFill(parts.track, ui.surfaceInset);
+    setFill(parts.fill, ui.primary);
+    setFill(parts.thumb, ui.surface);
+    setStroke(parts.thumb, ui.primary);
+    return;
+  }
+  if (type === "progressBar") {
+    const variant = String(state.variant ?? "default");
+    const fill = variant === "success" ? ui.success : variant === "warning" ? ui.warning : variant === "danger" ? ui.danger : ui.primary;
+    setFill(parts.track, ui.surfaceInset);
+    setFill(parts.fillBar, fill);
+    return;
+  }
+  if (type === "card") {
+    if (parts.bg) {
+      setFill(parts.bg, ui.surface);
+      setStroke(parts.bg, ui.border);
+    }
+    if (parts.header) {
+      setFill(parts.header, ui.surfaceMuted);
+      setStroke(parts.header, ui.border);
+    }
+    if (parts.title)
+      setFill(parts.title, ui.textMuted);
+    if (parts.subtitle)
+      setFill(parts.subtitle, ui.textSecondary);
+    return;
+  }
+  if (type === "dialog") {
+    if (parts.overlay)
+      setFill(parts.overlay, ui.overlay);
+    if (parts.panel) {
+      setFill(parts.panel, ui.surface);
+      setStroke(parts.panel, ui.border);
+    }
+    if (parts.titleText)
+      setFill(parts.titleText, ui.text);
+    return;
+  }
+  if (type === "menu") {
+    if (parts.bg) {
+      setFill(parts.bg, ui.surface);
+      setStroke(parts.bg, ui.border);
+    } else if ("children" in node && node.children[0]) {
+      setFill(node.children[0], ui.surface);
+      setStroke(node.children[0], ui.border);
+    }
+    if ("children" in node) {
+      const variants = state.itemVariants ?? [];
+      const items = state.items ?? [];
+      const children = node.children;
+      for (let i = 1; i < children.length; i++) {
+        const item = items[i - 1] ?? "";
+        const danger = variants[i - 1] === "danger" || ["delete", "remove", "danger"].includes(String(item).toLowerCase());
+        setFill(children[i], danger ? ui.danger : ui.text);
+      }
+    }
+    return;
+  }
+  if (type === "input" || type === "textarea") {
+    const disabled = Boolean(state.disabled);
+    const invalid = Boolean(state.invalid);
+    setFill(parts.bg, disabled ? ui.surfaceMuted : ui.surface);
+    setStroke(parts.bg, invalid ? ui.danger : ui.border);
+    if (parts.text) {
+      const hasValue = Boolean(state.value);
+      const themed = hasValue ? ui.text : ui.textPlaceholder;
+      const textColor = hasValue && state.hasCustomColor ? String(state.textColor ?? state.color ?? themed) : themed;
+      setFill(parts.text, textColor);
+      if (state.hasCustomFontSize) {
+        const fs = Number(state.fontSize);
+        if (Number.isFinite(fs))
+          setFontSize(parts.text, fs);
+      } else {
+        setFontSize(parts.text, ui.fontSize);
+      }
+    }
+    return;
+  }
+  if (type === "radio") {
+    const selected = Boolean(state.selected ?? state.checked);
+    setStroke(parts.outer, selected ? ui.primary : ui.borderStrong);
+    setFill(parts.inner, selected ? ui.primary : "transparent");
+    return;
+  }
+  if (type === "tooltip") {
+    if (parts.anchor)
+      setFill(parts.anchor, ui.primary);
+    if (parts.bg)
+      setFill(parts.bg, ui.surfaceInset);
+    if (parts.label)
+      setFill(parts.label, ui.textInverse);
+    return;
+  }
+  if (type === "toast") {
+    const variant = String(state.variant ?? "success");
+    const fills = {
+      success: ui.surfaceInset,
+      error: ui.surfaceInset,
+      warning: ui.surfaceInset,
+      info: ui.primaryMuted
+    };
+    if (parts.bg)
+      setFill(parts.bg, fills[variant] ?? fills.success);
+    if (parts.text)
+      setFill(parts.text, ui.textInverse);
+    return;
+  }
+  if (type === "statusBar") {
+    if (parts.bg) {
+      setFill(parts.bg, ui.surfaceInset);
+      setStroke(parts.bg, ui.border);
+    }
+    if (parts.primarySeg)
+      setFill(parts.primarySeg, ui.primaryMuted);
+    const primaryIndex = numState(state, "primaryIndex", 0);
+    const segments = state.segments ?? [];
+    for (let i = 0; i < segments.length; i++) {
+      setFill(parts[`seg${i}`], i === primaryIndex ? ui.text : ui.textMuted);
     }
   }
 }
-var DARK_BASE = {
-  mode: "dark",
-  surface: "#1e293b",
-  surfaceMuted: "#0f172a",
-  surfaceInset: "#334155",
-  border: "#334155",
-  borderStrong: "#475569",
-  text: "#f1f5f9",
-  textSecondary: "#cbd5e1",
+function numState(state, key, fallback) {
+  const v = state[key];
+  return typeof v === "number" && Number.isFinite(v) ? v : fallback;
+}
+function refreshCanvasUi(root, app) {
+  const visit = (n) => {
+    const state = getState(n);
+    const tokens = app ? resolveEffectiveUiTokens(app, state) : {};
+    const ui = resolveUiCanvasTheme(tokens);
+    runWithCanvasUiTheme(ui, () => refreshUiNode(n, ui));
+    if ("children" in n) {
+      for (const child of n.children)
+        visit(child);
+    }
+  };
+  visit(root);
+}
+
+// src/dashboard/theme.ts
+var DASHBOARD = {
+  panel: "#151d2e",
+  panelStroke: "#2a3654",
+  face: "#0f172a",
+  text: "#e2e8f0",
   textMuted: "#94a3b8",
-  textInverse: "#0f172a",
-  placeholder: "#64748b",
-  primarySubtle: "#1e3a5f",
-  successSubtle: "#14532d",
-  warningSubtle: "#422006",
-  dangerSubtle: "#450a0a",
-  overlay: "rgba(0, 0, 0, 0.65)",
-  statusBarBg: "#0f172a",
-  statusBarText: "#94a3b8",
-  statusBarBorder: "#334155",
-  tooltipBg: "#0f172a"
+  textDim: "#64748b",
+  /** Axis / legend label size (px). */
+  fontSize: 12,
+  fontSizeSm: 10,
+  fontSizeTitle: 13,
+  primary: "#3b82f6",
+  secondary: "#ef4444",
+  success: "#22c55e",
+  warning: "#f59e0b",
+  danger: "#ef4444",
+  dangerDark: "#dc2626",
+  inactive: "#374151",
+  inactiveBar: "#475569",
+  gaugeTrack: "#374151",
+  gaugeNeedle: "#3b82f6",
+  speedoNeedle: "#ef4444",
+  chartBg: "#111827",
+  chartGrid: "#334155",
+  chartAxis: "#64748b",
+  chartLine: "#3b82f6",
+  chartArea: "rgba(59, 130, 246, 0.35)",
+  chartPlot: "#0f172a",
+  chartTooltipBg: "#1e293b",
+  chartTooltipBorder: "#475569",
+  chartCrosshair: "rgba(148, 163, 184, 0.6)",
+  chartDot: "#60a5fa",
+  barFill: "#3b82f6",
+  compassFace: "#1c2740",
+  compassRing: "#475569",
+  compassHub: "#334155",
+  thermometerTube: "#334155",
+  thermometerBorder: "#475569",
+  meterTrack: "#374151",
+  meterFill: "#3b82f6",
+  clockFace: "#1f2937",
+  clockRing: "#374151",
+  clockHand: "#e2e8f0",
+  clockSecond: "#ef4444",
+  batteryOutline: "#475569",
+  batteryTip: "#475569",
+  knobTrack: "#374151",
+  knobRing: "#1f2937",
+  knobIndicator: "#f59e0b",
+  knobArc: "rgba(245, 158, 11, 0.25)",
+  clockTick: "#64748b",
+  clockTickMajor: "#94a3b8",
+  clockHub: "#374151",
+  signalActive: "#22c55e",
+  signalInactive: "#475569",
+  pieStroke: "#1f2937",
+  timelineLine: "#475569",
+  timelineDot: "#3b82f6",
+  highlight: "#3b82f6",
+  series: ["#3b82f6", "#ef4444", "#22c55e", "#f59e0b"],
+  financialUp: "#22c55e",
+  financialDown: "#ef4444",
+  flowLink: "rgba(59, 130, 246, 0.45)",
+  heatmapLow: "#1e3a5f",
+  heatmapHigh: "#60a5fa"
 };
-var UI_PRESETS = {
-  /** Default light theme — uses CSS file defaults; only sets `mode: 'light'`. */
-  default: { mode: "light" },
-  /** Full dark palette with blue primary accent. */
-  dark: {
-    ...DARK_BASE,
-    primary: "#3b82f6",
-    primaryHover: "#2563eb",
-    primaryActive: "#1d4ed8"
-  },
-  /** Purple brand accent — dashboards and creative tools. */
-  violet: {
-    primary: "#7c3aed",
-    primaryHover: "#6d28d9",
-    primaryActive: "#5b21b6",
-    primarySubtle: "#ede9fe"
-  },
-  /** Green brand accent — success-oriented UIs. */
-  emerald: {
-    primary: "#059669",
-    primaryHover: "#047857",
-    primaryActive: "#065f46",
-    primarySubtle: "#d1fae5"
-  },
-  /** Neutral slate accent — minimal corporate look. */
-  slate: {
-    primary: "#334155",
-    primaryHover: "#1e293b",
-    primaryActive: "#0f172a",
-    primarySubtle: "#f1f5f9"
-  },
-  /** Sky-blue accent — data and analytics apps. */
-  ocean: {
-    primary: "#0284c7",
-    primaryHover: "#0369a1",
-    primaryActive: "#075985",
-    primarySubtle: "#e0f2fe"
-  },
-  /** Rose accent — alerts and marketing surfaces. */
-  rose: {
-    primary: "#e11d48",
-    primaryHover: "#be123c",
-    primaryActive: "#9f1239",
-    primarySubtle: "#ffe4e6"
-  },
-  /** Dark mode with violet accent (alias for dark + violet primary). */
-  darkViolet: {
-    ...DARK_BASE,
-    primary: "#8b5cf6",
-    primaryHover: "#7c3aed",
-    primaryActive: "#6d28d9",
-    primarySubtle: "#2e1065"
+function ensureReadableChartText(theme) {
+  const bg = theme.chartPlot || theme.chartBg || theme.panel;
+  const bgLum = relativeLuminance(bg);
+  const textLum = relativeLuminance(theme.text);
+  if (bgLum == null || textLum == null)
+    return theme;
+  if (bgLum < 0.45 && textLum < 0.45 || bgLum > 0.6 && textLum > 0.6) {
+    const ink = contrastingInk(bg);
+    return {
+      ...theme,
+      text: ink,
+      textMuted: colorWithAlpha(ink, 0.7) ?? theme.textMuted,
+      chartAxis: colorWithAlpha(ink, 0.55) ?? theme.chartAxis,
+      clockHand: ink
+    };
   }
-};
-function resolveUiTheme(input) {
-  const { preset, ...overrides } = input;
-  const base = preset && UI_PRESETS[preset] ? { ...UI_PRESETS[preset] } : {};
-  return { ...base, ...overrides };
+  return theme;
+}
+function cloneDefaults2() {
+  return {
+    ...DASHBOARD,
+    series: [...DASHBOARD.series]
+  };
+}
+function resolveDashboardTheme(ui, pack) {
+  if ((!ui || Object.keys(ui).length === 0) && (!pack || Object.keys(pack).length === 0)) {
+    return cloneDefaults2();
+  }
+  const primary = ui?.primary ?? DASHBOARD.primary;
+  const warning = ui?.warning ?? DASHBOARD.warning;
+  const success = ui?.success ?? DASHBOARD.success;
+  const danger = ui?.danger ?? DASHBOARD.danger;
+  const chartArea = colorWithAlpha(primary, 0.35) ?? DASHBOARD.chartArea;
+  const flowLink = colorWithAlpha(primary, 0.45) ?? DASHBOARD.flowLink;
+  const knobArc = colorWithAlpha(warning, 0.25) ?? DASHBOARD.knobArc;
+  const base = !ui || Object.keys(ui).length === 0 ? cloneDefaults2() : {
+    ...cloneDefaults2(),
+    primary,
+    secondary: ui.secondary ?? DASHBOARD.secondary,
+    success,
+    warning,
+    danger,
+    text: ui.text ?? DASHBOARD.text,
+    textMuted: ui.textMuted ?? DASHBOARD.textMuted,
+    textDim: ui.textMuted ?? DASHBOARD.textDim,
+    fontSize: parseCssPx(ui.fontSize, DASHBOARD.fontSize),
+    fontSizeSm: parseCssPx(ui.fontSizeSm, DASHBOARD.fontSizeSm),
+    fontSizeTitle: parseCssPx(ui.fontSizeLg, DASHBOARD.fontSizeTitle),
+    panel: pickChrome(ui.surface, DASHBOARD.panel),
+    panelStroke: pickChrome(ui.border, DASHBOARD.panelStroke),
+    face: pickChrome(ui.surfaceMuted, DASHBOARD.face),
+    // Chart chrome follows dark surfaces; light UI packs keep analytics defaults
+    chartBg: pickChrome(ui.surfaceMuted, DASHBOARD.chartBg),
+    chartPlot: pickChrome(ui.surfaceMuted, DASHBOARD.chartPlot),
+    chartGrid: pickChrome(ui.border, DASHBOARD.chartGrid),
+    chartAxis: ui.textMuted ?? DASHBOARD.chartAxis,
+    chartTooltipBg: pickChrome(ui.surface, DASHBOARD.chartTooltipBg),
+    chartTooltipBorder: pickChrome(ui.borderStrong, DASHBOARD.chartTooltipBorder),
+    gaugeTrack: pickChrome(ui.surfaceInset, DASHBOARD.gaugeTrack),
+    meterTrack: pickChrome(ui.surfaceInset, DASHBOARD.meterTrack),
+    inactive: pickChrome(ui.borderStrong, DASHBOARD.inactive),
+    inactiveBar: pickChrome(ui.border, DASHBOARD.inactiveBar),
+    thermometerTube: pickChrome(ui.surfaceInset, DASHBOARD.thermometerTube),
+    thermometerBorder: pickChrome(ui.border, DASHBOARD.thermometerBorder),
+    compassFace: pickChrome(ui.surface, DASHBOARD.compassFace),
+    compassRing: pickChrome(ui.border, DASHBOARD.compassRing),
+    compassHub: pickChrome(ui.surfaceInset, DASHBOARD.compassHub),
+    clockFace: pickChrome(ui.surface, DASHBOARD.clockFace),
+    clockRing: pickChrome(ui.border, DASHBOARD.clockRing),
+    clockHand: ui.text ?? DASHBOARD.clockHand,
+    clockTick: ui.textMuted ?? DASHBOARD.clockTick,
+    clockTickMajor: ui.textSecondary ?? DASHBOARD.clockTickMajor,
+    clockHub: pickChrome(ui.surfaceInset, DASHBOARD.clockHub),
+    batteryOutline: pickChrome(ui.borderStrong, DASHBOARD.batteryOutline),
+    batteryTip: pickChrome(ui.borderStrong, DASHBOARD.batteryTip),
+    knobTrack: pickChrome(ui.surfaceInset, DASHBOARD.knobTrack),
+    knobRing: pickChrome(ui.surfaceMuted, DASHBOARD.knobRing),
+    signalInactive: pickChrome(ui.borderStrong, DASHBOARD.signalInactive),
+    pieStroke: pickChrome(ui.surface, DASHBOARD.pieStroke),
+    timelineLine: pickChrome(ui.border, DASHBOARD.timelineLine),
+    heatmapLow: pickChrome(ui.primarySubtle ?? ui.surfaceInset, DASHBOARD.heatmapLow),
+    gaugeNeedle: primary,
+    chartLine: primary,
+    barFill: primary,
+    meterFill: primary,
+    highlight: primary,
+    timelineDot: primary,
+    chartArea,
+    chartDot: primary,
+    flowLink,
+    heatmapHigh: primary,
+    signalActive: success,
+    financialUp: success,
+    financialDown: danger,
+    speedoNeedle: danger,
+    clockSecond: danger,
+    knobIndicator: warning,
+    knobArc,
+    series: [primary, DASHBOARD.series[1], DASHBOARD.series[2], DASHBOARD.series[3]]
+  };
+  if (!pack || Object.keys(pack).length === 0) {
+    return ensureReadableChartText(base);
+  }
+  const next = {
+    ...base,
+    ...pack,
+    series: pack.series?.length ? [...pack.series] : [...base.series],
+    fontSize: parseCssPx(
+      pack.fontSize ?? base.fontSize,
+      base.fontSize
+    ),
+    fontSizeSm: parseCssPx(
+      pack.fontSizeSm ?? base.fontSizeSm,
+      base.fontSizeSm
+    ),
+    fontSizeTitle: parseCssPx(
+      pack.fontSizeTitle ?? base.fontSizeTitle,
+      base.fontSizeTitle
+    )
+  };
+  return ensureReadableChartText(next);
+}
+var dashboardScope = createThemeScope(cloneDefaults2);
+function dashboardPackFromApp(app) {
+  if (!app || typeof app.getTheme !== "function")
+    return {};
+  const t = app.getTheme();
+  return {
+    ...t.dashboard ?? {},
+    ...t.series?.length ? { series: [...t.series] } : {}
+  };
+}
+function syncActiveDashboardTheme(tokens = {}, app, pack) {
+  return dashboardScope.sync(resolveDashboardTheme(tokens, pack), app ?? void 0);
+}
+function getActiveDashboard(app) {
+  return dashboardScope.getActive(app ?? void 0);
+}
+function runWithDashboardTheme(theme, fn) {
+  return dashboardScope.runWithResult(theme, fn);
+}
+function refreshDashboard(root, _app) {
+  const visit = (n) => {
+    const rebuild = n.metadata?.chartRebuild;
+    if (typeof rebuild === "function" && n.metadata?.widgetType) {
+      rebuild();
+    }
+    if ("children" in n) {
+      for (const child of n.children)
+        visit(child);
+    }
+  };
+  visit(root);
+}
+
+// src/diagram/refresh.ts
+function installDiagramRebuild(group, app, factory) {
+  const rebuild = () => {
+    const props = { ...getDiagramState(group), x: group.x, y: group.y };
+    const theme = syncActiveDiagramTheme(resolveEffectiveUiTokens(app, props), app);
+    runWithDiagramTheme(theme, () => {
+      for (const child of [...group.children]) {
+        group.remove(child);
+      }
+      const fresh = factory(props, app);
+      for (const child of [...fresh.children]) {
+        fresh.remove(child);
+        group.add(child);
+      }
+      group.metadata.diagramState = fresh.metadata.diagramState;
+    });
+    app.requestRender();
+  };
+  group.metadata.diagramRebuild = rebuild;
+}
+function refreshDiagram(root, _app) {
+  const walk2 = (n) => {
+    const rebuild = n.metadata?.diagramRebuild;
+    if (typeof rebuild === "function" && n.metadata?.diagramType) {
+      rebuild();
+    }
+    if ("children" in n) {
+      for (const child of n.children)
+        walk2(child);
+    }
+  };
+  walk2(root);
+}
+
+// src/automotive/layout.ts
+function resolveBounds(props, defaultWidth, defaultHeight, pad = 8) {
+  const width = "width" in props && typeof props.width === "number" ? Math.max(24, props.width) : Math.max(56, num3(props, "width", defaultWidth));
+  const height = "height" in props && typeof props.height === "number" ? Math.max(20, props.height) : Math.max(44, num3(props, "height", defaultHeight));
+  const adaptivePad = Math.min(pad, Math.max(2, Math.round(Math.min(width, height) * 0.1)));
+  const innerWidth = Math.max(16, width - adaptivePad * 2);
+  const innerHeight = Math.max(12, height - adaptivePad * 2);
+  const maxDial = Math.min(innerWidth, innerHeight);
+  const explicit = num3(props, "size", 0);
+  const dialSize = explicit > 0 ? Math.min(explicit, maxDial) : Math.max(28, maxDial);
+  return { width, height, pad: adaptivePad, innerWidth, innerHeight, dialSize };
+}
+function isCompactBounds(bounds) {
+  return bounds.innerWidth < 112 || bounds.innerHeight < 76;
+}
+function estimateTextWidth(text, fontSize) {
+  return Math.max(fontSize, text.length * fontSize * 0.55);
+}
+function fitTextX(text, fontSize, boxW, pad = 0) {
+  const estW = Math.min(boxW - pad * 2, estimateTextWidth(text, fontSize));
+  return pad + Math.max(0, (boxW - pad * 2 - estW) / 2);
+}
+function fitFontSizeToWidth(text, boxW, maxSize, minSize = 6, pad = 0) {
+  const available = Math.max(8, boxW - pad * 2);
+  let fontSize = maxSize;
+  while (fontSize > minSize && estimateTextWidth(text, fontSize) > available) {
+    fontSize -= 1;
+  }
+  const estW = Math.min(available, estimateTextWidth(text, fontSize));
+  return { fontSize, x: pad + Math.max(0, (available - estW) / 2) };
+}
+function textYForBaseline(y, fontSize, baseline = "middle") {
+  if (baseline === "middle")
+    return y - fontSize * 0.5;
+  if (baseline === "bottom" || baseline === "ideographic")
+    return y - fontSize;
+  return y;
+}
+function autoCenteredText(app, text, boxW, y, options = {}) {
+  const fontSize = options.fontSize ?? 12;
+  const insetX = options.insetX ?? 0;
+  const insetY = options.insetY ?? 0;
+  const baseline = options.textBaseline ?? "middle";
+  return app.text({
+    text,
+    x: insetX + boxW / 2,
+    y: insetY + textYForBaseline(y, fontSize, baseline),
+    fontSize,
+    fontWeight: options.fontWeight ?? "normal",
+    fill: options.fill ?? "#fff",
+    fontFamily: options.fontFamily,
+    textAlign: "center",
+    metadata: { textBoxWidth: boxW, textBoxCenterY: insetY + y },
+    listening: false
+  });
+}
+function fluidFont(base, bounds, min = 8, max = 24) {
+  const scale = Math.min(bounds.innerWidth, bounds.innerHeight) / 120;
+  const themeScale = getAutomotiveFontScale();
+  return Math.round(Math.min(max, Math.max(min, base * scale * themeScale)));
+}
+function centerInBounds(bounds, contentW, contentH) {
+  return {
+    x: bounds.pad + Math.max(0, (bounds.innerWidth - contentW) / 2),
+    y: bounds.pad + Math.max(0, (bounds.innerHeight - contentH) / 2)
+  };
+}
+function resolveDisplay(props, fallback = "analog") {
+  const mode = str3(props, "display", "").toLowerCase();
+  if (mode === "digital" || mode === "lcd")
+    return "digital";
+  if (mode === "analog")
+    return "analog";
+  if (str3(props, "theme", "") === "digital" && bool3(props, "digitalGauges", false)) {
+    return "digital";
+  }
+  return fallback;
+}
+function resolveClusterLayout(w, h, options = {}) {
+  const tiny = w < 140 || h < 90;
+  const compact = h < 200;
+  const margin = Math.max(tiny ? 4 : 6, Math.min(w, h) * (tiny ? 0.014 : 0.018));
+  const short = h < 240;
+  const bottomBand = Math.max(short ? 22 : 26, Math.round(h * (short ? 0.12 : 0.14)));
+  const bottomY = h - bottomBand - margin * 0.5;
+  const topSpace = Math.max(36, bottomY - margin);
+  const cx = w / 2;
+  const dialSize = Math.max(compact ? 32 : 36, Math.min(w * 0.18, topSpace * (short ? 0.36 : 0.44)));
+  let dialBox = dialSize + Math.max(compact ? 4 : 6, dialSize * 0.08);
+  const maxDialBox = Math.max(compact ? 36 : 40, (w - margin * 3) / 2);
+  if (dialBox > maxDialBox) {
+    dialBox = maxDialBox;
+  }
+  const fittedDialSize = Math.max(compact ? 28 : 40, dialBox - Math.max(compact ? 4 : 6, dialBox * 0.08));
+  const smallDial = Math.max(compact ? 22 : 28, Math.min(dialSize * 0.48, w * 0.09, topSpace * 0.2));
+  const smallBox = smallDial + Math.max(compact ? 4 : 5, smallDial * 0.08);
+  const gearW = Math.max(compact ? 30 : 34, w * 0.065);
+  let gearH = compact ? Math.max(20, Math.min(24, h * 0.11)) : Math.max(30, Math.min(h * 0.13, topSpace * 0.2));
+  const turnW = Math.max(compact ? 32 : 36, w * 0.065);
+  let turnH = compact ? Math.max(11, h * 0.042) : Math.max(14, h * 0.055);
+  const fuelW = Math.max(52, w * 0.13);
+  const fuelH = Math.max(compact ? 22 : 26, bottomBand * 0.86);
+  const batW = Math.max(44, w * 0.1);
+  const batH = Math.max(16, bottomBand * 0.55);
+  const tpmsW = Math.max(compact ? 64 : 68, w * 0.17);
+  let tpmsH = compact ? Math.max(22, Math.min(28, h * 0.14)) : Math.max(36, Math.min(h * 0.18, topSpace * 0.26));
+  let lampSize = Math.max(compact ? 14 : 18, Math.min(bottomBand * 0.75, w * 0.036));
+  let cruiseW = Math.max(36, w * 0.085);
+  let cruiseH = Math.max(compact ? 13 : 16, bottomBand * 0.48);
+  let adasW = Math.max(40, w * 0.1);
+  let adasH = Math.max(10, bottomBand * 0.4);
+  const centerTop = margin + smallBox + (compact ? 2 : 4);
+  const centerBottom = bottomY - (compact ? 2 : 4);
+  const centerGap = compact ? 3 : 4;
+  let centerNeed = gearH + turnH + tpmsH + centerGap * 2;
+  const centerAvail = Math.max(24, centerBottom - centerTop);
+  if (centerNeed > centerAvail) {
+    const scale = centerAvail / centerNeed;
+    gearH = Math.max(18, gearH * scale);
+    turnH = Math.max(10, turnH * scale);
+    tpmsH = Math.max(18, tpmsH * scale);
+    centerNeed = gearH + turnH + tpmsH + centerGap * 2;
+  }
+  const centerSlack = Math.max(0, centerAvail - centerNeed);
+  const gearY = centerTop + centerSlack * 0.12;
+  const turnY = gearY + gearH + centerGap;
+  const tpmsY = turnY + turnH + centerGap;
+  const centerY = (boxH) => Math.min(bottomY + (bottomBand - boxH) / 2, h - margin - boxH);
+  const leftUsed = margin + fuelW + margin * 0.35 + batW + margin;
+  const rightNeeded = lampSize * 3 + cruiseW + adasW + margin * 1.4;
+  const rightAvail = Math.max(40, w - leftUsed - margin - tpmsW * 0.35);
+  if (rightNeeded > rightAvail) {
+    const scale = rightAvail / rightNeeded;
+    lampSize = Math.max(16, lampSize * scale);
+    cruiseW = Math.max(36, cruiseW * scale);
+    cruiseH = Math.max(14, cruiseH * scale);
+    adasW = Math.max(40, adasW * scale);
+    adasH = Math.max(10, adasH * scale);
+  }
+  let rx = w - margin;
+  const placeRight = (type, rw, rh) => {
+    rx -= rw;
+    const x = Math.max(margin, rx);
+    const slot = { type, x, y: centerY(rh), width: rw, height: rh };
+    rx = x - margin * 0.28;
+    return slot;
+  };
+  const compactRight = compact && w < 320;
+  const rightSlots = compactRight ? [placeRight("cruiseControl", cruiseW, cruiseH), placeRight("adasStatus", adasW, adasH)] : [
+    placeRight("adasStatus", adasW, adasH),
+    placeRight("warningLamp", lampSize, lampSize),
+    placeRight("cruiseControl", cruiseW, cruiseH),
+    placeRight("headlights", lampSize, lampSize),
+    placeRight("parkingBrake", lampSize, lampSize)
+  ];
+  const interGap = Math.max(6, margin * 0.45);
+  const callBandW = w - margin * 2 - dialBox * 2 - interGap * 2;
+  const showCall = !!options.callScreen && w >= 520 && h >= 220 && callBandW >= 120;
+  const centerSlots = [];
+  if (showCall) {
+    const callH = Math.max(72, Math.min(h * 0.36, dialBox * 1.02, topSpace * 0.58));
+    const callY = margin + Math.max(0, (dialBox - callH) * 0.42) + (compact && h < 176 ? 0 : smallBox * 0.12);
+    centerSlots.push({
+      type: "callScreen",
+      x: margin + dialBox + interGap,
+      y: callY,
+      width: callBandW,
+      height: callH
+    });
+    const bottomGearY = bottomY + (bottomBand - gearH) / 2;
+    const gearX = Math.max(margin + dialBox + interGap, cx - gearW - turnW / 2 - 4);
+    centerSlots.push(
+      { type: "gearIndicator", x: gearX, y: bottomGearY, width: gearW, height: gearH },
+      {
+        type: "turnIndicators",
+        x: Math.min(w - margin - dialBox - interGap - turnW, cx - turnW / 2),
+        y: bottomGearY + (gearH - turnH) / 2,
+        width: turnW,
+        height: turnH
+      }
+    );
+    if (h >= 340) {
+      const tpmsStripH = Math.max(22, Math.min(30, tpmsH));
+      const tpmsY2 = callY + callH + 6;
+      if (tpmsY2 + tpmsStripH <= bottomY - 4) {
+        centerSlots.push({ type: "tpms", x: cx - tpmsW / 2, y: tpmsY2, width: tpmsW, height: tpmsStripH });
+      }
+    }
+  } else {
+    centerSlots.push(
+      { type: "gearIndicator", x: cx - gearW / 2, y: gearY, width: gearW, height: gearH },
+      { type: "turnIndicators", x: cx - turnW / 2, y: turnY, width: turnW, height: turnH },
+      { type: "tpms", x: cx - tpmsW / 2, y: tpmsY, width: tpmsW, height: tpmsH }
+    );
+  }
+  const slots = [
+    { type: "speedometer", x: margin, y: margin, width: dialBox, height: dialBox, size: fittedDialSize },
+    { type: "tachometer", x: w - margin - dialBox, y: margin, width: dialBox, height: dialBox, size: fittedDialSize },
+    ...compact && h < 176 || showCall ? [] : [{ type: "engineTemp", x: cx - smallBox / 2, y: margin + 3, width: smallBox, height: smallBox, size: smallDial }],
+    ...centerSlots,
+    { type: "fuelGauge", x: margin, y: centerY(fuelH), width: fuelW, height: fuelH },
+    { type: "batteryVoltage", x: margin + fuelW + margin * 0.35, y: centerY(batH), width: batW, height: batH },
+    ...rightSlots
+  ];
+  return slots.map((slot) => ({
+    ...slot,
+    x: Math.max(margin, Math.min(slot.x, w - margin - slot.width)),
+    y: Math.max(margin, Math.min(slot.y, h - margin - slot.height))
+  }));
+}
+
+// src/automotive/registryCore.ts
+var registry = {};
+function registerAutomotive(type, factory) {
+  registry[type] = factory;
+}
+function isAutoGroup(node) {
+  return "children" in node && typeof node.metadata?.autoType === "string";
+}
+function runFactory(factory, props, app) {
+  const scale = automotiveFontScaleFromProps(props);
+  if (scale == null)
+    return factory(props, app);
+  return runWithAutomotiveFontScale(scale, () => factory(props, app));
+}
+function createAutomotiveFromJSON(type, props, app) {
+  const factory = registry[type];
+  if (!factory)
+    return null;
+  const node = runFactory(factory, props, app);
+  if (node && isAutoGroup(node)) {
+    const state = getState3(node);
+    const bounds = resolveBounds(
+      { ...state, ...props },
+      num3(props, "width", 160),
+      num3(props, "height", 120)
+    );
+    if (!num3(state, "width", 0) || !num3(state, "height", 0)) {
+      setState3(node, { width: bounds.width, height: bounds.height });
+      node.metadata.chartWidth = bounds.width;
+      node.metadata.autoWidth = bounds.width;
+      node.metadata.chartHeight = bounds.height;
+      node.metadata.autoHeight = bounds.height;
+    }
+    if (props.fontSize != null)
+      setState3(node, { fontSize: props.fontSize });
+    if (props.demoId != null) {
+      setState3(node, { demoId: props.demoId });
+      node.metadata.demoId = props.demoId;
+    }
+    installAutoWidgetRebuild(node, app, type);
+  }
+  return node;
+}
+
+// src/automotive/refresh.ts
+function isAutoGroup2(node) {
+  return "children" in node && typeof node.metadata?.autoType === "string";
+}
+function syncAutoAppViewport(node, width, height) {
+  const app = node.getApp();
+  if (!app || app.stage.children.length !== 1 || app.stage.children[0] !== node)
+    return;
+  const size = app.getSize();
+  if (size.width !== width || size.height !== height) {
+    app.resize(width, height);
+  }
+}
+function installAutoWidgetRebuild(group, app, autoType) {
+  const type = autoType ?? group.metadata?.autoType;
+  if (!type)
+    return;
+  const rebuild = () => {
+    const factory = registry[type];
+    if (!factory)
+      return;
+    const props = { ...getState3(group), x: group.x, y: group.y };
+    const fresh = runFactory(factory, props, app);
+    if (!fresh || !isAutoGroup2(fresh))
+      return;
+    for (const child of [...group.children]) {
+      group.remove(child);
+    }
+    for (const child of [...fresh.children]) {
+      fresh.remove(child);
+      group.add(child);
+    }
+    group.metadata._parts = fresh.metadata._parts;
+    group.metadata.refresh = fresh.metadata.refresh;
+    group.metadata.boolRefresh = fresh.metadata.boolRefresh;
+    group.metadata.textRefresh = fresh.metadata.textRefresh;
+    group.metadata.linesRefresh = fresh.metadata.linesRefresh;
+    group.metadata._digitalParts = fresh.metadata._digitalParts;
+    group.metadata.autoState = {
+      ...fresh.metadata.autoState,
+      ...props.fontSize != null ? { fontSize: props.fontSize } : {},
+      ...props.demoId != null ? { demoId: props.demoId } : {},
+      ...props.theme != null ? { theme: props.theme } : {}
+    };
+    const w = num3(props, "width", 0);
+    const h = num3(props, "height", 0);
+    if (w > 0) {
+      group.metadata.chartWidth = w;
+      group.metadata.autoWidth = w;
+    }
+    if (h > 0) {
+      group.metadata.chartHeight = h;
+      group.metadata.autoHeight = h;
+    }
+    group.metadata.autoRebuild = rebuild;
+    app.requestRender();
+    const renderer = app.getRenderer?.();
+    if (renderer && typeof renderer.forceFullRedraw === "function") {
+      renderer.forceFullRedraw();
+    }
+  };
+  group.metadata.autoRebuild = rebuild;
+}
+function updateAutoWidgetProps(group, patch) {
+  if (!isAutoGroup2(group))
+    return;
+  const prev = getState3(group);
+  const sizeKeys = ["width", "height", "size"];
+  const onlySize = Object.keys(patch).every((k) => sizeKeys.includes(k));
+  if (onlySize) {
+    const same = (!("width" in patch) || num3(patch, "width", -1) === num3(prev, "width", -2)) && (!("height" in patch) || num3(patch, "height", -1) === num3(prev, "height", -2)) && (!("size" in patch) || num3(patch, "size", -1) === num3(prev, "size", -2));
+    if (same)
+      return;
+  }
+  setState3(group, patch);
+  const state = getState3(group);
+  if (("width" in patch || "height" in patch) && (num3(state, "size", 0) > 0 || "size" in state)) {
+    const bounds = resolveBounds(state, num3(state, "width", 160), num3(state, "height", 120));
+    if (bounds.dialSize !== num3(state, "size", 0)) {
+      setState3(group, { size: bounds.dialSize });
+    }
+  }
+  const w = num3(patch, "width", num3(state, "width", 0));
+  const h = num3(patch, "height", num3(state, "height", 0));
+  if (w > 0) {
+    group.metadata.chartWidth = w;
+    group.metadata.autoWidth = w;
+  }
+  if (h > 0) {
+    group.metadata.chartHeight = h;
+    group.metadata.autoHeight = h;
+  }
+  const rebuild = group.metadata.autoRebuild;
+  rebuild?.();
+  if (w > 0 && h > 0) {
+    syncAutoAppViewport(group, w, h);
+  }
+}
+function refreshAutomotive(root) {
+  const walk2 = (n) => {
+    if (typeof n.metadata?.autoType === "string") {
+      const rebuild = n.metadata.autoRebuild;
+      rebuild?.();
+    }
+    if ("children" in n) {
+      for (const child of n.children)
+        walk2(child);
+    }
+  };
+  walk2(root);
+}
+
+// src/theme/themePack.ts
+var MODULE_KEYS = /* @__PURE__ */ new Set(["series", "dashboard", "diagram", "automotive", "mode", "background"]);
+function splitThemePack(pack) {
+  const ui = {};
+  let series;
+  let dashboard;
+  let diagram;
+  let automotive;
+  let background;
+  for (const [key, value] of Object.entries(pack ?? {})) {
+    if (value === void 0)
+      continue;
+    if (key === "series" && Array.isArray(value)) {
+      series = value.filter((c) => typeof c === "string");
+      continue;
+    }
+    if (key === "dashboard" && value && typeof value === "object" && !Array.isArray(value)) {
+      dashboard = value;
+      continue;
+    }
+    if (key === "diagram" && value && typeof value === "object" && !Array.isArray(value)) {
+      diagram = value;
+      continue;
+    }
+    if (key === "automotive" && (value === "classic" || value === "sport" || value === "digital")) {
+      automotive = value;
+      continue;
+    }
+    if (key === "background" && typeof value === "string") {
+      background = value;
+      continue;
+    }
+    if (!MODULE_KEYS.has(key)) {
+      ui[key] = value;
+    }
+  }
+  return { ui, series, dashboard, diagram, automotive, background };
+}
+function mergeThemePacks(base, patch) {
+  const a = splitThemePack(base);
+  const b = splitThemePack(patch);
+  const next = {
+    ...a.ui,
+    ...b.ui
+  };
+  const series = b.series ?? a.series;
+  if (series?.length)
+    next.series = series;
+  if (a.dashboard || b.dashboard) {
+    next.dashboard = { ...a.dashboard, ...b.dashboard };
+  }
+  if (a.diagram || b.diagram) {
+    next.diagram = { ...a.diagram, ...b.diagram };
+  }
+  if (b.automotive ?? a.automotive) {
+    next.automotive = b.automotive ?? a.automotive;
+  }
+  if (b.background ?? a.background) {
+    next.background = b.background ?? a.background;
+  }
+  return next;
+}
+function normalizeThemePack(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw))
+    return {};
+  const o = raw;
+  const pack = {};
+  if (o.tokens && typeof o.tokens === "object" && !Array.isArray(o.tokens)) {
+    Object.assign(pack, o.tokens);
+  }
+  for (const [key, value] of Object.entries(o)) {
+    if (key === "tokens" || key === "mode" || value === void 0)
+      continue;
+    pack[key] = value;
+  }
+  return pack;
+}
+function extractSceneTheme(data) {
+  if (!("theme" in data) || data.theme === void 0 || data.theme === null) {
+    return { theme: null, scene: data };
+  }
+  const theme = normalizeThemePack(data.theme);
+  const { theme: _drop, ...rest } = data;
+  return { theme, scene: rest };
+}
+function composeThemePack(ui, modules = {}) {
+  const pack = { ...ui };
+  if (modules.series?.length)
+    pack.series = modules.series;
+  if (modules.dashboard && Object.keys(modules.dashboard).length) {
+    pack.dashboard = { ...modules.dashboard };
+  }
+  if (modules.diagram && Object.keys(modules.diagram).length) {
+    pack.diagram = { ...modules.diagram };
+  }
+  if (modules.automotive)
+    pack.automotive = modules.automotive;
+  if (modules.background)
+    pack.background = modules.background;
+  return pack;
 }
 
 // src/App.ts
@@ -5756,8 +8310,14 @@ var App = class extends EventEmitter {
     this.resizeHandler = null;
     this.spatialIndex = new SpatialIndex();
     this.nodeCount = 0;
+    /** Module packs stored alongside brand tokens. */
+    this.themeModules = {};
+    /** True when app `fontSize` changed automotive typography scale (rebuild HMI). */
+    this.automotiveFontScaleDirty = false;
     this.highContrast = options.highContrast ?? false;
-    this.uiTheme = options.uiTheme ?? {};
+    this.uiTheme = {};
+    this.resolvedUiTheme = {};
+    this.ingestThemePack(normalizeThemePack(options.uiTheme ?? {}), true);
     this.perf = {
       spatialIndex: options.performance?.spatialIndex ?? true,
       spatialIndexThreshold: options.performance?.spatialIndexThreshold ?? 100,
@@ -5769,7 +8329,8 @@ var App = class extends EventEmitter {
     this.width = options.width ?? (this.container.clientWidth || 800);
     this.height = options.height ?? (this.container.clientHeight || 600);
     this.pixelRatio = options.pixelRatio ?? getPixelRatio();
-    this.background = options.background ?? "transparent";
+    this.defaultBackground = options.background ?? "transparent";
+    this.background = this.defaultBackground;
     this.autoResize = options.autoResize ?? true;
     this.stage = new Group({ name: "stage" });
     this.stage._app = this;
@@ -5783,8 +8344,9 @@ var App = class extends EventEmitter {
       pixelRatio: this.pixelRatio,
       background: this.background,
       highContrast: this.highContrast,
-      uiTheme: resolveUiTheme(this.uiTheme)
+      uiTheme: this.resolvedUiTheme
     });
+    this.syncThemeBackground();
     this.eventManager = new EventManager(this, this.renderer.getElement());
     if (this.autoResize && typeof window !== "undefined") {
       this.resizeHandler = () => this.handleResize();
@@ -6039,23 +8601,97 @@ var App = class extends EventEmitter {
   }
   setBackground(color) {
     this.background = color;
-    this.requestRender();
-    return this;
-  }
-  /** Update built-in UI theme tokens (CSS variables) without custom stylesheets. */
-  setUiTheme(tokens) {
-    this.uiTheme = { ...this.uiTheme, ...tokens };
-    const resolved = resolveUiTheme(this.uiTheme);
     const renderer = this.renderer;
-    if (typeof renderer.setUiTheme === "function") {
-      renderer.setUiTheme(resolved);
+    if (typeof renderer.setStageBackground === "function") {
+      renderer.setStageBackground(color);
+    } else if (renderer && "background" in renderer) {
+      renderer.background = color;
     }
+    this.renderer.forceFullRedraw();
     this.requestRender();
     return this;
   }
-  loadJSON(json) {
-    const data = typeof json === "string" ? JSON.parse(json) : json;
-    const node = fromJSON(data, this);
+  /**
+   * Apply theme pack stage background, or restore pack surface / createApp default
+   * when the theme no longer provides one (clears sticky image presets).
+   */
+  syncThemeBackground() {
+    if (this.themeModules.background) {
+      this.setBackground(this.themeModules.background);
+      return;
+    }
+    const fromTokens = this.resolvedUiTheme.surfaceMuted || this.resolvedUiTheme.surface;
+    if (fromTokens) {
+      this.setBackground(fromTokens);
+      return;
+    }
+    this.setBackground(this.defaultBackground);
+  }
+  /** Merged theme config as last set (includes optional `preset` + module packs). Additive Phase 1 API. */
+  getUiTheme() {
+    return this.getTheme();
+  }
+  /** Full theme pack (brand + series / dashboard / diagram / automotive). */
+  getTheme() {
+    return composeThemePack(this.uiTheme, this.themeModules);
+  }
+  /** Flat resolved brand tokens after presets/overrides. Additive Phase 1 API. */
+  getResolvedTheme() {
+    return { ...this.resolvedUiTheme };
+  }
+  /**
+   * Apply a full theme pack from JSON or JS.
+   * Default **replaces** the stored pack (clean preset switches).
+   * Pass `{ merge: true }` to shallow-merge into the existing pack.
+   */
+  applyTheme(pack, options) {
+    const normalized = normalizeThemePack(pack);
+    this.ingestThemePack(normalized, !options?.merge);
+    this.publishTheme();
+    return this;
+  }
+  /**
+   * Update built-in UI theme tokens without custom stylesheets.
+   * By default **merges** into existing config (omitted keys stick).
+   * Pass `{ replace: true }` to replace the stored config entirely.
+   * Accepts a full `ThemePack` (`series`, `dashboard`, `diagram`, `automotive`).
+   *
+   * Automotive widgets are intentionally **not** retinted here — they keep
+   * `props.theme` presets (`classic` | `sport` | `digital`). See theme-architecture.md.
+   */
+  setUiTheme(tokens, options) {
+    const pack = normalizeThemePack(tokens);
+    this.ingestThemePack(pack, Boolean(options?.replace));
+    this.publishTheme();
+    return this;
+  }
+  /** Reset theme config to `{}` (CSS / module defaults). Equivalent to `setUiTheme({}, { replace: true })`. */
+  clearUiTheme() {
+    return this.setUiTheme({}, { replace: true });
+  }
+  /**
+   * Load a scene. If the JSON root includes `theme`, it is applied first
+   * (replace) so widgets build under that palette.
+   * Optional second arg: `{ theme }` when the scene file has no root theme.
+   */
+  loadJSON(json, options) {
+    let data;
+    if (typeof json === "string") {
+      try {
+        data = JSON.parse(json);
+      } catch (err) {
+        throw new SyntaxError(formatJsonParseError(json, err));
+      }
+    } else {
+      data = { ...json };
+    }
+    const { theme: sceneTheme, scene } = extractSceneTheme(data);
+    const external = options?.theme ? normalizeThemePack(options.theme) : null;
+    const theme = external ?? sceneTheme;
+    if (theme && Object.keys(theme).length > 0) {
+      this.applyTheme(theme);
+    }
+    const node = fromJSON(scene, this);
     this.stage.clear();
     this.stage.add(node);
     this.nodeCount = countNodes(this.stage);
@@ -6064,8 +8700,70 @@ var App = class extends EventEmitter {
     this.requestRender();
     return node;
   }
-  exportJSON() {
-    return toJSON(this.stage);
+  /** Export scene. Pass `{ includeTheme: true }` to embed the current theme pack. */
+  exportJSON(options) {
+    const scene = toJSON(this.stage);
+    if (options?.includeTheme) {
+      const theme = this.getTheme();
+      if (Object.keys(theme).length > 0) {
+        return { ...scene, theme };
+      }
+    }
+    return scene;
+  }
+  /** Ingest pack into uiTheme + themeModules and re-resolve (no emit). */
+  ingestThemePack(pack, replace) {
+    const next = replace ? pack : mergeThemePacks(this.getTheme(), pack);
+    const split = splitThemePack(next);
+    this.uiTheme = { ...split.ui };
+    const resolvedBg = resolveThemeBackground({
+      ...split.ui,
+      background: split.background
+    });
+    this.themeModules = {
+      series: split.series,
+      dashboard: split.dashboard,
+      diagram: split.diagram,
+      automotive: split.automotive,
+      background: resolvedBg
+    };
+    this.resolvedUiTheme = resolveUiTheme(this.uiTheme);
+    const dashPack = {
+      ...this.themeModules.dashboard ?? {},
+      ...this.themeModules.series?.length ? { series: [...this.themeModules.series] } : {}
+    };
+    syncActiveCanvasUiTheme(this.resolvedUiTheme, this);
+    syncActiveDashboardTheme(this.resolvedUiTheme, this, dashPack);
+    syncActiveDiagramTheme(this.resolvedUiTheme, this, this.themeModules.diagram);
+    const prevAutoScale = getAutomotiveFontScale(this);
+    const nextAutoScale = syncAutomotiveFontScale(this.resolvedUiTheme, this);
+    syncAutomotiveDefaultPreset(this.themeModules.automotive, this);
+    this.automotiveFontScaleDirty = prevAutoScale !== nextAutoScale;
+  }
+  /** Apply resolved theme to renderer + live widgets and emit themechange. */
+  publishTheme() {
+    const renderer = this.renderer;
+    if (typeof renderer.setUiTheme === "function") {
+      renderer.setUiTheme(this.resolvedUiTheme);
+    }
+    this.syncThemeBackground();
+    refreshCanvasUi(this.stage, this);
+    refreshDashboard(this.stage, this);
+    refreshDiagram(this.stage, this);
+    if (this.automotiveFontScaleDirty) {
+      refreshAutomotive(this.stage);
+      this.automotiveFontScaleDirty = false;
+    }
+    this.emit(
+      "themechange",
+      syntheticEvent("themechange", this, {
+        payload: {
+          config: this.getTheme(),
+          resolved: this.getResolvedTheme()
+        }
+      })
+    );
+    this.requestRender();
   }
   export(formatOrOptions) {
     if (typeof formatOrOptions === "object") {
@@ -6356,6 +9054,15 @@ var LightDraw = {
   exportApp,
   downloadExport,
   validateSceneJSON,
+  parseAndValidateSceneJSON,
+  formatJsonParseError,
+  locateJsonError,
+  formatValidationErrors,
+  validateThemePack,
+  listKnownSceneTypes,
+  formatExpectedValues,
+  formatInvalidValue,
+  suggestClosest,
   scenesEqual,
   createPluginContext,
   getInstalledPlugins,
@@ -7555,24 +10262,41 @@ var HTMLRenderer = class extends Renderer {
     this.applyThemeVars();
   }
   applyThemeVars() {
-    if (Object.keys(this.uiTheme).length > 0) {
-      applyUiTheme(this.root, this.uiTheme);
-    }
+    applyUiTheme(this.root, this.uiTheme ?? {});
+  }
+  /** Update stage background (solid color or image). Re-applies root CSS. */
+  setStageBackground(value) {
+    this.background = value;
+    if (this.root)
+      this.applyRootStyles();
   }
   applyRootStyles() {
-    this.root.style.cssText = `
-      position: relative;
-      width: ${this.width}px;
-      height: ${this.height}px;
-      overflow: hidden;
-      background: ${this.highContrast ? "#000" : this.background};
-    `;
+    this.root.style.position = "relative";
+    this.root.style.width = `${this.width}px`;
+    this.root.style.height = `${this.height}px`;
+    this.root.style.overflow = "hidden";
     if (this.highContrast) {
+      this.root.style.background = "#000";
+      this.root.style.backgroundImage = "";
       this.root.classList.add("lightdraw-high-contrast");
       this.root.setAttribute("data-ld-high-contrast", "true");
     } else {
       this.root.classList.remove("lightdraw-high-contrast");
       this.root.removeAttribute("data-ld-high-contrast");
+      const src = unwrapThemeBackgroundSrc(this.background || "");
+      if (src) {
+        this.root.style.backgroundColor = "transparent";
+        this.root.style.backgroundImage = toThemeBackgroundCss(this.background);
+        this.root.style.backgroundSize = "cover";
+        this.root.style.backgroundPosition = "center";
+        this.root.style.backgroundRepeat = "no-repeat";
+      } else {
+        this.root.style.backgroundImage = "";
+        this.root.style.backgroundSize = "";
+        this.root.style.backgroundPosition = "";
+        this.root.style.backgroundRepeat = "";
+        this.root.style.background = cssStageBackground(this.background || "transparent");
+      }
     }
     this.applyThemeVars();
   }
@@ -8007,14 +10731,57 @@ var htmlPlugin = {
   }
 };
 
+// src/components/uiRebuild.ts
+var UI_REBUILD_TYPES = /* @__PURE__ */ new Set([
+  "tabs",
+  "accordion",
+  "table",
+  "tree",
+  "toolbar"
+]);
+function installUiRebuild(group, app, factory) {
+  const rebuild = () => {
+    const props = { ...getState(group), x: group.x, y: group.y };
+    const theme = syncActiveCanvasUiTheme(resolveEffectiveUiTokens(app, props), app);
+    runWithCanvasUiTheme(theme, () => {
+      for (const child of [...group.children]) {
+        group.remove(child);
+      }
+      const fresh = factory(props, app);
+      if (!fresh || !("children" in fresh))
+        return;
+      for (const child of [...fresh.children]) {
+        fresh.remove(child);
+        group.add(child);
+      }
+      group.metadata._parts = fresh.metadata._parts;
+      group.metadata.componentState = {
+        ...getState(group),
+        ...fresh.metadata?.componentState ?? {}
+      };
+    });
+    app.requestRender();
+  };
+  group.metadata.uiRebuild = rebuild;
+}
+
 // src/components/registryCore.ts
-var registry = {};
+var registry2 = {};
 function registerComponent(type, factory) {
-  registry[type] = factory;
+  registry2[type] = factory;
 }
 function createComponentFromJSON(type, props, app) {
-  const factory = registry[type];
-  return factory ? factory(props, app) : null;
+  const factory = registry2[type];
+  if (!factory)
+    return null;
+  const theme = syncActiveCanvasUiTheme(resolveEffectiveUiTokens(app, props), app);
+  return runWithCanvasUiTheme(theme, () => {
+    const node = factory(props, app);
+    if (node && "children" in node && UI_REBUILD_TYPES.has(type) && !node.metadata.uiRebuild) {
+      installUiRebuild(node, app, factory);
+    }
+    return node;
+  });
 }
 
 // src/components/interaction.ts
@@ -8107,64 +10874,24 @@ function trapFocusIn(group) {
   app?.focusNode(focusables[0]);
 }
 
-// src/components/theme.ts
-var UI = {
-  primary: "#2563eb",
-  primaryHover: "#1d4ed8",
-  primaryActive: "#163eb8",
-  primarySubtle: "#eff6ff",
-  /** @deprecated Use `primarySubtle` — kept for canvas definitions compatibility */
-  primaryMuted: "#eff6ff",
-  secondary: "#475569",
-  secondaryHover: "#334155",
-  success: "#059669",
-  successBg: "#ecfdf5",
-  warning: "#d97706",
-  danger: "#dc2626",
-  surface: "#ffffff",
-  surfaceMuted: "#f8fafc",
-  surfaceInset: "#f1f5f9",
-  overlay: "rgba(15, 23, 42, 0.5)",
-  border: "#e2e8f0",
-  borderStrong: "#cbd5e1",
-  borderFocus: "#2563eb",
-  text: "#0f172a",
-  textSecondary: "#475569",
-  textMuted: "#64748b",
-  textInverse: "#ffffff",
-  textPlaceholder: "#94a3b8",
-  radius: 8,
-  radiusSm: 6,
-  radiusLg: 12,
-  radiusFull: 999,
-  font: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-  fontSize: 14,
-  fontSizeSm: 12,
-  fontSizeLg: 16,
-  controlHeight: 40,
-  inputHeight: 40,
-  spaceXs: 4,
-  spaceSm: 8,
-  spaceMd: 16,
-  spaceLg: 24,
-  spaceXl: 32,
-  shadowSm: { color: "rgba(15, 23, 42, 0.05)", blur: 2, offsetX: 0, offsetY: 1 },
-  shadowMd: { color: "rgba(15, 23, 42, 0.08)", blur: 8, offsetX: 0, offsetY: 2 },
-  shadowLg: { color: "rgba(15, 23, 42, 0.12)", blur: 20, offsetX: 0, offsetY: 8 },
-  shadowPrimary: { color: "rgba(37, 99, 235, 0.28)", blur: 8, offsetX: 0, offsetY: 2 }
-};
-
 // src/components/definitions.ts
+function UI2() {
+  return getActiveUi();
+}
 function createGroup(app, type, props, extra = {}) {
+  const extraMeta = extra.metadata ?? {};
+  const extraState = extraMeta.componentState && typeof extraMeta.componentState === "object" ? extraMeta.componentState : {};
+  const { metadata: _ignored, ...extraRest } = extra;
   const group = app.group({
     ...props,
     listening: true,
+    ...extraRest,
     metadata: {
       componentType: type,
-      componentState: { ...props },
-      ...props.metadata ?? {}
-    },
-    ...extra
+      ...extraMeta,
+      // Keep props (including uiTheme) then factory-specific state
+      componentState: { ...props, ...extraState }
+    }
   });
   bindApp(group, app);
   return group;
@@ -8173,45 +10900,90 @@ function canvasSurface(app, width, height, opts = {}) {
   return app.roundedRect({
     width,
     height,
-    cornerRadius: opts.radius ?? UI.radius,
-    fill: UI.surface,
-    stroke: UI.border,
+    cornerRadius: opts.radius ?? UI2().radius,
+    fill: UI2().surface,
+    stroke: UI2().border,
     strokeWidth: 1,
-    shadow: opts.elevated ? UI.shadowLg : UI.shadowSm,
+    shadow: opts.elevated ? UI2().shadowLg : UI2().shadowSm,
     listening: false
   });
 }
 registerComponent("button", (props, app) => {
   const width = num(props, "width", 128);
   const size = str(props, "size", "md");
-  const height = size === "sm" ? 32 : size === "lg" ? 44 : num(props, "height", UI.controlHeight);
-  const fontSize = size === "sm" ? UI.fontSizeSm : size === "lg" ? UI.fontSizeLg : UI.fontSize;
+  const height = size === "sm" ? 32 : size === "lg" ? 44 : num(props, "height", UI2().controlHeight);
+  const customFont = hasCustomFontSize(props);
+  const customText = hasCustomTextColor(props);
+  const typo = resolveNodeTypography(app, props, {
+    text: UI2().textInverse,
+    textMuted: UI2().textMuted,
+    fontSize: UI2().fontSize,
+    fontSizeSm: UI2().fontSizeSm,
+    fontSizeLg: UI2().fontSizeLg
+  });
+  const fontSize = customFont ? typo.fontSize : size === "sm" ? UI2().fontSizeSm : size === "lg" ? UI2().fontSizeLg : UI2().fontSize;
   const label = str(props, "label", "Button");
   const disabled = bool(props, "disabled", false);
   const variant = str(props, "variant", "primary");
-  const fill = str(props, "fill", "") || (variant === "secondary" ? UI.secondary : variant === "ghost" ? UI.surface : variant === "danger" ? UI.danger : UI.primary);
+  const hasCustomFill = Boolean(str(props, "fill", ""));
+  const fill = str(props, "fill", "") || (variant === "secondary" ? UI2().secondary : variant === "ghost" ? UI2().surface : variant === "danger" ? UI2().danger : UI2().primary);
   const group = createGroup(app, "button", props, {
     focusable: !disabled,
     role: "button",
-    metadata: { componentType: "button", label, componentState: { label, width, height, disabled, fill, variant, size } }
+    metadata: {
+      componentType: "button",
+      label,
+      componentState: {
+        label,
+        width,
+        height,
+        disabled,
+        fill,
+        variant,
+        size,
+        hasCustomFill,
+        hasCustomFontSize: customFont,
+        hasCustomColor: customText,
+        fontSize: customFont ? fontSize : void 0,
+        textColor: customText ? typo.text : void 0,
+        color: props.color,
+        uiTheme: props.uiTheme
+      }
+    }
   });
-  setState(group, { label, width, height, disabled, fill, variant, size });
-  const textColor = variant === "ghost" ? UI.textSecondary : variant === "danger" ? UI.textInverse : UI.textInverse;
+  setState(group, {
+    label,
+    width,
+    height,
+    disabled,
+    fill,
+    variant,
+    size,
+    hasCustomFill,
+    hasCustomFontSize: customFont,
+    hasCustomColor: customText,
+    fontSize: customFont ? fontSize : void 0,
+    textColor: customText ? typo.text : void 0,
+    color: props.color,
+    uiTheme: props.uiTheme
+  });
+  const textColor = customText ? typo.text : variant === "ghost" ? UI2().textSecondary : UI2().textInverse;
   const bg = app.roundedRect({
     width,
     height,
-    cornerRadius: UI.radius,
-    fill: disabled ? UI.borderStrong : fill,
-    stroke: variant === "ghost" ? UI.border : null,
+    cornerRadius: UI2().radius,
+    fill: disabled ? UI2().borderStrong : fill,
+    stroke: variant === "ghost" ? UI2().border : null,
     strokeWidth: variant === "ghost" ? 1 : 0,
-    shadow: disabled ? null : variant === "primary" || variant === "danger" ? UI.shadowPrimary : UI.shadowSm
+    shadow: disabled ? null : variant === "primary" || variant === "danger" ? UI2().shadowPrimary : UI2().shadowSm
   });
   const text = app.text({
     text: label,
     fontSize,
     fontWeight: "600",
-    fill: disabled ? UI.textMuted : textColor,
-    x: 0,
+    fill: disabled ? UI2().textMuted : textColor,
+    // Canvas textAlign centers on x — must be mid-button, not the left edge.
+    x: width / 2,
     y: (height - fontSize) / 2,
     textAlign: "center"
   });
@@ -8219,28 +10991,60 @@ registerComponent("button", (props, app) => {
   setParts(group, { bg, text });
   wireButtonStates(group, ({ hover, active, disabled: dis }) => {
     const parts = getParts(group);
+    const ui = UI2();
+    const st = getState(group);
+    const v = String(st.variant ?? variant);
     if (dis) {
-      parts.bg.fill = UI.borderStrong;
+      parts.bg.fill = ui.borderStrong;
       return group.getApp()?.requestRender();
     }
-    const base = fill;
-    const hoverColor = variant === "secondary" ? UI.secondaryHover : variant === "ghost" ? UI.surfaceInset : variant === "danger" ? "#b91c1c" : UI.primaryHover;
-    const activeColor = variant === "secondary" ? UI.textSecondary : variant === "ghost" ? UI.surfaceMuted : variant === "danger" ? "#991b1b" : UI.primaryActive;
+    const base = st.hasCustomFill ? String(st.fill ?? fill) : v === "secondary" ? ui.secondary : v === "ghost" ? ui.surface : v === "danger" ? ui.danger : ui.primary;
+    const hoverColor = v === "secondary" ? ui.secondaryHover : v === "ghost" ? ui.surfaceInset : v === "danger" ? "#b91c1c" : ui.primaryHover;
+    const activeColor = v === "secondary" ? ui.textSecondary : v === "ghost" ? ui.surfaceMuted : v === "danger" ? "#991b1b" : ui.primaryActive;
     parts.bg.fill = active ? activeColor : hover ? hoverColor : base;
     group.getApp()?.requestRender();
   });
   return group;
 });
 registerComponent("label", (props, app) => {
+  const hasCustomColor = hasCustomTextColor(props);
+  const hasCustomFs = hasCustomFontSize(props);
+  const typo = resolveNodeTypography(app, props, {
+    text: UI2().textMuted,
+    textMuted: UI2().textMuted,
+    fontSize: UI2().fontSizeSm,
+    fontSizeSm: UI2().fontSizeSm,
+    fontSizeLg: UI2().fontSizeLg
+  });
+  const fontSize = hasCustomFs ? typo.fontSize : typo.fontSizeSm;
   const node = app.text({
     text: str(props, "text", ""),
-    fontSize: num(props, "fontSize", UI.fontSizeSm),
+    fontSize,
     fontWeight: str(props, "fontWeight", "600"),
-    fill: str(props, "color", UI.textMuted),
+    fill: hasCustomColor ? typo.text : UI2().textMuted,
     ...props
   });
+  if (!hasCustomFs)
+    node.fontSize = typo.fontSizeSm;
+  else
+    node.fontSize = typo.fontSize;
+  if (!hasCustomColor)
+    node.fill = UI2().textMuted;
+  else
+    node.fill = typo.text;
   node.metadata.componentType = "label";
-  setState(node, { text: str(props, "text", ""), fontSize: num(props, "fontSize", UI.fontSizeSm) });
+  setState(node, {
+    text: str(props, "text", ""),
+    fontSize,
+    color: props.color,
+    textColor: props.textColor,
+    uiTheme: props.uiTheme,
+    demoId: props.demoId,
+    hasCustomColor,
+    hasCustomFontSize: hasCustomFs
+  });
+  if (props.demoId != null)
+    node.metadata.demoId = props.demoId;
   return node;
 });
 registerComponent("card", (props, app) => {
@@ -8250,48 +11054,54 @@ registerComponent("card", (props, app) => {
   const subtitle = str(props, "subtitle", "");
   const elevated = bool(props, "elevated", false);
   const group = createGroup(app, "card", props);
-  const bg = canvasSurface(app, width, height, { radius: UI.radiusLg, elevated });
+  const bg = canvasSurface(app, width, height, { radius: UI2().radiusLg, elevated });
   group.add(bg);
   const headerH = title || subtitle ? 40 : 0;
+  let header;
+  let titleNode;
+  let subtitleNode;
   if (headerH > 0) {
-    group.add(
-      app.roundedRect({
-        width,
-        height: headerH,
-        cornerRadius: UI.radiusLg,
-        fill: UI.surfaceMuted,
-        stroke: UI.border,
-        strokeWidth: 1,
-        listening: false
-      })
-    );
+    header = app.roundedRect({
+      width,
+      height: headerH,
+      cornerRadius: UI2().radiusLg,
+      fill: UI2().surfaceMuted,
+      stroke: UI2().border,
+      strokeWidth: 1,
+      listening: false
+    });
+    group.add(header);
     if (title) {
-      group.add(
-        app.text({
-          text: String(title).toUpperCase(),
-          fontSize: UI.fontSizeSm,
-          fontWeight: "700",
-          fill: UI.textMuted,
-          x: 16,
-          y: 12,
-          listening: false
-        })
-      );
+      titleNode = app.text({
+        text: String(title).toUpperCase(),
+        fontSize: UI2().fontSizeSm,
+        fontWeight: "700",
+        fill: UI2().textMuted,
+        x: 16,
+        y: 12,
+        listening: false
+      });
+      group.add(titleNode);
     }
     if (subtitle) {
-      group.add(
-        app.text({
-          text: subtitle,
-          fontSize: UI.fontSize,
-          fontWeight: "500",
-          fill: UI.textSecondary,
-          x: 16,
-          y: title ? 26 : 12,
-          listening: false
-        })
-      );
+      subtitleNode = app.text({
+        text: subtitle,
+        fontSize: UI2().fontSize,
+        fontWeight: "500",
+        fill: UI2().textSecondary,
+        x: 16,
+        y: title ? 26 : 12,
+        listening: false
+      });
+      group.add(subtitleNode);
     }
   }
+  setParts(group, {
+    bg,
+    ...header ? { header } : {},
+    ...titleNode ? { title: titleNode } : {},
+    ...subtitleNode ? { subtitle: subtitleNode } : {}
+  });
   setState(group, { width, height, title: props.title, subtitle, actions: props.actions, elevated: props.elevated });
   return group;
 });
@@ -8301,14 +11111,14 @@ registerComponent("progressBar", (props, app) => {
   const height = size === "lg" ? 12 : size === "sm" ? 6 : num(props, "height", 8);
   const value = clamp2(num(props, "value", 0), 0, 100);
   const variant = str(props, "variant", "default");
-  const fillColor = variant === "success" ? UI.success : variant === "warning" ? UI.warning : variant === "danger" ? UI.danger : str(props, "fill", UI.primary);
+  const fillColor = variant === "success" ? UI2().success : variant === "warning" ? UI2().warning : variant === "danger" ? UI2().danger : str(props, "fill", UI2().primary);
   const group = createGroup(app, "progressBar", props, {
     role: "progressbar",
     ariaValueNow: value,
     ariaValueMin: 0,
     ariaValueMax: 100
   });
-  const track = app.roundedRect({ width, height, cornerRadius: height / 2, fill: UI.surfaceInset, listening: false });
+  const track = app.roundedRect({ width, height, cornerRadius: height / 2, fill: UI2().surfaceInset, listening: false });
   const fillBar = app.roundedRect({
     width: width * value / 100,
     height,
@@ -8321,9 +11131,9 @@ registerComponent("progressBar", (props, app) => {
     group.add(
       app.text({
         text: props.label,
-        fontSize: UI.fontSizeSm,
+        fontSize: UI2().fontSizeSm,
         fontWeight: "600",
-        fill: UI.textSecondary,
+        fill: UI2().textSecondary,
         x: 0,
         y: -18,
         listening: false
@@ -8347,16 +11157,16 @@ registerComponent("slider", (props, app) => {
     ariaValueMax: max,
     metadata: { componentType: "slider", label: props.label ?? "Slider" }
   });
-  const track = app.roundedRect({ width, height: 6, y: 12, cornerRadius: 3, fill: UI.surfaceInset, listening: false });
-  const fill = app.roundedRect({ width: 0, height: 6, y: 12, cornerRadius: 3, fill: UI.primary, listening: false });
+  const track = app.roundedRect({ width, height: 6, y: 12, cornerRadius: 3, fill: UI2().surfaceInset, listening: false });
+  const fill = app.roundedRect({ width: 0, height: 6, y: 12, cornerRadius: 3, fill: UI2().primary, listening: false });
   const thumb = app.circle({
     x: 0,
     y: 12,
     radius: 10,
-    fill: UI.surface,
-    stroke: UI.primary,
+    fill: UI2().surface,
+    stroke: UI2().primary,
     strokeWidth: 2,
-    shadow: UI.shadowMd,
+    shadow: UI2().shadowMd,
     listening: false
   });
   group.add(track, fill, thumb);
@@ -8395,10 +11205,10 @@ registerComponent("checkbox", (props, app) => {
     width: 20,
     height: 20,
     cornerRadius: 5,
-    fill: disabled ? UI.surfaceMuted : checked ? UI.primary : UI.surface,
-    stroke: disabled ? UI.border : checked ? UI.primary : UI.borderStrong,
+    fill: disabled ? UI2().surfaceMuted : checked ? UI2().primary : UI2().surface,
+    stroke: disabled ? UI2().border : checked ? UI2().primary : UI2().borderStrong,
     strokeWidth: 1.5,
-    shadow: checked && !disabled ? UI.shadowSm : null,
+    shadow: checked && !disabled ? UI2().shadowSm : null,
     listening: false
   });
   const mark = app.text({
@@ -8407,7 +11217,7 @@ registerComponent("checkbox", (props, app) => {
     y: 1,
     fontSize: 14,
     fontWeight: "bold",
-    fill: UI.textInverse,
+    fill: UI2().textInverse,
     visible: checked,
     listening: false
   });
@@ -8418,8 +11228,8 @@ registerComponent("checkbox", (props, app) => {
         text: props.label,
         x: 30,
         y: 2,
-        fontSize: UI.fontSize,
-        fill: UI.textSecondary,
+        fontSize: UI2().fontSize,
+        fill: UI2().textSecondary,
         listening: false
       })
     );
@@ -8432,8 +11242,8 @@ registerComponent("checkbox", (props, app) => {
     return group;
   }
   wireToggle(group, "checked", (v) => {
-    box.fill = v ? UI.primary : UI.surface;
-    box.stroke = v ? UI.primary : UI.borderStrong;
+    box.fill = v ? UI2().primary : UI2().surface;
+    box.stroke = v ? UI2().primary : UI2().borderStrong;
     mark.visible = v;
     group.ariaChecked = v;
   });
@@ -8452,15 +11262,15 @@ registerComponent("toggle", (props, app) => {
     width: 48,
     height: 26,
     cornerRadius: 13,
-    fill: disabled ? UI.border : on ? UI.primary : UI.borderStrong,
+    fill: disabled ? UI2().border : on ? UI2().primary : UI2().borderStrong,
     listening: false
   });
   const knob = app.circle({
     x: on ? 24 : 2,
     y: 3,
     radius: 10,
-    fill: UI.surface,
-    shadow: UI.shadowMd,
+    fill: UI2().surface,
+    shadow: UI2().shadowMd,
     listening: false
   });
   group.add(track, knob);
@@ -8472,7 +11282,7 @@ registerComponent("toggle", (props, app) => {
     return group;
   }
   wireToggle(group, "value", (v) => {
-    track.fill = v ? UI.primary : UI.borderStrong;
+    track.fill = v ? UI2().primary : UI2().borderStrong;
     knob.x = v ? 24 : 2;
     group.ariaChecked = v;
   });
@@ -8480,11 +11290,21 @@ registerComponent("toggle", (props, app) => {
 });
 registerComponent("input", (props, app) => {
   const width = num(props, "width", 240);
-  const height = num(props, "height", UI.inputHeight);
+  const height = num(props, "height", UI2().inputHeight);
   const value = str(props, "value", "");
   const placeholder = str(props, "placeholder", "");
   const disabled = bool(props, "disabled", false);
   const invalid = bool(props, "invalid", false);
+  const customFont = hasCustomFontSize(props);
+  const customText = hasCustomTextColor(props);
+  const typo = resolveNodeTypography(app, props, {
+    text: UI2().text,
+    textMuted: UI2().textPlaceholder,
+    fontSize: UI2().fontSize,
+    fontSizeSm: UI2().fontSizeSm,
+    fontSizeLg: UI2().fontSizeLg
+  });
+  const fontSize = customFont ? typo.fontSize : UI2().fontSize;
   const group = createGroup(app, "input", props, {
     focusable: !disabled,
     role: "textbox",
@@ -8493,24 +11313,39 @@ registerComponent("input", (props, app) => {
   const bg = app.roundedRect({
     width,
     height,
-    cornerRadius: UI.radius,
-    fill: disabled ? UI.surfaceMuted : UI.surface,
-    stroke: invalid ? UI.danger : UI.border,
+    cornerRadius: UI2().radius,
+    fill: disabled ? UI2().surfaceMuted : UI2().surface,
+    stroke: invalid ? UI2().danger : UI2().border,
     strokeWidth: invalid ? 2 : 1,
-    shadow: disabled ? null : UI.shadowSm,
+    shadow: disabled ? null : UI2().shadowSm,
     listening: false
   });
   const text = app.text({
     text: value || placeholder,
-    fontSize: UI.fontSize,
-    fill: value ? UI.text : UI.textPlaceholder,
+    fontSize,
+    fill: value ? customText ? typo.text : UI2().text : UI2().textPlaceholder,
     x: 12,
-    y: (height - UI.fontSize) / 2,
+    y: (height - fontSize) / 2,
     listening: false
   });
   group.add(bg, text);
   setParts(group, { bg, text });
-  setState(group, { width, height, value, placeholder, label: props.label, disabled, invalid, error: props.error });
+  setState(group, {
+    width,
+    height,
+    value,
+    placeholder,
+    label: props.label,
+    disabled,
+    invalid,
+    error: props.error,
+    hasCustomFontSize: customFont,
+    hasCustomColor: customText,
+    fontSize: customFont ? fontSize : void 0,
+    textColor: customText ? typo.text : void 0,
+    color: props.color,
+    uiTheme: props.uiTheme
+  });
   if (disabled)
     group.opacity = 0.65;
   return group;
@@ -8529,17 +11364,17 @@ registerComponent("textarea", (props, app) => {
   const bg = app.roundedRect({
     width,
     height,
-    cornerRadius: UI.radius,
-    fill: disabled ? UI.surfaceMuted : UI.surface,
-    stroke: invalid ? UI.danger : UI.border,
+    cornerRadius: UI2().radius,
+    fill: disabled ? UI2().surfaceMuted : UI2().surface,
+    stroke: invalid ? UI2().danger : UI2().border,
     strokeWidth: invalid ? 2 : 1,
-    shadow: disabled ? null : UI.shadowSm,
+    shadow: disabled ? null : UI2().shadowSm,
     listening: false
   });
   const text = app.text({
     text: value || str(props, "placeholder", ""),
-    fontSize: UI.fontSize,
-    fill: value ? UI.text : UI.textPlaceholder,
+    fontSize: UI2().fontSize,
+    fill: value ? UI2().text : UI2().textPlaceholder,
     x: 12,
     y: 12,
     listening: false
@@ -8562,19 +11397,19 @@ registerComponent("radio", (props, app) => {
     metadata: { componentType: "radio", group: groupName, label: props.label }
   });
   const outer = app.circle({
-    x: 10,
-    y: 10,
+    x: 0,
+    y: 0,
     radius: 10,
-    fill: disabled ? UI.surfaceMuted : UI.surface,
-    stroke: disabled ? UI.border : selected ? UI.primary : UI.borderStrong,
+    fill: disabled ? UI2().surfaceMuted : UI2().surface,
+    stroke: disabled ? UI2().border : selected ? UI2().primary : UI2().borderStrong,
     strokeWidth: selected ? 2 : 1.5,
     listening: false
   });
   const inner = app.circle({
-    x: 10,
-    y: 10,
+    x: 5,
+    y: 5,
     radius: 5,
-    fill: selected ? UI.primary : "transparent",
+    fill: selected ? UI2().primary : "transparent",
     listening: false
   });
   group.add(outer, inner);
@@ -8583,9 +11418,9 @@ registerComponent("radio", (props, app) => {
       app.text({
         text: props.label,
         x: 28,
-        y: 2,
-        fontSize: UI.fontSize,
-        fill: UI.textSecondary,
+        y: 3,
+        fontSize: UI2().fontSize,
+        fill: UI2().textSecondary,
         listening: false
       })
     );
@@ -8600,8 +11435,8 @@ registerComponent("radio", (props, app) => {
   group.on("click", () => {
     setState(group, { selected: true });
     group.ariaChecked = true;
-    inner.fill = UI.primary;
-    outer.stroke = UI.primary;
+    inner.fill = UI2().primary;
+    outer.stroke = UI2().primary;
     group.emit("change", syntheticEvent("change", group, { value: groupName, payload: groupName }));
     group.getApp()?.requestRender();
   });
@@ -8619,8 +11454,8 @@ registerComponent("tooltip", (props, app) => {
   const bubbleX = placement === "right" ? anchor.length * 7 + 12 : 0;
   const anchorText = app.text({
     text: anchor,
-    fontSize: UI.fontSize,
-    fill: UI.primary,
+    fontSize: UI2().fontSize,
+    fill: UI2().primary,
     x: 0,
     y: 4,
     listening: false
@@ -8628,9 +11463,9 @@ registerComponent("tooltip", (props, app) => {
   const bg = app.roundedRect({
     width: tw,
     height: 32,
-    cornerRadius: UI.radiusSm,
+    cornerRadius: UI2().radiusSm,
     fill: "#1e293b",
-    shadow: UI.shadowMd,
+    shadow: UI2().shadowMd,
     x: bubbleX,
     y: bubbleY,
     listening: false,
@@ -8638,14 +11473,15 @@ registerComponent("tooltip", (props, app) => {
   });
   const label = app.text({
     text,
-    fontSize: UI.fontSizeSm,
-    fill: UI.textInverse,
+    fontSize: UI2().fontSizeSm,
+    fill: UI2().textInverse,
     x: bubbleX + pad,
     y: bubbleY + 8,
     listening: false,
     visible: group.visible
   });
   group.add(anchorText, bg, label);
+  setParts(group, { anchor: anchorText, bg, label });
   setState(group, { text, anchor, placement, delay, visible: group.visible });
   let delayTimer;
   const show = () => {
@@ -8689,11 +11525,11 @@ registerComponent("menu", (props, app) => {
   const bg = app.roundedRect({
     width,
     height,
-    cornerRadius: UI.radius,
-    fill: UI.surface,
-    stroke: UI.border,
+    cornerRadius: UI2().radius,
+    fill: UI2().surface,
+    stroke: UI2().border,
     strokeWidth: 1,
-    shadow: UI.shadowLg,
+    shadow: UI2().shadowLg,
     listening: false
   });
   group.add(bg);
@@ -8704,12 +11540,13 @@ registerComponent("menu", (props, app) => {
         text: item,
         x: 14,
         y: 10 + i * rowH,
-        fontSize: UI.fontSize,
-        fill: isDanger(item, i) ? UI.danger : UI.text,
+        fontSize: UI2().fontSize,
+        fill: isDanger(item, i) ? UI2().danger : UI2().text,
         listening: false
       })
     );
   });
+  setParts(group, { bg });
   setState(group, { items, open, width, selectedIndex: -1, triggerLabel: props.triggerLabel, itemVariants: variants });
   group.on("click", (e) => {
     if (!group.visible) {
@@ -8741,7 +11578,7 @@ registerComponent("dialog", (props, app) => {
   const overlay = app.rect({
     width: num(props, "overlayWidth", 800),
     height: num(props, "overlayHeight", 600),
-    fill: UI.overlay,
+    fill: UI2().overlay,
     x: -num(props, "x", 0),
     y: -num(props, "y", 0),
     listening: true
@@ -8749,34 +11586,34 @@ registerComponent("dialog", (props, app) => {
   const panel = app.roundedRect({
     width,
     height,
-    cornerRadius: UI.radiusLg,
-    fill: UI.surface,
-    stroke: UI.border,
+    cornerRadius: UI2().radiusLg,
+    fill: UI2().surface,
+    stroke: UI2().border,
     strokeWidth: 1,
-    shadow: UI.shadowLg,
+    shadow: UI2().shadowLg,
     x: 0,
     y: 0
   });
   const titleText = app.text({
     text: title,
-    fontSize: UI.fontSizeLg,
+    fontSize: UI2().fontSizeLg,
     fontWeight: "bold",
-    fill: UI.text,
+    fill: UI2().text,
     x: 20,
     y: 18
   });
   const divider = app.rect({
     width: width - 40,
     height: 1,
-    fill: UI.border,
+    fill: UI2().border,
     x: 20,
     y: 48,
     listening: false
   });
   const bodyText = app.text({
     text: str(props, "message", "Are you sure you want to continue?"),
-    fontSize: UI.fontSize,
-    fill: UI.textSecondary,
+    fontSize: UI2().fontSize,
+    fill: UI2().textSecondary,
     x: 20,
     y: 64,
     listening: false
@@ -8823,9 +11660,9 @@ registerComponent("tabs", (props, app) => {
     app.roundedRect({
       width,
       height: tabH + 4,
-      cornerRadius: UI.radius,
-      fill: UI.surface,
-      stroke: UI.border,
+      cornerRadius: UI2().radius,
+      fill: UI2().surface,
+      stroke: UI2().border,
       strokeWidth: 1,
       listening: false
     })
@@ -8837,7 +11674,7 @@ registerComponent("tabs", (props, app) => {
       x: activeTab * tabW + 4,
       y: tabH + 1,
       cornerRadius: 1,
-      fill: UI.primary,
+      fill: UI2().primary,
       listening: false
     })
   );
@@ -8847,9 +11684,9 @@ registerComponent("tabs", (props, app) => {
     tab.add(
       app.text({
         text: label,
-        fontSize: UI.fontSize,
+        fontSize: UI2().fontSize,
         fontWeight: active ? "600" : "500",
-        fill: active ? UI.primary : UI.textMuted,
+        fill: active ? UI2().primary : UI2().textMuted,
         x: (tabW - 8) / 2,
         y: 10,
         textAlign: "center",
@@ -8881,17 +11718,17 @@ registerComponent("accordion", (props, app) => {
       app.roundedRect({
         width: num(props, "width", 280),
         height: 40,
-        cornerRadius: UI.radiusSm,
-        fill: isOpen ? UI.primaryMuted : UI.surfaceMuted,
-        stroke: UI.border,
+        cornerRadius: UI2().radiusSm,
+        fill: isOpen ? UI2().primaryMuted : UI2().surfaceMuted,
+        stroke: UI2().border,
         strokeWidth: 1,
         listening: false
       }),
       app.text({
         text: (isOpen ? "\u25BC  " : "\u25B6  ") + sec.title,
-        fontSize: UI.fontSize,
+        fontSize: UI2().fontSize,
         fontWeight: "600",
-        fill: UI.text,
+        fill: UI2().text,
         x: 14,
         y: 11,
         listening: false
@@ -8909,8 +11746,8 @@ registerComponent("accordion", (props, app) => {
           text: sec.content,
           x: 14,
           y: y + 46,
-          fontSize: UI.fontSize,
-          fill: UI.textSecondary,
+          fontSize: UI2().fontSize,
+          fill: UI2().textSecondary,
           listening: false
         })
       );
@@ -8934,12 +11771,12 @@ registerComponent("table", (props, app) => {
   const sortDirection = str(props, "sortDirection", "asc");
   const selectedRow = num(props, "selectedRow", -1);
   const group = createGroup(app, "table", props, { focusable: true, role: "grid" });
-  group.add(canvasSurface(app, width, tableH, { radius: UI.radius }));
+  group.add(canvasSurface(app, width, tableH, { radius: UI2().radius }));
   group.add(
     app.rect({
       width,
       height: rowH,
-      fill: UI.surfaceMuted,
+      fill: UI2().surfaceMuted,
       stroke: null,
       listening: false
     })
@@ -8952,9 +11789,9 @@ registerComponent("table", (props, app) => {
         text: col.toUpperCase() + arrow,
         x: ci * colW + 14,
         y: 10,
-        fontSize: UI.fontSizeSm,
+        fontSize: UI2().fontSizeSm,
         fontWeight: "bold",
-        fill: sorted ? UI.primary : UI.textMuted,
+        fill: sorted ? UI2().primary : UI2().textMuted,
         listening: false
       })
     );
@@ -8969,7 +11806,7 @@ registerComponent("table", (props, app) => {
           width,
           height: rowH,
           y: rowY,
-          fill: selected ? UI.primarySubtle : UI.surfaceMuted,
+          fill: selected ? UI2().primarySubtle : UI2().surfaceMuted,
           opacity: selected ? 1 : 0.5,
           listening: false
         })
@@ -8981,7 +11818,7 @@ registerComponent("table", (props, app) => {
           width: 3,
           height: rowH,
           y: rowY,
-          fill: UI.primary,
+          fill: UI2().primary,
           listening: false
         })
       );
@@ -8993,8 +11830,8 @@ registerComponent("table", (props, app) => {
           text: cell,
           x: ci * colW + 14,
           y: 10,
-          fontSize: UI.fontSize,
-          fill: selected ? UI.primary : UI.text,
+          fontSize: UI2().fontSize,
+          fill: selected ? UI2().primary : UI2().text,
           listening: false
         })
       );
@@ -9038,8 +11875,8 @@ registerComponent("tree", (props, app) => {
         app.roundedRect({
           width,
           height: 24,
-          cornerRadius: UI.radiusSm,
-          fill: UI.primarySubtle,
+          cornerRadius: UI2().radiusSm,
+          fill: UI2().primarySubtle,
           listening: false
         })
       );
@@ -9047,9 +11884,9 @@ registerComponent("tree", (props, app) => {
     header.add(
       app.text({
         text: (expanded.has(i) ? "\u25BE  " : "\u25B8  ") + node.label,
-        fontSize: UI.fontSize,
+        fontSize: UI2().fontSize,
         fontWeight: "600",
-        fill: parentSelected ? UI.primary : UI.text,
+        fill: parentSelected ? UI2().primary : UI2().text,
         x: 8,
         y: 4,
         listening: false
@@ -9073,7 +11910,7 @@ registerComponent("tree", (props, app) => {
           y,
           width: 1,
           height: node.children.length * 22,
-          fill: UI.border,
+          fill: UI2().border,
           listening: false
         })
       );
@@ -9086,8 +11923,8 @@ registerComponent("tree", (props, app) => {
             app.roundedRect({
               width: width - 22,
               height: 22,
-              cornerRadius: UI.radiusSm,
-              fill: UI.primarySubtle,
+              cornerRadius: UI2().radiusSm,
+              fill: UI2().primarySubtle,
               listening: false
             })
           );
@@ -9095,7 +11932,7 @@ registerComponent("tree", (props, app) => {
             app.rect({
               width: 3,
               height: 22,
-              fill: UI.primary,
+              fill: UI2().primary,
               listening: false
             })
           );
@@ -9105,8 +11942,8 @@ registerComponent("tree", (props, app) => {
             text: child.label,
             x: leafSelected ? 10 : 8,
             y: 4,
-            fontSize: UI.fontSize,
-            fill: leafSelected ? UI.primary : UI.textSecondary,
+            fontSize: UI2().fontSize,
+            fill: leafSelected ? UI2().primary : UI2().textSecondary,
             listening: false
           })
         );
@@ -9138,7 +11975,7 @@ registerComponent("toolbar", (props, app) => {
           y: 6,
           width: 1,
           height: 20,
-          fill: UI.border,
+          fill: UI2().border,
           listening: false
         })
       );
@@ -9154,19 +11991,19 @@ registerComponent("toolbar", (props, app) => {
       app.roundedRect({
         width: btnW,
         height: 32,
-        cornerRadius: UI.radiusSm,
-        fill: UI.surface,
-        stroke: UI.border,
+        cornerRadius: UI2().radiusSm,
+        fill: UI2().surface,
+        stroke: UI2().border,
         strokeWidth: 1,
-        shadow: UI.shadowSm,
+        shadow: UI2().shadowSm,
         listening: false
       }),
       app.text({
         text: icon + label,
-        fontSize: UI.fontSizeSm,
+        fontSize: UI2().fontSizeSm,
         fontWeight: "600",
-        fill: UI.textSecondary,
-        x: 0,
+        fill: UI2().textSecondary,
+        x: btnW / 2,
         y: 8,
         textAlign: "center"
       })
@@ -9187,10 +12024,10 @@ registerComponent("toast", (props, app) => {
   const dismissible = bool(props, "dismissible", true);
   const duration = num(props, "duration", 3e3);
   const fills = {
-    success: "#1e293b",
-    error: "#450a0a",
-    warning: "#451a03",
-    info: "#0c2340"
+    success: UI2().surfaceInset,
+    error: UI2().surfaceInset,
+    warning: UI2().surfaceInset,
+    info: UI2().primaryMuted
   };
   const group = createGroup(app, "toast", props, {
     role: "status",
@@ -9198,17 +12035,24 @@ registerComponent("toast", (props, app) => {
     metadata: { componentType: "toast", ariaLive: "polite" }
   });
   const tw = Math.max(message.length * 7 + 32, 160);
-  group.add(
-    app.roundedRect({
-      width: tw,
-      height: 40,
-      cornerRadius: UI.radius,
-      fill: fills[variant] ?? fills.success,
-      shadow: UI.shadowLg,
-      listening: false
-    }),
-    app.text({ text: message, fontSize: UI.fontSize, fill: UI.textInverse, x: 16, y: 11, listening: false })
-  );
+  const bg = app.roundedRect({
+    width: tw,
+    height: 40,
+    cornerRadius: UI2().radius,
+    fill: fills[variant] ?? fills.success,
+    shadow: UI2().shadowLg,
+    listening: false
+  });
+  const textNode = app.text({
+    text: message,
+    fontSize: UI2().fontSize,
+    fill: UI2().textInverse,
+    x: 16,
+    y: 11,
+    listening: false
+  });
+  group.add(bg, textNode);
+  setParts(group, { bg, text: textNode });
   setState(group, { message, duration, variant, position, dismissible });
   group.emit("open", syntheticEvent("open", group));
   scheduleAutoDismiss(group, duration, () => {
@@ -9223,42 +12067,47 @@ registerComponent("statusBar", (props, app) => {
   const primaryIndex = num(props, "primaryIndex", 0);
   const mono = bool(props, "mono", false);
   const group = createGroup(app, "statusBar", props, { role: "status" });
-  group.add(
-    app.rect({
-      width,
-      height,
-      fill: "#1e293b",
-      stroke: "#334155",
-      strokeWidth: 1,
-      listening: false
-    })
-  );
+  const bg = app.rect({
+    width,
+    height,
+    fill: UI2().surfaceInset,
+    stroke: UI2().border,
+    strokeWidth: 1,
+    listening: false
+  });
+  group.add(bg);
   const segW = width / segments.length;
+  let primarySeg;
+  const texts = [];
   segments.forEach((seg, i) => {
     if (i === primaryIndex) {
-      group.add(
-        app.rect({
-          x: i * segW,
-          y: 0,
-          width: segW,
-          height,
-          fill: "rgba(59, 130, 246, 0.2)",
-          listening: false
-        })
-      );
-    }
-    group.add(
-      app.text({
-        text: seg,
-        x: i * segW + 12,
-        y: 6,
-        fontSize: mono ? 11 : UI.fontSizeSm,
-        fontFamily: mono ? "monospace" : UI.font,
-        fontWeight: i === primaryIndex ? "600" : "500",
-        fill: i === primaryIndex ? "#e2e8f0" : "#94a3b8",
+      primarySeg = app.rect({
+        x: i * segW,
+        y: 0,
+        width: segW,
+        height,
+        fill: UI2().primaryMuted,
         listening: false
-      })
-    );
+      });
+      group.add(primarySeg);
+    }
+    const textNode = app.text({
+      text: seg,
+      x: i * segW + 12,
+      y: 6,
+      fontSize: mono ? 11 : UI2().fontSizeSm,
+      fontFamily: mono ? "monospace" : UI2().font,
+      fontWeight: i === primaryIndex ? "600" : "500",
+      fill: i === primaryIndex ? UI2().text : UI2().textMuted,
+      listening: false
+    });
+    group.add(textNode);
+    texts.push(textNode);
+  });
+  setParts(group, {
+    bg,
+    ...primarySeg ? { primarySeg } : {},
+    ...Object.fromEntries(texts.map((t, i) => [`seg${i}`, t]))
   });
   setState(group, { segments, width, primaryIndex, mono });
   return group;
@@ -9282,12 +12131,25 @@ function clearChartWidgetListeners(group) {
   group.off("wheel");
 }
 function installChartRebuild(group, app, build) {
+  let initialized = false;
   const rebuild = () => {
     clearChartWidgetListeners(group);
-    for (const child of [...group.children]) {
-      group.remove(child);
-    }
-    build(group, app, { ...getState2(group) });
+    const props = {
+      ...getState2(group),
+      ...initialized ? { _chartRebuild: true } : {}
+    };
+    const theme = syncActiveDashboardTheme(
+      resolveEffectiveUiTokens(app, props),
+      app,
+      dashboardPackFromApp(app)
+    );
+    runWithDashboardTheme(theme, () => {
+      for (const child of [...group.children]) {
+        group.remove(child);
+      }
+      build(group, app, props);
+    });
+    initialized = true;
     app.requestRender();
   };
   group.metadata.chartRebuild = rebuild;
@@ -9295,23 +12157,42 @@ function installChartRebuild(group, app, build) {
   rebuild();
 }
 function installRegistryChartRebuild(group, app, factory) {
+  let initialized = false;
   const rebuild = () => {
     clearChartWidgetListeners(group);
-    const props = { ...getState2(group), x: group.x, y: group.y };
-    for (const child of [...group.children]) {
-      group.remove(child);
-    }
-    const fresh = factory(props, app);
-    for (const child of [...fresh.children]) {
-      fresh.remove(child);
-      group.add(child);
-    }
-    group.metadata._parts = fresh.metadata._parts;
-    group.metadata.widgetState = fresh.metadata.widgetState;
+    const props = {
+      ...getState2(group),
+      x: group.x,
+      y: group.y,
+      ...initialized ? { _chartRebuild: true } : {}
+    };
+    const theme = syncActiveDashboardTheme(
+      resolveEffectiveUiTokens(app, props),
+      app,
+      dashboardPackFromApp(app)
+    );
+    runWithDashboardTheme(theme, () => {
+      for (const child of [...group.children]) {
+        group.remove(child);
+      }
+      const fresh = factory(props, app);
+      for (const child of [...fresh.children]) {
+        fresh.remove(child);
+        group.add(child);
+      }
+      group.metadata._parts = fresh.metadata._parts;
+      group.metadata.widgetState = fresh.metadata.widgetState;
+      if (typeof fresh.metadata.refresh === "function") {
+        group.metadata.refresh = fresh.metadata.refresh;
+      }
+    });
+    initialized = true;
     app.requestRender();
   };
   group.metadata.chartRebuild = rebuild;
-  setRefresh(group, () => rebuild());
+  if (typeof group.metadata.refresh !== "function") {
+    setRefresh(group, () => rebuild());
+  }
 }
 function updateChartProps(group, patch) {
   setState2(group, patch);
@@ -9334,19 +12215,26 @@ function pushChartValue(group, value, maxPoints = 64) {
 }
 
 // src/dashboard/registryCore.ts
-var registry2 = {};
+var registry3 = {};
 function registerDashboard(type, factory) {
-  registry2[type] = factory;
+  registry3[type] = factory;
 }
 function createDashboardFromJSON(type, props, app) {
-  const factory = registry2[type];
+  const factory = registry3[type];
   if (!factory)
     return null;
-  const node = factory(props, app);
-  if (node && "children" in node && node.metadata?.widgetType && !node.metadata.chartRebuild) {
-    installRegistryChartRebuild(node, app, factory);
-  }
-  return node;
+  const theme = syncActiveDashboardTheme(
+    resolveEffectiveUiTokens(app, props),
+    app,
+    dashboardPackFromApp(app)
+  );
+  return runWithDashboardTheme(theme, () => {
+    const node = factory(props, app);
+    if (node && "children" in node && node.metadata?.widgetType && !node.metadata.chartRebuild) {
+      installRegistryChartRebuild(node, app, factory);
+    }
+    return node;
+  });
 }
 
 // src/dashboard/charts/core/scales.ts
@@ -9363,70 +12251,6 @@ function bandWidth(count, range, gap = 0.2) {
 function polarToXY(cx, cy, r, angle) {
   return [cx + r * Math.cos(angle), cy + r * Math.sin(angle)];
 }
-
-// src/dashboard/theme.ts
-var DASHBOARD = {
-  panel: "#151d2e",
-  panelStroke: "#2a3654",
-  face: "#0f172a",
-  text: "#e2e8f0",
-  textMuted: "#94a3b8",
-  textDim: "#64748b",
-  primary: "#3b82f6",
-  secondary: "#ef4444",
-  success: "#22c55e",
-  warning: "#f59e0b",
-  danger: "#ef4444",
-  dangerDark: "#dc2626",
-  inactive: "#374151",
-  inactiveBar: "#475569",
-  gaugeTrack: "#374151",
-  gaugeNeedle: "#3b82f6",
-  speedoNeedle: "#ef4444",
-  chartBg: "#111827",
-  chartGrid: "#334155",
-  chartAxis: "#64748b",
-  chartLine: "#3b82f6",
-  chartArea: "rgba(59, 130, 246, 0.35)",
-  chartPlot: "#0f172a",
-  chartTooltipBg: "#1e293b",
-  chartTooltipBorder: "#475569",
-  chartCrosshair: "rgba(148, 163, 184, 0.6)",
-  chartDot: "#60a5fa",
-  barFill: "#3b82f6",
-  compassFace: "#1c2740",
-  compassRing: "#475569",
-  compassHub: "#334155",
-  thermometerTube: "#334155",
-  thermometerBorder: "#475569",
-  meterTrack: "#374151",
-  meterFill: "#3b82f6",
-  clockFace: "#1f2937",
-  clockRing: "#374151",
-  clockHand: "#e2e8f0",
-  clockSecond: "#ef4444",
-  batteryOutline: "#475569",
-  batteryTip: "#475569",
-  knobTrack: "#374151",
-  knobRing: "#1f2937",
-  knobIndicator: "#f59e0b",
-  knobArc: "rgba(245, 158, 11, 0.25)",
-  clockTick: "#64748b",
-  clockTickMajor: "#94a3b8",
-  clockHub: "#374151",
-  signalActive: "#22c55e",
-  signalInactive: "#475569",
-  pieStroke: "#1f2937",
-  timelineLine: "#475569",
-  timelineDot: "#3b82f6",
-  highlight: "#3b82f6",
-  series: ["#3b82f6", "#ef4444", "#22c55e", "#f59e0b"],
-  financialUp: "#22c55e",
-  financialDown: "#ef4444",
-  flowLink: "rgba(59, 130, 246, 0.45)",
-  heatmapLow: "#1e3a5f",
-  heatmapHigh: "#60a5fa"
-};
 
 // src/dashboard/chartPrimitives.ts
 function chartLocalPoint(group, worldX, worldY) {
@@ -9494,7 +12318,7 @@ function addGridLines(app, group, layout, yTicks, bounds, xDivisions = 4) {
         y,
         x2: layout.plotWidth,
         y2: 0,
-        stroke: DASHBOARD.chartGrid,
+        stroke: getActiveDashboard().chartGrid,
         strokeWidth: 1,
         dash: [4, 4],
         listening: false
@@ -9509,7 +12333,7 @@ function addGridLines(app, group, layout, yTicks, bounds, xDivisions = 4) {
         y: layout.plotY,
         x2: 0,
         y2: layout.plotHeight,
-        stroke: DASHBOARD.chartGrid,
+        stroke: getActiveDashboard().chartGrid,
         strokeWidth: 1,
         dash: [4, 4],
         listening: false
@@ -9524,7 +12348,7 @@ function addAxes(app, group, layout, bounds, yTicks, tickCount = 5) {
       y: layout.plotY,
       x2: 0,
       y2: layout.plotHeight,
-      stroke: DASHBOARD.chartAxis,
+      stroke: getActiveDashboard().chartAxis,
       strokeWidth: 1,
       listening: false
     })
@@ -9535,7 +12359,7 @@ function addAxes(app, group, layout, bounds, yTicks, tickCount = 5) {
       y: layout.plotY + layout.plotHeight,
       x2: layout.plotWidth,
       y2: 0,
-      stroke: DASHBOARD.chartAxis,
+      stroke: getActiveDashboard().chartAxis,
       strokeWidth: 1,
       listening: false
     })
@@ -9549,8 +12373,8 @@ function addAxes(app, group, layout, bounds, yTicks, tickCount = 5) {
         text: String(tick2),
         x: 2,
         y: y - 6,
-        fontSize: 10,
-        fill: DASHBOARD.textMuted,
+        fontSize: getActiveDashboard().fontSizeSm,
+        fill: getActiveDashboard().textMuted,
         listening: false
       })
     );
@@ -9561,7 +12385,7 @@ function addLegend(app, group, items, x, y) {
     const ly = y + i * 18;
     group.add(
       app.rect({ x, y: ly, width: 12, height: 12, fill: item.color, listening: false }),
-      app.text({ text: item.label, x: x + 16, y: ly - 1, fontSize: 11, fill: DASHBOARD.text, listening: false })
+      app.text({ text: item.label, x: x + 16, y: ly - 1, fontSize: getActiveDashboard().fontSizeSm, fill: getActiveDashboard().text, listening: false })
     );
   });
 }
@@ -9972,13 +12796,7 @@ function textTopY(y, fontSize) {
   return y - fontSize * 0.5;
 }
 function withAlpha(color, alpha) {
-  if (color.startsWith("#") && color.length === 7) {
-    const r = parseInt(color.slice(1, 3), 16);
-    const g = parseInt(color.slice(3, 5), 16);
-    const b = parseInt(color.slice(5, 7), 16);
-    return `rgba(${r},${g},${b},${alpha})`;
-  }
-  return color;
+  return colorWithAlpha(color, alpha) ?? color;
 }
 function buildDialGauge(app, group, style, opts) {
   const size = opts.size;
@@ -9992,10 +12810,13 @@ function buildDialGauge(app, group, style, opts) {
   const sweep = opts.sweepAngle ?? DEFAULT_SWEEP;
   const endAngle = startAngle + sweep;
   const trackW = style.trackWidth ?? Math.max(6, size * 0.055);
-  const tickColor = style.tickColor ?? "#cbd5e1";
+  const tickColor = style.tickColor ?? style.textMuted ?? "#cbd5e1";
   const face = style.faceColor ?? "#0a0a0a";
   const bezel = style.bezelColor ?? style.trackColor;
   const accent = style.accentColor ?? style.needleColor;
+  const shell = mixColors(face, "#000000", 0.55) ?? "#050505";
+  const trackUnderlay = mixColors(face, "#000000", 0.35) ?? "#1a1f2e";
+  const hubFill = mixColors(face, "#ffffff", 0.12) ?? "#1f2937";
   const format = opts.formatValue ?? ((v) => String(Math.round(v)));
   const formatTick = opts.formatTickLabel ?? ((v) => String(Math.round(v)));
   const tickCount = opts.tickCount ?? 8;
@@ -10008,7 +12829,7 @@ function buildDialGauge(app, group, style, opts) {
       x: cx - r - tickOutset - 2,
       y: cx - r - tickOutset - 2,
       radius: r + tickOutset + 2,
-      fill: "#050505",
+      fill: shell,
       stroke: bezel,
       strokeWidth: Math.max(1.5, size * 0.018),
       shadow,
@@ -10032,7 +12853,7 @@ function buildDialGauge(app, group, style, opts) {
       startAngle,
       endAngle,
       fill: null,
-      stroke: "#1a1f2e",
+      stroke: trackUnderlay,
       strokeWidth: trackW + 2,
       listening: false
     })
@@ -10145,7 +12966,7 @@ function buildDialGauge(app, group, style, opts) {
     }
   }
   if (opts.title && size >= 72) {
-    const titleSize = Math.max(7, size * 0.068);
+    const titleSize = opts.titleFontSize ?? Math.max(7, size * 0.068);
     const titleY = cx - r * 0.5;
     group.add(
       app.text({
@@ -10180,7 +13001,7 @@ function buildDialGauge(app, group, style, opts) {
       x: cx - hubOuter,
       y: cx - hubOuter,
       radius: hubOuter,
-      fill: "#1f2937",
+      fill: hubFill,
       stroke: bezel,
       strokeWidth: 1,
       listening: false
@@ -10193,7 +13014,7 @@ function buildDialGauge(app, group, style, opts) {
       listening: false
     })
   );
-  const valueSize = Math.max(11, size * 0.115);
+  const valueSize = opts.valueFontSize ?? Math.max(11, size * 0.115);
   const valueY = cx + r * 0.08;
   const valueText = app.text({
     text: format(opts.value),
@@ -10210,7 +13031,7 @@ function buildDialGauge(app, group, style, opts) {
   group.add(valueText);
   let unitText;
   if (opts.unit) {
-    const unitSize = Math.max(8, size * 0.072);
+    const unitSize = opts.unitFontSize ?? Math.max(8, size * 0.072);
     const unitY = cx + r * 0.26;
     unitText = app.text({
       text: opts.unit.trim(),
@@ -10244,6 +13065,90 @@ function updateDialNeedle(needle, _cx, value, max, r, start = DEFAULT_START, swe
     valueArc.endAngle = angle;
     valueArc.visible = value > 0;
   }
+}
+
+// src/dashboard/colorStops.ts
+var SEMANTIC = /* @__PURE__ */ new Set(["primary", "success", "warning", "danger", "secondary"]);
+function resolveSemanticColor(color, fallback) {
+  if (!color)
+    return fallback ?? getActiveDashboard().primary;
+  if (isCssColorString(color))
+    return color;
+  if (!SEMANTIC.has(color))
+    return color;
+  const d = getActiveDashboard();
+  switch (color) {
+    case "success":
+      return d.success;
+    case "warning":
+      return d.warning;
+    case "danger":
+      return d.danger;
+    case "secondary":
+      return d.secondary;
+    case "primary":
+    default:
+      return d.primary;
+  }
+}
+function resolveValueColor(value, stops, fallback) {
+  const fb = fallback ?? getActiveDashboard().primary;
+  if (!stops?.length)
+    return fb;
+  for (const stop of stops) {
+    if (stop.upTo === void 0 || value <= stop.upTo) {
+      return resolveSemanticColor(stop.color, fb);
+    }
+  }
+  const last = stops[stops.length - 1];
+  return resolveSemanticColor(last.color, fb);
+}
+function normalizeDialZones(zones, max) {
+  if (!zones?.length)
+    return [];
+  const m = Math.max(max, 1);
+  return zones.map((z) => {
+    const from = z.from > 1 ? z.from / m : z.from;
+    const to = z.to > 1 ? z.to / m : z.to;
+    return {
+      from: Math.min(1, Math.max(0, from)),
+      to: Math.min(1, Math.max(0, to)),
+      color: resolveSemanticColor(z.color)
+    };
+  });
+}
+function readColorStops(props) {
+  const raw = props.colorStops ?? props.thresholds;
+  if (!Array.isArray(raw) || raw.length === 0)
+    return void 0;
+  return raw.map((s) => {
+    if (!s || typeof s !== "object")
+      return null;
+    const o = s;
+    const color = typeof o.color === "string" ? o.color : "";
+    if (!color)
+      return null;
+    const stop = { color };
+    if (typeof o.upTo === "number")
+      stop.upTo = o.upTo;
+    else if (typeof o.max === "number")
+      stop.upTo = o.max;
+    return stop;
+  }).filter((s) => s !== null);
+}
+function readDialZones(props) {
+  const raw = props.colorZones ?? props.zones;
+  if (!Array.isArray(raw) || raw.length === 0)
+    return void 0;
+  return raw.map((z) => {
+    if (!z || typeof z !== "object")
+      return null;
+    const o = z;
+    if (typeof o.from !== "number" || typeof o.to !== "number" || typeof o.color !== "string") {
+      return null;
+    }
+    return { from: o.from, to: o.to, color: o.color };
+  }).filter((z) => z !== null);
 }
 
 // src/dashboard/charts/core/interaction.ts
@@ -10339,8 +13244,8 @@ function createHoverParts(app, rect, withHighlight = true) {
     width: 52,
     height: 24,
     cornerRadius: 6,
-    fill: DASHBOARD.chartTooltipBg,
-    stroke: DASHBOARD.chartTooltipBorder,
+    fill: getActiveDashboard().chartTooltipBg,
+    stroke: getActiveDashboard().chartTooltipBorder,
     strokeWidth: 1,
     visible: false,
     listening: false,
@@ -10350,7 +13255,7 @@ function createHoverParts(app, rect, withHighlight = true) {
     text: "",
     fontSize: 11,
     fontWeight: "bold",
-    fill: DASHBOARD.text,
+    fill: getActiveDashboard().text,
     textAlign: "center",
     x: 0,
     y: 0,
@@ -10369,7 +13274,7 @@ function createHoverParts(app, rect, withHighlight = true) {
   });
   const highlight = withHighlight ? app.rect({
     fill: "rgba(96,165,250,0.28)",
-    stroke: DASHBOARD.chartLine,
+    stroke: getActiveDashboard().chartLine,
     strokeWidth: 2,
     visible: false,
     listening: false
@@ -10606,14 +13511,18 @@ function attachPlotWheelZoom(group, hitArea, bounds, options = {}) {
 }
 
 // src/dashboard/charts/core/series.ts
-function parseSeries(props, fallback = [10, 30, 20, 50, 40, 60]) {
+function parseSeries(props, fallback = [10, 30, 20, 50, 40, 60], options = {}) {
+  const applyTheme = options.applyThemeColors === true;
+  const keepColors = options.keepColors === true;
   const raw = props.series;
+  const chartStops = Array.isArray(props.colorStops) ? props.colorStops : Array.isArray(props.thresholds) ? props.thresholds : void 0;
   if (raw?.length) {
     return raw.map((s, i) => ({
       name: s.name ?? s.label ?? `Series ${i + 1}`,
       data: s.data ?? [],
       type: s.type,
-      color: s.color ?? DASHBOARD.series[i % DASHBOARD.series.length],
+      color: keepColors && s.color || (applyTheme ? getActiveDashboard().series[i % getActiveDashboard().series.length] : void 0) || void 0,
+      colorStops: s.colorStops ?? chartStops,
       yAxis: s.yAxis,
       errorY: s.errorY,
       rangeMin: s.rangeMin,
@@ -10625,9 +13534,42 @@ function parseSeries(props, fallback = [10, 30, 20, 50, 40, 60]) {
     {
       name: typeof props.seriesLabel === "string" ? props.seriesLabel : "Series",
       data,
-      color: DASHBOARD.chartLine
+      color: applyTheme ? getActiveDashboard().chartLine : void 0,
+      colorStops: chartStops
     }
   ];
+}
+function detectUserSeriesColors(props) {
+  if (props.seriesHasUserColors === true)
+    return true;
+  if (props.seriesHasUserColors === false)
+    return false;
+  if (props._chartRebuild)
+    return false;
+  const raw = props.series;
+  return Boolean(raw?.some((s) => typeof s.color === "string" && s.color.length > 0));
+}
+function seriesForWidgetState(props, seriesHasUserColors) {
+  const raw = props.series;
+  if (!raw?.length)
+    return void 0;
+  return raw.map((s) => {
+    const next = {
+      name: s.name,
+      label: s.label,
+      data: s.data,
+      type: s.type,
+      yAxis: s.yAxis,
+      errorY: s.errorY,
+      rangeMin: s.rangeMin,
+      rangeMax: s.rangeMax
+    };
+    if (seriesHasUserColors && s.color)
+      next.color = s.color;
+    if (s.colorStops?.length)
+      next.colorStops = s.colorStops;
+    return next;
+  });
 }
 function seriesPointCount(series) {
   return Math.max(...series.map((s) => s.data.length), 0);
@@ -10736,14 +13678,14 @@ function valueToY(v, layout, bounds) {
 function addPlotChrome(app, group, ctx, props) {
   const { width, height, layout, bounds, yTicks } = ctx;
   const minimal = ctx.series.length === 0 || props.minimalAxes === true || ["sparkline"].includes(String(props.variant));
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  group.add(app.rect({ width, height, fill: getActiveDashboard().chartBg, listening: true }));
   group.add(
     app.rect({
       x: layout.plotX,
       y: layout.plotY,
       width: layout.plotWidth,
       height: layout.plotHeight,
-      fill: DASHBOARD.chartPlot,
+      fill: getActiveDashboard().chartPlot,
       stroke: null,
       listening: false
     })
@@ -10762,7 +13704,7 @@ function addInteraction(app, group, ctx, props, primaryData, allSeries) {
     y: layout.plotY,
     x2: 0,
     y2: layout.plotHeight,
-    stroke: DASHBOARD.chartCrosshair,
+    stroke: getActiveDashboard().chartCrosshair,
     strokeWidth: 1,
     dash: [4, 4],
     visible: false,
@@ -10772,8 +13714,8 @@ function addInteraction(app, group, ctx, props, primaryData, allSeries) {
     x: 0,
     y: 0,
     radius: 5,
-    fill: DASHBOARD.chartDot,
-    stroke: DASHBOARD.chartLine,
+    fill: getActiveDashboard().chartDot,
+    stroke: getActiveDashboard().chartLine,
     strokeWidth: 2,
     visible: false,
     listening: false
@@ -10782,8 +13724,8 @@ function addInteraction(app, group, ctx, props, primaryData, allSeries) {
     width: 52,
     height: 24,
     cornerRadius: 6,
-    fill: DASHBOARD.chartTooltipBg,
-    stroke: DASHBOARD.chartTooltipBorder,
+    fill: getActiveDashboard().chartTooltipBg,
+    stroke: getActiveDashboard().chartTooltipBorder,
     strokeWidth: 1,
     visible: false,
     listening: false,
@@ -10793,7 +13735,7 @@ function addInteraction(app, group, ctx, props, primaryData, allSeries) {
     text: "",
     fontSize: 11,
     fontWeight: "bold",
-    fill: DASHBOARD.text,
+    fill: getActiveDashboard().text,
     textAlign: "center",
     x: 0,
     y: 0,
@@ -10836,7 +13778,7 @@ function addInteraction(app, group, ctx, props, primaryData, allSeries) {
 }
 function drawLineSeries(app, group, ctx, series, variant) {
   const { layout, bounds } = ctx;
-  const color = series.color ?? DASHBOARD.chartLine;
+  const color = series.color ?? getActiveDashboard().chartLine;
   const toXY = (i, v) => [
     layout.plotX + layout.plotWidth / Math.max(series.data.length - 1, 1) * i,
     valueToY(v, layout, bounds)
@@ -10881,7 +13823,8 @@ function drawBarSeries(app, group, ctx, series, horizontal, stackBase) {
   const n = series.data.length;
   const gap = 0.2;
   const bars = [];
-  const color = series.color ?? DASHBOARD.barFill;
+  const fallback = series.color ?? getActiveDashboard().barFill;
+  const barFill = (val) => series.colorStops?.length ? resolveValueColor(val, series.colorStops, fallback) : fallback;
   if (horizontal) {
     const bw = bandWidth(n, layout.plotHeight, gap);
     const scale = linearScale([bounds.min, bounds.max], [0, layout.plotWidth]);
@@ -10896,7 +13839,7 @@ function drawBarSeries(app, group, ctx, series, horizontal, stackBase) {
         y,
         width: Math.max(1, x1 - x0),
         height: bw,
-        fill: color,
+        fill: barFill(val),
         listening: false
       });
       bars.push(bar);
@@ -10914,7 +13857,7 @@ function drawBarSeries(app, group, ctx, series, horizontal, stackBase) {
         y: Math.min(yTop, yBase),
         width: bw,
         height: Math.max(1, Math.abs(yBase - yTop)),
-        fill: color,
+        fill: barFill(val),
         listening: false
       });
       bars.push(bar);
@@ -10940,14 +13883,14 @@ function drawWaterfall(app, group, ctx, data) {
         y: Math.min(y0, y1),
         width: bw,
         height: Math.max(1, Math.abs(y1 - y0)),
-        fill: delta >= 0 ? DASHBOARD.success : DASHBOARD.danger,
+        fill: delta >= 0 ? getActiveDashboard().success : getActiveDashboard().danger,
         listening: false
       })
     );
   });
 }
 function drawPareto(app, group, ctx, data) {
-  drawBarSeries(app, group, ctx, { data, color: DASHBOARD.barFill }, false);
+  drawBarSeries(app, group, ctx, { data, color: getActiveDashboard().barFill }, false);
   const sorted = [...data];
   const total = sorted.reduce((a, b) => a + b, 0) || 1;
   const cum = [];
@@ -10962,23 +13905,23 @@ function drawPareto(app, group, ctx, data) {
     app.polyline({
       points: pts,
       fill: null,
-      stroke: DASHBOARD.warning,
+      stroke: getActiveDashboard().warning,
       strokeWidth: 2,
       listening: false
     })
   );
 }
 function drawControlChart(app, group, ctx, data, limits) {
-  drawLineSeries(app, group, ctx, { data, color: DASHBOARD.chartLine }, "step");
+  drawLineSeries(app, group, ctx, { data, color: getActiveDashboard().chartLine }, "step");
   if (!limits) {
     const mean = data.reduce((a, b) => a + b, 0) / (data.length || 1);
     const sd = Math.sqrt(data.reduce((a, b) => a + (b - mean) ** 2, 0) / (data.length || 1));
     limits = { mean, ucl: mean + 2 * sd, lcl: mean - 2 * sd };
   }
   for (const [val, label, color] of [
-    [limits.mean, "\u03BC", DASHBOARD.textMuted],
-    [limits.ucl, "UCL", DASHBOARD.danger],
-    [limits.lcl, "LCL", DASHBOARD.danger]
+    [limits.mean, "\u03BC", getActiveDashboard().textMuted],
+    [limits.ucl, "UCL", getActiveDashboard().danger],
+    [limits.lcl, "LCL", getActiveDashboard().danger]
   ]) {
     const y = valueToY(val, ctx.layout, ctx.bounds);
     group.add(
@@ -11014,8 +13957,8 @@ function drawPopulationPyramid(app, group, ctx, left, right) {
     const lw = (left[i] ?? 0) / max * (ctx.layout.plotWidth / 2 - 4);
     const rw = (right[i] ?? 0) / max * (ctx.layout.plotWidth / 2 - 4);
     group.add(
-      app.rect({ x: cx - lw, y, width: lw, height: bh, fill: DASHBOARD.primary, listening: false }),
-      app.rect({ x: cx, y, width: rw, height: bh, fill: DASHBOARD.secondary, listening: false })
+      app.rect({ x: cx - lw, y, width: lw, height: bh, fill: getActiveDashboard().primary, listening: false }),
+      app.rect({ x: cx, y, width: rw, height: bh, fill: getActiveDashboard().secondary, listening: false })
     );
   }
   ctx.bounds.min = bounds.min;
@@ -11029,8 +13972,8 @@ function drawLollipop(app, group, ctx, data) {
     const y = valueToY(val, layout, bounds);
     const y0 = layout.plotY + layout.plotHeight;
     group.add(
-      app.line({ x, y: y0, x2: 0, y2: y - y0, stroke: DASHBOARD.chartLine, strokeWidth: 2, listening: false }),
-      app.circle({ x: x - 4, y: y - 4, radius: 4, fill: DASHBOARD.chartDot, listening: false })
+      app.line({ x, y: y0, x2: 0, y2: y - y0, stroke: getActiveDashboard().chartLine, strokeWidth: 2, listening: false }),
+      app.circle({ x: x - 4, y: y - 4, radius: 4, fill: getActiveDashboard().chartDot, listening: false })
     );
   });
 }
@@ -11040,7 +13983,7 @@ function drawDotStrip(app, group, ctx, data, strip = false) {
     const jitter = strip ? (i % 5 - 2) * 4 : Math.sin(i * 12.9898) * 43758.5453 % 1 * 10 - 5;
     const x = layout.plotX + layout.plotWidth / Math.max(data.length, 1) * (i + 0.5) + jitter;
     const y = valueToY(val, layout, bounds);
-    group.add(app.circle({ x: x - 3, y: y - 3, radius: 3, fill: DASHBOARD.chartDot, listening: false }));
+    group.add(app.circle({ x: x - 3, y: y - 3, radius: 3, fill: getActiveDashboard().chartDot, listening: false }));
   });
 }
 function drawErrorBars(app, group, ctx, series) {
@@ -11052,10 +13995,10 @@ function drawErrorBars(app, group, ctx, series) {
     const yLo = valueToY(lo, layout, bounds);
     const yHi = valueToY(hi, layout, bounds);
     group.add(
-      app.line({ x, y: yLo, x2: 0, y2: yHi - yLo, stroke: DASHBOARD.textMuted, strokeWidth: 1, listening: false }),
-      app.line({ x: x - 4, y: yLo, x2: 8, y2: 0, stroke: DASHBOARD.textMuted, strokeWidth: 1, listening: false }),
-      app.line({ x: x - 4, y: yHi, x2: 8, y2: 0, stroke: DASHBOARD.textMuted, strokeWidth: 1, listening: false }),
-      app.circle({ x: x - 3, y: valueToY(val, layout, bounds) - 3, radius: 3, fill: DASHBOARD.chartLine, listening: false })
+      app.line({ x, y: yLo, x2: 0, y2: yHi - yLo, stroke: getActiveDashboard().textMuted, strokeWidth: 1, listening: false }),
+      app.line({ x: x - 4, y: yLo, x2: 8, y2: 0, stroke: getActiveDashboard().textMuted, strokeWidth: 1, listening: false }),
+      app.line({ x: x - 4, y: yHi, x2: 8, y2: 0, stroke: getActiveDashboard().textMuted, strokeWidth: 1, listening: false }),
+      app.circle({ x: x - 3, y: valueToY(val, layout, bounds) - 3, radius: 3, fill: getActiveDashboard().chartLine, listening: false })
     );
   });
 }
@@ -11076,11 +14019,11 @@ function drawRangeBand(app, group, ctx, series, filled) {
     for (let i = 2; i < all.length; i += 2)
       d += ` L ${all[i]} ${all[i + 1]}`;
     d += " Z";
-    group.add(app.path({ d, fill: DASHBOARD.chartArea, stroke: null, listening: false }));
+    group.add(app.path({ d, fill: getActiveDashboard().chartArea, stroke: null, listening: false }));
   } else {
     group.add(
-      app.polyline({ points: ptsTop, fill: null, stroke: DASHBOARD.chartLine, strokeWidth: 1.5, listening: false }),
-      app.polyline({ points: ptsBot.reverse(), fill: null, stroke: DASHBOARD.chartLine, strokeWidth: 1.5, listening: false })
+      app.polyline({ points: ptsTop, fill: null, stroke: getActiveDashboard().chartLine, strokeWidth: 1.5, listening: false }),
+      app.polyline({ points: ptsBot.reverse(), fill: null, stroke: getActiveDashboard().chartLine, strokeWidth: 1.5, listening: false })
     );
   }
   drawLineSeries(app, group, ctx, series, "line");
@@ -11096,7 +14039,7 @@ function drawHorizon(app, group, ctx, series, bands = 4, rowLayout) {
     group.add(
       app.path({
         d: areaPathFromPoints(pts, layout.plotY + (b + 1) * bandH),
-        fill: series.color ?? DASHBOARD.series[b % DASHBOARD.series.length],
+        fill: series.color ?? getActiveDashboard().series[b % getActiveDashboard().series.length],
         opacity: 0.55,
         stroke: null,
         listening: false
@@ -11120,7 +14063,7 @@ function drawHorizonRows(app, group, ctx, allSeries) {
         x: ctx.layout.plotX - 2,
         y: rowLayout.plotY + 2,
         fontSize: 9,
-        fill: DASHBOARD.textMuted,
+        fill: getActiveDashboard().textMuted,
         listening: false
       })
     );
@@ -11128,7 +14071,8 @@ function drawHorizonRows(app, group, ctx, allSeries) {
 }
 function buildCartesianChart(group, app, props, options) {
   const variant = options.variant;
-  let series = parseSeries(props);
+  const seriesHasUserColors = detectUserSeriesColors(props);
+  let series = parseSeries(props, [10, 30, 20, 50, 40, 60], { keepColors: seriesHasUserColors });
   const rawSeries = series.map((s) => ({
     name: s.name,
     data: [...s.data],
@@ -11192,7 +14136,7 @@ function buildCartesianChart(group, app, props, options) {
     addLegend(
       app,
       group,
-      series.map((s) => ({ label: s.name ?? "Series", color: s.color ?? DASHBOARD.chartLine })),
+      series.map((s) => ({ label: s.name ?? "Series", color: s.color ?? getActiveDashboard().chartLine })),
       ctx.layout.plotX,
       ctx.layout.plotY + ctx.layout.plotHeight + 4
     );
@@ -11207,7 +14151,7 @@ function buildCartesianChart(group, app, props, options) {
       if (stackedMulti) {
         const highlight = app.rect({
           fill: "rgba(96,165,250,0.28)",
-          stroke: DASHBOARD.chartLine,
+          stroke: getActiveDashboard().chartLine,
           strokeWidth: 2,
           visible: false,
           listening: false
@@ -11216,8 +14160,8 @@ function buildCartesianChart(group, app, props, options) {
           width: 52,
           height: 24,
           cornerRadius: 6,
-          fill: DASHBOARD.chartTooltipBg,
-          stroke: DASHBOARD.chartTooltipBorder,
+          fill: getActiveDashboard().chartTooltipBg,
+          stroke: getActiveDashboard().chartTooltipBorder,
           strokeWidth: 1,
           visible: false,
           listening: false
@@ -11226,7 +14170,7 @@ function buildCartesianChart(group, app, props, options) {
           text: "",
           fontSize: 11,
           fontWeight: "bold",
-          fill: DASHBOARD.text,
+          fill: getActiveDashboard().text,
           textAlign: "center",
           x: 0,
           y: 0,
@@ -11271,9 +14215,9 @@ function buildCartesianChart(group, app, props, options) {
         );
       }
     } else {
-      const highlight = app.rect({ fill: "rgba(96,165,250,0.28)", stroke: DASHBOARD.chartLine, strokeWidth: 2, visible: false, listening: false });
-      const tooltip = app.roundedRect({ width: 52, height: 24, cornerRadius: 6, fill: DASHBOARD.chartTooltipBg, stroke: DASHBOARD.chartTooltipBorder, strokeWidth: 1, visible: false, listening: false });
-      const tooltipLabel = app.text({ text: "", fontSize: 11, fontWeight: "bold", fill: DASHBOARD.text, textAlign: "center", x: 0, y: 0, listening: false });
+      const highlight = app.rect({ fill: "rgba(96,165,250,0.28)", stroke: getActiveDashboard().chartLine, strokeWidth: 2, visible: false, listening: false });
+      const tooltip = app.roundedRect({ width: 52, height: 24, cornerRadius: 6, fill: getActiveDashboard().chartTooltipBg, stroke: getActiveDashboard().chartTooltipBorder, strokeWidth: 1, visible: false, listening: false });
+      const tooltipLabel = app.text({ text: "", fontSize: 11, fontWeight: "bold", fill: getActiveDashboard().text, textAlign: "center", x: 0, y: 0, listening: false });
       const hitArea = app.rect({ x: ctx.layout.plotX, y: ctx.layout.plotY, width: ctx.layout.plotWidth, height: ctx.layout.plotHeight, fill: "rgba(0,0,0,0.001)", listening: true });
       group.add(highlight, tooltip, tooltipLabel, hitArea);
       if (props.interactive !== false) {
@@ -11302,8 +14246,11 @@ function buildCartesianChart(group, app, props, options) {
     width: ctx.width,
     height: ctx.height,
     data: primaryData,
-    series,
-    variant
+    series: seriesForWidgetState(props, seriesHasUserColors) ?? [],
+    seriesHasUserColors,
+    variant,
+    ...Array.isArray(props.colorStops) ? { colorStops: props.colorStops } : {},
+    ...Array.isArray(props.thresholds) && !props.colorStops ? { thresholds: props.thresholds } : {}
   });
 }
 function createCartesianWidget(app, type, props, variant) {
@@ -11371,7 +14318,7 @@ function buildPolarSlices(group, app, data, size, colors, options = {}) {
         startAngle,
         endAngle,
         fill: colors[i % colors.length],
-        stroke: DASHBOARD.pieStroke,
+        stroke: getActiveDashboard().pieStroke,
         strokeWidth: 1,
         listening: false
       })
@@ -11387,7 +14334,7 @@ function buildPolarSlices(group, app, data, size, colors, options = {}) {
           x: lx - 10,
           y: ly - 6,
           fontSize: 10,
-          fill: DASHBOARD.text,
+          fill: getActiveDashboard().text,
           listening: false
         })
       );
@@ -11411,7 +14358,7 @@ function buildRadarChart(group, app, props) {
       const a = i / n * Math.PI * 2 - Math.PI / 2;
       pts.push(cx + rr * Math.cos(a), cy + rr * Math.sin(a));
     }
-    group.add(app.polygon({ points: pts, fill: null, stroke: DASHBOARD.chartGrid, strokeWidth: 1, listening: false }));
+    group.add(app.polygon({ points: pts, fill: null, stroke: getActiveDashboard().chartGrid, strokeWidth: 1, listening: false }));
   }
   const dataPts = [];
   data.forEach((v, i) => {
@@ -11424,7 +14371,7 @@ function buildRadarChart(group, app, props) {
         x: cx + (r + 12) * Math.cos(a) - 8,
         y: cy + (r + 12) * Math.sin(a) - 6,
         fontSize: 10,
-        fill: DASHBOARD.textMuted,
+        fill: getActiveDashboard().textMuted,
         listening: false
       })
     );
@@ -11433,8 +14380,8 @@ function buildRadarChart(group, app, props) {
   group.add(
     app.polygon({
       points: dataPts,
-      fill: DASHBOARD.chartArea,
-      stroke: DASHBOARD.chartLine,
+      fill: getActiveDashboard().chartArea,
+      stroke: getActiveDashboard().chartLine,
       strokeWidth: 2,
       listening: false
     })
@@ -11452,7 +14399,9 @@ function buildRadarChart(group, app, props) {
 function createPieWidget(app, type, props, innerRadius = 0) {
   const size = num2(props, "size", 150);
   const data = props.data ?? [30, 25, 20, 25];
-  const colors = props.colors ?? [...DASHBOARD.series];
+  const rawColors = Array.isArray(props.colors) ? props.colors : void 0;
+  const userColors = props.hasUserColors === true ? rawColors : !props._chartRebuild && rawColors?.length ? rawColors : void 0;
+  const colors = userColors?.length ? userColors : [...getActiveDashboard().series];
   const resolvedInner = typeof props.innerRadius === "number" ? props.innerRadius : innerRadius > 0 ? innerRadius : type === "doughnutChart" ? Math.round(size * 0.42) : 0;
   const group = createWidgetGroup(app, type, props);
   buildPolarSlices(group, app, data, size, colors, {
@@ -11469,7 +14418,14 @@ function createPieWidget(app, type, props, innerRadius = 0) {
     labels.map((l, i) => `${l}: ${data[i]}`),
     resolvedInner
   );
-  setState2(group, { size, data, colors, innerRadius: resolvedInner });
+  setState2(group, {
+    size,
+    data,
+    labels,
+    innerRadius: resolvedInner,
+    ...userColors ? { colors: userColors } : { colors: [] },
+    hasUserColors: Boolean(userColors?.length)
+  });
   return group;
 }
 
@@ -11505,8 +14461,8 @@ registerDashboard("polarAreaChart", (props, app) => {
         radius: r,
         startAngle: start,
         endAngle: end,
-        fill: DASHBOARD.series[i % DASHBOARD.series.length],
-        stroke: DASHBOARD.pieStroke,
+        fill: getActiveDashboard().series[i % getActiveDashboard().series.length],
+        stroke: getActiveDashboard().pieStroke,
         strokeWidth: 1,
         listening: false
       })
@@ -11531,14 +14487,14 @@ registerDashboard("bulletChart", (props, app) => {
   const target = num2(props, "target", 80);
   const max = num2(props, "max", 100);
   const group = createWidgetGroup(app, "bulletChart", props);
-  group.add(app.rect({ width, height: height * 0.5, y: height * 0.25, fill: DASHBOARD.meterTrack, listening: false }));
+  group.add(app.rect({ width, height: height * 0.5, y: height * 0.25, fill: getActiveDashboard().meterTrack, listening: false }));
   group.add(
     app.rect({
       x: 0,
       y: height * 0.25,
       width: width * value / max,
       height: height * 0.5,
-      fill: DASHBOARD.primary,
+      fill: getActiveDashboard().primary,
       listening: false
     })
   );
@@ -11549,7 +14505,7 @@ registerDashboard("bulletChart", (props, app) => {
       y: height * 0.15,
       x2: 0,
       y2: height * 0.7,
-      stroke: DASHBOARD.danger,
+      stroke: getActiveDashboard().danger,
       strokeWidth: 3,
       listening: false
     })
@@ -11571,8 +14527,8 @@ registerDashboard("funnelChart", (props, app) => {
     group.add(
       app.polygon({
         points: [x, i * step, x + w, i * step, x + w * 0.92, (i + 1) * step, x + w * 0.08, (i + 1) * step],
-        fill: DASHBOARD.series[i % DASHBOARD.series.length],
-        stroke: DASHBOARD.pieStroke,
+        fill: getActiveDashboard().series[i % getActiveDashboard().series.length],
+        stroke: getActiveDashboard().pieStroke,
         strokeWidth: 1,
         listening: false
       }),
@@ -11581,7 +14537,7 @@ registerDashboard("funnelChart", (props, app) => {
         x: width / 2 - 12,
         y: i * step + step / 2 - 6,
         fontSize: 11,
-        fill: DASHBOARD.text,
+        fill: getActiveDashboard().text,
         listening: false
       })
     );
@@ -11606,7 +14562,7 @@ registerDashboard("pyramidChart", (props, app) => {
         y: i * step,
         width: w,
         height: step - 2,
-        fill: DASHBOARD.series[i % DASHBOARD.series.length],
+        fill: getActiveDashboard().series[i % getActiveDashboard().series.length],
         listening: false
       })
     );
@@ -11622,8 +14578,8 @@ registerDashboard("coneChart", (props, app) => {
   group.add(
     app.polygon({
       points: [width / 2, 0, width, height, 0, height],
-      fill: DASHBOARD.primary,
-      stroke: DASHBOARD.panelStroke,
+      fill: getActiveDashboard().primary,
+      stroke: getActiveDashboard().panelStroke,
       strokeWidth: 1,
       listening: false
     })
@@ -11725,11 +14681,19 @@ function hexbinCenters(points, _width, _height, radius) {
 }
 
 // src/dashboard/charts/statistical/register.ts
+function mixHexColors(low, high, t) {
+  return mixColors(low, high, t);
+}
+function primaryAlpha(t) {
+  const primary = getActiveDashboard().primary;
+  const a = 0.2 + Math.min(1, Math.max(0, t)) * 0.8;
+  return colorWithAlpha(primary, a) ?? getActiveDashboard().heatmapHigh;
+}
 function plotChrome(app, group, width, height, bounds) {
   const layout = defaultLayout(width, height);
   const yTicks = computeTicks(bounds.min, bounds.max, 5);
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
-  group.add(app.rect({ x: layout.plotX, y: layout.plotY, width: layout.plotWidth, height: layout.plotHeight, fill: DASHBOARD.chartPlot, listening: false }));
+  group.add(app.rect({ width, height, fill: getActiveDashboard().chartBg, listening: true }));
+  group.add(app.rect({ x: layout.plotX, y: layout.plotY, width: layout.plotWidth, height: layout.plotHeight, fill: getActiveDashboard().chartPlot, listening: false }));
   addGridLines(app, group, layout, yTicks, bounds);
   addAxes(app, group, layout, bounds, yTicks);
   return layout;
@@ -11745,7 +14709,7 @@ registerDashboard("histogram", (props, app) => {
   const bw = layout.plotWidth / bins.length;
   bins.forEach((b, i) => {
     const h = b.count / max * layout.plotHeight;
-    group.add(app.rect({ x: layout.plotX + i * bw, y: layout.plotY + layout.plotHeight - h, width: bw - 2, height: h, fill: DASHBOARD.barFill, listening: false }));
+    group.add(app.rect({ x: layout.plotX + i * bw, y: layout.plotY + layout.plotHeight - h, width: bw - 2, height: h, fill: getActiveDashboard().barFill, listening: false }));
   });
   attachIndexXHover(
     app,
@@ -11777,9 +14741,9 @@ registerDashboard("boxPlot", (props, app) => {
     const yQ3 = scale(s.q3);
     const yMed = scale(s.median);
     group.add(
-      app.rect({ x: cx - 16, y: yQ3, width: 32, height: yQ1 - yQ3, fill: DASHBOARD.chartArea, stroke: DASHBOARD.chartLine, strokeWidth: 1, listening: false }),
-      app.line({ x: cx - 16, y: yMed, x2: 32, y2: 0, stroke: DASHBOARD.chartLine, strokeWidth: 2, listening: false }),
-      app.line({ x: cx, y: scale(s.min), x2: 0, y2: scale(s.max) - scale(s.min), stroke: DASHBOARD.textMuted, strokeWidth: 1, listening: false })
+      app.rect({ x: cx - 16, y: yQ3, width: 32, height: yQ1 - yQ3, fill: getActiveDashboard().chartArea, stroke: getActiveDashboard().chartLine, strokeWidth: 1, listening: false }),
+      app.line({ x: cx - 16, y: yMed, x2: 32, y2: 0, stroke: getActiveDashboard().chartLine, strokeWidth: 2, listening: false }),
+      app.line({ x: cx, y: scale(s.min), x2: 0, y2: scale(s.max) - scale(s.min), stroke: getActiveDashboard().textMuted, strokeWidth: 1, listening: false })
     );
   });
   attachIndexXHover(app, group, props, layout, sets.length, (i) => {
@@ -11804,9 +14768,9 @@ registerDashboard("boxAndWhiskerChart", (props, app) => {
     const yQ3 = scale(s.q3);
     const yMed = scale(s.median);
     group.add(
-      app.rect({ x: cx - 16, y: yQ3, width: 32, height: yQ1 - yQ3, fill: DASHBOARD.chartArea, stroke: DASHBOARD.chartLine, strokeWidth: 1, listening: false }),
-      app.line({ x: cx - 16, y: yMed, x2: 32, y2: 0, stroke: DASHBOARD.chartLine, strokeWidth: 2, listening: false }),
-      app.line({ x: cx, y: scale(s.min), x2: 0, y2: scale(s.max) - scale(s.min), stroke: DASHBOARD.textMuted, strokeWidth: 1, listening: false })
+      app.rect({ x: cx - 16, y: yQ3, width: 32, height: yQ1 - yQ3, fill: getActiveDashboard().chartArea, stroke: getActiveDashboard().chartLine, strokeWidth: 1, listening: false }),
+      app.line({ x: cx - 16, y: yMed, x2: 32, y2: 0, stroke: getActiveDashboard().chartLine, strokeWidth: 2, listening: false }),
+      app.line({ x: cx, y: scale(s.min), x2: 0, y2: scale(s.max) - scale(s.min), stroke: getActiveDashboard().textMuted, strokeWidth: 1, listening: false })
     );
   });
   attachIndexXHover(app, group, props, layout, sets.length, (i) => {
@@ -11831,7 +14795,7 @@ registerDashboard("violinPlot", (props, app) => {
     const y = layout.plotY + layout.plotHeight / dens.length * i;
     pts.push(cx - d / maxD * 40, y, cx + d / maxD * 40, y);
   });
-  group.add(app.polygon({ points: pts, fill: DASHBOARD.chartArea, stroke: DASHBOARD.chartLine, strokeWidth: 1, listening: false }));
+  group.add(app.polygon({ points: pts, fill: getActiveDashboard().chartArea, stroke: getActiveDashboard().chartLine, strokeWidth: 1, listening: false }));
   attachIndexXHover(app, group, props, layout, 20, (i) => {
     const y = layout.plotY + layout.plotHeight / 19 * i;
     const v = layout.plotY + layout.plotHeight - (y - layout.plotY);
@@ -11856,7 +14820,7 @@ registerDashboard("densityPlot", (props, app) => {
     const py = layout.plotY + layout.plotHeight - dens[i] / maxD * layout.plotHeight;
     pts.push(px, py);
   });
-  group.add(app.polyline({ points: pts, fill: null, stroke: DASHBOARD.chartLine, strokeWidth: 2, listening: false }));
+  group.add(app.polyline({ points: pts, fill: null, stroke: getActiveDashboard().chartLine, strokeWidth: 2, listening: false }));
   attachIndexXHover(app, group, props, layout, xs.length, (i) => `x=${xs[i].toFixed(1)} \u03C1=${dens[i].toFixed(3)}`);
   setState2(group, { width, height, data });
   return group;
@@ -11878,10 +14842,18 @@ registerDashboard("heatmap", (props, app) => {
   matrix.forEach((row, ri) => {
     row.forEach((v, ci) => {
       const t = v / max;
-      const r = Math.round(59 + t * 100);
-      const g = Math.round(130 - t * 80);
-      const b = Math.round(246 - t * 100);
-      group.add(app.rect({ x: ci * cw, y: ri * ch, width: cw - 1, height: ch - 1, fill: `rgb(${r},${g},${b})`, listening: false }));
+      const high = getActiveDashboard().heatmapHigh;
+      const low = getActiveDashboard().heatmapLow;
+      group.add(
+        app.rect({
+          x: ci * cw,
+          y: ri * ch,
+          width: cw - 1,
+          height: ch - 1,
+          fill: mixHexColors(low, high, t),
+          listening: false
+        })
+      );
     });
   });
   attachGridHover(app, group, props, width, height, rows, cols, (ri, ci) => String(matrix[ri][ci]));
@@ -11893,11 +14865,11 @@ registerDashboard("hexbinChart", (props, app) => {
   const height = num2(props, "height", 150);
   const points = props.points ?? Array.from({ length: 40 }, () => ({ x: Math.random() * 280, y: Math.random() * 130 }));
   const group = createWidgetGroup(app, "hexbinChart", props);
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  group.add(app.rect({ width, height, fill: getActiveDashboard().chartBg, listening: true }));
   const bins = hexbinCenters(points.map((p) => [p.x, p.y]), width, height, 12);
   const max = Math.max(...[...bins.values()].map((b) => b.count), 1);
   for (const b of bins.values()) {
-    group.add(app.circle({ x: b.x - 10, y: b.y - 10, radius: 10, fill: DASHBOARD.primary, opacity: b.count / max, listening: false }));
+    group.add(app.circle({ x: b.x - 10, y: b.y - 10, radius: 10, fill: getActiveDashboard().primary, opacity: b.count / max, listening: false }));
   }
   attachNearestHover(
     app,
@@ -11913,10 +14885,10 @@ registerDashboard("contourChart", (props, app) => {
   const width = num2(props, "width", 300);
   const height = num2(props, "height", 150);
   const group = createWidgetGroup(app, "contourChart", props);
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  group.add(app.rect({ width, height, fill: getActiveDashboard().chartBg, listening: true }));
   for (let i = 1; i <= 5; i++) {
     const inset = i * 12;
-    group.add(app.rect({ x: inset, y: inset, width: width - inset * 2, height: height - inset * 2, fill: null, stroke: DASHBOARD.chartLine, strokeWidth: 1, listening: false }));
+    group.add(app.rect({ x: inset, y: inset, width: width - inset * 2, height: height - inset * 2, fill: null, stroke: getActiveDashboard().chartLine, strokeWidth: 1, listening: false }));
   }
   attachGridHover(app, group, props, width, height, 5, 5, (_r, _c) => "contour");
   setState2(group, { width, height });
@@ -11936,7 +14908,7 @@ registerDashboard("qqPlot", (props, app) => {
     const tx = theoretical[i];
     const range = bounds.max - bounds.min || 1;
     const py = layout.plotY + layout.plotHeight - (tx - bounds.min) / range * layout.plotHeight;
-    group.add(app.circle({ x: x - 3, y: py - 3, radius: 3, fill: DASHBOARD.chartDot, listening: false }));
+    group.add(app.circle({ x: x - 3, y: py - 3, radius: 3, fill: getActiveDashboard().chartDot, listening: false }));
   });
   attachIndexXHover(app, group, props, layout, sorted.length, (i) => `obs ${sorted[i]} / q ${theoretical[i].toFixed(2)}`);
   setState2(group, { width, height, data });
@@ -11953,7 +14925,7 @@ registerDashboard("beeswarmChart", (props, app) => {
   data.forEach((v, i) => {
     const y = layout.plotY + layout.plotHeight - (v - db.min) / (db.max - db.min || 1) * layout.plotHeight;
     const x = cx + (i % 7 - 3) * 8;
-    group.add(app.circle({ x: x - 3, y: y - 3, radius: 4, fill: DASHBOARD.chartDot, listening: false }));
+    group.add(app.circle({ x: x - 3, y: y - 3, radius: 4, fill: getActiveDashboard().chartDot, listening: false }));
   });
   attachNearestHover(
     app,
@@ -11974,7 +14946,7 @@ registerDashboard("ridgelinePlot", (props, app) => {
   const height = num2(props, "height", 200);
   const series = props.series ?? [[2, 3, 4, 5], [3, 5, 7, 9], [1, 2, 3, 8]];
   const group = createWidgetGroup(app, "ridgelinePlot", props);
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  group.add(app.rect({ width, height, fill: getActiveDashboard().chartBg, listening: true }));
   const band = height / series.length;
   series.forEach((data, si) => {
     const bounds = dataBounds(data);
@@ -11983,7 +14955,7 @@ registerDashboard("ridgelinePlot", (props, app) => {
     data.forEach((v, i) => {
       pts.push(30 + (width - 60) * (i / Math.max(data.length - 1, 1)), y0 + band - 10 - (v - bounds.min) / (bounds.max - bounds.min || 1) * (band - 20));
     });
-    group.add(app.polyline({ points: pts, fill: null, stroke: DASHBOARD.series[si % DASHBOARD.series.length], strokeWidth: 2, listening: false }));
+    group.add(app.polyline({ points: pts, fill: null, stroke: getActiveDashboard().series[si % getActiveDashboard().series.length], strokeWidth: 2, listening: false }));
   });
   attachBandYHover(app, group, props, width, height, series.length, (i) => `series ${i + 1}`);
   setState2(group, { width, height, series });
@@ -11994,12 +14966,12 @@ registerDashboard("parallelCoordinatesPlot", (props, app) => {
   const height = num2(props, "height", 150);
   const dimensions = props.dimensions ?? [[1, 5, 3], [2, 4, 6], [3, 2, 8]];
   const group = createWidgetGroup(app, "parallelCoordinatesPlot", props);
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  group.add(app.rect({ width, height, fill: getActiveDashboard().chartBg, listening: true }));
   const cols = dimensions[0]?.length ?? 3;
   const step = (width - 40) / Math.max(cols - 1, 1);
   for (let c = 0; c < cols; c++) {
     const x = 20 + c * step;
-    group.add(app.line({ x, y: 20, x2: 0, y2: height - 40, stroke: DASHBOARD.chartGrid, strokeWidth: 1, listening: false }));
+    group.add(app.line({ x, y: 20, x2: 0, y2: height - 40, stroke: getActiveDashboard().chartGrid, strokeWidth: 1, listening: false }));
   }
   dimensions.forEach((row, ri) => {
     const pts = [];
@@ -12007,7 +14979,7 @@ registerDashboard("parallelCoordinatesPlot", (props, app) => {
     row.forEach((v, ci) => {
       pts.push(20 + ci * step, height - 20 - v / max * (height - 40));
     });
-    group.add(app.polyline({ points: pts, fill: null, stroke: DASHBOARD.series[ri % DASHBOARD.series.length], strokeWidth: 1.5, listening: false }));
+    group.add(app.polyline({ points: pts, fill: null, stroke: getActiveDashboard().series[ri % getActiveDashboard().series.length], strokeWidth: 1.5, listening: false }));
   });
   attachIndexXHover(
     app,
@@ -12037,7 +15009,7 @@ registerDashboard("mosaicChart", (props, app) => {
     const cw = c.w * width;
     const ch = c.h * height;
     regions.push({ x, y, width: cw - 1, height: ch - 1, label: String(c.value) });
-    group.add(app.rect({ x, y, width: cw - 1, height: ch - 1, fill: DASHBOARD.series[i % DASHBOARD.series.length], listening: false }));
+    group.add(app.rect({ x, y, width: cw - 1, height: ch - 1, fill: getActiveDashboard().series[i % getActiveDashboard().series.length], listening: false }));
     x += cw;
     if (x >= width - 1) {
       x = 0;
@@ -12063,7 +15035,7 @@ registerDashboard("marimekkoChart", (props, app) => {
     const w = s.widthFrac * width;
     const h = s.heightFrac * height;
     regions.push({ x, y: height - h, width: w - 1, height: h, label: `${Math.round(s.widthFrac * 100)}%` });
-    group.add(app.rect({ x, y: height - h, width: w - 1, height: h, fill: DASHBOARD.series[i % DASHBOARD.series.length], listening: false }));
+    group.add(app.rect({ x, y: height - h, width: w - 1, height: h, fill: getActiveDashboard().series[i % getActiveDashboard().series.length], listening: false }));
     x += w;
   });
   attachRegionsHover(app, group, props, width, height, regions);
@@ -12085,7 +15057,7 @@ registerDashboard("mekkoChart", (props, app) => {
     const w = s.widthFrac * width;
     const h = s.heightFrac * height;
     regions.push({ x, y: height - h, width: w - 1, height: h, label: `${Math.round(s.widthFrac * 100)}%` });
-    group.add(app.rect({ x, y: height - h, width: w - 1, height: h, fill: DASHBOARD.series[i % DASHBOARD.series.length], listening: false }));
+    group.add(app.rect({ x, y: height - h, width: w - 1, height: h, fill: getActiveDashboard().series[i % getActiveDashboard().series.length], listening: false }));
     x += w;
   });
   attachRegionsHover(app, group, props, width, height, regions);
@@ -12109,7 +15081,7 @@ registerDashboard("waffleChart", (props, app) => {
         y: row * cell,
         width: cell - 2,
         height: cell - 2,
-        fill: i < filled ? DASHBOARD.primary : DASHBOARD.inactive,
+        fill: i < filled ? getActiveDashboard().primary : getActiveDashboard().inactive,
         cornerRadius: 2,
         listening: false
       })
@@ -12152,7 +15124,7 @@ function buildCalendarHeatmap(group, app, props) {
         y: offsetY + row * (cell + gap),
         width: cell,
         height: cell,
-        fill: `rgba(59,130,246,${0.2 + t * 0.8})`,
+        fill: primaryAlpha(t),
         cornerRadius: Math.min(2, cell * 0.15),
         listening: false
       })
@@ -12180,7 +15152,7 @@ registerDashboard("stemLeafPlot", (props, app) => {
   let y = 8;
   for (const [stem, leaves] of [...stems.entries()].sort((a, b) => a[0] - b[0])) {
     group.add(
-      app.text({ text: `${stem} | ${leaves.join(" ")}`, x: 8, y, fontSize: 12, fill: DASHBOARD.text, listening: false })
+      app.text({ text: `${stem} | ${leaves.join(" ")}`, x: 8, y, fontSize: 12, fill: getActiveDashboard().text, listening: false })
     );
     y += 16;
   }
@@ -12210,7 +15182,7 @@ registerDashboard("scatterChart", (props, app) => {
   const xScale = linearScale([Math.min(...xs), Math.max(...xs)], [layout.plotX, layout.plotX + layout.plotWidth]);
   const yScale = linearScale([Math.min(...ys), Math.max(...ys)], [layout.plotY + layout.plotHeight, layout.plotY]);
   points.forEach((p) => {
-    group.add(app.circle({ x: xScale(p.x) - 4, y: yScale(p.y) - 4, radius: 4, fill: DASHBOARD.chartDot, listening: false }));
+    group.add(app.circle({ x: xScale(p.x) - 4, y: yScale(p.y) - 4, radius: 4, fill: getActiveDashboard().chartDot, listening: false }));
   });
   attachNearestHover(
     app,
@@ -12242,7 +15214,7 @@ registerDashboard("bubbleChart", (props, app) => {
   const yScale = linearScale([Math.min(...ys), Math.max(...ys)], [layout.plotY + layout.plotHeight, layout.plotY]);
   points.forEach((p) => {
     const r = (p.size ?? 8) / 2;
-    group.add(app.circle({ x: xScale(p.x) - r, y: yScale(p.y) - r, radius: r, fill: DASHBOARD.chartArea, stroke: DASHBOARD.chartLine, strokeWidth: 1, listening: false }));
+    group.add(app.circle({ x: xScale(p.x) - r, y: yScale(p.y) - r, radius: r, fill: getActiveDashboard().chartArea, stroke: getActiveDashboard().chartLine, strokeWidth: 1, listening: false }));
   });
   attachNearestHover(
     app,
@@ -12399,8 +15371,8 @@ function plotFinancial(app, group, bars, width, height, props, style = "candle")
   const bounds = { min: Math.min(...lows), max: Math.max(...highs) };
   const layout = defaultLayout(width, height);
   const yTicks = computeTicks(bounds.min, bounds.max, 5);
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
-  group.add(app.rect({ x: layout.plotX, y: layout.plotY, width: layout.plotWidth, height: layout.plotHeight, fill: DASHBOARD.chartPlot, listening: false }));
+  group.add(app.rect({ width, height, fill: getActiveDashboard().chartBg, listening: true }));
+  group.add(app.rect({ x: layout.plotX, y: layout.plotY, width: layout.plotWidth, height: layout.plotHeight, fill: getActiveDashboard().chartPlot, listening: false }));
   addGridLines(app, group, layout, yTicks, bounds);
   addAxes(app, group, layout, bounds, yTicks);
   const slot = layout.plotWidth / Math.max(bars.length, 1);
@@ -12410,7 +15382,7 @@ function plotFinancial(app, group, bars, width, height, props, style = "candle")
     const yH = yScale(b.high);
     const yL = yScale(b.low);
     const up = b.close >= b.open;
-    const color = up ? DASHBOARD.financialUp : DASHBOARD.financialDown;
+    const color = up ? getActiveDashboard().financialUp : getActiveDashboard().financialDown;
     if (style === "ohlc") {
       group.add(
         app.line({ x: cx, y: yH, x2: 0, y2: yL - yH, stroke: color, strokeWidth: 1, listening: false }),
@@ -12426,7 +15398,7 @@ function plotFinancial(app, group, bars, width, height, props, style = "candle")
       const bodyH = Math.max(2, Math.abs(yC - yO));
       group.add(
         app.line({ x: cx, y: yH, x2: 0, y2: yL - yH, stroke: color, strokeWidth: 1, listening: false }),
-        app.rect({ x: cx - slot * 0.25, y: bodyTop, width: slot * 0.5, height: bodyH, fill: up ? color : DASHBOARD.chartBg, stroke: color, strokeWidth: 1, listening: false })
+        app.rect({ x: cx - slot * 0.25, y: bodyTop, width: slot * 0.5, height: bodyH, fill: up ? color : getActiveDashboard().chartBg, stroke: color, strokeWidth: 1, listening: false })
       );
     }
   });
@@ -12460,7 +15432,7 @@ registerDashboard("kagiChart", (props, app) => {
   const pts = toKagi(bars, num2(props, "reversal", 4));
   const group = createWidgetGroup(app, "kagiChart", props);
   const layout = defaultLayout(width, height);
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  group.add(app.rect({ width, height, fill: getActiveDashboard().chartBg, listening: true }));
   const ys = pts.map((p) => p.y);
   const bounds = dataBounds(ys);
   const yScale = linearScale([bounds.min, bounds.max], [layout.plotY + layout.plotHeight, layout.plotY]);
@@ -12468,7 +15440,7 @@ registerDashboard("kagiChart", (props, app) => {
   pts.forEach((p, i) => {
     linePts.push(layout.plotX + layout.plotWidth * i / Math.max(pts.length - 1, 1), yScale(p.y));
   });
-  group.add(app.polyline({ points: linePts, fill: null, stroke: DASHBOARD.chartLine, strokeWidth: 2, listening: false }));
+  group.add(app.polyline({ points: linePts, fill: null, stroke: getActiveDashboard().chartLine, strokeWidth: 2, listening: false }));
   attachIndexXHover(app, group, props, layout, pts.length, (i) => `price: ${pts[i].y.toFixed(2)}`);
   setState2(group, { width, height, data: bars });
   return group;
@@ -12481,7 +15453,7 @@ registerDashboard("volumeChart", (props, app) => {
   const layout = defaultLayout(width, height);
   const maxVol = Math.max(...bars.map((b) => b.volume ?? 0), 1);
   const slot = layout.plotWidth / bars.length;
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  group.add(app.rect({ width, height, fill: getActiveDashboard().chartBg, listening: true }));
   bars.forEach((b, i) => {
     const v = b.volume ?? 0;
     const h = v / maxVol * layout.plotHeight;
@@ -12492,7 +15464,7 @@ registerDashboard("volumeChart", (props, app) => {
         y: layout.plotY + layout.plotHeight - h,
         width: slot - 2,
         height: h,
-        fill: up ? DASHBOARD.financialUp : DASHBOARD.financialDown,
+        fill: up ? getActiveDashboard().financialUp : getActiveDashboard().financialDown,
         listening: false
       })
     );
@@ -12521,7 +15493,7 @@ registerDashboard("candlestickVolumeChart", (props, app) => {
         y: layout.plotY + layout.plotHeight - h,
         width: slot - 2,
         height: h,
-        fill: DASHBOARD.inactiveBar,
+        fill: getActiveDashboard().inactiveBar,
         listening: false
       })
     );
@@ -12540,11 +15512,11 @@ registerDashboard("volumeProfileChart", (props, app) => {
   const maxV = Math.max(...profile.map((p) => p.volume), 1);
   const minP = Math.min(...profile.map((p) => p.price));
   const maxP = Math.max(...profile.map((p) => p.price));
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  group.add(app.rect({ width, height, fill: getActiveDashboard().chartBg, listening: true }));
   profile.forEach((p) => {
     const y = layout.plotY + layout.plotHeight - (p.price - minP) / (maxP - minP || 1) * layout.plotHeight;
     const w = p.volume / maxV * layout.plotWidth * 0.4;
-    group.add(app.rect({ x: layout.plotX, y: y - 4, width: w, height: 8, fill: DASHBOARD.primary, listening: false }));
+    group.add(app.rect({ x: layout.plotX, y: y - 4, width: w, height: 8, fill: getActiveDashboard().primary, listening: false }));
   });
   attachIndexYHover(app, group, props, layout, profile.length, (i) => `price ${profile[i].price.toFixed(1)} vol ${profile[i].volume}`);
   setState2(group, { width, height, data: bars });
@@ -12634,8 +15606,8 @@ registerDashboard("treemap", (props, app) => {
         y: r.y,
         width: r.width - 1,
         height: r.height - 1,
-        fill: DASHBOARD.series[i % DASHBOARD.series.length],
-        stroke: DASHBOARD.pieStroke,
+        fill: getActiveDashboard().series[i % getActiveDashboard().series.length],
+        stroke: getActiveDashboard().pieStroke,
         strokeWidth: 1,
         listening: false
       }),
@@ -12644,7 +15616,7 @@ registerDashboard("treemap", (props, app) => {
         x: r.x + 4,
         y: r.y + 4,
         fontSize: 10,
-        fill: DASHBOARD.text,
+        fill: getActiveDashboard().text,
         listening: false
       })
     );
@@ -12671,8 +15643,8 @@ registerDashboard("sunburstChart", (props, app) => {
         radius: size / 2 - 10,
         startAngle: angle,
         endAngle: angle + sweep,
-        fill: DASHBOARD.series[i % DASHBOARD.series.length],
-        stroke: DASHBOARD.pieStroke,
+        fill: getActiveDashboard().series[i % getActiveDashboard().series.length],
+        stroke: getActiveDashboard().pieStroke,
         strokeWidth: 1,
         listening: false
       })
@@ -12702,14 +15674,14 @@ registerDashboard("treeChart", (props, app) => {
     ]
   };
   const group = createWidgetGroup(app, "treeChart", props);
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  group.add(app.rect({ width, height, fill: getActiveDashboard().chartBg, listening: true }));
   const leaves = flattenHierarchy(root);
   leaves.forEach((n, i) => {
     const x = 20 + i % 4 * 70;
     const y = 30 + Math.floor(i / 4) * 50;
     group.add(
-      app.circle({ x: x - 8, y: y - 8, radius: 8, fill: DASHBOARD.primary, listening: false }),
-      app.text({ text: n.name, x: x + 12, y: y - 6, fontSize: 11, fill: DASHBOARD.text, listening: false })
+      app.circle({ x: x - 8, y: y - 8, radius: 8, fill: getActiveDashboard().primary, listening: false }),
+      app.text({ text: n.name, x: x + 12, y: y - 6, fontSize: 11, fill: getActiveDashboard().text, listening: false })
     );
   });
   attachNearestHover(
@@ -12730,17 +15702,17 @@ registerDashboard("dendrogramChart", (props, app) => {
   const width = num2(props, "width", 300);
   const height = num2(props, "height", 200);
   const group = createWidgetGroup(app, "dendrogramChart", props);
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  group.add(app.rect({ width, height, fill: getActiveDashboard().chartBg, listening: true }));
   const nodes = ["A", "B", "C", "D", "E"];
   const step = width / nodes.length;
   nodes.forEach((n, i) => {
     const x = step * i + step / 2;
     group.add(
-      app.line({ x, y: height - 30, x2: 0, y2: -80, stroke: DASHBOARD.chartGrid, strokeWidth: 1, listening: false }),
-      app.text({ text: n, x: x - 6, y: height - 12, fontSize: 10, fill: DASHBOARD.text, listening: false })
+      app.line({ x, y: height - 30, x2: 0, y2: -80, stroke: getActiveDashboard().chartGrid, strokeWidth: 1, listening: false }),
+      app.text({ text: n, x: x - 6, y: height - 12, fontSize: 10, fill: getActiveDashboard().text, listening: false })
     );
   });
-  group.add(app.line({ x: step / 2, y: height - 110, x2: width - step, y2: 0, stroke: DASHBOARD.chartLine, strokeWidth: 2, listening: false }));
+  group.add(app.line({ x: step / 2, y: height - 110, x2: width - step, y2: 0, stroke: getActiveDashboard().chartLine, strokeWidth: 2, listening: false }));
   attachIndexXHover(
     app,
     group,
@@ -12915,15 +15887,15 @@ registerDashboard("sankeyChart", (props, app) => {
   const nodes = props.nodes ?? SAMPLE_FLOW_NODES;
   const links = props.links ?? SAMPLE_FLOW_LINKS;
   const group = createWidgetGroup(app, "sankeyChart", props);
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  group.add(app.rect({ width, height, fill: getActiveDashboard().chartBg, listening: true }));
   const layout = layoutSankey(nodes, links, width, height);
   layout.links.forEach((l) => {
-    group.add(app.path({ d: l.path, fill: null, stroke: DASHBOARD.flowLink, strokeWidth: Math.max(2, l.value / 10), listening: false }));
+    group.add(app.path({ d: l.path, fill: null, stroke: getActiveDashboard().flowLink, strokeWidth: Math.max(2, l.value / 10), listening: false }));
   });
   layout.nodes.forEach((n) => {
     group.add(
-      app.rect({ x: n.x, y: n.y, width: n.width, height: n.height, fill: DASHBOARD.primary, listening: false }),
-      app.text({ text: n.label, x: n.x, y: n.y - 12, fontSize: 10, fill: DASHBOARD.text, listening: false })
+      app.rect({ x: n.x, y: n.y, width: n.width, height: n.height, fill: getActiveDashboard().primary, listening: false }),
+      app.text({ text: n.label, x: n.x, y: n.y - 12, fontSize: 10, fill: getActiveDashboard().text, listening: false })
     );
   });
   attachRegionsHover(
@@ -12953,13 +15925,13 @@ registerDashboard("chordChart", (props, app) => {
     [1, 3, 0]
   ];
   const group = createWidgetGroup(app, "chordChart", props);
-  group.add(app.rect({ width: size, height: size, fill: DASHBOARD.chartBg, listening: true }));
+  group.add(app.rect({ width: size, height: size, fill: getActiveDashboard().chartBg, listening: true }));
   const chord = layoutChord(matrix, size);
   chord.ribbons.forEach((ribbon) => {
     group.add(
       app.path({
         d: ribbon.path,
-        fill: DASHBOARD.flowLink,
+        fill: getActiveDashboard().flowLink,
         opacity: 0.35 + ribbon.value / 10 * 0.15,
         stroke: null,
         listening: false
@@ -12970,8 +15942,8 @@ registerDashboard("chordChart", (props, app) => {
     group.add(
       app.path({
         d: arcSectorPath(chord.cx, chord.cy, chord.outerR, seg.startAngle, seg.endAngle, chord.innerR),
-        fill: DASHBOARD.series[seg.index % DASHBOARD.series.length],
-        stroke: DASHBOARD.pieStroke,
+        fill: getActiveDashboard().series[seg.index % getActiveDashboard().series.length],
+        stroke: getActiveDashboard().pieStroke,
         strokeWidth: 1,
         listening: false
       })
@@ -12987,7 +15959,7 @@ registerDashboard("chordChart", (props, app) => {
         x: lx - 10,
         y: ly - 6,
         fontSize: 9,
-        fill: DASHBOARD.text,
+        fill: getActiveDashboard().text,
         listening: false
       })
     );
@@ -13012,7 +15984,7 @@ registerDashboard("alluvialChart", (props, app) => {
     ["C1", "C2"]
   ];
   const group = createWidgetGroup(app, "alluvialChart", props);
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  group.add(app.rect({ width, height, fill: getActiveDashboard().chartBg, listening: true }));
   const colW = width / stages.length;
   const regions = [];
   stages.forEach((col, ci) => {
@@ -13022,13 +15994,13 @@ registerDashboard("alluvialChart", (props, app) => {
       const y = step * (ri + 1);
       regions.push({ x, y, width: colW - 20, height: 24, label });
       group.add(
-        app.rect({ x, y, width: colW - 20, height: 24, fill: DASHBOARD.series[ri % DASHBOARD.series.length], cornerRadius: 4, listening: false }),
-        app.text({ text: label, x: x + 6, y: y + 5, fontSize: 10, fill: DASHBOARD.text, listening: false })
+        app.rect({ x, y, width: colW - 20, height: 24, fill: getActiveDashboard().series[ri % getActiveDashboard().series.length], cornerRadius: 4, listening: false }),
+        app.text({ text: label, x: x + 6, y: y + 5, fontSize: 10, fill: getActiveDashboard().text, listening: false })
       );
       if (ci < stages.length - 1) {
         const nx = (ci + 1) * colW + 10;
         const ny = step * (ri + 1) + 12;
-        group.add(app.path({ d: `M ${x + colW - 20} ${y + 12} C ${x + colW} ${y + 12} ${nx - 20} ${ny} ${nx} ${ny}`, fill: null, stroke: DASHBOARD.flowLink, strokeWidth: 8, listening: false }));
+        group.add(app.path({ d: `M ${x + colW - 20} ${y + 12} C ${x + colW} ${y + 12} ${nx - 20} ${ny} ${nx} ${ny}`, fill: null, stroke: getActiveDashboard().flowLink, strokeWidth: 8, listening: false }));
       }
     });
   });
@@ -13046,16 +16018,16 @@ registerDashboard("streamgraph", (props, app) => {
   ];
   const names = props.seriesNames ?? series.map((_, i) => `S${i + 1}`);
   const group = createWidgetGroup(app, "streamgraph", props);
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  group.add(app.rect({ width, height, fill: getActiveDashboard().chartBg, listening: true }));
   const layers = layoutStreamgraph(series, width, height);
   const len = Math.max(...series.map((s) => s.length), 1);
   layers.forEach((layer) => {
     group.add(
       app.path({
         d: layer.path,
-        fill: DASHBOARD.series[layer.index % DASHBOARD.series.length],
+        fill: getActiveDashboard().series[layer.index % getActiveDashboard().series.length],
         opacity: 0.82,
-        stroke: DASHBOARD.chartBg,
+        stroke: getActiveDashboard().chartBg,
         strokeWidth: 0.5,
         listening: false
       })
@@ -13213,22 +16185,22 @@ registerDashboard("networkChart", (props, app) => {
     { from: "d", to: "c" }
   ];
   const group = createWidgetGroup(app, "networkChart", props);
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  group.add(app.rect({ width, height, fill: getActiveDashboard().chartBg, listening: true }));
   const positions = forceDirectedLayout(nodes, edges, { width, height, iterations: 50, seed: 7 });
   edges.forEach((e) => {
     const a = positions.get(e.from);
     const b = positions.get(e.to);
     if (!a || !b)
       return;
-    group.add(app.line({ x: a.x, y: a.y, x2: b.x - a.x, y2: b.y - a.y, stroke: DASHBOARD.chartGrid, strokeWidth: 1, listening: false }));
+    group.add(app.line({ x: a.x, y: a.y, x2: b.x - a.x, y2: b.y - a.y, stroke: getActiveDashboard().chartGrid, strokeWidth: 1, listening: false }));
   });
   nodes.forEach((n) => {
     const p = positions.get(n.id);
     if (!p)
       return;
     group.add(
-      app.circle({ x: p.x - 10, y: p.y - 10, radius: 10, fill: DASHBOARD.primary, listening: false }),
-      app.text({ text: n.label ?? n.id, x: p.x - 8, y: p.y + 16, fontSize: 9, fill: DASHBOARD.text, listening: false })
+      app.circle({ x: p.x - 10, y: p.y - 10, radius: 10, fill: getActiveDashboard().primary, listening: false }),
+      app.text({ text: n.label ?? n.id, x: p.x - 8, y: p.y + 16, fontSize: 9, fill: getActiveDashboard().text, listening: false })
     );
   });
   attachNearestHover(
@@ -13256,16 +16228,16 @@ registerDashboard("timeline", (props, app) => {
   ];
   const group = createWidgetGroup(app, "timeline", props);
   const max = Math.max(...events.map((e) => e.end ?? e.start ?? 0), 10);
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
-  group.add(app.line({ x: 20, y: height / 2, x2: width - 40, y2: 0, stroke: DASHBOARD.timelineLine, strokeWidth: 2, listening: false }));
+  group.add(app.rect({ width, height, fill: getActiveDashboard().chartBg, listening: true }));
+  group.add(app.line({ x: 20, y: height / 2, x2: width - 40, y2: 0, stroke: getActiveDashboard().timelineLine, strokeWidth: 2, listening: false }));
   events.forEach((ev, i) => {
     const start = ev.start ?? i * 2;
     const end = ev.end ?? start + 1;
     const x = 20 + start / max * (width - 60);
     const w = (end - start) / max * (width - 60);
     group.add(
-      app.roundedRect({ x, y: height / 2 - 14, width: Math.max(w, 20), height: 28, cornerRadius: 4, fill: DASHBOARD.series[i % DASHBOARD.series.length], listening: false }),
-      app.text({ text: ev.label, x: x + 4, y: height / 2 - 6, fontSize: 10, fill: DASHBOARD.text, listening: false })
+      app.roundedRect({ x, y: height / 2 - 14, width: Math.max(w, 20), height: 28, cornerRadius: 4, fill: getActiveDashboard().series[i % getActiveDashboard().series.length], listening: false }),
+      app.text({ text: ev.label, x: x + 4, y: height / 2 - 6, fontSize: 10, fill: getActiveDashboard().text, listening: false })
     );
   });
   attachRegionsHover(
@@ -13297,14 +16269,14 @@ registerDashboard("ganttChart", (props, app) => {
   const group = createWidgetGroup(app, "ganttChart", props);
   const max = Math.max(...tasks.map((t) => t.end), 12);
   const rowH = height / tasks.length;
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  group.add(app.rect({ width, height, fill: getActiveDashboard().chartBg, listening: true }));
   tasks.forEach((t, i) => {
     const y = i * rowH + 8;
     const x = 80 + t.start / max * (width - 100);
     const w = (t.end - t.start) / max * (width - 100);
     group.add(
-      app.text({ text: t.label, x: 4, y: y + 4, fontSize: 11, fill: DASHBOARD.text, listening: false }),
-      app.roundedRect({ x, y, width: Math.max(w, 8), height: rowH - 16, cornerRadius: 3, fill: t.color ?? DASHBOARD.series[i % DASHBOARD.series.length], listening: false })
+      app.text({ text: t.label, x: 4, y: y + 4, fontSize: 11, fill: getActiveDashboard().text, listening: false }),
+      app.roundedRect({ x, y, width: Math.max(w, 8), height: rowH - 16, cornerRadius: 3, fill: t.color ?? getActiveDashboard().series[i % getActiveDashboard().series.length], listening: false })
     );
   });
   attachRegionsHover(
@@ -13431,10 +16403,10 @@ registerDashboard("surfaceChart3d", (props, app) => {
   const height = num2(props, "height", 200);
   const zGrid = props.zGrid ?? sampleZGrid(8);
   const group = createWidgetGroup(app, "surfaceChart3d", props);
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  group.add(app.rect({ width, height, fill: getActiveDashboard().chartBg, listening: true }));
   const paths = surfaceMeshPath(zGrid, width / 2, height / 2 + 20, 6);
   paths.forEach((d, i) => {
-    group.add(app.path({ d, fill: DASHBOARD.series[i % DASHBOARD.series.length], opacity: 0.6, stroke: DASHBOARD.chartGrid, strokeWidth: 0.5, listening: false }));
+    group.add(app.path({ d, fill: getActiveDashboard().series[i % getActiveDashboard().series.length], opacity: 0.6, stroke: getActiveDashboard().chartGrid, strokeWidth: 0.5, listening: false }));
   });
   attachGridHover(app, group, props, width, height, zGrid.length, zGrid[0]?.length ?? 1, (r, c) => String(zGrid[r]?.[c] ?? ""));
   setState2(group, { width, height, zGrid });
@@ -13445,9 +16417,9 @@ registerDashboard("wireframeChart3d", (props, app) => {
   const height = num2(props, "height", 200);
   const zGrid = props.zGrid ?? sampleZGrid(8);
   const group = createWidgetGroup(app, "wireframeChart3d", props);
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  group.add(app.rect({ width, height, fill: getActiveDashboard().chartBg, listening: true }));
   wireframePaths(zGrid, width / 2, height / 2 + 20, 6).forEach((d) => {
-    group.add(app.path({ d, fill: null, stroke: DASHBOARD.chartLine, strokeWidth: 1, listening: false }));
+    group.add(app.path({ d, fill: null, stroke: getActiveDashboard().chartLine, strokeWidth: 1, listening: false }));
   });
   attachGridHover(app, group, props, width, height, zGrid.length, zGrid[0]?.length ?? 1, (r, c) => String(zGrid[r]?.[c] ?? ""));
   setState2(group, { width, height, zGrid });
@@ -13458,9 +16430,9 @@ registerDashboard("meshChart3d", (props, app) => {
   const height = num2(props, "height", 200);
   const zGrid = props.zGrid ?? sampleZGrid(6);
   const group = createWidgetGroup(app, "meshChart3d", props);
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  group.add(app.rect({ width, height, fill: getActiveDashboard().chartBg, listening: true }));
   surfaceMeshPath(zGrid, width / 2, height / 2 + 20, 8).forEach((d) => {
-    group.add(app.path({ d, fill: DASHBOARD.chartArea, stroke: DASHBOARD.primary, strokeWidth: 1, listening: false }));
+    group.add(app.path({ d, fill: getActiveDashboard().chartArea, stroke: getActiveDashboard().primary, strokeWidth: 1, listening: false }));
   });
   attachGridHover(app, group, props, width, height, zGrid.length, zGrid[0]?.length ?? 1, (r, c) => String(zGrid[r]?.[c] ?? ""));
   setState2(group, { width, height, zGrid });
@@ -13470,7 +16442,7 @@ registerDashboard("vectorFieldChart", (props, app) => {
   const width = num2(props, "width", 300);
   const height = num2(props, "height", 200);
   const group = createWidgetGroup(app, "vectorFieldChart", props);
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  group.add(app.rect({ width, height, fill: getActiveDashboard().chartBg, listening: true }));
   const cols = 8;
   const rows = 6;
   for (let i = 0; i < rows; i++) {
@@ -13485,7 +16457,7 @@ registerDashboard("vectorFieldChart", (props, app) => {
           y,
           x2: len * Math.cos(angle),
           y2: len * Math.sin(angle),
-          stroke: DASHBOARD.chartLine,
+          stroke: getActiveDashboard().chartLine,
           strokeWidth: 1.5,
           lineCap: "round",
           listening: false
@@ -13513,7 +16485,7 @@ registerDashboard("pictogramChart", (props, app) => {
         x: col * 28 + 4,
         y: row * 28 + 4,
         fontSize: 18,
-        fill: DASHBOARD.primary,
+        fill: getActiveDashboard().primary,
         listening: false
       })
     );
@@ -13534,7 +16506,7 @@ registerDashboard("wordCloudChart", (props, app) => {
     { text: "dashboard", value: 60 }
   ];
   const group = createWidgetGroup(app, "wordCloudChart", props);
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  group.add(app.rect({ width, height, fill: getActiveDashboard().chartBg, listening: true }));
   const placed = layoutWordCloud(words, width, height);
   placed.forEach((w, i) => {
     group.add(
@@ -13544,7 +16516,7 @@ registerDashboard("wordCloudChart", (props, app) => {
         y: w.y,
         fontSize: w.fontSize,
         fontWeight: i < 3 ? "700" : "400",
-        fill: DASHBOARD.series[i % DASHBOARD.series.length],
+        fill: getActiveDashboard().series[i % getActiveDashboard().series.length],
         listening: false
       })
     );
@@ -13569,48 +16541,103 @@ registerDashboard("gauge", (props, app) => {
   const size = num2(props, "size", 120);
   const max = num2(props, "max", 100);
   const value = clamp3(num2(props, "value", 0), 0, max);
+  const colorStops = readColorStops(props);
+  const dialZones = normalizeDialZones(readDialZones(props), max);
   const group = createWidgetGroup(app, "gauge", props, { width: size, height: size });
   const r = size / 2 - 14;
   const cx = size / 2;
+  const dash = getActiveDashboard();
+  const typo = resolveNodeTypography(app, props, {
+    text: dash.text,
+    textMuted: dash.textMuted,
+    fontSize: dash.fontSizeTitle,
+    fontSizeSm: dash.fontSizeSm,
+    fontSizeLg: dash.fontSizeTitle
+  });
+  const customFont = hasCustomFontSize(props);
+  const needleColor = resolveValueColor(value, colorStops, dash.gaugeNeedle);
   const parts = buildDialGauge(
     app,
     group,
     {
-      trackColor: DASHBOARD.gaugeTrack,
-      needleColor: DASHBOARD.gaugeNeedle,
-      textColor: DASHBOARD.text,
-      textMuted: DASHBOARD.textMuted,
-      faceColor: DASHBOARD.face,
-      bezelColor: DASHBOARD.panelStroke
+      trackColor: dash.gaugeTrack,
+      needleColor,
+      accentColor: needleColor,
+      textColor: typo.text,
+      textMuted: typo.textMuted,
+      faceColor: dash.face,
+      bezelColor: dash.panelStroke
     },
-    { size, value, max, tickCount: 6, ariaLive: "polite" }
+    {
+      size,
+      value,
+      max,
+      tickCount: 6,
+      ariaLive: "polite",
+      ...customFont ? { valueFontSize: typo.fontSize, titleFontSize: typo.fontSizeSm } : {},
+      ...dialZones.length ? { colorZones: dialZones } : {}
+    }
   );
-  setParts2(group, { needle: parts.needle, valueText: parts.valueText });
+  setParts2(group, { needle: parts.needle, valueText: parts.valueText, valueArc: parts.valueArc });
   setRefresh(group, (v) => {
-    updateDialNeedle(parts.needle, cx, v, max, r);
+    updateDialNeedle(parts.needle, cx, v, max, r, void 0, void 0, void 0, parts.valueArc);
     parts.valueText.text = String(Math.round(v));
+    const next = resolveValueColor(v, colorStops, getActiveDashboard().gaugeNeedle);
+    parts.needle.stroke = next;
+    if (parts.valueArc) {
+      parts.valueArc.stroke = next;
+    }
   });
-  setState2(group, { size, value, max });
+  setState2(group, {
+    size,
+    value,
+    max,
+    colorStops,
+    colorZones: readDialZones(props),
+    uiTheme: props.uiTheme,
+    textColor: props.textColor,
+    color: props.color,
+    textMuted: props.textMuted,
+    fontSize: props.fontSize,
+    demoId: props.demoId,
+    hasCustomTextColor: hasCustomTextColor(props),
+    hasCustomFontSize: customFont
+  });
+  if (props.demoId != null)
+    group.metadata.demoId = props.demoId;
   return group;
 });
 registerDashboard("speedometer", (props, app) => {
   const size = num2(props, "size", 200);
   const value = num2(props, "value", 0);
   const max = num2(props, "max", 180);
+  const colorStops = readColorStops(props);
+  const dialZones = normalizeDialZones(readDialZones(props), max);
   const group = createWidgetGroup(app, "speedometer", props);
   const r = size / 2 - 14;
   const cx = size / 2;
+  const dash = getActiveDashboard();
+  const typo = resolveNodeTypography(app, props, {
+    text: dash.text,
+    textMuted: dash.textMuted,
+    fontSize: dash.fontSizeTitle,
+    fontSizeSm: dash.fontSizeSm,
+    fontSizeLg: dash.fontSizeTitle
+  });
+  const customFont = hasCustomFontSize(props);
+  const needleColor = resolveValueColor(value, colorStops, dash.speedoNeedle);
   const parts = buildDialGauge(
     app,
     group,
     {
-      trackColor: DASHBOARD.gaugeTrack,
-      needleColor: DASHBOARD.speedoNeedle,
-      textColor: DASHBOARD.text,
-      textMuted: DASHBOARD.textMuted,
-      faceColor: DASHBOARD.face,
-      bezelColor: DASHBOARD.panelStroke,
-      redlineColor: DASHBOARD.dangerDark
+      trackColor: dash.gaugeTrack,
+      needleColor,
+      accentColor: needleColor,
+      textColor: typo.text,
+      textMuted: typo.textMuted,
+      faceColor: dash.face,
+      bezelColor: dash.panelStroke,
+      redlineColor: dash.dangerDark
     },
     {
       size,
@@ -13619,42 +16646,73 @@ registerDashboard("speedometer", (props, app) => {
       unit: str2(props, "unit", "km/h"),
       tickCount: 9,
       showTickLabels: true,
-      redlineFrom: 0.78
+      ...customFont ? { valueFontSize: typo.fontSize, unitFontSize: typo.fontSizeSm } : {},
+      ...dialZones.length ? { colorZones: dialZones } : { redlineFrom: 0.78 }
     }
   );
-  setParts2(group, { needle: parts.needle, valueText: parts.valueText });
+  setParts2(group, { needle: parts.needle, valueText: parts.valueText, valueArc: parts.valueArc });
   setRefresh(group, (v) => {
-    updateDialNeedle(parts.needle, cx, v, max, r);
+    updateDialNeedle(parts.needle, cx, v, max, r, void 0, void 0, void 0, parts.valueArc);
     parts.valueText.text = `${Math.round(v)}`;
+    const next = resolveValueColor(v, colorStops, getActiveDashboard().speedoNeedle);
+    parts.needle.stroke = next;
+    if (parts.valueArc) {
+      parts.valueArc.stroke = next;
+    }
   });
-  setState2(group, { size, value, max });
+  setState2(group, {
+    size,
+    value,
+    max,
+    unit: str2(props, "unit", "km/h"),
+    colorStops,
+    colorZones: readDialZones(props),
+    uiTheme: props.uiTheme,
+    textColor: props.textColor,
+    color: props.color,
+    textMuted: props.textMuted,
+    fontSize: props.fontSize,
+    hasCustomTextColor: hasCustomTextColor(props),
+    hasCustomFontSize: customFont
+  });
   return group;
 });
 registerDashboard("legend", (props, app) => {
   const group = createWidgetGroup(app, "legend", props);
-  const items = props.items ?? [
-    { label: "Series A", color: DASHBOARD.primary },
-    { label: "Series B", color: DASHBOARD.secondary }
+  const rawItems = props.items;
+  const hasUserItems = props.hasUserLegendItems === true || !props._chartRebuild && Array.isArray(rawItems) && rawItems.length > 0;
+  const items = hasUserItems && rawItems?.length ? rawItems : [
+    { label: "Series A", color: getActiveDashboard().primary },
+    { label: "Series B", color: getActiveDashboard().secondary }
   ];
   addLegend(app, group, items, 0, 0);
-  setState2(group, { items });
+  setState2(group, {
+    ...hasUserItems ? { items: rawItems } : { items: [] },
+    hasUserLegendItems: hasUserItems
+  });
   return group;
 });
 registerDashboard("thermometer", (props, app) => {
   const height = num2(props, "height", 120);
   const width = num2(props, "width", 24);
   const value = clamp3(num2(props, "value", 50), 0, 100);
+  const colorStops = readColorStops(props) ?? [
+    { upTo: 50, color: "primary" },
+    { upTo: 80, color: "warning" },
+    { color: "danger" }
+  ];
   const group = createWidgetGroup(app, "thermometer", props);
   const tubeH = height - Math.round(width * 1.1);
   const bulbR = Math.max(8, Math.round(width * 0.48));
   const fontSize = Math.max(10, Math.round(width * 0.5));
+  const fillColor = resolveValueColor(value, colorStops, getActiveDashboard().primary);
   group.add(
     app.roundedRect({
       width,
       height: tubeH,
       cornerRadius: width / 2,
-      fill: DASHBOARD.thermometerTube,
-      stroke: DASHBOARD.thermometerBorder,
+      fill: getActiveDashboard().thermometerTube,
+      stroke: getActiveDashboard().thermometerBorder,
       strokeWidth: 1,
       listening: false
     })
@@ -13666,35 +16724,45 @@ registerDashboard("thermometer", (props, app) => {
     width: width - 4,
     height: fillH,
     cornerRadius: (width - 4) / 2,
-    fill: value > 80 ? DASHBOARD.danger : value > 50 ? DASHBOARD.warning : DASHBOARD.primary,
+    fill: fillColor,
+    listening: false
+  });
+  const bulb = app.circle({
+    x: width / 2 - bulbR,
+    y: tubeH - 2,
+    radius: bulbR,
+    fill: fillColor,
     listening: false
   });
   group.add(
     fill,
-    app.circle({
-      x: width / 2 - bulbR,
-      y: tubeH - 2,
-      radius: bulbR,
-      fill: DASHBOARD.danger,
-      listening: false
-    }),
+    bulb,
     app.text({
       text: `${Math.round(value)}\xB0`,
       x: width + 8,
       y: tubeH / 2 - fontSize / 2,
       fontSize,
       fontWeight: "600",
-      fill: DASHBOARD.text,
+      fill: getActiveDashboard().text,
       listening: false
     })
   );
-  setParts2(group, { fill });
+  setParts2(group, { fill, bulb });
   setRefresh(group, (v) => {
-    const fh = (tubeH - 4) * (clamp3(v, 0, 100) / 100);
+    const clamped = clamp3(v, 0, 100);
+    const fh = (tubeH - 4) * (clamped / 100);
     fill.y = tubeH - fh - 2;
     fill.height = fh;
+    const next = resolveValueColor(clamped, colorStops, getActiveDashboard().primary);
+    fill.fill = next;
+    bulb.fill = next;
   });
-  setState2(group, { height, width, value });
+  setState2(group, {
+    height,
+    width,
+    value,
+    colorStops: readColorStops(props)
+  });
   return group;
 });
 registerDashboard("compass", (props, app) => {
@@ -13709,8 +16777,8 @@ registerDashboard("compass", (props, app) => {
       x: cx - r,
       y: cx - r,
       radius: r,
-      fill: DASHBOARD.compassFace,
-      stroke: DASHBOARD.compassRing,
+      fill: getActiveDashboard().compassFace,
+      stroke: getActiveDashboard().compassRing,
       strokeWidth: Math.max(1.5, size / 50),
       shadow: size >= 90 ? { color: "rgba(0,0,0,0.3)", blur: 6, offsetX: 0, offsetY: 2 } : void 0,
       listening: false
@@ -13726,7 +16794,7 @@ registerDashboard("compass", (props, app) => {
         y: cx + lr * Math.sin(a) - fontSize / 2,
         fontSize,
         fontWeight: label === "N" ? "700" : "500",
-        fill: label === "N" ? DASHBOARD.text : DASHBOARD.textMuted,
+        fill: label === "N" ? getActiveDashboard().text : getActiveDashboard().textMuted,
         textAlign: "center",
         textBaseline: "middle",
         listening: false
@@ -13740,7 +16808,7 @@ registerDashboard("compass", (props, app) => {
     y: cx,
     x2: needleLen * Math.cos(rad),
     y2: needleLen * Math.sin(rad),
-    stroke: DASHBOARD.speedoNeedle,
+    stroke: getActiveDashboard().speedoNeedle,
     strokeWidth: Math.max(2, size / 32),
     lineCap: "round",
     listening: false
@@ -13751,8 +16819,8 @@ registerDashboard("compass", (props, app) => {
       x: cx - size * 0.05,
       y: cx - size * 0.05,
       radius: size * 0.05,
-      fill: DASHBOARD.compassHub,
-      stroke: DASHBOARD.compassRing,
+      fill: getActiveDashboard().compassHub,
+      stroke: getActiveDashboard().compassRing,
       strokeWidth: 1,
       listening: false
     }),
@@ -13762,7 +16830,7 @@ registerDashboard("compass", (props, app) => {
       y: cx + r * 0.22,
       fontSize: Math.max(8, Math.round(size * 0.09)),
       fontWeight: "600",
-      fill: DASHBOARD.text,
+      fill: getActiveDashboard().text,
       textAlign: "center",
       textBaseline: "middle",
       listening: false
@@ -13807,7 +16875,7 @@ function buildCalendar(group, app, props) {
       y: 4,
       fontSize: Math.min(13, cell * 0.45),
       fontWeight: "bold",
-      fill: DASHBOARD.text,
+      fill: getActiveDashboard().text,
       listening: false
     })
   );
@@ -13818,7 +16886,7 @@ function buildCalendar(group, app, props) {
         x: i * cell + 4,
         y: 22,
         fontSize: Math.max(8, cell * 0.32),
-        fill: DASHBOARD.textDim,
+        fill: getActiveDashboard().textDim,
         listening: false
       })
     );
@@ -13833,7 +16901,7 @@ function buildCalendar(group, app, props) {
         x: col * cell + Math.max(4, cell * 0.2),
         y: headerH + row * cell,
         fontSize: Math.max(9, cell * 0.38),
-        fill: day === highlightDay ? DASHBOARD.highlight : DASHBOARD.text,
+        fill: day === highlightDay ? getActiveDashboard().highlight : getActiveDashboard().text,
         listening: false
       })
     );
@@ -13856,7 +16924,7 @@ registerDashboard("signalStrength", (props, app) => {
       y: maxH - h,
       width: barW,
       height: h,
-      fill: i < level ? DASHBOARD.signalActive : DASHBOARD.signalInactive,
+      fill: i < level ? getActiveDashboard().signalActive : getActiveDashboard().signalInactive,
       cornerRadius: Math.max(1, scale),
       listening: false
     });
@@ -13867,7 +16935,7 @@ registerDashboard("signalStrength", (props, app) => {
   setRefresh(group, (v) => {
     const lv = clamp3(Math.round(v), 0, 5);
     bars.forEach((bar, i) => {
-      bar.fill = i < lv ? DASHBOARD.signalActive : DASHBOARD.signalInactive;
+      bar.fill = i < lv ? getActiveDashboard().signalActive : getActiveDashboard().signalInactive;
     });
   });
   setState2(group, { value: level, scale, width: totalW, height: maxH });
@@ -13889,8 +16957,8 @@ registerDashboard("knob", (props, app) => {
       x: cx - r,
       y: cx - r,
       radius: r,
-      fill: DASHBOARD.knobTrack,
-      stroke: DASHBOARD.knobRing,
+      fill: getActiveDashboard().knobTrack,
+      stroke: getActiveDashboard().knobRing,
       strokeWidth: Math.max(1.5, size / 40),
       shadow: size >= 48 ? { color: "rgba(0,0,0,0.35)", blur: 5, offsetX: 0, offsetY: 2 } : void 0,
       listening: false
@@ -13904,7 +16972,7 @@ registerDashboard("knob", (props, app) => {
       startAngle: start,
       endAngle: start + sweep,
       fill: null,
-      stroke: DASHBOARD.inactive,
+      stroke: getActiveDashboard().inactive,
       strokeWidth: arcW * 0.65,
       listening: false
     })
@@ -13916,7 +16984,7 @@ registerDashboard("knob", (props, app) => {
     startAngle: start,
     endAngle: angle,
     fill: null,
-    stroke: DASHBOARD.knobIndicator,
+    stroke: getActiveDashboard().knobIndicator,
     strokeWidth: arcW,
     listening: false
   });
@@ -13926,7 +16994,7 @@ registerDashboard("knob", (props, app) => {
     x: cx + ptrR * Math.cos(angle) - ptrSize,
     y: cx + ptrR * Math.sin(angle) - ptrSize,
     radius: ptrSize,
-    fill: DASHBOARD.knobIndicator,
+    fill: getActiveDashboard().knobIndicator,
     stroke: "#fff",
     strokeWidth: 1,
     listening: false
@@ -13937,7 +17005,7 @@ registerDashboard("knob", (props, app) => {
     y: cx,
     fontSize: Math.max(10, size * 0.22),
     fontWeight: "600",
-    fill: DASHBOARD.text,
+    fill: getActiveDashboard().text,
     textAlign: "center",
     textBaseline: "middle",
     listening: false
@@ -13965,15 +17033,17 @@ registerDashboard("meter", (props, app) => {
   const height = num2(props, "height", 24);
   const value = clamp3(num2(props, "value", 60), 0, 100);
   const vertical = bool2(props, "vertical", false);
+  const colorStops = readColorStops(props);
+  const fillColor = resolveValueColor(value, colorStops, getActiveDashboard().meterFill);
   const group = createWidgetGroup(app, "meter", props);
   if (vertical) {
-    group.add(app.rect({ width: height, height: width, fill: DASHBOARD.meterTrack, listening: false }));
+    group.add(app.rect({ width: height, height: width, fill: getActiveDashboard().meterTrack, listening: false }));
     const fillBar = app.rect({
       x: 2,
       y: width - width * value / 100 - 2,
       width: height - 4,
       height: width * value / 100,
-      fill: DASHBOARD.meterFill,
+      fill: fillColor,
       listening: false
     });
     group.add(fillBar);
@@ -13981,6 +17051,11 @@ registerDashboard("meter", (props, app) => {
       const pct = clamp3(v, 0, 100) / 100;
       fillBar.y = width - width * pct - 2;
       fillBar.height = width * pct;
+      fillBar.fill = resolveValueColor(
+        clamp3(v, 0, 100),
+        colorStops,
+        getActiveDashboard().meterFill
+      );
     });
   } else {
     const trackR = Math.min(4, height / 2);
@@ -13989,7 +17064,7 @@ registerDashboard("meter", (props, app) => {
         width,
         height,
         cornerRadius: trackR,
-        fill: DASHBOARD.meterTrack,
+        fill: getActiveDashboard().meterTrack,
         listening: false
       })
     );
@@ -13999,20 +17074,30 @@ registerDashboard("meter", (props, app) => {
       width: width * value / 100,
       height,
       cornerRadius: trackR,
-      fill: DASHBOARD.meterFill,
+      fill: fillColor,
       listening: false
     });
     group.add(fillBar);
     setRefresh(group, (v) => {
-      fillBar.width = width * clamp3(v, 0, 100) / 100;
+      const clamped = clamp3(v, 0, 100);
+      fillBar.width = width * clamped / 100;
+      fillBar.fill = resolveValueColor(
+        clamped,
+        colorStops,
+        getActiveDashboard().meterFill
+      );
     });
   }
-  setState2(group, { width, height, value, vertical });
+  setState2(group, { width, height, value, vertical, colorStops });
   return group;
 });
 registerDashboard("battery", (props, app) => {
   const level = clamp3(num2(props, "value", 75), 0, 100);
   const scale = num2(props, "scale", 1);
+  const colorStops = readColorStops(props) ?? [
+    { upTo: 20, color: "danger" },
+    { color: "success" }
+  ];
   const bodyW = Math.round(40 * scale);
   const bodyH = Math.round(20 * scale);
   const group = createWidgetGroup(app, "battery", props);
@@ -14022,7 +17107,7 @@ registerDashboard("battery", (props, app) => {
       height: bodyH,
       cornerRadius: Math.max(2, 3 * scale),
       fill: null,
-      stroke: DASHBOARD.batteryOutline,
+      stroke: getActiveDashboard().batteryOutline,
       strokeWidth: Math.max(1.5, 2 * scale),
       listening: false
     })
@@ -14034,7 +17119,7 @@ registerDashboard("battery", (props, app) => {
       width: Math.max(3, 4 * scale),
       height: bodyH * 0.4,
       cornerRadius: 1,
-      fill: DASHBOARD.batteryTip,
+      fill: getActiveDashboard().batteryTip,
       listening: false
     })
   );
@@ -14045,16 +17130,26 @@ registerDashboard("battery", (props, app) => {
     width: (bodyW - inset * 2) * level / 100,
     height: bodyH - inset * 2,
     cornerRadius: Math.max(1, 2 * scale),
-    fill: level > 20 ? DASHBOARD.success : DASHBOARD.danger,
+    fill: resolveValueColor(level, colorStops, getActiveDashboard().success),
     listening: false
   });
   group.add(fill);
   setRefresh(group, (v) => {
     const lv = clamp3(v, 0, 100);
     fill.width = (bodyW - inset * 2) * lv / 100;
-    fill.fill = lv > 20 ? DASHBOARD.success : DASHBOARD.danger;
+    fill.fill = resolveValueColor(
+      lv,
+      colorStops,
+      getActiveDashboard().success
+    );
   });
-  setState2(group, { value: level, scale, width: bodyW + Math.max(3, 4 * scale), height: bodyH });
+  setState2(group, {
+    value: level,
+    scale,
+    width: bodyW + Math.max(3, 4 * scale),
+    height: bodyH,
+    colorStops: readColorStops(props)
+  });
   return group;
 });
 registerDashboard("clock", (props, app) => {
@@ -14076,8 +17171,8 @@ registerDashboard("clock", (props, app) => {
       x: cx - r,
       y: cx - r,
       radius: r,
-      fill: DASHBOARD.clockFace,
-      stroke: DASHBOARD.clockRing,
+      fill: getActiveDashboard().clockFace,
+      stroke: getActiveDashboard().clockRing,
       strokeWidth: Math.max(1.5, size / 50),
       shadow: size >= 56 ? { color: "rgba(0,0,0,0.35)", blur: 5, offsetX: 0, offsetY: 2 } : void 0,
       listening: false
@@ -14097,7 +17192,7 @@ registerDashboard("clock", (props, app) => {
         y: cx + inner * sin,
         x2: (outer - inner) * cos,
         y2: (outer - inner) * sin,
-        stroke: major ? DASHBOARD.clockTickMajor : DASHBOARD.clockTick,
+        stroke: major ? getActiveDashboard().clockTickMajor : getActiveDashboard().clockTick,
         strokeWidth: major ? Math.max(1.5, size / 40) : 1,
         lineCap: "round",
         listening: false
@@ -14109,7 +17204,7 @@ registerDashboard("clock", (props, app) => {
     y: cx,
     x2: 0,
     y2: -hourLen,
-    stroke: DASHBOARD.clockHand,
+    stroke: getActiveDashboard().clockHand,
     strokeWidth: hourW,
     lineCap: "round",
     listening: false
@@ -14119,7 +17214,7 @@ registerDashboard("clock", (props, app) => {
     y: cx,
     x2: 0,
     y2: -minLen,
-    stroke: DASHBOARD.clockHand,
+    stroke: getActiveDashboard().clockHand,
     strokeWidth: minW,
     lineCap: "round",
     listening: false
@@ -14129,7 +17224,7 @@ registerDashboard("clock", (props, app) => {
     y: cx,
     x2: 0,
     y2: -secLen,
-    stroke: DASHBOARD.clockSecond,
+    stroke: getActiveDashboard().clockSecond,
     strokeWidth: Math.max(1, size * 0.015),
     lineCap: "round",
     visible: showSeconds,
@@ -14141,8 +17236,8 @@ registerDashboard("clock", (props, app) => {
       x: cx - hubR,
       y: cx - hubR,
       radius: hubR,
-      fill: DASHBOARD.clockHub,
-      stroke: DASHBOARD.clockRing,
+      fill: getActiveDashboard().clockHub,
+      stroke: getActiveDashboard().clockRing,
       strokeWidth: 1,
       listening: false
     }),
@@ -14150,7 +17245,7 @@ registerDashboard("clock", (props, app) => {
       x: cx - hubR * 0.45,
       y: cx - hubR * 0.45,
       radius: hubR * 0.45,
-      fill: DASHBOARD.clockHand,
+      fill: getActiveDashboard().clockHand,
       listening: false
     })
   );
@@ -14193,8 +17288,8 @@ registerDashboard("chartPanel", (props, app) => {
     app.rect({
       width,
       height,
-      fill: DASHBOARD.chartBg,
-      stroke: DASHBOARD.panelStroke,
+      fill: getActiveDashboard().chartBg,
+      stroke: getActiveDashboard().panelStroke,
       strokeWidth: 1,
       cornerRadius: 8,
       listening: false
@@ -14205,7 +17300,7 @@ registerDashboard("chartPanel", (props, app) => {
       y: 6,
       fontSize: 12,
       fontWeight: "bold",
-      fill: DASHBOARD.text,
+      fill: getActiveDashboard().text,
       listening: false
     })
   );
@@ -14216,7 +17311,7 @@ registerDashboard("chartPanel", (props, app) => {
         x: width - 22,
         y: 5,
         fontSize: 14,
-        fill: DASHBOARD.textMuted,
+        fill: getActiveDashboard().textMuted,
         listening: true,
         metadata: { chartPanelAction: "maximize" }
       })
@@ -14365,342 +17460,6 @@ var dashboardPlugin = {
     LD.registerDashboard = registerDashboard;
   }
 };
-
-// src/automotive/layout.ts
-function resolveBounds(props, defaultWidth, defaultHeight, pad = 8) {
-  const width = "width" in props && typeof props.width === "number" ? Math.max(24, props.width) : Math.max(56, num3(props, "width", defaultWidth));
-  const height = "height" in props && typeof props.height === "number" ? Math.max(20, props.height) : Math.max(44, num3(props, "height", defaultHeight));
-  const adaptivePad = Math.min(pad, Math.max(2, Math.round(Math.min(width, height) * 0.1)));
-  const innerWidth = Math.max(16, width - adaptivePad * 2);
-  const innerHeight = Math.max(12, height - adaptivePad * 2);
-  const maxDial = Math.min(innerWidth, innerHeight);
-  const explicit = num3(props, "size", 0);
-  const dialSize = explicit > 0 ? Math.min(explicit, maxDial) : Math.max(28, maxDial);
-  return { width, height, pad: adaptivePad, innerWidth, innerHeight, dialSize };
-}
-function isCompactBounds(bounds) {
-  return bounds.innerWidth < 112 || bounds.innerHeight < 76;
-}
-function estimateTextWidth(text, fontSize) {
-  return Math.max(fontSize, text.length * fontSize * 0.55);
-}
-function fitTextX(text, fontSize, boxW, pad = 0) {
-  const estW = Math.min(boxW - pad * 2, estimateTextWidth(text, fontSize));
-  return pad + Math.max(0, (boxW - pad * 2 - estW) / 2);
-}
-function fitFontSizeToWidth(text, boxW, maxSize, minSize = 6, pad = 0) {
-  const available = Math.max(8, boxW - pad * 2);
-  let fontSize = maxSize;
-  while (fontSize > minSize && estimateTextWidth(text, fontSize) > available) {
-    fontSize -= 1;
-  }
-  const estW = Math.min(available, estimateTextWidth(text, fontSize));
-  return { fontSize, x: pad + Math.max(0, (available - estW) / 2) };
-}
-function textYForBaseline(y, fontSize, baseline = "middle") {
-  if (baseline === "middle")
-    return y - fontSize * 0.5;
-  if (baseline === "bottom" || baseline === "ideographic")
-    return y - fontSize;
-  return y;
-}
-function autoCenteredText(app, text, boxW, y, options = {}) {
-  const fontSize = options.fontSize ?? 12;
-  const insetX = options.insetX ?? 0;
-  const insetY = options.insetY ?? 0;
-  const baseline = options.textBaseline ?? "middle";
-  return app.text({
-    text,
-    x: insetX + boxW / 2,
-    y: insetY + textYForBaseline(y, fontSize, baseline),
-    fontSize,
-    fontWeight: options.fontWeight ?? "normal",
-    fill: options.fill ?? "#fff",
-    fontFamily: options.fontFamily,
-    textAlign: "center",
-    metadata: { textBoxWidth: boxW, textBoxCenterY: insetY + y },
-    listening: false
-  });
-}
-function fluidFont(base, bounds, min = 8, max = 24) {
-  const scale = Math.min(bounds.innerWidth, bounds.innerHeight) / 120;
-  return Math.round(Math.min(max, Math.max(min, base * scale)));
-}
-function centerInBounds(bounds, contentW, contentH) {
-  return {
-    x: bounds.pad + Math.max(0, (bounds.innerWidth - contentW) / 2),
-    y: bounds.pad + Math.max(0, (bounds.innerHeight - contentH) / 2)
-  };
-}
-function resolveDisplay(props, fallback = "analog") {
-  const mode = str3(props, "display", "").toLowerCase();
-  if (mode === "digital" || mode === "lcd")
-    return "digital";
-  if (mode === "analog")
-    return "analog";
-  if (str3(props, "theme", "") === "digital" && bool3(props, "digitalGauges", false)) {
-    return "digital";
-  }
-  return fallback;
-}
-function resolveClusterLayout(w, h, options = {}) {
-  const tiny = w < 140 || h < 90;
-  const compact = h < 200;
-  const margin = Math.max(tiny ? 4 : 6, Math.min(w, h) * (tiny ? 0.014 : 0.018));
-  const short = h < 240;
-  const bottomBand = Math.max(short ? 22 : 26, Math.round(h * (short ? 0.12 : 0.14)));
-  const bottomY = h - bottomBand - margin * 0.5;
-  const topSpace = Math.max(36, bottomY - margin);
-  const cx = w / 2;
-  const dialSize = Math.max(compact ? 32 : 36, Math.min(w * 0.18, topSpace * (short ? 0.36 : 0.44)));
-  let dialBox = dialSize + Math.max(compact ? 4 : 6, dialSize * 0.08);
-  const maxDialBox = Math.max(compact ? 36 : 40, (w - margin * 3) / 2);
-  if (dialBox > maxDialBox) {
-    dialBox = maxDialBox;
-  }
-  const fittedDialSize = Math.max(compact ? 28 : 40, dialBox - Math.max(compact ? 4 : 6, dialBox * 0.08));
-  const smallDial = Math.max(compact ? 22 : 28, Math.min(dialSize * 0.48, w * 0.09, topSpace * 0.2));
-  const smallBox = smallDial + Math.max(compact ? 4 : 5, smallDial * 0.08);
-  const gearW = Math.max(compact ? 30 : 34, w * 0.065);
-  let gearH = compact ? Math.max(20, Math.min(24, h * 0.11)) : Math.max(30, Math.min(h * 0.13, topSpace * 0.2));
-  const turnW = Math.max(compact ? 32 : 36, w * 0.065);
-  let turnH = compact ? Math.max(11, h * 0.042) : Math.max(14, h * 0.055);
-  const fuelW = Math.max(52, w * 0.13);
-  const fuelH = Math.max(compact ? 22 : 26, bottomBand * 0.86);
-  const batW = Math.max(44, w * 0.1);
-  const batH = Math.max(16, bottomBand * 0.55);
-  const tpmsW = Math.max(compact ? 64 : 68, w * 0.17);
-  let tpmsH = compact ? Math.max(22, Math.min(28, h * 0.14)) : Math.max(36, Math.min(h * 0.18, topSpace * 0.26));
-  let lampSize = Math.max(compact ? 14 : 18, Math.min(bottomBand * 0.75, w * 0.036));
-  let cruiseW = Math.max(36, w * 0.085);
-  let cruiseH = Math.max(compact ? 13 : 16, bottomBand * 0.48);
-  let adasW = Math.max(40, w * 0.1);
-  let adasH = Math.max(10, bottomBand * 0.4);
-  const centerTop = margin + smallBox + (compact ? 2 : 4);
-  const centerBottom = bottomY - (compact ? 2 : 4);
-  const centerGap = compact ? 3 : 4;
-  let centerNeed = gearH + turnH + tpmsH + centerGap * 2;
-  const centerAvail = Math.max(24, centerBottom - centerTop);
-  if (centerNeed > centerAvail) {
-    const scale = centerAvail / centerNeed;
-    gearH = Math.max(18, gearH * scale);
-    turnH = Math.max(10, turnH * scale);
-    tpmsH = Math.max(18, tpmsH * scale);
-    centerNeed = gearH + turnH + tpmsH + centerGap * 2;
-  }
-  const centerSlack = Math.max(0, centerAvail - centerNeed);
-  const gearY = centerTop + centerSlack * 0.12;
-  const turnY = gearY + gearH + centerGap;
-  const tpmsY = turnY + turnH + centerGap;
-  const centerY = (boxH) => Math.min(bottomY + (bottomBand - boxH) / 2, h - margin - boxH);
-  const leftUsed = margin + fuelW + margin * 0.35 + batW + margin;
-  const rightNeeded = lampSize * 3 + cruiseW + adasW + margin * 1.4;
-  const rightAvail = Math.max(40, w - leftUsed - margin - tpmsW * 0.35);
-  if (rightNeeded > rightAvail) {
-    const scale = rightAvail / rightNeeded;
-    lampSize = Math.max(16, lampSize * scale);
-    cruiseW = Math.max(36, cruiseW * scale);
-    cruiseH = Math.max(14, cruiseH * scale);
-    adasW = Math.max(40, adasW * scale);
-    adasH = Math.max(10, adasH * scale);
-  }
-  let rx = w - margin;
-  const placeRight = (type, rw, rh) => {
-    rx -= rw;
-    const x = Math.max(margin, rx);
-    const slot = { type, x, y: centerY(rh), width: rw, height: rh };
-    rx = x - margin * 0.28;
-    return slot;
-  };
-  const compactRight = compact && w < 320;
-  const rightSlots = compactRight ? [placeRight("cruiseControl", cruiseW, cruiseH), placeRight("adasStatus", adasW, adasH)] : [
-    placeRight("adasStatus", adasW, adasH),
-    placeRight("warningLamp", lampSize, lampSize),
-    placeRight("cruiseControl", cruiseW, cruiseH),
-    placeRight("headlights", lampSize, lampSize),
-    placeRight("parkingBrake", lampSize, lampSize)
-  ];
-  const interGap = Math.max(6, margin * 0.45);
-  const callBandW = w - margin * 2 - dialBox * 2 - interGap * 2;
-  const showCall = !!options.callScreen && w >= 520 && h >= 220 && callBandW >= 120;
-  const centerSlots = [];
-  if (showCall) {
-    const callH = Math.max(72, Math.min(h * 0.36, dialBox * 1.02, topSpace * 0.58));
-    const callY = margin + Math.max(0, (dialBox - callH) * 0.42) + (compact && h < 176 ? 0 : smallBox * 0.12);
-    centerSlots.push({
-      type: "callScreen",
-      x: margin + dialBox + interGap,
-      y: callY,
-      width: callBandW,
-      height: callH
-    });
-    const bottomGearY = bottomY + (bottomBand - gearH) / 2;
-    const gearX = Math.max(margin + dialBox + interGap, cx - gearW - turnW / 2 - 4);
-    centerSlots.push(
-      { type: "gearIndicator", x: gearX, y: bottomGearY, width: gearW, height: gearH },
-      {
-        type: "turnIndicators",
-        x: Math.min(w - margin - dialBox - interGap - turnW, cx - turnW / 2),
-        y: bottomGearY + (gearH - turnH) / 2,
-        width: turnW,
-        height: turnH
-      }
-    );
-    if (h >= 340) {
-      const tpmsStripH = Math.max(22, Math.min(30, tpmsH));
-      const tpmsY2 = callY + callH + 6;
-      if (tpmsY2 + tpmsStripH <= bottomY - 4) {
-        centerSlots.push({ type: "tpms", x: cx - tpmsW / 2, y: tpmsY2, width: tpmsW, height: tpmsStripH });
-      }
-    }
-  } else {
-    centerSlots.push(
-      { type: "gearIndicator", x: cx - gearW / 2, y: gearY, width: gearW, height: gearH },
-      { type: "turnIndicators", x: cx - turnW / 2, y: turnY, width: turnW, height: turnH },
-      { type: "tpms", x: cx - tpmsW / 2, y: tpmsY, width: tpmsW, height: tpmsH }
-    );
-  }
-  const slots = [
-    { type: "speedometer", x: margin, y: margin, width: dialBox, height: dialBox, size: fittedDialSize },
-    { type: "tachometer", x: w - margin - dialBox, y: margin, width: dialBox, height: dialBox, size: fittedDialSize },
-    ...compact && h < 176 || showCall ? [] : [{ type: "engineTemp", x: cx - smallBox / 2, y: margin + 3, width: smallBox, height: smallBox, size: smallDial }],
-    ...centerSlots,
-    { type: "fuelGauge", x: margin, y: centerY(fuelH), width: fuelW, height: fuelH },
-    { type: "batteryVoltage", x: margin + fuelW + margin * 0.35, y: centerY(batH), width: batW, height: batH },
-    ...rightSlots
-  ];
-  return slots.map((slot) => ({
-    ...slot,
-    x: Math.max(margin, Math.min(slot.x, w - margin - slot.width)),
-    y: Math.max(margin, Math.min(slot.y, h - margin - slot.height))
-  }));
-}
-
-// src/automotive/refresh.ts
-function isAutoGroup(node) {
-  return "children" in node && typeof node.metadata?.autoType === "string";
-}
-function syncAutoAppViewport(node, width, height) {
-  const app = node.getApp();
-  if (!app || app.stage.children.length !== 1 || app.stage.children[0] !== node)
-    return;
-  const size = app.getSize();
-  if (size.width !== width || size.height !== height) {
-    app.resize(width, height);
-  }
-}
-function installAutoWidgetRebuild(group, app, autoType) {
-  const type = autoType ?? group.metadata?.autoType;
-  if (!type)
-    return;
-  const rebuild = () => {
-    const factory = registry3[type];
-    if (!factory)
-      return;
-    const props = { ...getState3(group), x: group.x, y: group.y };
-    const fresh = factory(props, app);
-    if (!fresh || !isAutoGroup(fresh))
-      return;
-    for (const child of [...group.children]) {
-      group.remove(child);
-    }
-    for (const child of [...fresh.children]) {
-      fresh.remove(child);
-      group.add(child);
-    }
-    group.metadata._parts = fresh.metadata._parts;
-    group.metadata.refresh = fresh.metadata.refresh;
-    group.metadata.boolRefresh = fresh.metadata.boolRefresh;
-    group.metadata.textRefresh = fresh.metadata.textRefresh;
-    group.metadata.linesRefresh = fresh.metadata.linesRefresh;
-    group.metadata._digitalParts = fresh.metadata._digitalParts;
-    group.metadata.autoState = fresh.metadata.autoState;
-    const w = num3(props, "width", 0);
-    const h = num3(props, "height", 0);
-    if (w > 0) {
-      group.metadata.chartWidth = w;
-      group.metadata.autoWidth = w;
-    }
-    if (h > 0) {
-      group.metadata.chartHeight = h;
-      group.metadata.autoHeight = h;
-    }
-    group.metadata.autoRebuild = rebuild;
-    app.requestRender();
-    const renderer = app.getRenderer?.();
-    if (renderer && typeof renderer.forceFullRedraw === "function") {
-      renderer.forceFullRedraw();
-    }
-  };
-  group.metadata.autoRebuild = rebuild;
-}
-function updateAutoWidgetProps(group, patch) {
-  if (!isAutoGroup(group))
-    return;
-  const prev = getState3(group);
-  const sizeKeys = ["width", "height", "size"];
-  const onlySize = Object.keys(patch).every((k) => sizeKeys.includes(k));
-  if (onlySize) {
-    const same = (!("width" in patch) || num3(patch, "width", -1) === num3(prev, "width", -2)) && (!("height" in patch) || num3(patch, "height", -1) === num3(prev, "height", -2)) && (!("size" in patch) || num3(patch, "size", -1) === num3(prev, "size", -2));
-    if (same)
-      return;
-  }
-  setState3(group, patch);
-  const state = getState3(group);
-  if (("width" in patch || "height" in patch) && (num3(state, "size", 0) > 0 || "size" in state)) {
-    const bounds = resolveBounds(state, num3(state, "width", 160), num3(state, "height", 120));
-    if (bounds.dialSize !== num3(state, "size", 0)) {
-      setState3(group, { size: bounds.dialSize });
-    }
-  }
-  const w = num3(patch, "width", num3(state, "width", 0));
-  const h = num3(patch, "height", num3(state, "height", 0));
-  if (w > 0) {
-    group.metadata.chartWidth = w;
-    group.metadata.autoWidth = w;
-  }
-  if (h > 0) {
-    group.metadata.chartHeight = h;
-    group.metadata.autoHeight = h;
-  }
-  const rebuild = group.metadata.autoRebuild;
-  rebuild?.();
-  if (w > 0 && h > 0) {
-    syncAutoAppViewport(group, w, h);
-  }
-}
-
-// src/automotive/registryCore.ts
-var registry3 = {};
-function registerAutomotive(type, factory) {
-  registry3[type] = factory;
-}
-function isAutoGroup2(node) {
-  return "children" in node && typeof node.metadata?.autoType === "string";
-}
-function createAutomotiveFromJSON(type, props, app) {
-  const factory = registry3[type];
-  if (!factory)
-    return null;
-  const node = factory(props, app);
-  if (node && isAutoGroup2(node)) {
-    const state = getState3(node);
-    const bounds = resolveBounds(
-      { ...state, ...props },
-      num3(props, "width", 160),
-      num3(props, "height", 120)
-    );
-    if (!num3(state, "width", 0) || !num3(state, "height", 0)) {
-      setState3(node, { width: bounds.width, height: bounds.height });
-      node.metadata.chartWidth = bounds.width;
-      node.metadata.autoWidth = bounds.width;
-      node.metadata.chartHeight = bounds.height;
-      node.metadata.autoHeight = bounds.height;
-    }
-    installAutoWidgetRebuild(node, app, type);
-  }
-  return node;
-}
 
 // src/automotive/catalog.ts
 var DIAL_WIDGETS = [
@@ -14881,52 +17640,6 @@ var WIDGET_ALIASES = {
   turnIndicator: "turnIndicators",
   radio: "fmRadio"
 };
-
-// src/automotive/themes.ts
-var THEMES = {
-  classic: {
-    background: "#0a0a0a",
-    dialStroke: "#444444",
-    needleSpeed: "#ef4444",
-    needleTach: "#22c55e",
-    text: "#ffffff",
-    textMuted: "#9ca3af",
-    accent: "#2563eb",
-    warning: "#ef4444",
-    ok: "#22c55e",
-    lampOn: "#fbbf24",
-    lampOff: "#333333"
-  },
-  sport: {
-    background: "#111827",
-    dialStroke: "#1f2937",
-    needleSpeed: "#f97316",
-    needleTach: "#eab308",
-    text: "#f9fafb",
-    textMuted: "#6b7280",
-    accent: "#dc2626",
-    warning: "#dc2626",
-    ok: "#84cc16",
-    lampOn: "#fde047",
-    lampOff: "#374151"
-  },
-  digital: {
-    background: "#020617",
-    dialStroke: "#0ea5e9",
-    needleSpeed: "#38bdf8",
-    needleTach: "#22d3ee",
-    text: "#e0f2fe",
-    textMuted: "#64748b",
-    accent: "#0ea5e9",
-    warning: "#f43f5e",
-    ok: "#10b981",
-    lampOn: "#22d3ee",
-    lampOff: "#1e293b"
-  }
-};
-function getTheme(name) {
-  return THEMES[name] ?? THEMES.classic;
-}
 
 // src/automotive/primitives/digitalGauge.ts
 function digitalGaugeStyle(theme) {
@@ -15145,7 +17858,7 @@ function formatValue(v, format, unit = "") {
   }
 }
 function buildDialWidget(app, type, autoPart, props, options) {
-  const theme = getTheme(str3(props, "theme", "classic"));
+  const theme = themeFromProps(props);
   const bounds = resolveBounds(props, 160, 160);
   const value = num3(props, "value", 0);
   const max = num3(props, "max", options.max);
@@ -15234,7 +17947,7 @@ function buildDialWidget(app, type, autoPart, props, options) {
   return group;
 }
 function buildBarWidget(app, type, autoPart, props, options) {
-  const theme = getTheme(str3(props, "theme", "classic"));
+  const theme = themeFromProps(props);
   const value = clamp4(num3(props, "value", 50), 0, 100);
   const bounds = resolveBounds(props, 120, 56);
   const group = createAutoGroup(app, type, { ...props, width: bounds.width, height: bounds.height }, autoPart);
@@ -15300,7 +18013,7 @@ function buildBarWidget(app, type, autoPart, props, options) {
   return group;
 }
 function buildNumericWidget(app, type, autoPart, props, options) {
-  const theme = getTheme(str3(props, "theme", "classic"));
+  const theme = themeFromProps(props);
   const value = num3(props, "value", 0);
   const text = str3(props, "text", "");
   const bounds = resolveBounds(props, options.width ?? 128, 60);
@@ -15377,7 +18090,7 @@ function buildNumericWidget(app, type, autoPart, props, options) {
 }
 function buildLampWidget(app, type, autoPart, props, symbol) {
   const active = bool3(props, "active", false);
-  const theme = getTheme(str3(props, "theme", "classic"));
+  const theme = themeFromProps(props);
   const bounds = resolveBounds(props, 36, 36);
   const group = createAutoGroup(app, type, { ...props, width: bounds.width, height: bounds.height }, autoPart);
   const maxR = Math.min(bounds.innerWidth, bounds.innerHeight) / 2 - 3;
@@ -15418,7 +18131,7 @@ function buildLampWidget(app, type, autoPart, props, symbol) {
 function buildBadgeWidget(app, type, autoPart, props, title) {
   const status = str3(props, "status", str3(props, "text", "OFF"));
   const active = bool3(props, "active", status.toLowerCase() === "on" || status.toLowerCase() === "active");
-  const theme = getTheme(str3(props, "theme", "classic"));
+  const theme = themeFromProps(props);
   const bounds = resolveBounds(props, 168, 52);
   const group = createAutoGroup(app, type, { ...props, width: bounds.width, height: bounds.height }, autoPart);
   const w = bounds.innerWidth;
@@ -15483,7 +18196,7 @@ function buildBadgeWidget(app, type, autoPart, props, title) {
   return group;
 }
 function buildInfoPanel(app, type, autoPart, props, title, rows = []) {
-  const theme = getTheme(str3(props, "theme", "classic"));
+  const theme = themeFromProps(props);
   const lines2 = props.lines ?? rows;
   const bounds = resolveBounds(props, 200, Math.max(72, lines2.length * 18 + 32));
   const group = createAutoGroup(app, type, { ...props, width: bounds.width, height: bounds.height }, autoPart);
@@ -15613,7 +18326,7 @@ registerCatalogWidgets();
 
 // src/automotive/widgets/custom.ts
 function themedDial(app, type, props, max, format, needleKey, options = {}) {
-  const theme = getTheme(str3(props, "theme", "classic"));
+  const theme = themeFromProps(props);
   return buildDialWidget(app, type, type, { ...props, needleColor: props.needleColor ?? theme[needleKey] }, {
     max: num3(props, "max", max),
     format,
@@ -15624,7 +18337,7 @@ function themedDial(app, type, props, max, format, needleKey, options = {}) {
   });
 }
 registerAutomotive("speedometer", (props, app) => {
-  const theme = getTheme(str3(props, "theme", "classic"));
+  const theme = themeFromProps(props);
   return themedDial(app, "speedometer", { ...props, needleColor: props.needleColor ?? theme.needleSpeed }, 240, "int", "needleSpeed", {
     redlineFrom: 0.82,
     tickCount: 12,
@@ -15632,14 +18345,14 @@ registerAutomotive("speedometer", (props, app) => {
   });
 });
 registerAutomotive("tachometer", (props, app) => {
-  const theme = getTheme(str3(props, "theme", "classic"));
+  const theme = themeFromProps(props);
   return themedDial(app, "tachometer", { ...props, needleColor: props.needleColor ?? theme.needleTach }, 8e3, "rpm", "needleTach", {
     redlineFrom: 0.75,
     tickCount: 8
   });
 });
 registerAutomotive("engineTemp", (props, app) => {
-  const theme = getTheme(str3(props, "theme", "classic"));
+  const theme = themeFromProps(props);
   const bounds = resolveBounds(props, 140, 140);
   const value = num3(props, "value", 90);
   const max = num3(props, "max", 130);
@@ -15837,7 +18550,7 @@ function buildAutomotiveCalendar(app, group, bounds, theme, props) {
   }
 }
 registerAutomotive("calendar", (props, app) => {
-  const theme = getTheme(str3(props, "theme", "classic"));
+  const theme = themeFromProps(props);
   const bounds = resolveBounds(props, 200, 140);
   const group = createAutoGroup(app, "calendar", { ...props, width: bounds.width, height: bounds.height }, "calendar");
   buildAutomotiveCalendar(app, group, bounds, theme, props);
@@ -15864,7 +18577,7 @@ function callerInitials(name) {
   return (name.slice(0, 2) || "?").toUpperCase();
 }
 registerAutomotive("callScreen", (props, app) => {
-  const theme = getTheme(str3(props, "theme", "classic"));
+  const theme = themeFromProps(props);
   const lines2 = props.lines ?? ["Incoming\u2026", "Swipe to answer"];
   const caller = str3(props, "caller", str3(props, "name", "Alex Morgan"));
   const status = str3(props, "status", "incoming").toLowerCase();
@@ -16033,7 +18746,7 @@ registerAutomotive("callScreen", (props, app) => {
 registerAutomotive("batteryVoltage", (props, app) => {
   const value = num3(props, "value", 12.4);
   const lowThreshold = num3(props, "lowThreshold", 11.5);
-  const theme = getTheme(str3(props, "theme", "classic"));
+  const theme = themeFromProps(props);
   const bounds = resolveBounds(props, 100, 36);
   const group = createAutoGroup(app, "batteryVoltage", { ...props, width: bounds.width, height: bounds.height }, "batteryVoltage");
   const pad = bounds.pad;
@@ -16130,7 +18843,7 @@ registerAutomotive("batteryVoltage", (props, app) => {
   return group;
 });
 registerAutomotive("tpms", (props, app) => {
-  const theme = getTheme(str3(props, "theme", "classic"));
+  const theme = themeFromProps(props);
   const pressures = props.pressures ?? [32, 32, 32, 32];
   const lowThreshold = num3(props, "lowThreshold", 25);
   const bounds = resolveBounds(props, 148, 92);
@@ -16215,7 +18928,7 @@ registerAutomotive("tpms", (props, app) => {
 });
 registerAutomotive("fuelGauge", (props, app) => {
   const value = clamp4(num3(props, "value", 50), 0, 100);
-  const theme = getTheme(str3(props, "theme", "classic"));
+  const theme = themeFromProps(props);
   const bounds = resolveBounds(props, 120, 56);
   const group = createAutoGroup(app, "fuelGauge", { ...props, width: bounds.width, height: bounds.height }, "fuelGauge");
   const w = bounds.innerWidth;
@@ -16254,7 +18967,7 @@ registerAutomotive("fuelGauge", (props, app) => {
 });
 registerAutomotive("gearIndicator", (props, app) => {
   const gear = str3(props, "gear", "P");
-  const theme = getTheme(str3(props, "theme", "classic"));
+  const theme = themeFromProps(props);
   const bounds = resolveBounds(props, 56, 60);
   const group = createAutoGroup(app, "gearIndicator", { ...props, width: bounds.width, height: bounds.height }, "gearIndicator");
   const w = bounds.innerWidth;
@@ -16290,7 +19003,7 @@ registerAutomotive("gearIndicator", (props, app) => {
 registerAutomotive("turnIndicators", (props, app) => {
   const left = bool3(props, "left", false);
   const right = bool3(props, "right", false);
-  const theme = getTheme(str3(props, "theme", "classic"));
+  const theme = themeFromProps(props);
   const bounds = resolveBounds(props, 56, 28);
   const group = createAutoGroup(app, "turnIndicators", { ...props, width: bounds.width, height: bounds.height }, "turnIndicators");
   const pad = bounds.pad;
@@ -16456,7 +19169,7 @@ registerAutomotive("adasStatus", (props, app) => {
   return group;
 });
 function buildInstrumentCluster(props, app, type) {
-  const theme = getTheme(str3(props, "theme", "classic"));
+  const theme = themeFromProps(props);
   const w = num3(props, "width", 800);
   const h = num3(props, "height", 400);
   const incomingCall = bool3(props, "incomingCall", false) || bool3(props, "showCall", false);
@@ -16472,7 +19185,7 @@ function buildInstrumentCluster(props, app, type) {
       listening: false
     })
   );
-  const themeName = str3(props, "theme", "classic");
+  const themeName = autoThemeName(props);
   const isDigital = themeName === "digital";
   const gaugeDisplay = isDigital ? "digital" : "analog";
   const valueByType = {
@@ -16541,7 +19254,7 @@ registerAutomotive(
 
 // src/automotive/widgets/panelPrimitives.ts
 function panelTheme(props) {
-  return getTheme(str3(props, "theme", "classic"));
+  return themeFromProps(props);
 }
 function panelBounds(props, dw = 220, dh = 130) {
   return resolveBounds(props, dw, dh);
@@ -17795,9 +20508,9 @@ registerAutomotive("sunriseSunset", (props, app) => {
 
 // src/automotive/widgets/aliases.ts
 for (const [alias, canonical] of Object.entries(WIDGET_ALIASES)) {
-  if (registry3[alias])
+  if (registry[alias])
     continue;
-  const factory = registry3[canonical];
+  const factory = registry[canonical];
   if (!factory)
     continue;
   registerAutomotive(alias, (props, app) => factory(props, app));
@@ -18038,7 +20751,7 @@ function detachAutoWidgetResizeObserver(widgetNode) {
 
 // src/automotive/registry.ts
 function listAutomotiveWidgets() {
-  return Object.keys(registry3).sort();
+  return Object.keys(registry).sort();
 }
 
 // src/modules/automotive/index.ts
@@ -18133,7 +20846,7 @@ function computeRoutePoints(x1, y1, x2, y2, style = "orthogonal", obstacles = []
   const midY = (y1 + y2) / 2;
   return [x1, y1, x1, midY, x2, midY, x2, y2];
 }
-function routeConnector(app, x1, y1, x2, y2, style = "orthogonal", obstacles = [], stroke = DIAGRAM.edge) {
+function routeConnector(app, x1, y1, x2, y2, style = "orthogonal", obstacles = [], stroke = getActiveDiagram().edge) {
   const points = computeRoutePoints(x1, y1, x2, y2, style, obstacles);
   if (style === "straight" && points.length === 4) {
     return app.line({
@@ -18270,9 +20983,9 @@ function pathMidpoint(points) {
   return { x: last.x2, y: last.y2 };
 }
 function createConnector(app, x1, y1, x2, y2, options = {}) {
-  const stroke = options.stroke ?? DIAGRAM.edge;
-  const strokeWidth = options.strokeWidth ?? DIAGRAM.stroke.edge;
-  const glowColor = options.glowColor ?? DIAGRAM.edgeGlow;
+  const stroke = options.stroke ?? getActiveDiagram().edge;
+  const strokeWidth = options.strokeWidth ?? getActiveDiagram().stroke.edge;
+  const glowColor = options.glowColor ?? getActiveDiagram().edgeGlow;
   const arrowEnd = options.arrowEnd ?? "filled";
   const arrowStart = options.arrowStart ?? "none";
   const arrowSize = 11;
@@ -18300,7 +21013,7 @@ function createConnector(app, x1, y1, x2, y2, options = {}) {
       points: display,
       fill: null,
       stroke: glowColor,
-      strokeWidth: strokeWidth + DIAGRAM.stroke.edgeGlow,
+      strokeWidth: strokeWidth + getActiveDiagram().stroke.edgeGlow,
       lineJoin: "round",
       lineCap: "round",
       opacity: 0.85,
@@ -18332,7 +21045,7 @@ function createConnector(app, x1, y1, x2, y2, options = {}) {
         points: arrowHeadPoints(x2, y2, endAngle, arrowSize),
         fill: stroke,
         stroke,
-        strokeWidth: DIAGRAM.stroke.arrow,
+        strokeWidth: getActiveDiagram().stroke.arrow,
         listening: false
       })
     );
@@ -18352,9 +21065,9 @@ function createConnector(app, x1, y1, x2, y2, options = {}) {
     group.add(
       app.polygon({
         points: arrowHeadPoints(x2, y2, endAngle, arrowSize + 2),
-        fill: DIAGRAM.classFill,
+        fill: getActiveDiagram().classFill,
         stroke,
-        strokeWidth: DIAGRAM.stroke.node,
+        strokeWidth: getActiveDiagram().stroke.node,
         listening: false
       })
     );
@@ -18365,7 +21078,7 @@ function createConnector(app, x1, y1, x2, y2, options = {}) {
         points: arrowHeadPoints(x1, y1, startAngle + Math.PI, arrowSize),
         fill: stroke,
         stroke,
-        strokeWidth: DIAGRAM.stroke.arrow,
+        strokeWidth: getActiveDiagram().stroke.arrow,
         listening: false
       })
     );
@@ -18466,9 +21179,9 @@ function walkOrgEdgesConnect(app, root, node, edgeLayer, obstacles) {
       connectNodes(app, node, child, obstacles, {
         parent: root,
         style: "orthogonal",
-        stroke: DIAGRAM.edge,
-        glowColor: DIAGRAM.edgeGlow,
-        strokeWidth: DIAGRAM.stroke.edge,
+        stroke: getActiveDiagram().edge,
+        glowColor: getActiveDiagram().edgeGlow,
+        strokeWidth: getActiveDiagram().stroke.edge,
         arrowEnd: "filled",
         edgeId: `org_${fromId}_${toId}`,
         fromId,
@@ -18488,8 +21201,8 @@ function wireMindMapConnectors(app, group) {
   const cy = worldToParentLocal(group, cB.x + cB.width / 2, cB.y + cB.height / 2).y;
   for (let i = 1; i < group.children.length; i++) {
     const branch = group.children[i];
-    const branchStroke = branch.metadata?.mindBranchColor ?? DIAGRAM.mindBranch.stroke;
-    const branchGlow = branch.metadata?.mindBranchGlow ?? DIAGRAM.edgeGlow;
+    const branchStroke = branch.metadata?.mindBranchColor ?? getActiveDiagram().mindBranch.stroke;
+    const branchGlow = branch.metadata?.mindBranchGlow ?? getActiveDiagram().edgeGlow;
     const bB = branch.getBounds();
     const bx = worldToParentLocal(group, bB.x + bB.width / 2, bB.y + bB.height / 2).x;
     const by = worldToParentLocal(group, bB.x + bB.width / 2, bB.y + bB.height / 2).y;
@@ -18498,7 +21211,7 @@ function wireMindMapConnectors(app, group) {
         style: "straight",
         stroke: branchStroke,
         glowColor: branchGlow,
-        strokeWidth: DIAGRAM.stroke.edge,
+        strokeWidth: getActiveDiagram().stroke.edge,
         arrowEnd: "none"
       })
     );
@@ -18513,7 +21226,7 @@ function wireMindMapConnectors(app, group) {
           style: "orthogonal",
           stroke: branchStroke,
           glowColor: branchGlow,
-          strokeWidth: DIAGRAM.stroke.edgeThin,
+          strokeWidth: getActiveDiagram().stroke.edgeThin,
           arrowEnd: "filled"
         })
       );
@@ -18524,89 +21237,95 @@ function wireMindMapConnectors(app, group) {
 
 // src/diagram/symbols.ts
 var SYMBOL_SIZE = 44;
-var STROKE = DIAGRAM.schematicStroke;
-var SYMBOL_ACCENTS = {
-  battery: DIAGRAM.schematicBattery,
-  resistor: DIAGRAM.schematicResistor,
-  switch: DIAGRAM.schematicSwitch,
-  led: DIAGRAM.schematicLedStroke
-};
+function schematicStroke() {
+  return getActiveDiagram().schematicStroke;
+}
+function symbolAccent(type) {
+  const d = getActiveDiagram();
+  const map = {
+    battery: d.schematicBattery,
+    resistor: d.schematicResistor,
+    switch: d.schematicSwitch,
+    led: d.schematicLedStroke
+  };
+  return map[type];
+}
 function symbolPad(app, w, h, accent) {
   const g = app.group();
   addCardChrome(app, g, {
     width: w,
     height: h,
-    cornerRadius: DIAGRAM.radii.sm,
-    fill: DIAGRAM.schematicFill,
-    stroke: DIAGRAM.labelPillStroke,
-    strokeWidth: DIAGRAM.stroke.label,
-    shadow: DIAGRAM.shadowSoft,
+    cornerRadius: getActiveDiagram().radii.sm,
+    fill: getActiveDiagram().schematicFill,
+    stroke: getActiveDiagram().labelPillStroke,
+    strokeWidth: getActiveDiagram().stroke.label,
+    shadow: getActiveDiagram().shadowSoft,
     accentColor: accent
   });
   return g;
 }
 function resistor(app, x, y) {
-  const g = symbolPad(app, SYMBOL_SIZE, SYMBOL_SIZE, SYMBOL_ACCENTS.resistor);
+  const g = symbolPad(app, SYMBOL_SIZE, SYMBOL_SIZE, symbolAccent("resistor"));
   g.x = x;
   g.y = y;
   const pts = [4, 22, 12, 8, 20, 36, 28, 8, 36, 36, 40, 22];
-  g.add(app.polyline({ points: pts, fill: null, stroke: STROKE, strokeWidth: 2, lineCap: "round", listening: false }));
+  g.add(app.polyline({ points: pts, fill: null, stroke: schematicStroke(), strokeWidth: 2, lineCap: "round", listening: false }));
   return g;
 }
 function capacitor(app, x, y) {
   const g = symbolPad(app, SYMBOL_SIZE, SYMBOL_SIZE);
   g.x = x;
   g.y = y;
-  g.add(app.line({ x: 4, y: 22, x2: 16, y2: 0, stroke: STROKE, strokeWidth: 2, lineCap: "round", listening: false }));
-  g.add(app.line({ x: 18, y: 10, x2: 0, y2: 24, stroke: STROKE, strokeWidth: 2.5, listening: false }));
-  g.add(app.line({ x: 24, y: 10, x2: 0, y2: 24, stroke: STROKE, strokeWidth: 2.5, listening: false }));
-  g.add(app.line({ x: 26, y: 22, x2: 16, y2: 0, stroke: STROKE, strokeWidth: 2, lineCap: "round", listening: false }));
+  g.add(app.line({ x: 4, y: 22, x2: 16, y2: 0, stroke: schematicStroke(), strokeWidth: 2, lineCap: "round", listening: false }));
+  g.add(app.line({ x: 18, y: 10, x2: 0, y2: 24, stroke: schematicStroke(), strokeWidth: 2.5, listening: false }));
+  g.add(app.line({ x: 24, y: 10, x2: 0, y2: 24, stroke: schematicStroke(), strokeWidth: 2.5, listening: false }));
+  g.add(app.line({ x: 26, y: 22, x2: 16, y2: 0, stroke: schematicStroke(), strokeWidth: 2, lineCap: "round", listening: false }));
   return g;
 }
 function ground(app, x, y) {
-  const g = symbolPad(app, SYMBOL_SIZE, SYMBOL_SIZE, DIAGRAM.edgeMuted);
+  const g = symbolPad(app, SYMBOL_SIZE, SYMBOL_SIZE, getActiveDiagram().edgeMuted);
   g.x = x;
   g.y = y;
-  g.add(app.line({ x: 22, y: 8, x2: 0, y2: 12, stroke: STROKE, strokeWidth: 2, lineCap: "round", listening: false }));
-  g.add(app.line({ x: 8, y: 24, x2: 28, y2: 0, stroke: STROKE, strokeWidth: 2, lineCap: "round", listening: false }));
-  g.add(app.line({ x: 14, y: 30, x2: 20, y2: 0, stroke: STROKE, strokeWidth: 2, lineCap: "round", listening: false }));
-  g.add(app.line({ x: 18, y: 36, x2: 4, y2: 0, stroke: STROKE, strokeWidth: 2, lineCap: "round", listening: false }));
+  g.add(app.line({ x: 22, y: 8, x2: 0, y2: 12, stroke: schematicStroke(), strokeWidth: 2, lineCap: "round", listening: false }));
+  g.add(app.line({ x: 8, y: 24, x2: 28, y2: 0, stroke: schematicStroke(), strokeWidth: 2, lineCap: "round", listening: false }));
+  g.add(app.line({ x: 14, y: 30, x2: 20, y2: 0, stroke: schematicStroke(), strokeWidth: 2, lineCap: "round", listening: false }));
+  g.add(app.line({ x: 18, y: 36, x2: 4, y2: 0, stroke: schematicStroke(), strokeWidth: 2, lineCap: "round", listening: false }));
   return g;
 }
 function battery(app, x, y) {
-  const g = symbolPad(app, SYMBOL_SIZE, SYMBOL_SIZE, SYMBOL_ACCENTS.battery);
+  const g = symbolPad(app, SYMBOL_SIZE, SYMBOL_SIZE, symbolAccent("battery"));
   g.x = x;
   g.y = y;
-  g.add(app.line({ x: 14, y: 10, x2: 0, y2: 28, stroke: STROKE, strokeWidth: 2, lineCap: "round", listening: false }));
-  g.add(app.line({ x: 22, y: 6, x2: 0, y2: 32, stroke: DIAGRAM.schematicBattery, strokeWidth: 3, lineCap: "round", listening: false }));
-  g.add(app.line({ x: 30, y: 10, x2: 0, y2: 28, stroke: STROKE, strokeWidth: 2, lineCap: "round", listening: false }));
+  g.add(app.line({ x: 14, y: 10, x2: 0, y2: 28, stroke: schematicStroke(), strokeWidth: 2, lineCap: "round", listening: false }));
+  g.add(app.line({ x: 22, y: 6, x2: 0, y2: 32, stroke: getActiveDiagram().schematicBattery, strokeWidth: 3, lineCap: "round", listening: false }));
+  g.add(app.line({ x: 30, y: 10, x2: 0, y2: 28, stroke: schematicStroke(), strokeWidth: 2, lineCap: "round", listening: false }));
   return g;
 }
 function switchSymbol(app, x, y) {
-  const g = symbolPad(app, SYMBOL_SIZE, SYMBOL_SIZE, SYMBOL_ACCENTS.switch);
+  const g = symbolPad(app, SYMBOL_SIZE, SYMBOL_SIZE, symbolAccent("switch"));
   g.x = x;
   g.y = y;
-  g.add(app.line({ x: 4, y: 22, x2: 14, y2: 0, stroke: STROKE, strokeWidth: 2, lineCap: "round", listening: false }));
-  g.add(app.line({ x: 14, y: 22, x2: 4, y2: -10, stroke: DIAGRAM.schematicSwitch, strokeWidth: 2, lineCap: "round", listening: false }));
-  g.add(app.circle({ x: 14, y: 22, radius: 2.5, fill: DIAGRAM.schematicSwitch, listening: false }));
-  g.add(app.line({ x: 30, y: 22, x2: -12, y2: 0, stroke: STROKE, strokeWidth: 2, lineCap: "round", listening: false }));
+  g.add(app.line({ x: 4, y: 22, x2: 14, y2: 0, stroke: schematicStroke(), strokeWidth: 2, lineCap: "round", listening: false }));
+  g.add(app.line({ x: 14, y: 22, x2: 4, y2: -10, stroke: getActiveDiagram().schematicSwitch, strokeWidth: 2, lineCap: "round", listening: false }));
+  g.add(app.circle({ x: 14, y: 22, radius: 2.5, fill: getActiveDiagram().schematicSwitch, listening: false }));
+  g.add(app.line({ x: 30, y: 22, x2: -12, y2: 0, stroke: schematicStroke(), strokeWidth: 2, lineCap: "round", listening: false }));
   return g;
 }
 function led(app, x, y) {
-  const g = symbolPad(app, SYMBOL_SIZE, SYMBOL_SIZE, SYMBOL_ACCENTS.led);
+  const g = symbolPad(app, SYMBOL_SIZE, SYMBOL_SIZE, symbolAccent("led"));
   g.x = x;
   g.y = y;
-  g.add(app.line({ x: 4, y: 22, x2: 12, y2: 0, stroke: STROKE, strokeWidth: 2, lineCap: "round", listening: false }));
+  g.add(app.line({ x: 4, y: 22, x2: 12, y2: 0, stroke: schematicStroke(), strokeWidth: 2, lineCap: "round", listening: false }));
   g.add(
     app.polygon({
       points: [12, 14, 32, 22, 12, 30],
-      fill: DIAGRAM.schematicLedFill,
-      stroke: DIAGRAM.schematicLedStroke,
-      strokeWidth: DIAGRAM.stroke.node,
+      fill: getActiveDiagram().schematicLedFill,
+      stroke: getActiveDiagram().schematicLedStroke,
+      strokeWidth: getActiveDiagram().stroke.node,
       listening: false
     })
   );
-  g.add(app.line({ x: 32, y: 22, x2: -8, y2: 0, stroke: STROKE, strokeWidth: 2, lineCap: "round", listening: false }));
+  g.add(app.line({ x: 32, y: 22, x2: -8, y2: 0, stroke: schematicStroke(), strokeWidth: 2, lineCap: "round", listening: false }));
   return g;
 }
 var SYMBOL_FACTORIES = {
@@ -18624,7 +21343,7 @@ var SYMBOL_FACTORIES = {
         y: 0,
         x2: 48,
         y2: 0,
-        stroke: DIAGRAM.schematicWireGlow,
+        stroke: getActiveDiagram().schematicWireGlow,
         strokeWidth: 6,
         lineCap: "round",
         opacity: 0.85,
@@ -18637,7 +21356,7 @@ var SYMBOL_FACTORIES = {
         y: 0,
         x2: 48,
         y2: 0,
-        stroke: DIAGRAM.schematicWire,
+        stroke: getActiveDiagram().schematicWire,
         strokeWidth: 2.5,
         lineCap: "round",
         listening: false
@@ -18656,10 +21375,10 @@ function createSymbol(app, type, x, y, label) {
         text: label,
         x: centerLabelX(label, SYMBOL_SIZE),
         y: SYMBOL_SIZE + 6,
-        fontSize: DIAGRAM.fontSize.sm,
+        fontSize: getActiveDiagram().fontSize.sm,
         fontWeight: "600",
-        fontFamily: DIAGRAM.fontFamily,
-        fill: DIAGRAM.schematicLabel,
+        fontFamily: getActiveDiagram().fontFamily,
+        fill: getActiveDiagram().schematicLabel,
         listening: false
       })
     );
@@ -18667,7 +21386,7 @@ function createSymbol(app, type, x, y, label) {
   return g;
 }
 function centerLabelX(label, boxWidth) {
-  const approx = label.length * DIAGRAM.fontSize.sm * 0.55;
+  const approx = label.length * getActiveDiagram().fontSize.sm * 0.55;
   return Math.max(0, (boxWidth - approx) / 2);
 }
 function wireBetween(app, x1, y1, x2, y2) {
@@ -18678,7 +21397,7 @@ function wireBetween(app, x1, y1, x2, y2) {
       y: y1,
       x2,
       y2,
-      stroke: DIAGRAM.schematicWireGlow,
+      stroke: getActiveDiagram().schematicWireGlow,
       strokeWidth: 6,
       lineCap: "round",
       opacity: 0.85,
@@ -18691,7 +21410,7 @@ function wireBetween(app, x1, y1, x2, y2) {
       y: y1,
       x2,
       y2,
-      stroke: DIAGRAM.schematicWire,
+      stroke: getActiveDiagram().schematicWire,
       strokeWidth: 2.5,
       lineCap: "round",
       listening: false
@@ -18732,7 +21451,7 @@ function createFlowchart(app, data, options = {}) {
   const { nodes, edges } = normalizeDiagramData(data);
   const canvas = readCanvasSize(options);
   const strokeCtx = strokeContextForCanvas(canvas.width, canvas.height);
-  const edgeWidth = resolveStrokeWidth(DIAGRAM.stroke.edge, strokeCtx);
+  const edgeWidth = resolveStrokeWidth(getActiveDiagram().stroke.edge, strokeCtx);
   autoLayoutNodesResponsive(nodes, canvas.width, canvas.height, 128, 52);
   const nodeMap = /* @__PURE__ */ new Map();
   for (const n of nodes) {
@@ -18753,8 +21472,8 @@ function createFlowchart(app, data, options = {}) {
     edgeLayer.add(
       connectNodes(app, fromNode, toNode, obstacles, {
         parent: group,
-        stroke: DIAGRAM.edge,
-        glowColor: DIAGRAM.edgeGlow,
+        stroke: getActiveDiagram().edge,
+        glowColor: getActiveDiagram().edgeGlow,
         strokeWidth: edgeWidth,
         label: edge.label
       })
@@ -18771,7 +21490,7 @@ function createStateMachine(app, data, options = {}) {
   const nodeMap = /* @__PURE__ */ new Map();
   const canvas = readCanvasSize(options);
   const strokeCtx = strokeContextForCanvas(canvas.width, canvas.height);
-  const edgeWidth = resolveStrokeWidth(DIAGRAM.stroke.edge, strokeCtx);
+  const edgeWidth = resolveStrokeWidth(getActiveDiagram().stroke.edge, strokeCtx);
   const layoutNodes = data.states.map((s) => ({ id: s.id, x: s.x, y: s.y }));
   autoLayoutNodesResponsive(layoutNodes, canvas.width, canvas.height, 64, 64);
   const states = data.states.map((s, i) => ({
@@ -18797,8 +21516,8 @@ function createStateMachine(app, data, options = {}) {
     edgeLayer.add(
       connectNodes(app, from, to, obstacles, {
         parent: group,
-        stroke: DIAGRAM.edge,
-        glowColor: DIAGRAM.edgeGlow,
+        stroke: getActiveDiagram().edge,
+        glowColor: getActiveDiagram().edgeGlow,
         strokeWidth: edgeWidth,
         label: t.label
       })
@@ -18833,7 +21552,7 @@ function createClassDiagram(app, data, options = {}) {
         connectNodes(app, from, to, [], {
           parent: group,
           style: "orthogonal",
-          stroke: DIAGRAM.umlInheritance,
+          stroke: getActiveDiagram().umlInheritance,
           glowColor: "rgba(245,158,11,0.18)",
           arrowEnd: "hollow"
         })
@@ -18843,8 +21562,8 @@ function createClassDiagram(app, data, options = {}) {
         connectNodes(app, from, to, [], {
           parent: group,
           style: "orthogonal",
-          stroke: DIAGRAM.umlAssociation,
-          glowColor: DIAGRAM.edgeGlow,
+          stroke: getActiveDiagram().umlAssociation,
+          glowColor: getActiveDiagram().edgeGlow,
           arrowEnd: "open"
         })
       );
@@ -18853,7 +21572,7 @@ function createClassDiagram(app, data, options = {}) {
         connectNodes(app, from, to, [], {
           parent: group,
           style: "orthogonal",
-          stroke: DIAGRAM.umlComposition,
+          stroke: getActiveDiagram().umlComposition,
           glowColor: "rgba(244,114,182,0.16)",
           arrowEnd: "filled"
         })
@@ -18863,7 +21582,7 @@ function createClassDiagram(app, data, options = {}) {
         connectNodes(app, from, to, [], {
           parent: group,
           style: "orthogonal",
-          stroke: DIAGRAM.umlImplements,
+          stroke: getActiveDiagram().umlImplements,
           glowColor: "rgba(167,139,250,0.16)",
           dash: rel.type === "implements" ? [6, 4] : void 0,
           arrowEnd: "open"
@@ -18879,15 +21598,15 @@ function createMindMap(app, center, branches, options = {}) {
   const canvas = readCanvasSize(options);
   const minDim = Math.min(canvas.width, canvas.height);
   const centerNode = createNodeBox(app, center, 112, 54, {
-    fill: DIAGRAM.mindCenter.fill,
-    stroke: DIAGRAM.mindCenter.stroke,
+    fill: getActiveDiagram().mindCenter.fill,
+    stroke: getActiveDiagram().mindCenter.stroke,
     cornerRadius: 27,
-    accentColor: DIAGRAM.mindCenter.accent
+    accentColor: getActiveDiagram().mindCenter.accent
   });
   centerNode.metadata.diagramId = "center";
   group.add(centerNode);
   branches.forEach((branch, bi) => {
-    const palette = DIAGRAM.mindBranchPalette[bi % DIAGRAM.mindBranchPalette.length];
+    const palette = getActiveDiagram().mindBranchPalette[bi % getActiveDiagram().mindBranchPalette.length];
     const branchNode = createNodeBox(app, branch.label, 100, 40, {
       fill: palette.fill,
       stroke: palette.stroke,
@@ -18902,7 +21621,7 @@ function createMindMap(app, center, branches, options = {}) {
     if (branch.children) {
       branch.children.forEach((child, ci) => {
         const childNode = createNodeBox(app, child, 88, 34, {
-          fill: DIAGRAM.mindLeaf.fill,
+          fill: getActiveDiagram().mindLeaf.fill,
           stroke: palette.stroke,
           accentColor: palette.accent
         });
@@ -18922,7 +21641,7 @@ function createNetworkDiagram(app, data, options = {}) {
   const { nodes, edges } = normalizeDiagramData(data);
   const canvas = readCanvasSize(options);
   const strokeCtx = strokeContextForCanvas(canvas.width, canvas.height);
-  const edgeWidth = resolveStrokeWidth(DIAGRAM.stroke.edge, strokeCtx);
+  const edgeWidth = resolveStrokeWidth(getActiveDiagram().stroke.edge, strokeCtx);
   autoLayoutNodesResponsive(nodes, canvas.width, canvas.height, 100, 72);
   const nodeMap = /* @__PURE__ */ new Map();
   for (const n of nodes) {
@@ -18944,8 +21663,8 @@ function createNetworkDiagram(app, data, options = {}) {
     edgeLayer.add(
       connectNodes(app, from, to, obstacles, {
         parent: group,
-        stroke: DIAGRAM.edge,
-        glowColor: DIAGRAM.edgeGlow,
+        stroke: getActiveDiagram().edge,
+        glowColor: getActiveDiagram().edgeGlow,
         strokeWidth: edgeWidth,
         label: edge.label
       })
@@ -19017,7 +21736,7 @@ function createCanNetwork(app, data, options = {}) {
   const group = createDiagramGroup(app, "canNetwork", { ...options, data }, { name: "canNetwork" });
   const canvas = readCanvasSize(options);
   const strokeCtx = strokeContextForCanvas(canvas.width, canvas.height);
-  const nodeStroke = resolveStrokeWidth(DIAGRAM.stroke.node, strokeCtx);
+  const nodeStroke = resolveStrokeWidth(getActiveDiagram().stroke.node, strokeCtx);
   const busY = 72;
   const busWidth = Math.max(
     280,
@@ -19031,7 +21750,7 @@ function createCanNetwork(app, data, options = {}) {
       width: busWidth + 4,
       height: 10,
       cornerRadius: 5,
-      fill: DIAGRAM.canBusGlow,
+      fill: getActiveDiagram().canBusGlow,
       stroke: null,
       opacity: 0.6,
       listening: false
@@ -19044,9 +21763,9 @@ function createCanNetwork(app, data, options = {}) {
       width: busWidth,
       height: 6,
       cornerRadius: 3,
-      fill: DIAGRAM.canBus,
+      fill: getActiveDiagram().canBus,
       stroke: null,
-      shadow: DIAGRAM.shadowSoft,
+      shadow: getActiveDiagram().shadowSoft,
       listening: false
     })
   );
@@ -19055,8 +21774,8 @@ function createCanNetwork(app, data, options = {}) {
       x: 16,
       y: busY,
       radius: 5,
-      fill: DIAGRAM.canTermination,
-      stroke: DIAGRAM.surface,
+      fill: getActiveDiagram().canTermination,
+      stroke: getActiveDiagram().surface,
       strokeWidth: 2,
       listening: false
     })
@@ -19066,29 +21785,29 @@ function createCanNetwork(app, data, options = {}) {
       x: 16 + busWidth,
       y: busY,
       radius: 5,
-      fill: DIAGRAM.canTermination,
-      stroke: DIAGRAM.surface,
+      fill: getActiveDiagram().canTermination,
+      stroke: getActiveDiagram().surface,
       strokeWidth: 2,
       listening: false
     })
   );
-  const labelW = measureTextWidth(busLabel, DIAGRAM.fontSize.base, "bold");
+  const labelW = measureTextWidth(busLabel, getActiveDiagram().fontSize.base, "bold");
   group.add(
     app.text({
       text: busLabel,
       x: busWidth / 2 - labelW / 2 + 16,
       y: busY - 24,
-      fontSize: DIAGRAM.fontSize.base,
-      fill: DIAGRAM.edge,
+      fontSize: getActiveDiagram().fontSize.base,
+      fill: getActiveDiagram().edge,
       fontWeight: "bold",
-      fontFamily: DIAGRAM.fontFamily,
+      fontFamily: getActiveDiagram().fontFamily,
       listening: false
     })
   );
   const spacing = busWidth / (data.ecus.length + 1);
   for (let i = 0; i < data.ecus.length; i++) {
     const ecu = data.ecus[i];
-    const ecuColor = DIAGRAM.canEcuPalette[i % DIAGRAM.canEcuPalette.length];
+    const ecuColor = getActiveDiagram().canEcuPalette[i % getActiveDiagram().canEcuPalette.length];
     const x = 16 + spacing * (i + 1) - 44;
     const ecuGroup = createCanEcuNode(app, ecu.label, ecu.address, ecuColor, nodeStroke);
     ecuGroup.x = x;
@@ -19102,7 +21821,7 @@ function createPipeline(app, stages, options = {}) {
   const group = createDiagramGroup(app, "processPipeline", { ...options, stages }, { name: "pipeline" });
   const canvas = readCanvasSize(options);
   const strokeCtx = strokeContextForCanvas(canvas.width, canvas.height);
-  const edgeWidth = resolveStrokeWidth(DIAGRAM.stroke.edge, strokeCtx);
+  const edgeWidth = resolveStrokeWidth(getActiveDiagram().stroke.edge, strokeCtx);
   const stageNodes = [];
   for (const stage of stages) {
     const node = createPipelineStage(app, stage.label, stage.status ?? "pending");
@@ -19118,8 +21837,8 @@ function createPipeline(app, stages, options = {}) {
       connectNodes(app, stageNodes[i], stageNodes[i + 1], [], {
         parent: group,
         style: "straight",
-        stroke: DIAGRAM.edge,
-        glowColor: DIAGRAM.edgeGlow,
+        stroke: getActiveDiagram().edge,
+        glowColor: getActiveDiagram().edgeGlow,
         strokeWidth: edgeWidth,
         arrowEnd: "filled"
       })
@@ -19164,10 +21883,22 @@ function registerDiagram(type, factory) {
   registry4[type] = factory;
 }
 function createDiagramFromJSON(type, props, app) {
-  const factory = registry4[type];
-  if (factory)
-    return factory(props, app);
-  return createDiagramFromProps(type, props, app);
+  const theme = syncActiveDiagramTheme(resolveEffectiveUiTokens(app, props), app);
+  return runWithDiagramTheme(theme, () => {
+    const registered2 = registry4[type];
+    const node = registered2 ? registered2(props, app) : createDiagramFromProps(type, props, app);
+    if (!node)
+      return null;
+    if ("children" in node && node.metadata?.diagramType && !node.metadata.diagramRebuild) {
+      installDiagramRebuild(node, app, (p, a) => {
+        const fresh = registered2 ? registered2(p, a) : createDiagramFromProps(type, p, a);
+        if (!fresh)
+          throw new Error(`Unknown diagram type: ${type}`);
+        return fresh;
+      });
+    }
+    return node;
+  });
 }
 
 // src/diagram/editor/collect.ts
@@ -19363,9 +22094,9 @@ function rerouteDiagramEdges(app, root, edges) {
     edgeLayer.add(
       connectNodes(app, from, to, obstacles, {
         parent: root,
-        stroke: edge.options?.stroke ?? DIAGRAM.edge,
-        glowColor: edge.options?.glowColor ?? DIAGRAM.edgeGlow,
-        strokeWidth: edge.options?.strokeWidth ?? DIAGRAM.stroke.edge,
+        stroke: edge.options?.stroke ?? getActiveDiagram().edge,
+        glowColor: edge.options?.glowColor ?? getActiveDiagram().edgeGlow,
+        strokeWidth: edge.options?.strokeWidth ?? getActiveDiagram().stroke.edge,
         label: edge.label,
         style: edge.options?.style ?? "smart",
         arrowEnd: edge.options?.arrowEnd ?? "filled",
@@ -19639,9 +22370,9 @@ var DiagramEditor = class {
     edgeLayer.add(
       connectNodes(this.app, fromNode, toNode, obstacles, {
         parent: this.root,
-        stroke: DIAGRAM.edge,
-        glowColor: DIAGRAM.edgeGlow,
-        strokeWidth: DIAGRAM.stroke.edge,
+        stroke: getActiveDiagram().edge,
+        glowColor: getActiveDiagram().edgeGlow,
+        strokeWidth: getActiveDiagram().stroke.edge,
         edgeId: id,
         fromId: from,
         toId: to
@@ -19695,7 +22426,7 @@ var DiagramEditor = class {
         width: w + 6,
         height: h + 6,
         fill: null,
-        stroke: DIAGRAM.mindBranch.stroke,
+        stroke: getActiveDiagram().mindBranch.stroke,
         strokeWidth: 2,
         dash: [6, 4],
         listening: false
@@ -19727,7 +22458,7 @@ var DiagramEditor = class {
         y: fromPt.y,
         x2: toPt.x,
         y2: toPt.y,
-        stroke: DIAGRAM.mindBranch.stroke,
+        stroke: getActiveDiagram().mindBranch.stroke,
         strokeWidth: 3,
         dash: [8, 5],
         listening: false
@@ -19741,8 +22472,8 @@ var DiagramEditor = class {
       x,
       y,
       radius: 6,
-      fill: end === "to" ? DIAGRAM.edge : "#fff",
-      stroke: DIAGRAM.mindBranch.stroke,
+      fill: end === "to" ? getActiveDiagram().edge : "#fff",
+      stroke: getActiveDiagram().mindBranch.stroke,
       strokeWidth: 2,
       listening: true
     });
@@ -19788,7 +22519,7 @@ var DiagramEditor = class {
         width: HANDLE,
         height: HANDLE,
         fill: "#fff",
-        stroke: DIAGRAM.mindBranch.stroke,
+        stroke: getActiveDiagram().mindBranch.stroke,
         strokeWidth: 1.5,
         listening: true,
         cornerRadius: 2
@@ -19825,7 +22556,7 @@ var DiagramEditor = class {
         x: p.px,
         y: p.py,
         radius: 5,
-        fill: DIAGRAM.edge,
+        fill: getActiveDiagram().edge,
         stroke: "#fff",
         strokeWidth: 1.5,
         listening: true
@@ -19864,7 +22595,7 @@ var DiagramEditor = class {
       y: y1,
       x2,
       y2,
-      stroke: DIAGRAM.edge,
+      stroke: getActiveDiagram().edge,
       strokeWidth: 2,
       dash: [6, 4],
       listening: false
@@ -20034,7 +22765,14 @@ var LightDrawFull = Object.assign(LightDraw, {
   applyUiTheme,
   resolveUiTheme,
   UI_PRESETS,
-  UI_THEME_VAR_MAP
+  UI_THEME_VAR_MAP,
+  UI_DARK_PACK,
+  UI_LIGHT_PACK,
+  UI_DARK_MODE_PACK,
+  UI_LIGHT_MODE_PACK,
+  normalizeThemePack,
+  mergeThemePacks,
+  extractSceneTheme
 });
 var src_default = LightDrawFull;
 if (typeof window !== "undefined") {
@@ -20072,6 +22810,10 @@ export {
   Star,
   TextNode,
   Timeline,
+  UI_DARK_MODE_PACK,
+  UI_DARK_PACK,
+  UI_LIGHT_MODE_PACK,
+  UI_LIGHT_PACK,
   UI_PRESETS,
   UI_THEME_VAR_MAP,
   VERSION,
@@ -20081,6 +22823,7 @@ export {
   applyDriveState,
   applyUiTheme,
   automotivePlugin,
+  composeThemePack,
   createApp,
   createAutomotiveFromJSON,
   createComponentFromJSON,
@@ -20096,6 +22839,11 @@ export {
   easings,
   exportApp,
   exportScene,
+  extractSceneTheme,
+  formatExpectedValues,
+  formatInvalidValue,
+  formatJsonParseError,
+  formatValidationErrors,
   fromJSON,
   getEasing,
   getInstalledPlugins,
@@ -20103,7 +22851,12 @@ export {
   installAutoWidgetResizeObserver,
   installChartResizeObserver,
   listAutomotiveWidgets,
+  listKnownSceneTypes,
+  locateJsonError,
+  mergeThemePacks,
+  normalizeThemePack,
   parallel,
+  parseAndValidateSceneJSON,
   pushChartValue,
   registerAutomotive,
   registerComponent,
@@ -20115,12 +22868,15 @@ export {
   scenesEqual,
   setAutoValue,
   setLiveValue,
+  splitThemePack,
+  suggestClosest,
   svgPlugin,
   toJSON,
   uiPlugin,
   updateAutoWidgetProps,
   updateChartProps,
   use,
-  validateSceneJSON
+  validateSceneJSON,
+  validateThemePack
 };
 //# sourceMappingURL=lightdraw.esm.js.map

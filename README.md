@@ -138,7 +138,7 @@ if (!valid) return showErrors(errors);
 
 app.clear();
 app.loadJSON(scene);
-app.setUiTheme({ preset: 'slate', mode: 'dark' });
+app.setUiTheme({ preset: 'dark' });
 ```
 
 **Where:** Internal tools, copilot builders, config-driven SCADA screens.  
@@ -360,6 +360,8 @@ Full guide: [ai-integration-guide.md](https://github.com/rakeshrajena/lightDraw/
 | Automotive cluster | [demo-automotive.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-automotive.html) |
 | Export PNG/PDF/SVG | [demo-export.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-export.html) |
 | Accessibility | [demo-a11y.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-a11y.html) |
+| Live theme playground | [demo-theme.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-theme.html) |
+| Conditional colors | [demo-color-stops.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-color-stops.html) |
 
 ---
 
@@ -371,6 +373,7 @@ Full guide: [ai-integration-guide.md](https://github.com/rakeshrajena/lightDraw/
 | Performance & benchmarks | [performance-guide.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/performance-guide.md) |
 | AI integration | [ai-integration-guide.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/ai-integration-guide.md) |
 | UI themes | [ui-theme-guide.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/ui-theme-guide.md) |
+| Theme architecture | [theme-architecture.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/theme-architecture.md) |
 | v1.0 release notes | [v1-release-notes.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/v1-release-notes.md) |
 | All docs | [docs/README.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/README.md) |
 

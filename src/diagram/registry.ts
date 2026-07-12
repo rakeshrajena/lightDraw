@@ -34,6 +34,17 @@ export type { RouteStyle } from './router';
 export { createSymbol, buildSchematic, Symbols } from './symbols';
 export { diagramToJSON, fitDiagramToBounds, resolveGridLayout, readCanvasSize } from './helpers';
 export { installDiagramEditor, uninstallDiagramEditor, DiagramEditor } from './editor';
+export {
+  DIAGRAM,
+  resolveDiagramTheme,
+  getActiveDiagram,
+  getDiagramTheme,
+  syncActiveDiagramTheme,
+  runWithDiagramTheme,
+  diagramPackFromApp,
+} from './theme';
+export type { DiagramTheme } from './theme';
+export { refreshDiagram, installDiagramRebuild } from './refresh';
 
 export type {
   DiagramNode,

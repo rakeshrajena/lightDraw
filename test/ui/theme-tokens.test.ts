@@ -5,6 +5,10 @@ import {
   UI_THEME_VAR_MAP,
   resolveUiTheme,
   applyUiTheme,
+  expandPreset,
+  isThemeImageValue,
+  toThemeBackgroundCss,
+  resolveThemeBackground,
 } from '../../src/components/uiTheme';
 
 describe('UI theme tokens', () => {
@@ -24,10 +28,57 @@ describe('UI theme tokens', () => {
   });
 
   it('merges preset then explicit overrides', () => {
-    const resolved = resolveUiTheme({ preset: 'violet', primary: '#custom', mode: 'dark' });
+    const resolved = resolveUiTheme({ preset: 'violet', primary: '#custom' });
     expect(resolved.primary).toBe('#custom');
-    expect(resolved.mode).toBe('dark');
+    // Invalid color codes are kept as-is; hover stays from preset
     expect(resolved.primaryHover).toBe(UI_PRESETS.violet.primaryHover);
+    expect(resolved.surface).toBe('#ffffff');
+  });
+
+  it('derives hover/active when primary is a valid CSS color', () => {
+    const resolved = resolveUiTheme({ preset: 'violet', primary: 'pink' });
+    expect(resolved.primary).toBe('pink');
+    expect(resolved.primaryHover).toMatch(/^rgb\(/);
+    expect(resolved.primaryActive).toMatch(/^rgb\(/);
+    expect(resolved.primaryHover).not.toBe(UI_PRESETS.violet.primaryHover);
+  });
+
+  it('accepts CSS color names and hex as preset shortcuts', () => {
+    expect(resolveUiTheme({ preset: 'pink' }).primary).toBe('pink');
+    expect(resolveUiTheme({ preset: '#f472b6' }).primary).toBe('#f472b6');
+    expect(resolveUiTheme({ preset: 'rgba(244, 114, 182, 1)' }).primary).toBe(
+      'rgba(244, 114, 182, 1)'
+    );
+    expect(resolveUiTheme({ preset: 'pink' }).primaryHover).toMatch(/^rgb\(/);
+    // Named packs still win
+    expect(resolveUiTheme({ preset: 'rose' }).primary).toBe('#e11d48');
+  });
+
+  it('treats image paths with extensions as background presets', () => {
+    expect(isThemeImageValue('./assets/bg.png')).toBe(true);
+    expect(isThemeImageValue('../img/hero.jpg')).toBe(true);
+    expect(isThemeImageValue('/var/www/bg.webp')).toBe(true);
+    expect(isThemeImageValue('assets/wall.png')).toBe(true);
+    expect(isThemeImageValue('photo.png')).toBe(true);
+    expect(isThemeImageValue('C:\\images\\a.png')).toBe(true);
+    expect(isThemeImageValue('https://cdn.example/a.jpg')).toBe(true);
+    expect(isThemeImageValue('pink')).toBe(false);
+    expect(isThemeImageValue('#f472b6')).toBe(false);
+    // Paths without an image extension are not images
+    expect(isThemeImageValue('/images/hero')).toBe(false);
+    expect(isThemeImageValue('assets/wallpapers/night')).toBe(false);
+
+    expect(expandPreset('./bg.png').kind).toBe('image');
+    expect(expandPreset('/images/hero.jpg').background).toBe(
+      toThemeBackgroundCss('/images/hero.jpg')
+    );
+    expect(resolveThemeBackground({ preset: './assets/bg.png' })).toBe(
+      'url("./assets/bg.png")'
+    );
+    // Colors are not backgrounds
+    expect(resolveUiTheme({ preset: './bg.png' }).primary).toBeUndefined();
+    expect(resolveUiTheme({ preset: './bg.png' }).text).toBeTruthy();
+    expect(resolveUiTheme({ preset: './bg.png' }).surface).toBeTruthy();
   });
 
   it('ignores unknown preset names', () => {
@@ -53,6 +104,7 @@ describe('UI theme tokens', () => {
     expect(UI_PRESETS.slate.primary).toBe('#334155');
     expect(UI_PRESETS.ocean.primary).toBe('#0284c7');
     expect(UI_PRESETS.rose.primary).toBe('#e11d48');
-    expect(UI_PRESETS.dark.mode).toBe('dark');
+    expect(UI_PRESETS.dark.primary).toBe('#3b82f6');
+    expect(UI_PRESETS.dark.surface).toBe('#1e293b');
   });
 });

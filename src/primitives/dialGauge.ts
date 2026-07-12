@@ -1,6 +1,7 @@
 import type { App } from '../App';
 import type { Group } from '../shapes/Group';
 import { Arc, type Line, type TextNode } from '../shapes/index';
+import { colorWithAlpha, mixColors } from '../utils/color';
 
 export interface DialGaugeStyle {
   trackColor: string;
@@ -37,6 +38,10 @@ export interface DialGaugeBuildOptions {
   startAngle?: number;
   sweepAngle?: number;
   ariaLive?: 'polite' | 'assertive' | 'off';
+  /** Override value label size (px); default scales with dial size. */
+  valueFontSize?: number;
+  unitFontSize?: number;
+  titleFontSize?: number;
 }
 
 export interface DialGaugeParts {
@@ -54,13 +59,7 @@ function textTopY(y: number, fontSize: number): number {
 }
 
 function withAlpha(color: string, alpha: number): string {
-  if (color.startsWith('#') && color.length === 7) {
-    const r = parseInt(color.slice(1, 3), 16);
-    const g = parseInt(color.slice(3, 5), 16);
-    const b = parseInt(color.slice(5, 7), 16);
-    return `rgba(${r},${g},${b},${alpha})`;
-  }
-  return color;
+  return colorWithAlpha(color, alpha) ?? color;
 }
 
 /** Professional semicircular dial — layered bezel, ticks, value arc, needle hub */
@@ -81,10 +80,13 @@ export function buildDialGauge(
   const sweep = opts.sweepAngle ?? DEFAULT_SWEEP;
   const endAngle = startAngle + sweep;
   const trackW = style.trackWidth ?? Math.max(6, size * 0.055);
-  const tickColor = style.tickColor ?? '#cbd5e1';
+  const tickColor = style.tickColor ?? style.textMuted ?? '#cbd5e1';
   const face = style.faceColor ?? '#0a0a0a';
   const bezel = style.bezelColor ?? style.trackColor;
   const accent = style.accentColor ?? style.needleColor;
+  const shell = mixColors(face, '#000000', 0.55) ?? '#050505';
+  const trackUnderlay = mixColors(face, '#000000', 0.35) ?? '#1a1f2e';
+  const hubFill = mixColors(face, '#ffffff', 0.12) ?? '#1f2937';
   const format = opts.formatValue ?? ((v: number) => String(Math.round(v)));
   const formatTick = opts.formatTickLabel ?? ((v: number) => String(Math.round(v)));
   const tickCount = opts.tickCount ?? 8;
@@ -102,7 +104,7 @@ export function buildDialGauge(
       x: cx - r - tickOutset - 2,
       y: cx - r - tickOutset - 2,
       radius: r + tickOutset + 2,
-      fill: '#050505',
+      fill: shell,
       stroke: bezel,
       strokeWidth: Math.max(1.5, size * 0.018),
       shadow,
@@ -127,7 +129,7 @@ export function buildDialGauge(
       startAngle,
       endAngle,
       fill: null,
-      stroke: '#1a1f2e',
+      stroke: trackUnderlay,
       strokeWidth: trackW + 2,
       listening: false,
     })
@@ -245,7 +247,7 @@ export function buildDialGauge(
   }
 
   if (opts.title && size >= 72) {
-    const titleSize = Math.max(7, size * 0.068);
+    const titleSize = opts.titleFontSize ?? Math.max(7, size * 0.068);
     const titleY = cx - r * 0.5;
     group.add(
       app.text({
@@ -282,7 +284,7 @@ export function buildDialGauge(
       x: cx - hubOuter,
       y: cx - hubOuter,
       radius: hubOuter,
-      fill: '#1f2937',
+      fill: hubFill,
       stroke: bezel,
       strokeWidth: 1,
       listening: false,
@@ -296,7 +298,7 @@ export function buildDialGauge(
     }),
   );
 
-  const valueSize = Math.max(11, size * 0.115);
+  const valueSize = opts.valueFontSize ?? Math.max(11, size * 0.115);
   const valueY = cx + r * 0.08;
   const valueText = app.text({
     text: format(opts.value),
@@ -314,7 +316,7 @@ export function buildDialGauge(
 
   let unitText: TextNode | undefined;
   if (opts.unit) {
-    const unitSize = Math.max(8, size * 0.072);
+    const unitSize = opts.unitFontSize ?? Math.max(8, size * 0.072);
     const unitY = cx + r * 0.26;
     unitText = app.text({
       text: opts.unit.trim(),

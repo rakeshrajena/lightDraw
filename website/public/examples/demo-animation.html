@@ -12,7 +12,7 @@
     <header class="demo-header">
       <span class="demo-badge">Animation Engine</span>
       <h1>Motion &amp; Timeline</h1>
-      <p>Path motion, stroke dash, morphing, stagger, and multi-property tweens with built-in easing.</p>
+      <p>Path motion, stroke dash, morphing, stagger, and multi-property tweens with built-in easing. Edit Config JSON below for live updates.</p>
     </header>
     <main class="demo-main demo-layout-aside">
       <div class="demo-canvas-wrap" id="animation-canvas-wrap">
@@ -20,23 +20,25 @@
       </div>
       <aside class="demo-aside-panel">
         <h2>Scenes</h2>
-        <button type="button" class="demo-btn is-active" id="btn-motion" onclick="pickScene(this, demoMotionPath)">Motion Path</button>
-        <button type="button" class="demo-btn secondary" onclick="pickScene(this, demoDash)">Stroke Dash</button>
-        <button type="button" class="demo-btn secondary" onclick="pickScene(this, demoMorph)">Path Morph</button>
-        <button type="button" class="demo-btn secondary" onclick="pickScene(this, demoStagger)">Stagger</button>
-        <button type="button" class="demo-btn secondary" onclick="pickScene(this, demoGroup)">Multi-Prop</button>
+        <button type="button" class="demo-btn is-active" id="btn-motion" onclick="pickScene(this, demoMotionPath, 'motion')">Motion Path</button>
+        <button type="button" class="demo-btn secondary" onclick="pickScene(this, demoDash, 'dash')">Stroke Dash</button>
+        <button type="button" class="demo-btn secondary" onclick="pickScene(this, demoMorph, 'morph')">Path Morph</button>
+        <button type="button" class="demo-btn secondary" onclick="pickScene(this, demoStagger, 'stagger')">Stagger</button>
+        <button type="button" class="demo-btn secondary" onclick="pickScene(this, demoGroup, 'group')">Multi-Prop</button>
         <button type="button" class="demo-btn secondary" style="margin-top:0.35rem" onclick="stopAll()">Stop All</button>
         <p class="demo-aside-hint" id="easing-hint">Easing: easeInOutCubic · loop · motion along path</p>
       </aside>
     </main>
   </div>
   <script src="../lightdraw.min.js"></script>
+  <script src="demo-live-playground.js"></script>
   <script>
     const canvasWrap = document.getElementById('animation-canvas-wrap');
     let canvasW = 800;
     let canvasH = 500;
     let app;
     let controls = [];
+    let currentSceneKey = 'motion';
 
     const sceneHints = {
       motion: 'Easing: easeInOutCubic · loop · motion along path',
@@ -44,6 +46,18 @@
       morph: 'Easing: easeInOutQuad · morphTo rounded rect',
       stagger: 'Easing: easeOutBounce · timeline stagger 80ms',
       group: 'Easing: easeInOutCubic · x, y, opacity, rotation',
+    };
+
+    const sceneFns = {
+      motion: () => demoMotionPath(),
+      dash: () => demoDash(),
+      morph: () => demoMorph(),
+      stagger: () => demoStagger(),
+      group: () => demoGroup(),
+    };
+
+    const sceneBtnIds = {
+      motion: 'btn-motion',
     };
 
     function measureCanvas() {
@@ -77,14 +91,16 @@
       LightDraw.AnimationEngine.stopAll();
     }
 
-    function pickScene(btn, fn) {
+    function pickScene(btn, fn, key) {
       document.querySelectorAll('.demo-aside-panel .demo-btn').forEach((b) => {
         b.classList.remove('is-active');
         b.classList.add('secondary');
       });
       btn.classList.add('is-active');
       btn.classList.remove('secondary');
+      if (key) currentSceneKey = key;
       fn();
+      if (window.LivePlayground) LivePlayground.syncScene(true);
     }
 
     function setHint(key) {
@@ -94,6 +110,7 @@
 
     function demoMotionPath() {
       clear();
+      currentSceneKey = 'motion';
       setHint('motion');
       const track = app.path({
         d: 'M 50 250 Q 200 50 400 250 T 750 250',
@@ -116,6 +133,7 @@
 
     function demoDash() {
       clear();
+      currentSceneKey = 'dash';
       setHint('dash');
       const line = app.path({
         d: 'M 80 250 L 720 250',
@@ -138,6 +156,7 @@
 
     function demoMorph() {
       clear();
+      currentSceneKey = 'morph';
       setHint('morph');
       const w = 120;
       const h = 90;
@@ -178,6 +197,7 @@
 
     function demoStagger() {
       clear();
+      currentSceneKey = 'stagger';
       setHint('stagger');
       const nodes = [];
       for (let i = 0; i < 8; i++) {
@@ -199,6 +219,7 @@
 
     function demoGroup() {
       clear();
+      currentSceneKey = 'group';
       setHint('group');
       const card = app.roundedRect({
         x: 280,
@@ -229,10 +250,9 @@
     function scheduleResize() {
       clearTimeout(resizeTimer);
       resizeTimer = setTimeout(() => {
-        const active = document.querySelector('.demo-aside-panel .demo-btn.is-active');
-        if (active?.id === 'btn-motion') demoMotionPath();
-        else if (active) active.click();
-        else demoMotionPath();
+        const fn = sceneFns[currentSceneKey] || demoMotionPath;
+        fn();
+        if (window.LivePlayground) LivePlayground.syncScene(true);
       }, 120);
     }
 
@@ -244,6 +264,69 @@
 
     createApp();
     demoMotionPath();
+    LivePlayground.mount({
+      app: () => app,
+      panes: ['scene', 'theme', 'snippet'],
+      getScene: () => ({ scene: currentSceneKey }),
+      applyScene(parsed) {
+        const key = parsed && parsed.scene;
+        const fn = sceneFns[key];
+        if (!fn) throw new Error('Unknown scene: ' + (key || '(missing)'));
+        currentSceneKey = key;
+        document.querySelectorAll('.demo-aside-panel .demo-btn').forEach((b) => {
+          b.classList.remove('is-active');
+          b.classList.add('secondary');
+        });
+        const btn =
+          (sceneBtnIds[key] && document.getElementById(sceneBtnIds[key])) ||
+          Array.from(document.querySelectorAll('.demo-aside-panel .demo-btn')).find((b) =>
+            (b.getAttribute('onclick') || '').includes(
+              key === 'motion'
+                ? 'demoMotionPath'
+                : key === 'dash'
+                  ? 'demoDash'
+                  : key === 'morph'
+                    ? 'demoMorph'
+                    : key === 'stagger'
+                      ? 'demoStagger'
+                      : 'demoGroup'
+            )
+          );
+        if (btn) {
+          btn.classList.add('is-active');
+          btn.classList.remove('secondary');
+        }
+        fn();
+      },
+      getSnippet(config) {
+        const key = (config && config.scene) || 'motion';
+        const names = {
+          motion: 'demoMotionPath',
+          dash: 'demoDash',
+          morph: 'demoMorph',
+          stagger: 'demoStagger',
+          group: 'demoGroup',
+        };
+        return (
+          `// Editable API — Run or Ctrl/Cmd+Enter\n` +
+          `${names[key] || 'demoMotionPath'}();\n` +
+          `// Or: ({ scene: 'motion' | 'dash' | 'morph' | 'stagger' | 'group' })\n`
+        );
+      },
+      applySnippet(code) {
+        const runner = new Function(
+          'LightDraw',
+          'app',
+          'demoMotionPath',
+          'demoDash',
+          'demoMorph',
+          'demoStagger',
+          'demoGroup',
+          '"use strict";\n' + code
+        );
+        runner(LightDraw, app, demoMotionPath, demoDash, demoMorph, demoStagger, demoGroup);
+      },
+    });
   </script>
 </body>
 </html>

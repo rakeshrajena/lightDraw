@@ -2,7 +2,7 @@ import { Arc } from '../../../shapes/index';
 import type { App } from '../../../App';
 import type { Group } from '../../../shapes/Group';
 import { createWidgetGroup, num, setState } from '../../helpers';
-import { DASHBOARD } from '../../theme';
+import { getActiveDashboard } from '../../theme';
 import { attachPolarSliceHover } from '../core/interaction';
 import { polarToXY } from '../core/scales';
 
@@ -38,7 +38,7 @@ export function buildPolarSlices(
         startAngle,
         endAngle,
         fill: colors[i % colors.length],
-        stroke: DASHBOARD.pieStroke,
+        stroke: getActiveDashboard().pieStroke,
         strokeWidth: 1,
         listening: false,
       })
@@ -54,7 +54,7 @@ export function buildPolarSlices(
           x: lx - 10,
           y: ly - 6,
           fontSize: 10,
-          fill: DASHBOARD.text,
+          fill: getActiveDashboard().text,
           listening: false,
         })
       );
@@ -84,7 +84,7 @@ export function buildRadarChart(
       const a = (i / n) * Math.PI * 2 - Math.PI / 2;
       pts.push(cx + rr * Math.cos(a), cy + rr * Math.sin(a));
     }
-    group.add(app.polygon({ points: pts, fill: null, stroke: DASHBOARD.chartGrid, strokeWidth: 1, listening: false }));
+    group.add(app.polygon({ points: pts, fill: null, stroke: getActiveDashboard().chartGrid, strokeWidth: 1, listening: false }));
   }
 
   const dataPts: number[] = [];
@@ -98,7 +98,7 @@ export function buildRadarChart(
         x: cx + (r + 12) * Math.cos(a) - 8,
         y: cy + (r + 12) * Math.sin(a) - 6,
         fontSize: 10,
-        fill: DASHBOARD.textMuted,
+        fill: getActiveDashboard().textMuted,
         listening: false,
       })
     );
@@ -107,8 +107,8 @@ export function buildRadarChart(
   group.add(
     app.polygon({
       points: dataPts,
-      fill: DASHBOARD.chartArea,
-      stroke: DASHBOARD.chartLine,
+      fill: getActiveDashboard().chartArea,
+      stroke: getActiveDashboard().chartLine,
       strokeWidth: 2,
       listening: false,
     })
@@ -132,7 +132,14 @@ export function createPieWidget(
 ): Group {
   const size = num(props, 'size', 150);
   const data = (props.data as number[]) ?? [30, 25, 20, 25];
-  const colors = (props.colors as string[]) ?? [...DASHBOARD.series];
+  const rawColors = Array.isArray(props.colors) ? (props.colors as string[]) : undefined;
+  const userColors =
+    props.hasUserColors === true
+      ? rawColors
+      : !props._chartRebuild && rawColors?.length
+        ? rawColors
+        : undefined;
+  const colors = userColors?.length ? userColors : [...getActiveDashboard().series];
   const resolvedInner =
     typeof props.innerRadius === 'number'
       ? (props.innerRadius as number)
@@ -156,6 +163,14 @@ export function createPieWidget(
     labels.map((l, i) => `${l}: ${data[i]}`),
     resolvedInner
   );
-  setState(group, { size, data, colors, innerRadius: resolvedInner });
+  // Persist user colors only — theme series resolved live on each rebuild
+  setState(group, {
+    size,
+    data,
+    labels,
+    innerRadius: resolvedInner,
+    ...(userColors ? { colors: userColors } : { colors: [] }),
+    hasUserColors: Boolean(userColors?.length),
+  });
   return group;
 }

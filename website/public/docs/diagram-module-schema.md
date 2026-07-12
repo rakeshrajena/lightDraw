@@ -2,6 +2,12 @@
 
 Load diagrams via `app.loadJSON({ type: '<diagram>', props: { ... } })` or `LightDraw.Diagram.*` helpers.
 
+## Common props
+
+| Prop | Type | Description |
+|------|------|-------------|
+| uiTheme | string \| object | Optional Phase 6 override (UI preset or tokens). Wins over app `setUiTheme`. |
+
 ## Diagram types
 
 | Type | Helper | Key props |

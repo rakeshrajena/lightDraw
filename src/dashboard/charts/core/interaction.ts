@@ -5,7 +5,7 @@ import { syntheticEvent } from '../../../components/helpers';
 import type { ChartLayout } from '../../chartPrimitives';
 import { chartLocalPoint, hideChartTooltip, positionChartTooltip } from '../../chartPrimitives';
 import { getState, num, setParts } from '../../helpers';
-import { DASHBOARD } from '../../theme';
+import { getActiveDashboard } from '../../theme';
 
 export function isInteractive(props: Record<string, unknown>): boolean {
   return props.interactive !== false;
@@ -130,8 +130,8 @@ export function createHoverParts(app: App, rect: HoverRect, withHighlight = true
     width: 52,
     height: 24,
     cornerRadius: 6,
-    fill: DASHBOARD.chartTooltipBg,
-    stroke: DASHBOARD.chartTooltipBorder,
+    fill: getActiveDashboard().chartTooltipBg,
+    stroke: getActiveDashboard().chartTooltipBorder,
     strokeWidth: 1,
     visible: false,
     listening: false,
@@ -141,7 +141,7 @@ export function createHoverParts(app: App, rect: HoverRect, withHighlight = true
     text: '',
     fontSize: 11,
     fontWeight: 'bold',
-    fill: DASHBOARD.text,
+    fill: getActiveDashboard().text,
     textAlign: 'center',
     x: 0,
     y: 0,
@@ -161,7 +161,7 @@ export function createHoverParts(app: App, rect: HoverRect, withHighlight = true
   const highlight = withHighlight
     ? app.rect({
         fill: 'rgba(96,165,250,0.28)',
-        stroke: DASHBOARD.chartLine,
+        stroke: getActiveDashboard().chartLine,
         strokeWidth: 2,
         visible: false,
         listening: false,

@@ -6,7 +6,7 @@
 .lightdraw-html-root {
   box-sizing: border-box;
   font-family: var(--ld-font-family);
-  font-size: 14px;
+  font-size: var(--ld-font-size, 14px);
   line-height: 1.5;
   color: var(--ld-text);
   -webkit-font-smoothing: antialiased;
@@ -29,6 +29,9 @@
 
   /* ── Surfaces ── */
   --ld-font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --ld-font-size: 14px;
+  --ld-font-size-sm: 12px;
+  --ld-font-size-lg: 16px;
   --ld-surface: #ffffff;
   --ld-surface-muted: #f8fafc;
   --ld-surface-inset: #f1f5f9;
@@ -84,7 +87,8 @@
   --ld-z-dialog: 200;
 }
 
-/* Dark theme — set via uiTheme: { mode: 'dark' } or data-ld-theme="dark" */
+/* Optional dark token defaults — prefer preset `dark` / `darkViolet` (sets CSS vars via applyUiTheme).
+   Manual attribute still works for hosts that set data-ld-theme themselves. */
 .lightdraw-html-root[data-ld-theme='dark'] {
   --ld-surface: #1e293b;
   --ld-surface-muted: #0f172a;
@@ -171,7 +175,7 @@
   height: var(--ld-control-h);
   min-height: var(--ld-control-h);
   font-family: inherit;
-  font-size: 14px;
+  font-size: var(--ld-font-size, 14px);
   font-weight: 600;
   line-height: 1;
   letter-spacing: 0.01em;
@@ -251,14 +255,14 @@
   height: 32px;
   min-height: 32px;
   padding: 0 12px;
-  font-size: 13px;
+  font-size: var(--ld-font-size-sm, 12px);
 }
 
 .lightdraw-btn--lg {
   height: 44px;
   min-height: 44px;
   padding: 0 20px;
-  font-size: 15px;
+  font-size: var(--ld-font-size-lg, 16px);
 }
 
 .lightdraw-btn:disabled {
@@ -281,7 +285,7 @@
   margin: 0;
   width: 100%;
   font-family: inherit;
-  font-size: 14px;
+  font-size: var(--ld-font-size, 14px);
   line-height: 1.45;
   color: var(--ld-text);
   background-color: var(--ld-surface);
@@ -373,7 +377,7 @@
 
 .lightdraw-field-label {
   display: block;
-  font-size: 12px;
+  font-size: var(--ld-font-size-sm, 12px);
   font-weight: 600;
   letter-spacing: 0.02em;
   color: var(--ld-text-secondary);

@@ -2,7 +2,7 @@ import type { App } from '../App';
 import type { Node } from '../Node';
 import { Group } from '../shapes/Group';
 import type { NodeOptions } from '../types';
-import { DIAGRAM, resolveStrokeWidth, strokeContextForCanvas } from './theme';
+import { resolveStrokeWidth, strokeContextForCanvas, getActiveDiagram } from './theme';
 import {
   applyPositions,
   autoLayoutNodesResponsive,
@@ -47,7 +47,7 @@ export function createFlowchart(app: App, data: DiagramData, options: NodeOption
   const { nodes, edges } = normalizeDiagramData(data);
   const canvas = readCanvasSize(options as Record<string, unknown>);
   const strokeCtx = strokeContextForCanvas(canvas.width, canvas.height);
-  const edgeWidth = resolveStrokeWidth(DIAGRAM.stroke.edge, strokeCtx);
+  const edgeWidth = resolveStrokeWidth(getActiveDiagram().stroke.edge, strokeCtx);
   autoLayoutNodesResponsive(nodes, canvas.width, canvas.height, 128, 52);
   const nodeMap = new Map<string, Node>();
 
@@ -69,8 +69,8 @@ export function createFlowchart(app: App, data: DiagramData, options: NodeOption
     edgeLayer.add(
       connectNodes(app, fromNode, toNode, obstacles, {
         parent: group,
-        stroke: DIAGRAM.edge,
-        glowColor: DIAGRAM.edgeGlow,
+        stroke: getActiveDiagram().edge,
+        glowColor: getActiveDiagram().edgeGlow,
         strokeWidth: edgeWidth,
         label: edge.label,
       })
@@ -95,7 +95,7 @@ export function createStateMachine(
   const nodeMap = new Map<string, Node>();
   const canvas = readCanvasSize(options as Record<string, unknown>);
   const strokeCtx = strokeContextForCanvas(canvas.width, canvas.height);
-  const edgeWidth = resolveStrokeWidth(DIAGRAM.stroke.edge, strokeCtx);
+  const edgeWidth = resolveStrokeWidth(getActiveDiagram().stroke.edge, strokeCtx);
   const layoutNodes = data.states.map((s) => ({ id: s.id, x: s.x, y: s.y }));
   autoLayoutNodesResponsive(layoutNodes, canvas.width, canvas.height, 64, 64);
   const states = data.states.map((s, i) => ({
@@ -122,8 +122,8 @@ export function createStateMachine(
     edgeLayer.add(
       connectNodes(app, from, to, obstacles, {
         parent: group,
-        stroke: DIAGRAM.edge,
-        glowColor: DIAGRAM.edgeGlow,
+        stroke: getActiveDiagram().edge,
+        glowColor: getActiveDiagram().edgeGlow,
         strokeWidth: edgeWidth,
         label: t.label,
       })
@@ -167,7 +167,7 @@ export function createClassDiagram(
         connectNodes(app, from, to, [], {
           parent: group,
           style: 'orthogonal',
-          stroke: DIAGRAM.umlInheritance,
+          stroke: getActiveDiagram().umlInheritance,
           glowColor: 'rgba(245,158,11,0.18)',
           arrowEnd: 'hollow',
         })
@@ -177,8 +177,8 @@ export function createClassDiagram(
         connectNodes(app, from, to, [], {
           parent: group,
           style: 'orthogonal',
-          stroke: DIAGRAM.umlAssociation,
-          glowColor: DIAGRAM.edgeGlow,
+          stroke: getActiveDiagram().umlAssociation,
+          glowColor: getActiveDiagram().edgeGlow,
           arrowEnd: 'open',
         })
       );
@@ -187,7 +187,7 @@ export function createClassDiagram(
         connectNodes(app, from, to, [], {
           parent: group,
           style: 'orthogonal',
-          stroke: DIAGRAM.umlComposition,
+          stroke: getActiveDiagram().umlComposition,
           glowColor: 'rgba(244,114,182,0.16)',
           arrowEnd: 'filled',
         })
@@ -197,7 +197,7 @@ export function createClassDiagram(
         connectNodes(app, from, to, [], {
           parent: group,
           style: 'orthogonal',
-          stroke: DIAGRAM.umlImplements,
+          stroke: getActiveDiagram().umlImplements,
           glowColor: 'rgba(167,139,250,0.16)',
           dash: rel.type === 'implements' ? [6, 4] : undefined,
           arrowEnd: 'open',
@@ -222,16 +222,16 @@ export function createMindMap(
   const minDim = Math.min(canvas.width, canvas.height);
 
   const centerNode = createNodeBox(app, center, 112, 54, {
-    fill: DIAGRAM.mindCenter.fill,
-    stroke: DIAGRAM.mindCenter.stroke,
+    fill: getActiveDiagram().mindCenter.fill,
+    stroke: getActiveDiagram().mindCenter.stroke,
     cornerRadius: 27,
-    accentColor: DIAGRAM.mindCenter.accent,
+    accentColor: getActiveDiagram().mindCenter.accent,
   });
   centerNode.metadata.diagramId = 'center';
   group.add(centerNode);
 
   branches.forEach((branch, bi) => {
-    const palette = DIAGRAM.mindBranchPalette[bi % DIAGRAM.mindBranchPalette.length];
+    const palette = getActiveDiagram().mindBranchPalette[bi % getActiveDiagram().mindBranchPalette.length];
     const branchNode = createNodeBox(app, branch.label, 100, 40, {
       fill: palette.fill,
       stroke: palette.stroke,
@@ -247,7 +247,7 @@ export function createMindMap(
     if (branch.children) {
       branch.children.forEach((child, ci) => {
         const childNode = createNodeBox(app, child, 88, 34, {
-          fill: DIAGRAM.mindLeaf.fill,
+          fill: getActiveDiagram().mindLeaf.fill,
           stroke: palette.stroke,
           accentColor: palette.accent,
         });
@@ -274,7 +274,7 @@ export function createNetworkDiagram(
   const { nodes, edges } = normalizeDiagramData(data);
   const canvas = readCanvasSize(options as Record<string, unknown>);
   const strokeCtx = strokeContextForCanvas(canvas.width, canvas.height);
-  const edgeWidth = resolveStrokeWidth(DIAGRAM.stroke.edge, strokeCtx);
+  const edgeWidth = resolveStrokeWidth(getActiveDiagram().stroke.edge, strokeCtx);
   autoLayoutNodesResponsive(nodes, canvas.width, canvas.height, 100, 72);
   const nodeMap = new Map<string, Node>();
 
@@ -297,8 +297,8 @@ export function createNetworkDiagram(
     edgeLayer.add(
       connectNodes(app, from, to, obstacles, {
         parent: group,
-        stroke: DIAGRAM.edge,
-        glowColor: DIAGRAM.edgeGlow,
+        stroke: getActiveDiagram().edge,
+        glowColor: getActiveDiagram().edgeGlow,
         strokeWidth: edgeWidth,
         label: edge.label,
       })
@@ -405,7 +405,7 @@ export function createCanNetwork(
   const group = createDiagramGroup(app, 'canNetwork', { ...options, data }, { name: 'canNetwork' });
   const canvas = readCanvasSize(options as Record<string, unknown>);
   const strokeCtx = strokeContextForCanvas(canvas.width, canvas.height);
-  const nodeStroke = resolveStrokeWidth(DIAGRAM.stroke.node, strokeCtx);
+  const nodeStroke = resolveStrokeWidth(getActiveDiagram().stroke.node, strokeCtx);
   const busY = 72;
   const busWidth = Math.max(
     280,
@@ -420,7 +420,7 @@ export function createCanNetwork(
       width: busWidth + 4,
       height: 10,
       cornerRadius: 5,
-      fill: DIAGRAM.canBusGlow,
+      fill: getActiveDiagram().canBusGlow,
       stroke: null,
       opacity: 0.6,
       listening: false,
@@ -433,9 +433,9 @@ export function createCanNetwork(
       width: busWidth,
       height: 6,
       cornerRadius: 3,
-      fill: DIAGRAM.canBus,
+      fill: getActiveDiagram().canBus,
       stroke: null,
-      shadow: DIAGRAM.shadowSoft,
+      shadow: getActiveDiagram().shadowSoft,
       listening: false,
     })
   );
@@ -444,8 +444,8 @@ export function createCanNetwork(
       x: 16,
       y: busY,
       radius: 5,
-      fill: DIAGRAM.canTermination,
-      stroke: DIAGRAM.surface,
+      fill: getActiveDiagram().canTermination,
+      stroke: getActiveDiagram().surface,
       strokeWidth: 2,
       listening: false,
     })
@@ -455,22 +455,22 @@ export function createCanNetwork(
       x: 16 + busWidth,
       y: busY,
       radius: 5,
-      fill: DIAGRAM.canTermination,
-      stroke: DIAGRAM.surface,
+      fill: getActiveDiagram().canTermination,
+      stroke: getActiveDiagram().surface,
       strokeWidth: 2,
       listening: false,
     })
   );
-  const labelW = measureTextWidth(busLabel, DIAGRAM.fontSize.base, 'bold');
+  const labelW = measureTextWidth(busLabel, getActiveDiagram().fontSize.base, 'bold');
   group.add(
     app.text({
       text: busLabel,
       x: busWidth / 2 - labelW / 2 + 16,
       y: busY - 24,
-      fontSize: DIAGRAM.fontSize.base,
-      fill: DIAGRAM.edge,
+      fontSize: getActiveDiagram().fontSize.base,
+      fill: getActiveDiagram().edge,
       fontWeight: 'bold',
-      fontFamily: DIAGRAM.fontFamily,
+      fontFamily: getActiveDiagram().fontFamily,
       listening: false,
     })
   );
@@ -478,7 +478,7 @@ export function createCanNetwork(
   const spacing = busWidth / (data.ecus.length + 1);
   for (let i = 0; i < data.ecus.length; i++) {
     const ecu = data.ecus[i];
-    const ecuColor = DIAGRAM.canEcuPalette[i % DIAGRAM.canEcuPalette.length];
+    const ecuColor = getActiveDiagram().canEcuPalette[i % getActiveDiagram().canEcuPalette.length];
     const x = 16 + spacing * (i + 1) - 44;
     const ecuGroup = createCanEcuNode(app, ecu.label, ecu.address, ecuColor, nodeStroke);
     ecuGroup.x = x;
@@ -499,7 +499,7 @@ export function createPipeline(
   const group = createDiagramGroup(app, 'processPipeline', { ...options, stages }, { name: 'pipeline' });
   const canvas = readCanvasSize(options as Record<string, unknown>);
   const strokeCtx = strokeContextForCanvas(canvas.width, canvas.height);
-  const edgeWidth = resolveStrokeWidth(DIAGRAM.stroke.edge, strokeCtx);
+  const edgeWidth = resolveStrokeWidth(getActiveDiagram().stroke.edge, strokeCtx);
 
   const stageNodes: Node[] = [];
   for (const stage of stages) {
@@ -518,8 +518,8 @@ export function createPipeline(
       connectNodes(app, stageNodes[i], stageNodes[i + 1], [], {
         parent: group,
         style: 'straight',
-        stroke: DIAGRAM.edge,
-        glowColor: DIAGRAM.edgeGlow,
+        stroke: getActiveDiagram().edge,
+        glowColor: getActiveDiagram().edgeGlow,
         strokeWidth: edgeWidth,
         arrowEnd: 'filled',
       })

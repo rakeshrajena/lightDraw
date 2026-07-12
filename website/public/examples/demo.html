@@ -12,7 +12,7 @@
     <header class="demo-header">
       <span class="demo-badge">Core Engine</span>
       <h1>LightDraw.js</h1>
-      <p>Ultra-lightweight 2D graphics engine — shapes, animation, dashboards, and timelines.</p>
+      <p>Ultra-lightweight 2D graphics engine — shapes, animation, dashboards, and timelines. Edit Scene JSON below for live updates.</p>
     </header>
     <main class="demo-main demo-layout-aside">
       <div class="demo-canvas-wrap">
@@ -27,14 +27,14 @@
         <button type="button" class="demo-btn secondary" onclick="pickDemo(this, demoAutomotive)">Automotive Cluster</button>
         <a class="demo-aside-link" href="demo-automotive.html">Full automotive demo →</a>
         <button type="button" class="demo-btn secondary" onclick="pickDemo(this, demoTimeline)">Timeline</button>
-        <h3 style="margin-top:0.75rem">Scene JSON</h3>
-        <pre class="demo-json-output" id="json-output"></pre>
       </aside>
     </main>
   </div>
   <script src="../lightdraw.min.js"></script>
+  <script src="demo-live-playground.js"></script>
   <script>
     let app = LightDraw.createApp('#app', { width: 800, height: 500, background: '#0d1322' });
+    let lastAuthorScene = null;
 
     function pickDemo(btn, fn) {
       document.querySelectorAll('.demo-aside-panel .demo-btn').forEach((b) => {
@@ -51,20 +51,36 @@
       app = LightDraw.createApp('#app', { width: 800, height: 500, background: '#0d1322' });
     }
 
-    function showJSON() {
-      document.getElementById('json-output').textContent = JSON.stringify(app.exportJSON(), null, 2);
+    function syncPlayground() {
+      if (window.LivePlayground) LivePlayground.syncScene(true);
     }
 
     function demoShapes() {
       clear();
-      const group = app.group();
-      group.add(app.rect({ x: 50, y: 50, width: 120, height: 80, fill: '#3b82f6', cornerRadius: 8 }));
-      group.add(app.circle({ x: 250, y: 90, radius: 40, fill: '#ef4444' }));
-      group.add(app.star({ x: 380, y: 40, numPoints: 5, innerRadius: 20, outerRadius: 45, fill: '#f59e0b' }));
-      group.add(app.text({ x: 50, y: 200, text: 'LightDraw.js — Production Ready', fontSize: 24, fill: '#e2e8f0' }));
-      group.add(app.line({ x: 50, y: 250, x2: 400, y2: 0, stroke: '#64748b', strokeWidth: 2 }));
-      app.add(group);
-      showJSON();
+      lastAuthorScene = {
+        type: 'group',
+        children: [
+          { type: 'rect', props: { x: 50, y: 50, width: 120, height: 80, fill: '#3b82f6', cornerRadius: 8 } },
+          { type: 'circle', props: { x: 250, y: 90, radius: 40, fill: '#ef4444' } },
+          {
+            type: 'star',
+            props: { x: 380, y: 40, numPoints: 5, innerRadius: 20, outerRadius: 45, fill: '#f59e0b' },
+          },
+          {
+            type: 'text',
+            props: {
+              x: 50,
+              y: 200,
+              text: 'LightDraw.js — Production Ready',
+              fontSize: 24,
+              fill: '#e2e8f0',
+            },
+          },
+          { type: 'line', props: { x: 50, y: 250, x2: 400, y2: 0, stroke: '#64748b', strokeWidth: 2 } },
+        ],
+      };
+      app.loadJSON(lastAuthorScene);
+      syncPlayground();
     }
 
     function demoAnimation() {
@@ -72,12 +88,13 @@
       const circle = app.circle({ x: 100, y: 250, radius: 30, fill: '#2563eb', draggable: true });
       app.add(circle);
       circle.animate({ x: 650, duration: 2000, easing: 'easeInOutCubic', loop: true, reverse: true });
-      showJSON();
+      lastAuthorScene = app.exportJSON();
+      syncPlayground();
     }
 
     function demoDashboard() {
       clear();
-      app.loadJSON({
+      lastAuthorScene = {
         type: 'dashboard',
         children: [
           { type: 'speedometer', props: { value: 120, size: 180, x: 50, y: 50 } },
@@ -86,13 +103,14 @@
           { type: 'barChart', props: { data: [30, 50, 40, 70], width: 300, height: 120, x: 50, y: 280 } },
           { type: 'battery', props: { value: 85, x: 400, y: 300 } },
         ],
-      });
-      showJSON();
+      };
+      app.loadJSON(lastAuthorScene);
+      syncPlayground();
     }
 
     function demoAutomotive() {
       clear();
-      app.loadJSON({
+      lastAuthorScene = {
         type: 'instrumentCluster',
         props: { width: 800, height: 450, speed: 95, rpm: 3200, fuel: 68 },
         children: [
@@ -101,8 +119,9 @@
           { type: 'warningLamp', props: { label: 'ABS', active: false, x: 500, y: 380 } },
           { type: 'adasStatus', props: { status: 'active', x: 600, y: 380 } },
         ],
-      });
-      showJSON();
+      };
+      app.loadJSON(lastAuthorScene);
+      syncPlayground();
     }
 
     function demoTimeline() {
@@ -120,10 +139,21 @@
         .fade(car, 0.6, 300)
         .move(car, { x: 550, duration: 600 })
         .play();
-      showJSON();
+      lastAuthorScene = app.exportJSON();
+      syncPlayground();
     }
 
     demoShapes();
+    LivePlayground.mount({
+      app: () => app,
+      panes: ['scene', 'theme', 'snippet'],
+      getScene: () => lastAuthorScene || app.exportJSON(),
+      applyScene(parsed) {
+        clear();
+        app.loadJSON(parsed);
+        lastAuthorScene = parsed;
+      },
+    });
   </script>
 </body>
 </html>

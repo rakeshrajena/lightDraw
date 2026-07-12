@@ -13,7 +13,7 @@
     <header class="demo-header">
       <span class="demo-badge">Diagram Module</span>
       <h1>Diagram Gallery</h1>
-      <p>Polished, production-ready diagrams for flowcharts, state machines, networks, automotive buses, and more.</p>
+      <p>Polished, production-ready diagrams for flowcharts, state machines, networks, automotive buses, and more. Edit Config JSON below for live updates.</p>
     </header>
     <main class="demo-main demo-layout-split">
       <aside class="demo-sidebar demo-diagram-sidebar">
@@ -47,6 +47,7 @@
     </main>
   </div>
   <script src="../dist/lightdraw.min.js"></script>
+  <script src="demo-live-playground.js"></script>
   <script>
     const canvasWrap = document.getElementById('diagram-canvas-wrap');
     let canvasW = 900;
@@ -291,6 +292,7 @@
       app.add(currentGroup);
       fitCurrentDiagram();
       app.render();
+      if (window.LivePlayground) LivePlayground.syncScene(true);
     }
 
     function scheduleResize() {
@@ -303,7 +305,44 @@
     }
     window.addEventListener('resize', scheduleResize);
 
-    const boot = () => showDiagram('flowchart');
+    const boot = () => {
+      showDiagram('flowchart');
+      LivePlayground.mount({
+        app: () => app,
+        panes: ['scene', 'theme', 'snippet'],
+        getScene: () => ({ diagram: currentDiagram }),
+        applyScene(parsed) {
+          const name = parsed && parsed.diagram;
+          if (!name || !samples[name]) {
+            throw new Error('Unknown diagram: ' + (name || '(missing)'));
+          }
+          const btn = document.querySelector(`[data-diagram="${name}"]`);
+          if (btn) {
+            document.querySelectorAll('[data-diagram]').forEach((b) => b.classList.remove('is-active'));
+            btn.classList.add('is-active');
+          }
+          showDiagram(name);
+        },
+        getSnippet(config) {
+          const name = (config && config.diagram) || 'flowchart';
+          return (
+            `// Editable API — Run or Ctrl/Cmd+Enter\n` +
+            `showDiagram(${JSON.stringify(name)});\n` +
+            `// Valid: ${Object.keys(samples).join(', ')}\n`
+          );
+        },
+        applySnippet(code) {
+          const runner = new Function(
+            'LightDraw',
+            'app',
+            'showDiagram',
+            'samples',
+            '"use strict";\n' + code
+          );
+          runner(LightDraw, app, showDiagram, samples);
+        },
+      });
+    };
     if (document.readyState === 'complete') boot();
     else window.addEventListener('load', boot, { once: true });
   </script>

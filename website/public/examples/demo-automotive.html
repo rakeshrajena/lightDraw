@@ -13,7 +13,7 @@
     <header class="demo-header">
       <span class="demo-badge">Automotive Module</span>
       <h1>Digital Instrument Cluster</h1>
-      <p>Live cockpit with speed, RPM, ADAS lamps, and an <strong>incoming-call overlay</strong> between the primary gauges — plus a <strong>160-widget</strong> automotive catalog.</p>
+      <p>Live cockpit with speed, RPM, ADAS lamps, and an <strong>incoming-call overlay</strong> between the primary gauges — plus a <strong>160-widget</strong> automotive catalog. Edit Scene JSON below for live updates.</p>
     </header>
     <main class="demo-main">
       <div class="demo-view-tabs" id="view-tabs">
@@ -53,6 +53,7 @@
     </main>
   </div>
   <script src="../lightdraw.min.js"></script>
+  <script src="demo-live-playground.js"></script>
   <script src="demo-auto-catalog.js"></script>
   <script>
     const isEmbed = () => document.documentElement.classList.contains('demo-embed');
@@ -60,6 +61,8 @@
     let driveTimer = null;
     let frameIndex = 0;
     let cluster = null;
+    let lastAuthorScene = null;
+    let playgroundMounted = false;
     let incomingCallActive = true;
     const frames = LightDraw.sampleDriveFrames ? LightDraw.sampleDriveFrames(120) : [];
 
@@ -112,12 +115,30 @@
       if (btn) btn.textContent = incomingCallActive ? 'Dismiss call' : 'Simulate incoming call';
     }
 
+    function mountClusterPlayground() {
+      if (playgroundMounted || !window.LivePlayground) return;
+      playgroundMounted = true;
+      LivePlayground.mount({
+        app: () => clusterApp,
+        panes: ['scene', 'theme', 'snippet'],
+        getScene: () => lastAuthorScene,
+        applyScene(parsed) {
+          clusterApp.clear();
+          clusterApp.loadJSON(parsed);
+          lastAuthorScene = parsed;
+          cluster = clusterApp.stage.children[0];
+          clusterApp.render();
+          syncCallChrome();
+        },
+      });
+    }
+
     function loadCluster(theme) {
       const { w, h } = clusterWrapSize();
       if (w < 100 || h < 100) return;
       lastClusterSize = { w, h };
       applyClusterCanvasSize(w, h);
-      clusterApp.loadJSON({
+      const scene = {
         type: 'instrumentCluster',
         props: {
           theme,
@@ -136,10 +157,14 @@
           incomingCall: incomingCallActive,
           ...CALL_DEMO,
         },
-      });
+      };
+      lastAuthorScene = scene;
+      clusterApp.loadJSON(scene);
       cluster = clusterApp.stage.children[0];
       clusterApp.render();
       syncCallChrome();
+      mountClusterPlayground();
+      if (window.LivePlayground) LivePlayground.syncScene(true);
     }
 
     function toggleIncomingCall() {

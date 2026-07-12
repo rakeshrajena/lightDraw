@@ -14,7 +14,28 @@ import type { ExportFormat, ExportOptions, ExportResult } from './exportTypes';
 import { EXPORT_MIME } from './exportTypes';
 
 export type { ExportFormat, ExportOptions, ExportResult, ExportRegion } from './exportTypes';
-export { validateSceneJSON, parseAndValidateSceneJSON } from './schema';
+export {
+  validateSceneJSON,
+  parseAndValidateSceneJSON,
+  formatJsonParseError,
+  locateJsonError,
+  formatValidationErrors,
+  validateThemePack,
+  listKnownSceneTypes,
+  formatExpectedValues,
+  formatInvalidValue,
+  suggestClosest,
+  UI_THEME_PRESETS,
+  AUTOMOTIVE_THEME_PRESETS,
+  registerKnownSceneTypes,
+} from './schema';
+export type {
+  ValidationResult,
+  ValidationIssue,
+  JsonErrorLocation,
+  ValidateSceneOptions,
+  ValidateThemeOptions,
+} from './schema';
 export { buildPdfFromJpegPages, pdfToDataUrl, dataUrlToBytes, createMinimalJpegStub } from './pdf';
 
 const LIGHTDRAW_CDN = 'https://cdn.jsdelivr.net/npm/lightdraw/dist/lightdraw.min.js';

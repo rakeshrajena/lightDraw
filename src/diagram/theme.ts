@@ -1,3 +1,9 @@
+import type { App } from '../App';
+import type { UiThemeTokens } from '../components/uiTheme';
+import { createThemeScope } from '../theme/themeScope';
+import { parseCssPx, pickChrome } from '../theme/themeUtils';
+import { colorWithAlpha } from '../utils/color';
+
 /** Diagram design tokens — tuned for dark canvas backgrounds */
 export const DIAGRAM = {
   fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif",
@@ -162,8 +168,168 @@ export const DIAGRAM = {
   },
 } as const;
 
-export type DiagramTheme = typeof DIAGRAM;
+export type DiagramTheme = {
+  -readonly [K in keyof typeof DIAGRAM]: (typeof DIAGRAM)[K] extends readonly (infer U)[]
+    ? U[]
+    : (typeof DIAGRAM)[K] extends object
+      ? { -readonly [P in keyof (typeof DIAGRAM)[K]]: (typeof DIAGRAM)[K][P] }
+      : (typeof DIAGRAM)[K];
+};
+
 export type DiagramStrokeContext = 'screen' | 'print' | 'compact';
+
+function cloneDefaults(): DiagramTheme {
+  return JSON.parse(JSON.stringify(DIAGRAM)) as DiagramTheme;
+}
+
+function scaleDiagramFonts(
+  theme: DiagramTheme,
+  basePx: number
+): void {
+  const scale = basePx / DIAGRAM.fontSize.base;
+  if (!Number.isFinite(scale) || scale <= 0) return;
+  theme.fontSize = {
+    xs: Math.max(6, Math.round(DIAGRAM.fontSize.xs * scale)),
+    sm: Math.max(7, Math.round(DIAGRAM.fontSize.sm * scale)),
+    md: Math.max(8, Math.round(DIAGRAM.fontSize.md * scale)),
+    base: Math.max(8, Math.round(DIAGRAM.fontSize.base * scale)),
+    lg: Math.max(9, Math.round(DIAGRAM.fontSize.lg * scale)),
+    xl: Math.max(10, Math.round(DIAGRAM.fontSize.xl * scale)),
+  } as DiagramTheme['fontSize'];
+}
+
+function mergeDiagramFontSize(
+  theme: DiagramTheme,
+  packFont: unknown
+): void {
+  if (!packFont || typeof packFont !== 'object') return;
+  const next: Record<string, number> = { ...theme.fontSize };
+  for (const [key, value] of Object.entries(packFont as Record<string, unknown>)) {
+    if (!(key in next)) continue;
+    next[key] = parseCssPx(value, next[key]);
+  }
+  theme.fontSize = next as DiagramTheme['fontSize'];
+}
+
+/** Merge UI theme tokens into diagram palette. Empty input → default DIAGRAM look. */
+export function resolveDiagramTheme(
+  ui?: Partial<UiThemeTokens>,
+  pack?: Record<string, unknown>
+): DiagramTheme {
+  // Loose working copy: UI token strings replace const palette literals, then cast back.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const theme: any = cloneDefaults();
+  const hasUi = Boolean(ui && Object.keys(ui).length > 0);
+  const hasPack = Boolean(pack && Object.keys(pack).length > 0);
+  if (!hasUi && !hasPack) return theme as DiagramTheme;
+
+  if (hasUi && ui) {
+    const primary = ui.primary ?? theme.nodeStroke;
+    const success = ui.success ?? theme.terminalStroke;
+    const warning = ui.warning ?? theme.decisionStroke;
+    const danger = ui.danger ?? theme.pipelineErrorStroke;
+    const surface = pickChrome(ui.surface, theme.surface);
+    const text = ui.text ?? theme.nodeText;
+    const textMuted = ui.textMuted ?? theme.nodeTextMuted;
+    const accent = colorWithAlpha(primary, 0.18) ?? theme.edgeGlow;
+
+    theme.surface = surface;
+    theme.canvasBg = pickChrome(ui.surfaceMuted, theme.canvasBg);
+    theme.surfaceElevated = pickChrome(ui.surfaceInset, theme.surfaceElevated);
+    theme.nodeFill = pickChrome(ui.surfaceInset, theme.nodeFill);
+    theme.nodeStroke = primary;
+    theme.nodeText = text;
+    theme.nodeTextMuted = textMuted;
+    theme.edge = primary;
+    theme.edgeGlow = accent;
+    theme.umlAssociation = primary;
+    theme.umlInheritance = warning;
+    theme.flowchartProcess = { fill: theme.nodeFill, stroke: primary, accent: primary };
+    theme.flowchartStart = { ...theme.flowchartStart, stroke: success, accent: success };
+    theme.flowchartDecision = { ...theme.flowchartDecision, stroke: warning, accent: warning };
+    theme.decisionStroke = warning;
+    theme.terminalStroke = success;
+    theme.networkRouter = { fill: theme.networkRouter.fill, stroke: primary, glyph: primary, edge: primary };
+    theme.networkServer = { ...theme.networkServer, stroke: success, glyph: success, edge: success };
+    theme.pipelineActive = primary;
+    theme.pipelineDone = success;
+    theme.pipelineErrorStroke = danger;
+    theme.canBus = primary;
+    theme.canBusGlow = colorWithAlpha(primary, 0.25) ?? theme.canBusGlow;
+    theme.canTermination = success;
+    theme.canEcuPalette = [primary, ...theme.canEcuPalette.slice(1)];
+    theme.schematicWire = primary;
+    theme.schematicWireGlow = colorWithAlpha(primary, 0.2) ?? theme.schematicWireGlow;
+    theme.schematicBattery = success;
+    theme.schematicResistor = warning;
+    theme.schematicSwitch = primary;
+    theme.orgTier = [
+      { fill: theme.orgTier[0].fill, stroke: primary, accent: primary },
+      theme.orgTier[1],
+      theme.orgTier[2],
+    ];
+    theme.mindBranch = { ...theme.mindBranch, stroke: primary, accent: primary };
+    theme.mindCenter = { ...theme.mindCenter, stroke: warning, accent: warning };
+
+    if (ui.fontSize != null && String(ui.fontSize).trim() !== '') {
+      scaleDiagramFonts(theme as DiagramTheme, parseCssPx(ui.fontSize, DIAGRAM.fontSize.base));
+    }
+    if (ui.fontFamily) {
+      theme.fontFamily = ui.fontFamily;
+    }
+  }
+
+  if (hasPack && pack) {
+    for (const [key, value] of Object.entries(pack)) {
+      if (value === undefined) continue;
+      if (key === 'fontSize') {
+        mergeDiagramFontSize(theme as DiagramTheme, value);
+        continue;
+      }
+      theme[key] = value;
+    }
+  }
+
+  return theme as DiagramTheme;
+}
+
+const diagramScope = createThemeScope<DiagramTheme>(cloneDefaults);
+
+/** Module pack stored on the App theme. */
+export function diagramPackFromApp(app?: App | null): Record<string, unknown> {
+  if (!app || typeof app.getTheme !== 'function') return {};
+  const t = app.getTheme();
+  return { ...(t.diagram ?? {}) };
+}
+
+export function syncActiveDiagramTheme(
+  tokens: Partial<UiThemeTokens> = {},
+  app?: App | null,
+  pack?: Record<string, unknown>
+): DiagramTheme {
+  const resolvedPack = pack ?? diagramPackFromApp(app);
+  return diagramScope.sync(resolveDiagramTheme(tokens, resolvedPack), app ?? undefined);
+}
+
+/**
+ * Current diagram palette for builders.
+ * Prefer calling inside a create/rebuild (stack); optional `app` uses WeakMap snapshot.
+ */
+export function getActiveDiagram(app?: App | null): DiagramTheme {
+  return diagramScope.getActive(app ?? undefined);
+}
+
+/** Run factory/rebuild with a fixed palette on the build stack. */
+export function runWithDiagramTheme<R>(theme: DiagramTheme, fn: () => R): R {
+  return diagramScope.runWithResult(theme, fn);
+}
+
+export function getDiagramTheme(app?: App | null): DiagramTheme {
+  if (app && typeof app.getResolvedTheme === 'function') {
+    return resolveDiagramTheme(app.getResolvedTheme(), diagramPackFromApp(app));
+  }
+  return cloneDefaults();
+}
 
 /** Print-safe and compact-canvas stroke scaling */
 export function resolveStrokeWidth(

@@ -17,6 +17,10 @@ import {
 import { Matrix2D } from '../utils';
 import { isGradient, createSvgGradient, createSvgShadowFilter } from './styles';
 import { arcSectorPath } from './arcSector';
+import {
+  cssStageBackground,
+  unwrapThemeBackgroundSrc,
+} from '../components/uiTheme';
 
 export class SVGRenderer extends Renderer {
   private svg!: SVGSVGElement;
@@ -45,16 +49,43 @@ export class SVGRenderer extends Renderer {
     this.sceneRoot.setAttribute('data-lightdraw-scene', 'true');
     this.svg.appendChild(this.sceneRoot);
 
-    if (this.background && this.background !== 'transparent') {
-      const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-      bg.setAttribute('data-lightdraw-bg', 'true');
-      bg.setAttribute('width', '100%');
-      bg.setAttribute('height', '100%');
-      bg.setAttribute('fill', this.background);
-      this.svg.insertBefore(bg, this.sceneRoot);
+    this.syncBackgroundNode();
+    container.appendChild(this.svg);
+  }
+
+  /** Update stage background (solid or image). */
+  setStageBackground(value: string): void {
+    this.background = value;
+    this.syncBackgroundNode();
+    this.forceFullRedraw();
+  }
+
+  private syncBackgroundNode(): void {
+    this.svg.querySelectorAll('[data-lightdraw-bg], [data-lightdraw-bg-image]').forEach((n) => n.remove());
+    this.svg.style.background = '';
+
+    if (!this.background || this.background === 'transparent') return;
+
+    const src = unwrapThemeBackgroundSrc(this.background);
+    if (src) {
+      this.svg.style.background = cssStageBackground(this.background);
+      const img = document.createElementNS('http://www.w3.org/2000/svg', 'image');
+      img.setAttribute('data-lightdraw-bg-image', 'true');
+      img.setAttribute('href', src);
+      img.setAttributeNS('http://www.w3.org/1999/xlink', 'href', src);
+      img.setAttribute('width', '100%');
+      img.setAttribute('height', '100%');
+      img.setAttribute('preserveAspectRatio', 'xMidYMid slice');
+      this.svg.insertBefore(img, this.sceneRoot);
+      return;
     }
 
-    container.appendChild(this.svg);
+    const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    bg.setAttribute('data-lightdraw-bg', 'true');
+    bg.setAttribute('width', '100%');
+    bg.setAttribute('height', '100%');
+    bg.setAttribute('fill', this.background);
+    this.svg.insertBefore(bg, this.sceneRoot);
   }
 
   resize(width: number, height: number): void {

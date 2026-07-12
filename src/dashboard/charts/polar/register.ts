@@ -1,7 +1,7 @@
 import { attachBandYHover, attachPolarSliceHover, attachValueHover } from '../core/interaction';
 import { registerDashboard } from '../../registryCore';
 import { createWidgetGroup, clamp, num, setState } from '../../helpers';
-import { DASHBOARD } from '../../theme';
+import { getActiveDashboard } from '../../theme';
 import { createPieWidget, buildRadarChart } from './polarBase';
 
 registerDashboard('pieChart', (props, app) => createPieWidget(app, 'pieChart', props, 0));
@@ -37,8 +37,8 @@ registerDashboard('polarAreaChart', (props, app) => {
         radius: r,
         startAngle: start,
         endAngle: end,
-        fill: DASHBOARD.series[i % DASHBOARD.series.length],
-        stroke: DASHBOARD.pieStroke,
+        fill: getActiveDashboard().series[i % getActiveDashboard().series.length],
+        stroke: getActiveDashboard().pieStroke,
         strokeWidth: 1,
         listening: false,
       })
@@ -64,14 +64,14 @@ registerDashboard('bulletChart', (props, app) => {
   const target = num(props, 'target', 80);
   const max = num(props, 'max', 100);
   const group = createWidgetGroup(app, 'bulletChart', props);
-  group.add(app.rect({ width, height: height * 0.5, y: height * 0.25, fill: DASHBOARD.meterTrack, listening: false }));
+  group.add(app.rect({ width, height: height * 0.5, y: height * 0.25, fill: getActiveDashboard().meterTrack, listening: false }));
   group.add(
     app.rect({
       x: 0,
       y: height * 0.25,
       width: (width * value) / max,
       height: height * 0.5,
-      fill: DASHBOARD.primary,
+      fill: getActiveDashboard().primary,
       listening: false,
     })
   );
@@ -82,7 +82,7 @@ registerDashboard('bulletChart', (props, app) => {
       y: height * 0.15,
       x2: 0,
       y2: height * 0.7,
-      stroke: DASHBOARD.danger,
+      stroke: getActiveDashboard().danger,
       strokeWidth: 3,
       listening: false,
     })
@@ -105,8 +105,8 @@ registerDashboard('funnelChart', (props, app) => {
     group.add(
       app.polygon({
         points: [x, i * step, x + w, i * step, x + w * 0.92, (i + 1) * step, x + w * 0.08, (i + 1) * step],
-        fill: DASHBOARD.series[i % DASHBOARD.series.length],
-        stroke: DASHBOARD.pieStroke,
+        fill: getActiveDashboard().series[i % getActiveDashboard().series.length],
+        stroke: getActiveDashboard().pieStroke,
         strokeWidth: 1,
         listening: false,
       }),
@@ -115,7 +115,7 @@ registerDashboard('funnelChart', (props, app) => {
         x: width / 2 - 12,
         y: i * step + step / 2 - 6,
         fontSize: 11,
-        fill: DASHBOARD.text,
+        fill: getActiveDashboard().text,
         listening: false,
       })
     );
@@ -141,7 +141,7 @@ registerDashboard('pyramidChart', (props, app) => {
         y: i * step,
         width: w,
         height: step - 2,
-        fill: DASHBOARD.series[i % DASHBOARD.series.length],
+        fill: getActiveDashboard().series[i % getActiveDashboard().series.length],
         listening: false,
       })
     );
@@ -158,8 +158,8 @@ registerDashboard('coneChart', (props, app) => {
   group.add(
     app.polygon({
       points: [width / 2, 0, width, height, 0, height],
-      fill: DASHBOARD.primary,
-      stroke: DASHBOARD.panelStroke,
+      fill: getActiveDashboard().primary,
+      stroke: getActiveDashboard().panelStroke,
       strokeWidth: 1,
       listening: false,
     })

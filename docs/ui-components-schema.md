@@ -267,4 +267,6 @@ Full scene export: `app.exportJSON()` / `app.loadJSON()`.
 
 ## Theming
 
-See [ui-theme-guide.md](./ui-theme-guide.md) for `uiTheme` presets, token overrides, and high-contrast mode.
+See [ui-theme-guide.md](./ui-theme-guide.md) for app `uiTheme` / `setUiTheme` presets, token overrides, and high-contrast mode.
+
+Optional **per-node** override on component props: `uiTheme` (preset name or token object). Resolve order: node `uiTheme` → app theme → defaults. See [theme-architecture.md](./theme-architecture.md).

@@ -24,17 +24,33 @@ LightDraw scenes are **JSON-first** — ideal for LLM-generated UIs, dashboards,
 
 ```javascript
 import LightDraw from 'lightdraw';
-import { validateSceneJSON } from 'lightdraw/core';
+import { validateSceneJSON, parseAndValidateSceneJSON, formatValidationErrors } from 'lightdraw/core';
 
 const app = LightDraw.createApp('#app', { renderer: 'html' });
 
-const scene = await fetch('/scene.json').then((r) => r.json());
-const { valid, errors } = validateSceneJSON(scene);
-if (!valid) throw new Error(errors.join('; '));
+// From a string (parse errors include line + column + caret):
+const { json, validation } = parseAndValidateSceneJSON(rawText);
+if (!validation.valid) throw new Error(formatValidationErrors(validation));
 
-app.loadJSON(scene);
+// Or validate an already-parsed object (errors include JSON paths):
+const { valid, errors } = validateSceneJSON(json);
+if (!valid) throw new Error(errors.join('\n'));
 
-const exported = app.exportJSON();
+app.loadJSON(json);
+```
+
+Parse failures look like:
+
+```
+JSON parse error at line 4, column 12: Unexpected token }
+  4 |   "type": "button",
+    |            ^
+```
+
+Schema failures look like:
+
+```
+root.children[1].props: must be an object when present, got null
 ```
 
 ## Widget type catalogs

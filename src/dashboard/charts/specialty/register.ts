@@ -1,7 +1,7 @@
 import { attachGridHover, attachNearestHover, attachValueHover } from '../core/interaction';
 import { registerDashboard } from '../../registryCore';
 import { createWidgetGroup, num, setState, str } from '../../helpers';
-import { DASHBOARD } from '../../theme';
+import { getActiveDashboard } from '../../theme';
 import { sampleZGrid, surfaceMeshPath, wireframePaths } from '../core/projection3d';
 import { layoutWordCloud } from '../core/wordLayout';
 import type { WordItem } from '../types';
@@ -11,10 +11,10 @@ registerDashboard('surfaceChart3d', (props, app) => {
   const height = num(props, 'height', 200);
   const zGrid = (props.zGrid as number[][]) ?? sampleZGrid(8);
   const group = createWidgetGroup(app, 'surfaceChart3d', props);
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  group.add(app.rect({ width, height, fill: getActiveDashboard().chartBg, listening: true }));
   const paths = surfaceMeshPath(zGrid, width / 2, height / 2 + 20, 6);
   paths.forEach((d, i) => {
-    group.add(app.path({ d, fill: DASHBOARD.series[i % DASHBOARD.series.length], opacity: 0.6, stroke: DASHBOARD.chartGrid, strokeWidth: 0.5, listening: false }));
+    group.add(app.path({ d, fill: getActiveDashboard().series[i % getActiveDashboard().series.length], opacity: 0.6, stroke: getActiveDashboard().chartGrid, strokeWidth: 0.5, listening: false }));
   });
   attachGridHover(app, group, props, width, height, zGrid.length, zGrid[0]?.length ?? 1, (r, c) => String(zGrid[r]?.[c] ?? ''));
   setState(group, { width, height, zGrid });
@@ -26,9 +26,9 @@ registerDashboard('wireframeChart3d', (props, app) => {
   const height = num(props, 'height', 200);
   const zGrid = (props.zGrid as number[][]) ?? sampleZGrid(8);
   const group = createWidgetGroup(app, 'wireframeChart3d', props);
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  group.add(app.rect({ width, height, fill: getActiveDashboard().chartBg, listening: true }));
   wireframePaths(zGrid, width / 2, height / 2 + 20, 6).forEach((d) => {
-    group.add(app.path({ d, fill: null, stroke: DASHBOARD.chartLine, strokeWidth: 1, listening: false }));
+    group.add(app.path({ d, fill: null, stroke: getActiveDashboard().chartLine, strokeWidth: 1, listening: false }));
   });
   attachGridHover(app, group, props, width, height, zGrid.length, zGrid[0]?.length ?? 1, (r, c) => String(zGrid[r]?.[c] ?? ''));
   setState(group, { width, height, zGrid });
@@ -40,9 +40,9 @@ registerDashboard('meshChart3d', (props, app) => {
   const height = num(props, 'height', 200);
   const zGrid = (props.zGrid as number[][]) ?? sampleZGrid(6);
   const group = createWidgetGroup(app, 'meshChart3d', props);
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  group.add(app.rect({ width, height, fill: getActiveDashboard().chartBg, listening: true }));
   surfaceMeshPath(zGrid, width / 2, height / 2 + 20, 8).forEach((d) => {
-    group.add(app.path({ d, fill: DASHBOARD.chartArea, stroke: DASHBOARD.primary, strokeWidth: 1, listening: false }));
+    group.add(app.path({ d, fill: getActiveDashboard().chartArea, stroke: getActiveDashboard().primary, strokeWidth: 1, listening: false }));
   });
   attachGridHover(app, group, props, width, height, zGrid.length, zGrid[0]?.length ?? 1, (r, c) => String(zGrid[r]?.[c] ?? ''));
   setState(group, { width, height, zGrid });
@@ -53,7 +53,7 @@ registerDashboard('vectorFieldChart', (props, app) => {
   const width = num(props, 'width', 300);
   const height = num(props, 'height', 200);
   const group = createWidgetGroup(app, 'vectorFieldChart', props);
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  group.add(app.rect({ width, height, fill: getActiveDashboard().chartBg, listening: true }));
   const cols = 8;
   const rows = 6;
   for (let i = 0; i < rows; i++) {
@@ -68,7 +68,7 @@ registerDashboard('vectorFieldChart', (props, app) => {
           y,
           x2: len * Math.cos(angle),
           y2: len * Math.sin(angle),
-          stroke: DASHBOARD.chartLine,
+          stroke: getActiveDashboard().chartLine,
           strokeWidth: 1.5,
           lineCap: 'round',
           listening: false,
@@ -97,7 +97,7 @@ registerDashboard('pictogramChart', (props, app) => {
         x: col * 28 + 4,
         y: row * 28 + 4,
         fontSize: 18,
-        fill: DASHBOARD.primary,
+        fill: getActiveDashboard().primary,
         listening: false,
       })
     );
@@ -119,7 +119,7 @@ registerDashboard('wordCloudChart', (props, app) => {
     { text: 'dashboard', value: 60 },
   ];
   const group = createWidgetGroup(app, 'wordCloudChart', props);
-  group.add(app.rect({ width, height, fill: DASHBOARD.chartBg, listening: true }));
+  group.add(app.rect({ width, height, fill: getActiveDashboard().chartBg, listening: true }));
   const placed = layoutWordCloud(words, width, height);
   placed.forEach((w, i) => {
     group.add(
@@ -129,7 +129,7 @@ registerDashboard('wordCloudChart', (props, app) => {
         y: w.y,
         fontSize: w.fontSize,
         fontWeight: i < 3 ? '700' : '400',
-        fill: DASHBOARD.series[i % DASHBOARD.series.length],
+        fill: getActiveDashboard().series[i % getActiveDashboard().series.length],
         listening: false,
       })
     );

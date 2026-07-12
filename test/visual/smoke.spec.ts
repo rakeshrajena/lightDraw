@@ -118,4 +118,30 @@ test.describe('Visual regression — golden scenes', () => {
       animations: 'disabled',
     });
   });
+
+  test('theme demo loads and switches app preset live', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/examples/demo-theme.html');
+    await page.waitForSelector('#app canvas', { timeout: 15000 });
+    await page.waitForFunction(() => {
+      const w = window as unknown as { __ldThemeDemo?: { getApp: () => { getResolvedTheme: () => { primary?: string } } } };
+      return typeof w.__ldThemeDemo?.getApp === 'function';
+    });
+
+    await page.locator('#app-theme-bar .demo-btn[data-id="violet"]').click();
+    await page.waitForTimeout(200);
+
+    const primary = await page.evaluate(() => {
+      const w = window as unknown as {
+        __ldThemeDemo: { getApp: () => { getResolvedTheme: () => { primary?: string } } };
+      };
+      return w.__ldThemeDemo.getApp().getResolvedTheme().primary;
+    });
+    expect(primary).toBe('#7c3aed');
+    await expect(page.locator('#log')).toContainText('violet');
+
+    await page.locator('#auto-theme-bar .demo-btn[data-id="digital"]').click();
+    await page.waitForTimeout(200);
+    await expect(page.locator('#log')).toContainText('digital');
+  });
 });

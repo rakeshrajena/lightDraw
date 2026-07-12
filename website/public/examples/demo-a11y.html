@@ -13,7 +13,7 @@
     <header class="demo-header">
       <span class="demo-badge">Accessibility</span>
       <h1>Keyboard &amp; ARIA</h1>
-      <p>Focus management, roles, drag-and-drop targets, and high-contrast rendering.</p>
+      <p>Focus management, roles, drag-and-drop targets, and high-contrast rendering. Edit Scene JSON below for live updates.</p>
     </header>
     <main class="demo-main demo-layout-aside">
       <div class="demo-canvas-wrap">
@@ -30,6 +30,7 @@
     </main>
   </div>
   <script src="../lightdraw.min.js"></script>
+  <script src="demo-live-playground.js"></script>
   <script>
     let app = LightDraw.createApp('#app', {
       width: 720,
@@ -39,17 +40,22 @@
       highContrast: false,
     });
 
-    function resetDemo() {
-      const hc = app.isHighContrast?.() ?? false;
-      app.destroy();
+    function createApp(hc) {
+      if (app) app.destroy();
       app = LightDraw.createApp('#app', {
         width: 720,
         height: 440,
         background: '#0d1322',
         renderer: 'html',
-        highContrast: hc,
+        highContrast: !!hc,
       });
+    }
+
+    function resetDemo() {
+      const hc = app.isHighContrast?.() ?? false;
+      createApp(hc);
       buildScene();
+      if (window.LivePlayground) LivePlayground.syncScene(true);
     }
 
     function toggleContrast() {
@@ -127,6 +133,17 @@
     }
 
     buildScene();
+    LivePlayground.mount({
+      app: () => app,
+      panes: ['scene', 'theme', 'snippet'],
+      getScene: () => app.exportJSON({ includeTheme: false }),
+      applyScene(parsed) {
+        const hc = app.isHighContrast?.() ?? false;
+        createApp(hc);
+        app.loadJSON(parsed);
+        // Interactive handlers from buildScene are not restored after JSON round-trip.
+      },
+    });
   </script>
 </body>
 </html>

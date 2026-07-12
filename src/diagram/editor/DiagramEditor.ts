@@ -4,7 +4,7 @@ import type { Group } from '../../shapes/Group';
 import { wirePointerDrag } from '../../components/interaction';
 import { connectNodes } from '../connectors';
 import { collectObstacles } from '../router';
-import { DIAGRAM } from '../theme';
+import { getActiveDiagram } from '../theme';
 import { collectEditableNodes, collectEdgesFromLayer, findEdgeLayer, findNodeByDiagramId, nodeDiagramId, resolveEditableGroup } from './collect';
 import { attachEdgeHitTarget, edgeAnchorPoint } from './edgeWiring';
 import { showLabelEditor } from './labelEdit';
@@ -217,9 +217,9 @@ export class DiagramEditor implements DiagramEditorHandle {
     edgeLayer.add(
       connectNodes(this.app, fromNode, toNode, obstacles, {
         parent: this.root,
-        stroke: DIAGRAM.edge,
-        glowColor: DIAGRAM.edgeGlow,
-        strokeWidth: DIAGRAM.stroke.edge,
+        stroke: getActiveDiagram().edge,
+        glowColor: getActiveDiagram().edgeGlow,
+        strokeWidth: getActiveDiagram().stroke.edge,
         edgeId: id,
         fromId: from,
         toId: to,
@@ -274,7 +274,7 @@ export class DiagramEditor implements DiagramEditorHandle {
         width: w + 6,
         height: h + 6,
         fill: null,
-        stroke: DIAGRAM.mindBranch.stroke,
+        stroke: getActiveDiagram().mindBranch.stroke,
         strokeWidth: 2,
         dash: [6, 4],
         listening: false,
@@ -308,7 +308,7 @@ export class DiagramEditor implements DiagramEditorHandle {
         y: fromPt.y,
         x2: toPt.x,
         y2: toPt.y,
-        stroke: DIAGRAM.mindBranch.stroke,
+        stroke: getActiveDiagram().mindBranch.stroke,
         strokeWidth: 3,
         dash: [8, 5],
         listening: false,
@@ -324,8 +324,8 @@ export class DiagramEditor implements DiagramEditorHandle {
       x,
       y,
       radius: 6,
-      fill: end === 'to' ? DIAGRAM.edge : '#fff',
-      stroke: DIAGRAM.mindBranch.stroke,
+      fill: end === 'to' ? getActiveDiagram().edge : '#fff',
+      stroke: getActiveDiagram().mindBranch.stroke,
       strokeWidth: 2,
       listening: true,
     });
@@ -373,7 +373,7 @@ export class DiagramEditor implements DiagramEditorHandle {
         width: HANDLE,
         height: HANDLE,
         fill: '#fff',
-        stroke: DIAGRAM.mindBranch.stroke,
+        stroke: getActiveDiagram().mindBranch.stroke,
         strokeWidth: 1.5,
         listening: true,
         cornerRadius: 2,
@@ -412,7 +412,7 @@ export class DiagramEditor implements DiagramEditorHandle {
         x: p.px,
         y: p.py,
         radius: 5,
-        fill: DIAGRAM.edge,
+        fill: getActiveDiagram().edge,
         stroke: '#fff',
         strokeWidth: 1.5,
         listening: true,
@@ -453,7 +453,7 @@ export class DiagramEditor implements DiagramEditorHandle {
       y: y1,
       x2: x2,
       y2: y2,
-      stroke: DIAGRAM.edge,
+      stroke: getActiveDiagram().edge,
       strokeWidth: 2,
       dash: [6, 4],
       listening: false,

@@ -24,4 +24,22 @@ export {
   installChartResizeObserver,
   detachChartResizeObserver,
 } from '../../dashboard/charts/core/responsive';
+export {
+  DASHBOARD,
+  resolveDashboardTheme,
+  getActiveDashboard,
+  getDashboardTheme,
+  syncActiveDashboardTheme,
+  runWithDashboardTheme,
+  refreshDashboard,
+} from '../../dashboard/theme';
+export type { DashboardTheme } from '../../dashboard/theme';
+export {
+  resolveValueColor,
+  resolveSemanticColor,
+  readColorStops,
+  readDialZones,
+  normalizeDialZones,
+} from '../../dashboard/colorStops';
+export type { ValueColorStop, DialZoneInput } from '../../dashboard/colorStops';
 export default dashboardPlugin;

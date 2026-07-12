@@ -6,7 +6,7 @@ import { Matrix2D } from '../utils';
 import { isGradient, gradientToCss, shadowToCss } from './styles';
 import { arcSectorPath } from './arcSector';
 import { toHighContrastColor } from '../utils/a11y';
-import { applyUiTheme, type UiThemeTokens } from '../components/uiTheme';
+import { applyUiTheme, cssStageBackground, toThemeBackgroundCss, unwrapThemeBackgroundSrc, type UiThemeTokens } from '../components/uiTheme';
 import {
   NATIVE_HTML_COMPONENTS,
   syncNativeAccordion,
@@ -59,25 +59,44 @@ export class HTMLRenderer extends Renderer {
   }
 
   private applyThemeVars(): void {
-    if (Object.keys(this.uiTheme).length > 0) {
-      applyUiTheme(this.root, this.uiTheme);
-    }
+    applyUiTheme(this.root, this.uiTheme ?? {});
+  }
+
+  /** Update stage background (solid color or image). Re-applies root CSS. */
+  setStageBackground(value: string): void {
+    this.background = value;
+    if (this.root) this.applyRootStyles();
   }
 
   private applyRootStyles(): void {
-    this.root.style.cssText = `
-      position: relative;
-      width: ${this.width}px;
-      height: ${this.height}px;
-      overflow: hidden;
-      background: ${this.highContrast ? '#000' : this.background};
-    `;
+    this.root.style.position = 'relative';
+    this.root.style.width = `${this.width}px`;
+    this.root.style.height = `${this.height}px`;
+    this.root.style.overflow = 'hidden';
+
     if (this.highContrast) {
+      this.root.style.background = '#000';
+      this.root.style.backgroundImage = '';
       this.root.classList.add('lightdraw-high-contrast');
       this.root.setAttribute('data-ld-high-contrast', 'true');
     } else {
       this.root.classList.remove('lightdraw-high-contrast');
       this.root.removeAttribute('data-ld-high-contrast');
+      const src = unwrapThemeBackgroundSrc(this.background || '');
+      if (src) {
+        // Set longhands — jsdom / some engines drop shorthand with data: URLs
+        this.root.style.backgroundColor = 'transparent';
+        this.root.style.backgroundImage = toThemeBackgroundCss(this.background);
+        this.root.style.backgroundSize = 'cover';
+        this.root.style.backgroundPosition = 'center';
+        this.root.style.backgroundRepeat = 'no-repeat';
+      } else {
+        this.root.style.backgroundImage = '';
+        this.root.style.backgroundSize = '';
+        this.root.style.backgroundPosition = '';
+        this.root.style.backgroundRepeat = '';
+        this.root.style.background = cssStageBackground(this.background || 'transparent');
+      }
     }
     this.applyThemeVars();
   }

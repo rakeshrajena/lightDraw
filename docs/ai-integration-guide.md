@@ -24,17 +24,35 @@ LightDraw scenes are **JSON-first** — ideal for LLM-generated UIs, dashboards,
 
 ```javascript
 import LightDraw from 'lightdraw';
-import { validateSceneJSON } from 'lightdraw/core';
+import { validateSceneJSON, parseAndValidateSceneJSON, formatValidationErrors } from 'lightdraw/core';
 
 const app = LightDraw.createApp('#app', { renderer: 'html' });
 
-const scene = await fetch('/scene.json').then((r) => r.json());
-const { valid, errors } = validateSceneJSON(scene);
-if (!valid) throw new Error(errors.join('; '));
+// From a string (parse errors include line + column + caret):
+const { json, validation } = parseAndValidateSceneJSON(rawText);
+if (!validation.valid) throw new Error(formatValidationErrors(validation));
 
-app.loadJSON(scene);
+// Or validate an already-parsed object (errors include JSON paths + expected values):
+const { valid, errors } = validateSceneJSON(json);
+// e.g. props.variant: invalid value "primry"; expected one of: "primary" | … did you mean "primary"?
+if (!valid) throw new Error(errors.join('\n'));
 
-const exported = app.exportJSON();
+app.loadJSON(json);
+```
+
+Parse failures look like:
+
+```
+JSON parse error at line 4, column 12: Unexpected token }
+  4 |   "type": "button",
+    |            ^
+```
+
+Schema / enum failures look like:
+
+```
+root.children[0].props.variant: invalid value "primry"; expected one of: "primary" | "secondary" | "ghost" | "danger" did you mean "primary"?
+theme.preset: invalid value "drak"; expected one of: "default" | "dark" | … did you mean "dark"?
 ```
 
 ## Widget type catalogs

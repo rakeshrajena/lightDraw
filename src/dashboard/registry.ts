@@ -16,7 +16,8 @@ export {
   detachChartResizeObserver,
 } from './charts/core/responsive';
 
-export { DASHBOARD, resolveDashboardTheme } from './theme';
+export { DASHBOARD, resolveDashboardTheme, getActiveDashboard, getDashboardTheme, syncActiveDashboardTheme, runWithDashboardTheme, refreshDashboard, dashboardPackFromApp } from './theme';
+export type { DashboardTheme } from './theme';
 
 /** Side-effect: register all dashboard widgets (Phase 7). */
 import './definitions';

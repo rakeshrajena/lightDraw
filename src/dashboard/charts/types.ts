@@ -2,12 +2,20 @@ export type ChartOrientation = 'vertical' | 'horizontal';
 
 export type SeriesKind = 'line' | 'area' | 'bar' | 'step' | 'spline';
 
+/** Value → color stops for per-point bar/column fills (see `colorStops` helpers). */
+export interface ChartColorStop {
+  upTo?: number;
+  color: string;
+}
+
 export interface ChartSeries {
   name?: string;
   label?: string;
   data: number[];
   type?: SeriesKind;
   color?: string;
+  /** Per-value colors for bar/column points (overrides `color` when set). */
+  colorStops?: ChartColorStop[];
   yAxis?: 'left' | 'right';
   errorY?: [number, number][];
   rangeMin?: number[];

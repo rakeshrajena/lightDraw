@@ -1,7 +1,7 @@
 import type { App } from '../App';
 import type { Node } from '../Node';
 import type { Group } from '../shapes/Group';
-import { DIAGRAM } from './theme';
+import { getActiveDiagram } from './theme';
 import type { Obstacle } from './types';
 import { collectObstacles, computeRoutePoints, getAnchor, type RouteStyle } from './router';
 import { getConnectorAnchors, obstacleToParentLocal, worldToParentLocal } from './coords';
@@ -111,9 +111,9 @@ export function createConnector(
   y2: number,
   options: ConnectorOptions = {}
 ): Group {
-  const stroke = options.stroke ?? DIAGRAM.edge;
-  const strokeWidth = options.strokeWidth ?? DIAGRAM.stroke.edge;
-  const glowColor = options.glowColor ?? DIAGRAM.edgeGlow;
+  const stroke = options.stroke ?? getActiveDiagram().edge;
+  const strokeWidth = options.strokeWidth ?? getActiveDiagram().stroke.edge;
+  const glowColor = options.glowColor ?? getActiveDiagram().edgeGlow;
   const arrowEnd = options.arrowEnd ?? 'filled';
   const arrowStart = options.arrowStart ?? 'none';
   const arrowSize = 11;
@@ -143,7 +143,7 @@ export function createConnector(
       points: display,
       fill: null,
       stroke: glowColor,
-      strokeWidth: strokeWidth + DIAGRAM.stroke.edgeGlow,
+      strokeWidth: strokeWidth + getActiveDiagram().stroke.edgeGlow,
       lineJoin: 'round',
       lineCap: 'round',
       opacity: 0.85,
@@ -178,7 +178,7 @@ export function createConnector(
         points: arrowHeadPoints(x2, y2, endAngle, arrowSize),
         fill: stroke,
         stroke,
-        strokeWidth: DIAGRAM.stroke.arrow,
+        strokeWidth: getActiveDiagram().stroke.arrow,
         listening: false,
       })
     );
@@ -198,9 +198,9 @@ export function createConnector(
     group.add(
       app.polygon({
         points: arrowHeadPoints(x2, y2, endAngle, arrowSize + 2),
-        fill: DIAGRAM.classFill,
+        fill: getActiveDiagram().classFill,
         stroke,
-        strokeWidth: DIAGRAM.stroke.node,
+        strokeWidth: getActiveDiagram().stroke.node,
         listening: false,
       })
     );
@@ -212,7 +212,7 @@ export function createConnector(
         points: arrowHeadPoints(x1, y1, startAngle + Math.PI, arrowSize),
         fill: stroke,
         stroke,
-        strokeWidth: DIAGRAM.stroke.arrow,
+        strokeWidth: getActiveDiagram().stroke.arrow,
         listening: false,
       })
     );
@@ -332,9 +332,9 @@ function walkOrgEdgesConnect(
       connectNodes(app, node, child, obstacles, {
         parent: root,
         style: 'orthogonal',
-        stroke: DIAGRAM.edge,
-        glowColor: DIAGRAM.edgeGlow,
-        strokeWidth: DIAGRAM.stroke.edge,
+        stroke: getActiveDiagram().edge,
+        glowColor: getActiveDiagram().edgeGlow,
+        strokeWidth: getActiveDiagram().stroke.edge,
         arrowEnd: 'filled',
         edgeId: `org_${fromId}_${toId}`,
         fromId,
@@ -357,9 +357,9 @@ export function wireMindMapConnectors(app: App, group: Group): void {
   for (let i = 1; i < group.children.length; i++) {
     const branch = group.children[i];
     const branchStroke =
-      (branch.metadata?.mindBranchColor as string | undefined) ?? DIAGRAM.mindBranch.stroke;
+      (branch.metadata?.mindBranchColor as string | undefined) ?? getActiveDiagram().mindBranch.stroke;
     const branchGlow =
-      (branch.metadata?.mindBranchGlow as string | undefined) ?? DIAGRAM.edgeGlow;
+      (branch.metadata?.mindBranchGlow as string | undefined) ?? getActiveDiagram().edgeGlow;
     const bB = branch.getBounds();
     const bx = worldToParentLocal(group, bB.x + bB.width / 2, bB.y + bB.height / 2).x;
     const by = worldToParentLocal(group, bB.x + bB.width / 2, bB.y + bB.height / 2).y;
@@ -368,7 +368,7 @@ export function wireMindMapConnectors(app: App, group: Group): void {
         style: 'straight',
         stroke: branchStroke,
         glowColor: branchGlow,
-        strokeWidth: DIAGRAM.stroke.edge,
+        strokeWidth: getActiveDiagram().stroke.edge,
         arrowEnd: 'none',
       })
     );
@@ -384,7 +384,7 @@ export function wireMindMapConnectors(app: App, group: Group): void {
           style: 'orthogonal',
           stroke: branchStroke,
           glowColor: branchGlow,
-          strokeWidth: DIAGRAM.stroke.edgeThin,
+          strokeWidth: getActiveDiagram().stroke.edgeThin,
           arrowEnd: 'filled',
         })
       );

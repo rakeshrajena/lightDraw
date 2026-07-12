@@ -13,7 +13,7 @@ import {
   setState,
   str,
 } from '../helpers';
-import { getTheme, type ThemePalette } from '../themes';
+import { autoThemeName, getTheme, themeFromProps, type ThemePalette } from '../themes';
 import type { WidgetBounds } from '../layout';
 import { buildDialWidget, buildLampWidget } from '../primitives/builders';
 import { buildDialGauge, updateDialNeedle } from '../../primitives/dialGauge';
@@ -33,7 +33,7 @@ function themedDial(
   needleKey: 'needleSpeed' | 'needleTach',
   options: { redlineFrom?: number; tickCount?: number; unit?: string } = {}
 ) {
-  const theme = getTheme(str(props, 'theme', 'classic'));
+  const theme = themeFromProps(props);
   return buildDialWidget(app, type, type, { ...props, needleColor: props.needleColor ?? theme[needleKey] }, {
     max: num(props, 'max', max),
     format,
@@ -45,7 +45,7 @@ function themedDial(
 }
 
 registerAutomotive('speedometer', (props, app) => {
-  const theme = getTheme(str(props, 'theme', 'classic'));
+  const theme = themeFromProps(props);
   return themedDial(app, 'speedometer', { ...props, needleColor: props.needleColor ?? theme.needleSpeed }, 240, 'int', 'needleSpeed', {
     redlineFrom: 0.82,
     tickCount: 12,
@@ -54,7 +54,7 @@ registerAutomotive('speedometer', (props, app) => {
 });
 
 registerAutomotive('tachometer', (props, app) => {
-  const theme = getTheme(str(props, 'theme', 'classic'));
+  const theme = themeFromProps(props);
   return themedDial(app, 'tachometer', { ...props, needleColor: props.needleColor ?? theme.needleTach }, 8000, 'rpm', 'needleTach', {
     redlineFrom: 0.75,
     tickCount: 8,
@@ -62,7 +62,7 @@ registerAutomotive('tachometer', (props, app) => {
 });
 
 registerAutomotive('engineTemp', (props, app) => {
-  const theme = getTheme(str(props, 'theme', 'classic'));
+  const theme = themeFromProps(props);
   const bounds = resolveBounds(props, 140, 140);
   const value = num(props, 'value', 90);
   const max = num(props, 'max', 130);
@@ -285,7 +285,7 @@ function buildAutomotiveCalendar(
 }
 
 registerAutomotive('calendar', (props, app) => {
-  const theme = getTheme(str(props, 'theme', 'classic'));
+  const theme = themeFromProps(props);
   const bounds = resolveBounds(props, 200, 140);
   const group = createAutoGroup(app, 'calendar', { ...props, width: bounds.width, height: bounds.height }, 'calendar');
   buildAutomotiveCalendar(app, group, bounds, theme, props);
@@ -313,7 +313,7 @@ function callerInitials(name: string): string {
 }
 
 registerAutomotive('callScreen', (props, app) => {
-  const theme = getTheme(str(props, 'theme', 'classic'));
+  const theme = themeFromProps(props);
   const lines = (props.lines as string[]) ?? ['Incoming…', 'Swipe to answer'];
   const caller = str(props, 'caller', str(props, 'name', 'Alex Morgan'));
   const status = str(props, 'status', 'incoming').toLowerCase();
@@ -490,7 +490,7 @@ registerAutomotive('callScreen', (props, app) => {
 registerAutomotive('batteryVoltage', (props, app) => {
   const value = num(props, 'value', 12.4);
   const lowThreshold = num(props, 'lowThreshold', 11.5);
-  const theme = getTheme(str(props, 'theme', 'classic'));
+  const theme = themeFromProps(props);
   const bounds = resolveBounds(props, 100, 36);
   const group = createAutoGroup(app, 'batteryVoltage', { ...props, width: bounds.width, height: bounds.height }, 'batteryVoltage');
   const pad = bounds.pad;
@@ -593,7 +593,7 @@ registerAutomotive('batteryVoltage', (props, app) => {
 });
 
 registerAutomotive('tpms', (props, app) => {
-  const theme = getTheme(str(props, 'theme', 'classic'));
+  const theme = themeFromProps(props);
   const pressures = (props.pressures as number[]) ?? [32, 32, 32, 32];
   const lowThreshold = num(props, 'lowThreshold', 25);
   const bounds = resolveBounds(props, 148, 92);
@@ -685,7 +685,7 @@ registerAutomotive('tpms', (props, app) => {
 
 registerAutomotive('fuelGauge', (props, app) => {
   const value = clamp(num(props, 'value', 50), 0, 100);
-  const theme = getTheme(str(props, 'theme', 'classic'));
+  const theme = themeFromProps(props);
   const bounds = resolveBounds(props, 120, 56);
   const group = createAutoGroup(app, 'fuelGauge', { ...props, width: bounds.width, height: bounds.height }, 'fuelGauge');
   const w = bounds.innerWidth;
@@ -725,7 +725,7 @@ registerAutomotive('fuelGauge', (props, app) => {
 
 registerAutomotive('gearIndicator', (props, app) => {
   const gear = str(props, 'gear', 'P');
-  const theme = getTheme(str(props, 'theme', 'classic'));
+  const theme = themeFromProps(props);
   const bounds = resolveBounds(props, 56, 60);
   const group = createAutoGroup(app, 'gearIndicator', { ...props, width: bounds.width, height: bounds.height }, 'gearIndicator');
   const w = bounds.innerWidth;
@@ -762,7 +762,7 @@ registerAutomotive('gearIndicator', (props, app) => {
 registerAutomotive('turnIndicators', (props, app) => {
   const left = bool(props, 'left', false);
   const right = bool(props, 'right', false);
-  const theme = getTheme(str(props, 'theme', 'classic'));
+  const theme = themeFromProps(props);
   const bounds = resolveBounds(props, 56, 28);
   const group = createAutoGroup(app, 'turnIndicators', { ...props, width: bounds.width, height: bounds.height }, 'turnIndicators');
   const pad = bounds.pad;
@@ -942,7 +942,7 @@ registerAutomotive('adasStatus', (props, app) => {
 });
 
 function buildInstrumentCluster(props: Record<string, unknown>, app: import('../../App').App, type: string) {
-  const theme = getTheme(str(props, 'theme', 'classic'));
+  const theme = themeFromProps(props);
   const w = num(props, 'width', 800);
   const h = num(props, 'height', 400);
   const incomingCall = bool(props, 'incomingCall', false) || bool(props, 'showCall', false);
@@ -958,7 +958,7 @@ function buildInstrumentCluster(props: Record<string, unknown>, app: import('../
       listening: false,
     })
   );
-  const themeName = str(props, 'theme', 'classic');
+  const themeName = autoThemeName(props);
   const isDigital = themeName === 'digital';
   const gaugeDisplay = isDigital ? 'digital' : 'analog';
 

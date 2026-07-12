@@ -28,6 +28,7 @@ import {
 import { detectBestRenderer, getPixelRatio, resolveContainer, requestFrame, cancelFrame, matrixPool } from './utils';
 import { fromJSON, toJSON } from './io/json';
 import { exportScene, exportApp } from './io/export';
+import { formatJsonParseError } from './io/schema';
 import type { ExportFormat, ExportOptions, ExportResult } from './io/exportTypes';
 import { installPlugin } from './plugins/index';
 import type { LightDrawStatic } from './types';
@@ -35,7 +36,23 @@ import { SpatialIndex } from './performance/SpatialIndex';
 import { getWorldBounds, countNodes } from './performance/bounds';
 import { AnimationEngine } from './animation/Animation';
 import { collectFocusable } from './utils/focusOrder';
-import { resolveUiTheme, type UiThemeInput } from './components/uiTheme';
+import { resolveUiTheme, resolveThemeBackground, type UiThemeInput, type UiThemeTokens } from './components/uiTheme';
+import { syntheticEvent } from './components/helpers';
+import { syncActiveCanvasUiTheme, refreshCanvasUi } from './components/resolveCanvasTheme';
+import { syncActiveDashboardTheme, refreshDashboard, type DashboardTheme } from './dashboard/theme';
+import { syncActiveDiagramTheme } from './diagram/theme';
+import { refreshDiagram } from './diagram/refresh';
+import { syncAutomotiveFontScale, getAutomotiveFontScale, syncAutomotiveDefaultPreset } from './automotive/themes';
+import { refreshAutomotive } from './automotive/refresh';
+import {
+  type ThemePack,
+  type DiagramThemePack,
+  splitThemePack,
+  mergeThemePacks,
+  normalizeThemePack,
+  extractSceneTheme,
+  composeThemePack,
+} from './theme/themePack';
 
 export class App extends EventEmitter {
   readonly camera: Camera;
@@ -46,6 +63,8 @@ export class App extends EventEmitter {
   private height: number;
   private pixelRatio: number;
   private background: string;
+  /** Background from createApp options — restored when theme has no stage BG. */
+  private defaultBackground: string;
   private eventManager: EventManager | null = null;
   private renderScheduled = false;
   private renderFrameId = 0;
@@ -55,12 +74,27 @@ export class App extends EventEmitter {
   private spatialIndex = new SpatialIndex();
   private nodeCount = 0;
   private highContrast: boolean;
-  private uiTheme: UiThemeInput;
+  /** Merged theme pack (preset + brand tokens + optional module packs). */
+  private uiTheme: ThemePack;
+  /** Flat resolved brand tokens — source of truth for UI remap (Phase 1+). */
+  private resolvedUiTheme: UiThemeTokens;
+  /** Module packs stored alongside brand tokens. */
+  private themeModules: {
+    series?: string[];
+    dashboard?: Partial<DashboardTheme>;
+    diagram?: DiagramThemePack;
+    automotive?: 'classic' | 'sport' | 'digital';
+    background?: string;
+  } = {};
+  /** True when app `fontSize` changed automotive typography scale (rebuild HMI). */
+  private automotiveFontScaleDirty = false;
 
   constructor(container: string | HTMLElement, options: AppOptions = {}) {
     super();
     this.highContrast = options.highContrast ?? false;
-    this.uiTheme = options.uiTheme ?? {};
+    this.uiTheme = {};
+    this.resolvedUiTheme = {};
+    this.ingestThemePack(normalizeThemePack(options.uiTheme ?? {}), true);
     this.perf = {
       spatialIndex: options.performance?.spatialIndex ?? true,
       spatialIndexThreshold: options.performance?.spatialIndexThreshold ?? 100,
@@ -72,7 +106,8 @@ export class App extends EventEmitter {
     this.width = options.width ?? (this.container.clientWidth || 800);
     this.height = options.height ?? (this.container.clientHeight || 600);
     this.pixelRatio = options.pixelRatio ?? getPixelRatio();
-    this.background = options.background ?? 'transparent';
+    this.defaultBackground = options.background ?? 'transparent';
+    this.background = this.defaultBackground;
     this.autoResize = options.autoResize ?? true;
 
     this.stage = new Group({ name: 'stage' });
@@ -88,9 +123,11 @@ export class App extends EventEmitter {
       pixelRatio: this.pixelRatio,
       background: this.background,
       highContrast: this.highContrast,
-      uiTheme: resolveUiTheme(this.uiTheme),
+      uiTheme: this.resolvedUiTheme,
     });
 
+    // Re-apply theme-driven stage background after renderer exists.
+    this.syncThemeBackground();
     this.eventManager = new EventManager(this, this.renderer.getElement() as HTMLElement);
 
     if (this.autoResize && typeof window !== 'undefined') {
@@ -384,25 +421,114 @@ export class App extends EventEmitter {
 
   setBackground(color: string): this {
     this.background = color;
-    this.requestRender();
-    return this;
-  }
+    const renderer = this.renderer as Renderer & {
+      background?: string;
+      setStageBackground?: (value: string) => void;
+    };
 
-  /** Update built-in UI theme tokens (CSS variables) without custom stylesheets. */
-  setUiTheme(tokens: UiThemeInput): this {
-    this.uiTheme = { ...this.uiTheme, ...tokens };
-    const resolved = resolveUiTheme(this.uiTheme);
-    const renderer = this.renderer as Renderer & { setUiTheme?: (t: import('./components/uiTheme').UiThemeTokens) => void };
-    if (typeof renderer.setUiTheme === 'function') {
-      renderer.setUiTheme(resolved);
+    if (typeof renderer.setStageBackground === 'function') {
+      renderer.setStageBackground(color);
+    } else if (renderer && 'background' in renderer) {
+      renderer.background = color;
     }
+
+    this.renderer.forceFullRedraw();
     this.requestRender();
     return this;
   }
 
-  loadJSON(json: SceneJSON | string): Node | Group {
-    const data = typeof json === 'string' ? JSON.parse(json) : json;
-    const node = fromJSON(data, this);
+  /**
+   * Apply theme pack stage background, or restore pack surface / createApp default
+   * when the theme no longer provides one (clears sticky image presets).
+   */
+  private syncThemeBackground(): void {
+    if (this.themeModules.background) {
+      this.setBackground(this.themeModules.background);
+      return;
+    }
+    const fromTokens =
+      this.resolvedUiTheme.surfaceMuted || this.resolvedUiTheme.surface;
+    if (fromTokens) {
+      this.setBackground(fromTokens);
+      return;
+    }
+    this.setBackground(this.defaultBackground);
+  }
+
+  /** Merged theme config as last set (includes optional `preset` + module packs). Additive Phase 1 API. */
+  getUiTheme(): ThemePack {
+    return this.getTheme();
+  }
+
+  /** Full theme pack (brand + series / dashboard / diagram / automotive). */
+  getTheme(): ThemePack {
+    return composeThemePack(this.uiTheme, this.themeModules);
+  }
+
+  /** Flat resolved brand tokens after presets/overrides. Additive Phase 1 API. */
+  getResolvedTheme(): UiThemeTokens {
+    return { ...this.resolvedUiTheme };
+  }
+
+  /**
+   * Apply a full theme pack from JSON or JS.
+   * Default **replaces** the stored pack (clean preset switches).
+   * Pass `{ merge: true }` to shallow-merge into the existing pack.
+   */
+  applyTheme(pack: ThemePack | Record<string, unknown>, options?: { merge?: boolean }): this {
+    const normalized = normalizeThemePack(pack);
+    this.ingestThemePack(normalized, !options?.merge);
+    this.publishTheme();
+    return this;
+  }
+
+  /**
+   * Update built-in UI theme tokens without custom stylesheets.
+   * By default **merges** into existing config (omitted keys stick).
+   * Pass `{ replace: true }` to replace the stored config entirely.
+   * Accepts a full `ThemePack` (`series`, `dashboard`, `diagram`, `automotive`).
+   *
+   * Automotive widgets are intentionally **not** retinted here — they keep
+   * `props.theme` presets (`classic` | `sport` | `digital`). See theme-architecture.md.
+   */
+  setUiTheme(tokens: ThemePack | UiThemeInput, options?: { replace?: boolean }): this {
+    const pack = normalizeThemePack(tokens);
+    this.ingestThemePack(pack, Boolean(options?.replace));
+    this.publishTheme();
+    return this;
+  }
+
+  /** Reset theme config to `{}` (CSS / module defaults). Equivalent to `setUiTheme({}, { replace: true })`. */
+  clearUiTheme(): this {
+    return this.setUiTheme({}, { replace: true });
+  }
+
+  /**
+   * Load a scene. If the JSON root includes `theme`, it is applied first
+   * (replace) so widgets build under that palette.
+   * Optional second arg: `{ theme }` when the scene file has no root theme.
+   */
+  loadJSON(
+    json: SceneJSON | string,
+    options?: { theme?: ThemePack | Record<string, unknown> }
+  ): Node | Group {
+    let data: Record<string, unknown>;
+    if (typeof json === 'string') {
+      try {
+        data = JSON.parse(json) as Record<string, unknown>;
+      } catch (err) {
+        throw new SyntaxError(formatJsonParseError(json, err));
+      }
+    } else {
+      data = { ...json };
+    }
+    const { theme: sceneTheme, scene } = extractSceneTheme(data as Record<string, unknown>);
+    const external = options?.theme ? normalizeThemePack(options.theme) : null;
+    const theme = external ?? sceneTheme;
+    if (theme && Object.keys(theme).length > 0) {
+      this.applyTheme(theme);
+    }
+    const node = fromJSON(scene as unknown as SceneJSON, this);
     this.stage.clear();
     this.stage.add(node);
     this.nodeCount = countNodes(this.stage);
@@ -412,8 +538,74 @@ export class App extends EventEmitter {
     return node;
   }
 
-  exportJSON(): SceneJSON {
-    return toJSON(this.stage);
+  /** Export scene. Pass `{ includeTheme: true }` to embed the current theme pack. */
+  exportJSON(options?: { includeTheme?: boolean }): SceneJSON {
+    const scene = toJSON(this.stage) as SceneJSON;
+    if (options?.includeTheme) {
+      const theme = this.getTheme();
+      if (Object.keys(theme).length > 0) {
+        return { ...scene, theme };
+      }
+    }
+    return scene;
+  }
+
+  /** Ingest pack into uiTheme + themeModules and re-resolve (no emit). */
+  private ingestThemePack(pack: ThemePack, replace: boolean): void {
+    const next = replace ? pack : mergeThemePacks(this.getTheme(), pack);
+    const split = splitThemePack(next);
+    this.uiTheme = { ...split.ui };
+    const resolvedBg = resolveThemeBackground({
+      ...split.ui,
+      background: split.background,
+    });
+    this.themeModules = {
+      series: split.series,
+      dashboard: split.dashboard,
+      diagram: split.diagram,
+      automotive: split.automotive,
+      background: resolvedBg,
+    };
+    this.resolvedUiTheme = resolveUiTheme(this.uiTheme);
+    const dashPack: Partial<DashboardTheme> = {
+      ...(this.themeModules.dashboard ?? {}),
+      ...(this.themeModules.series?.length
+        ? { series: [...this.themeModules.series] }
+        : {}),
+    };
+    syncActiveCanvasUiTheme(this.resolvedUiTheme, this);
+    syncActiveDashboardTheme(this.resolvedUiTheme, this, dashPack);
+    syncActiveDiagramTheme(this.resolvedUiTheme, this, this.themeModules.diagram);
+    const prevAutoScale = getAutomotiveFontScale(this);
+    const nextAutoScale = syncAutomotiveFontScale(this.resolvedUiTheme, this);
+    syncAutomotiveDefaultPreset(this.themeModules.automotive, this);
+    this.automotiveFontScaleDirty = prevAutoScale !== nextAutoScale;
+  }
+
+  /** Apply resolved theme to renderer + live widgets and emit themechange. */
+  private publishTheme(): void {
+    const renderer = this.renderer as Renderer & { setUiTheme?: (t: UiThemeTokens) => void };
+    if (typeof renderer.setUiTheme === 'function') {
+      renderer.setUiTheme(this.resolvedUiTheme);
+    }
+    this.syncThemeBackground();
+    refreshCanvasUi(this.stage, this);
+    refreshDashboard(this.stage, this);
+    refreshDiagram(this.stage, this);
+    if (this.automotiveFontScaleDirty) {
+      refreshAutomotive(this.stage);
+      this.automotiveFontScaleDirty = false;
+    }
+    this.emit(
+      'themechange',
+      syntheticEvent('themechange', this, {
+        payload: {
+          config: this.getTheme(),
+          resolved: this.getResolvedTheme(),
+        },
+      })
+    );
+    this.requestRender();
   }
 
   /** Export scene — unified options object or legacy format string. */
