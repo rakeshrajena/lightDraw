@@ -62,7 +62,7 @@ npm run build:website  # static site → website/dist/ (gitignored)
 | [Playground hub](https://rakeshrajena.github.io/lightDraw/) | Single-stage demo rail (Theme, UI, Charts, Auto, …) |
 | [Help center](https://rakeshrajena.github.io/lightDraw/help.html) | Short topics with live iframe embeds |
 | Day / Night | Site chrome theme; defaults to **Night**; syncs into demo iframes |
-| Live code dock | Scene JSON · Theme JSON · API — auto-apply with **Live** on |
+| Live code dock | JSON · API — auto-apply with **Live** on; put `theme` on the scene root |
 
 ### JSON validation in demos
 

@@ -14,20 +14,22 @@
       <h1>Motion &amp; Timeline</h1>
       <p>Path motion, stroke dash, morphing, stagger, and multi-property tweens with built-in easing. Edit Config JSON below for live updates.</p>
     </header>
-    <main class="demo-main demo-layout-aside">
-      <div class="demo-canvas-wrap" id="animation-canvas-wrap">
-        <div id="app"></div>
+    <main class="demo-main">
+      <div class="demo-layout-aside">
+        <div class="demo-canvas-wrap" id="animation-canvas-wrap">
+          <div id="app"></div>
+        </div>
+        <aside class="demo-aside-panel">
+          <h2>Scenes</h2>
+          <button type="button" class="demo-btn is-active" id="btn-motion" data-scene="motion" onclick="pickScene(this, demoMotionPath, 'motion')">Motion Path</button>
+          <button type="button" class="demo-btn secondary" data-scene="dash" onclick="pickScene(this, demoDash, 'dash')">Stroke Dash</button>
+          <button type="button" class="demo-btn secondary" data-scene="morph" onclick="pickScene(this, demoMorph, 'morph')">Path Morph</button>
+          <button type="button" class="demo-btn secondary" data-scene="stagger" onclick="pickScene(this, demoStagger, 'stagger')">Stagger</button>
+          <button type="button" class="demo-btn secondary" data-scene="group" onclick="pickScene(this, demoGroup, 'group')">Multi-Prop</button>
+          <button type="button" class="demo-btn secondary" style="margin-top:0.35rem" onclick="stopAll()">Stop All</button>
+          <p class="demo-aside-hint" id="easing-hint">Easing: easeInOutCubic · loop · motion along path</p>
+        </aside>
       </div>
-      <aside class="demo-aside-panel">
-        <h2>Scenes</h2>
-        <button type="button" class="demo-btn is-active" id="btn-motion" onclick="pickScene(this, demoMotionPath, 'motion')">Motion Path</button>
-        <button type="button" class="demo-btn secondary" onclick="pickScene(this, demoDash, 'dash')">Stroke Dash</button>
-        <button type="button" class="demo-btn secondary" onclick="pickScene(this, demoMorph, 'morph')">Path Morph</button>
-        <button type="button" class="demo-btn secondary" onclick="pickScene(this, demoStagger, 'stagger')">Stagger</button>
-        <button type="button" class="demo-btn secondary" onclick="pickScene(this, demoGroup, 'group')">Multi-Prop</button>
-        <button type="button" class="demo-btn secondary" style="margin-top:0.35rem" onclick="stopAll()">Stop All</button>
-        <p class="demo-aside-hint" id="easing-hint">Easing: easeInOutCubic · loop · motion along path</p>
-      </aside>
     </main>
   </div>
   <script src="../dist/lightdraw.min.js"></script>
@@ -96,12 +98,39 @@
         b.classList.remove('is-active');
         b.classList.add('secondary');
       });
-      btn.classList.add('is-active');
-      btn.classList.remove('secondary');
+      if (btn) {
+        btn.classList.add('is-active');
+        btn.classList.remove('secondary');
+      }
       if (key) currentSceneKey = key;
       fn();
       if (window.LivePlayground) LivePlayground.syncScene(true);
     }
+
+    function pickAnimationScene(key) {
+      const fn = sceneFns[key];
+      if (!fn) return;
+      const btn =
+        (sceneBtnIds[key] && document.getElementById(sceneBtnIds[key])) ||
+        Array.from(document.querySelectorAll('.demo-aside-panel .demo-btn[data-scene]')).find(
+          (b) => b.dataset.scene === key
+        ) ||
+        Array.from(document.querySelectorAll('.demo-aside-panel .demo-btn')).find((b) =>
+          (b.getAttribute('onclick') || '').includes(
+            key === 'motion'
+              ? 'demoMotionPath'
+              : key === 'dash'
+                ? 'demoDash'
+                : key === 'morph'
+                  ? 'demoMorph'
+                  : key === 'stagger'
+                    ? 'demoStagger'
+                    : 'demoGroup'
+          )
+        );
+      pickScene(btn, fn, key);
+    }
+    window.pickAnimationScene = pickAnimationScene;
 
     function setHint(key) {
       const el = document.getElementById('easing-hint');
@@ -266,7 +295,7 @@
     demoMotionPath();
     LivePlayground.mount({
       app: () => app,
-      panes: ['scene', 'theme', 'snippet'],
+      panes: ['scene', 'snippet'],
       getScene: () => ({ scene: currentSceneKey }),
       applyScene(parsed) {
         const key = parsed && parsed.scene;

@@ -195,8 +195,8 @@
       <span class="demo-badge">Live playground</span>
       <h1>Theme lab</h1>
       <p>
-        Edit <strong>Scene</strong> or <strong>Theme</strong> JSON below — the canvas
-        re-renders live. Presets and controls sync both ways.
+        Edit <strong>JSON</strong> below (scene + optional root <code>theme</code>) or
+        <strong>API code</strong> — the canvas re-renders live. Presets sync into the JSON.
       </p>
     </header>
     <main class="demo-main">
@@ -328,15 +328,14 @@
         <section class="pg-code-dock" id="code-dock" aria-label="Live code editors">
           <div class="pg-code-chrome">
             <div class="pg-code-tabs" role="tablist" aria-label="Code panes">
-              <button type="button" class="pg-code-tab is-active" role="tab" aria-selected="true" data-pane="scene">Scene JSON</button>
-              <button type="button" class="pg-code-tab" role="tab" aria-selected="false" data-pane="theme">Theme JSON</button>
+              <button type="button" class="pg-code-tab is-active" role="tab" aria-selected="true" data-pane="scene">JSON</button>
               <button type="button" class="pg-code-tab" role="tab" aria-selected="false" data-pane="snippet">API code</button>
             </div>
             <div class="pg-code-actions">
               <button type="button" class="demo-btn" id="btn-run-code">Run</button>
               <button type="button" class="demo-btn secondary pg-btn-secondary" id="btn-format-code">Format</button>
               <button type="button" class="demo-btn secondary pg-btn-secondary" id="btn-copy-code">Copy</button>
-              <button type="button" class="demo-btn secondary pg-btn-secondary" id="btn-reset-snippet" title="Reset API from Scene/Theme">Reset</button>
+              <button type="button" class="demo-btn secondary pg-btn-secondary" id="btn-reset-snippet" title="Reset API from Scene JSON">Reset</button>
               <button type="button" class="demo-btn secondary" id="btn-toggle-dock" aria-expanded="true" title="Collapse code">Code ▾</button>
             </div>
           </div>
@@ -344,13 +343,10 @@
             <div class="pg-code-pane is-active" id="pane-scene" role="tabpanel">
               <textarea id="scene-json" class="pg-code-editor" spellcheck="false" aria-label="Scene JSON editor"></textarea>
             </div>
-            <div class="pg-code-pane" id="pane-theme" role="tabpanel" hidden>
-              <textarea id="theme-json" class="pg-code-editor" spellcheck="false" aria-label="Theme pack JSON editor"></textarea>
-            </div>
             <div class="pg-code-pane" id="pane-snippet" role="tabpanel" hidden>
               <textarea id="api-snippet" class="pg-code-editor" spellcheck="false" aria-label="API code editor"></textarea>
             </div>
-            <div class="pg-code-status" id="code-status" data-tone="ok">Edit Scene · Theme · API — live updates</div>
+            <div class="pg-code-status" id="code-status" data-tone="ok">Edit JSON · API — live updates</div>
           </div>
         </section>
       </div>
@@ -421,9 +417,8 @@
     let syncingEditors = false;
     let snippetDirty = false;
     let sceneDebounce = null;
-    let themeDebounce = null;
     let snippetDebounce = null;
-    /** Last authoring scene JSON (children array source). */
+    /** Last authoring scene JSON (may include root `theme`). */
     let lastAuthorScene = null;
     /** Remembered component overrides (demoId → { primary?, textColor?, fontSize?, … }). */
     const componentOverrides = {
@@ -484,17 +479,25 @@
       return out;
     }
 
-    function syncThemeEditor(force) {
-      if (!app || syncingEditors) return;
-      if (!force && editorFocused('theme-json')) return;
+    function currentThemePack() {
+      if (!app) return {};
       const pack =
         typeof app.getTheme === 'function' ? app.getTheme() : (app.getUiTheme && app.getUiTheme()) || {};
-      const el = document.getElementById('theme-json');
-      if (!el) return;
-      syncingEditors = true;
-      el.value = JSON.stringify(packForEditor(pack), null, 2);
-      syncingEditors = false;
-      updateApiSnippet();
+      return packForEditor(pack || {});
+    }
+
+    /** Keep root `theme` on Scene JSON in sync with the live app pack. */
+    function syncThemeIntoScene(force) {
+      if (!app || syncingEditors) return;
+      if (!force && editorFocused('scene-json')) return;
+      const pack = currentThemePack();
+      const base =
+        lastAuthorScene && typeof lastAuthorScene === 'object'
+          ? { ...lastAuthorScene }
+          : { type: 'group', children: [] };
+      if (pack && Object.keys(pack).length > 0) base.theme = pack;
+      else delete base.theme;
+      syncSceneEditor(base, true);
     }
 
     function syncSceneEditor(scene, force) {
@@ -512,18 +515,7 @@
       const el = document.getElementById('api-snippet');
       if (!el || !app) return;
       if (!force && (snippetDirty || editorFocused('api-snippet'))) return;
-      let theme = {};
-      try {
-        theme = JSON.parse(document.getElementById('theme-json').value || '{}');
-      } catch (_) {
-        theme =
-          typeof app.getTheme === 'function' ? app.getTheme() : (app.getUiTheme && app.getUiTheme()) || {};
-      }
-      const themePretty = JSON.stringify(packForEditor(theme), null, 2)
-        .split('\n')
-        .map((line, i) => (i === 0 ? line : '  ' + line))
-        .join('\n');
-      let scenePretty = '{ type: "group", children: [ /* see Scene JSON tab */ ] }';
+      let scenePretty = '{ type: "group", children: [ /* see JSON tab */ ] }';
       try {
         const scene = JSON.parse(document.getElementById('scene-json').value || 'null');
         if (scene) {
@@ -535,10 +527,9 @@
       syncingEditors = true;
       el.value =
         `// Editable API — Run or Ctrl/Cmd+Enter to execute against the live app\n` +
-        `// Tip: prefer Scene JSON / Theme JSON tabs for structured edits.\n\n` +
+        `// Tip: put theme on the scene root: { theme: { preset: 'dark' }, type, children }\n\n` +
         `app.clear();\n` +
-        `app.loadJSON(${scenePretty});\n\n` +
-        `app.applyTheme(${themePretty});\n`;
+        `app.loadJSON(${scenePretty});\n`;
       snippetDirty = false;
       syncingEditors = false;
     }
@@ -557,7 +548,7 @@
         syncTokenPanel();
         syncStageBackground();
         syncTextControlsFromTheme();
-        syncThemeEditor();
+        syncThemeIntoScene();
         setCodeStatus('API code executed', 'ok');
         if (!silent) log('API code → canvas');
         return true;
@@ -627,19 +618,15 @@
         lastAuthorScene = parsed;
         bindClusterNode();
         resizeCanvas();
-        // Re-apply active theme so chrome stays in sync after loadJSON
-        const pack =
-          typeof app.getTheme === 'function' ? app.getTheme() : (app.getUiTheme && app.getUiTheme()) || {};
-        if (pack && Object.keys(pack).length) {
-          if (typeof app.applyTheme === 'function') app.applyTheme(pack, { merge: false });
-          else app.setUiTheme(pack, { replace: true });
-        }
         if (show('automotive') && clusterNode && LightDraw.updateAutoWidgetProps) {
           LightDraw.updateAutoWidgetProps(clusterNode, { theme: activeAutoTheme });
         }
         syncTokenPanel();
         syncStageBackground();
-        updateApiSnippet();
+        syncTextControlsFromTheme();
+        // Reflect applied pack back onto scene.theme when the editor omitted it
+        if (!parsed.theme) syncThemeIntoScene(true);
+        else updateApiSnippet();
         setCodeStatus('Scene applied · live', 'ok');
         if (!silent) log('Scene JSON → canvas');
         return true;
@@ -654,88 +641,14 @@
       }
     }
 
-    function applyThemeFromEditor(opts) {
-      const silent = opts && opts.silent;
-      const el = document.getElementById('theme-json');
-      const raw = el.value;
-      try {
-        const pack = JSON.parse(raw);
-        if (pack === null || typeof pack !== 'object' || Array.isArray(pack)) {
-          setCodeStatus(
-            'Theme JSON: root must be an object, got ' +
-              (pack === null ? 'null' : Array.isArray(pack) ? 'array' : typeof pack),
-            'err'
-          );
-          return false;
-        }
-        if (typeof LightDraw.validateThemePack === 'function') {
-          const validation = LightDraw.validateThemePack(pack);
-          if (!validation.valid) {
-            const text =
-              typeof LightDraw.formatValidationErrors === 'function'
-                ? LightDraw.formatValidationErrors(validation)
-                : validation.errors.join('\n');
-            setCodeStatus(text, 'err');
-            if (!silent) log(text.split('\n')[0]);
-            return false;
-          }
-        }
-        if (
-          typeof pack.preset === 'string' &&
-          (pack.preset.includes('sample image') || pack.preset.includes('example.com/your-photo'))
-        ) {
-          pack.preset = SAMPLE_IMAGE_PRESET;
-        }
-        if (typeof app.applyTheme === 'function') app.applyTheme(pack);
-        else app.setUiTheme(pack, { replace: true });
-        activeAppTheme = pack.preset
-          ? isImagePresetValue(pack.preset)
-            ? 'image…'
-            : pack.preset
-          : 'custom';
-        if (pack.automotive && AUTO_THEMES.includes(pack.automotive)) {
-          activeAutoTheme = pack.automotive;
-          if (clusterNode && LightDraw.updateAutoWidgetProps) {
-            LightDraw.updateAutoWidgetProps(clusterNode, { theme: activeAutoTheme });
-          }
-        }
-        if (pack.preset && !isImagePresetValue(pack.preset) && isCssColorInput(pack.preset)) {
-          document.getElementById('preset-freeform').value = pack.preset;
-        }
-        highlightControls();
-        syncTokenPanel();
-        syncStageBackground();
-        syncTextControlsFromTheme();
-        updateApiSnippet();
-        setCodeStatus('Theme applied · live', 'ok');
-        if (!silent) log('Theme JSON → canvas');
-        return true;
-      } catch (err) {
-        const msg = formatJsonErr(raw, err, 'Theme JSON');
-        setCodeStatus(msg, 'err');
-        if (!silent) log(msg.split('\n')[0]);
-        return false;
-      }
-    }
-
     function scheduleSceneApply() {
       if (syncingEditors) return;
       clearTimeout(sceneDebounce);
       if (!isLiveApply()) {
-        setCodeStatus('Paused — click Run to apply Scene JSON', 'warn');
+        setCodeStatus('Paused — click Run to apply JSON', 'warn');
         return;
       }
       sceneDebounce = setTimeout(() => applySceneFromEditor({ silent: true }), 320);
-    }
-
-    function scheduleThemeApply() {
-      if (syncingEditors) return;
-      clearTimeout(themeDebounce);
-      if (!isLiveApply()) {
-        setCodeStatus('Paused — click Run to apply Theme JSON', 'warn');
-        return;
-      }
-      themeDebounce = setTimeout(() => applyThemeFromEditor({ silent: true }), 320);
     }
 
     function scheduleSnippetApply() {
@@ -751,15 +664,13 @@
     }
 
     function runActiveCode() {
-      if (activeCodePane === 'theme') applyThemeFromEditor();
-      else if (activeCodePane === 'snippet') applyApiSnippet();
+      if (activeCodePane === 'snippet') applyApiSnippet();
       else applySceneFromEditor();
     }
 
     function formatActiveCode() {
       const map = {
         scene: 'scene-json',
-        theme: 'theme-json',
         snippet: 'api-snippet',
       };
       const id = map[activeCodePane];
@@ -769,7 +680,7 @@
         return;
       }
       if (activeCodePane === 'snippet') {
-        setCodeStatus('API code — use Format on JSON tabs', 'warn');
+        setCodeStatus('API code — use Format on the JSON tab', 'warn');
         return;
       }
       try {
@@ -783,7 +694,6 @@
     async function copyActiveCode() {
       const map = {
         scene: 'scene-json',
-        theme: 'theme-json',
         snippet: 'api-snippet',
       };
       const el = document.getElementById(map[activeCodePane]);
@@ -803,7 +713,7 @@
         tab.classList.toggle('is-active', on);
         tab.setAttribute('aria-selected', on ? 'true' : 'false');
       });
-      ['scene', 'theme', 'snippet'].forEach((id) => {
+      ['scene', 'snippet'].forEach((id) => {
         const panel = document.getElementById('pane-' + id);
         if (!panel) return;
         const on = id === pane;
@@ -888,7 +798,7 @@
       if (target === 'global') {
         app.setUiTheme(patch);
         syncTokenPanel();
-        syncThemeEditor();
+        syncThemeIntoScene();
         log(label + ' → global app theme');
         return;
       }
@@ -1255,8 +1165,13 @@
       window.__ldThemeSceneH = Math.max(contentBottom + PAD, y + PAD);
 
       app.clear();
-      app.loadJSON({ type: 'group', children });
-      lastAuthorScene = { type: 'group', children };
+      const theme = currentThemePack();
+      lastAuthorScene = {
+        type: 'group',
+        ...(theme && Object.keys(theme).length ? { theme } : {}),
+        children,
+      };
+      app.loadJSON(lastAuthorScene);
       sceneFromEditor = false;
       syncSceneEditor(lastAuthorScene, true);
 
@@ -1288,7 +1203,7 @@
       syncTokenPanel();
       syncStageBackground();
       syncTextControlsFromTheme();
-      syncThemeEditor();
+      syncThemeIntoScene();
       const primary = app.getResolvedTheme().primary || '(css default)';
       log('App theme → ' + id + (replace ? ' · replace' : ' · merge') + ' · primary ' + primary);
     }
@@ -1451,7 +1366,7 @@
       syncTokenPanel();
       syncStageBackground();
       syncTextControlsFromTheme();
-      syncThemeEditor();
+      syncThemeIntoScene();
       if (isImagePresetValue(raw)) {
         log('Preset → image background (+ dark chrome for readable charts)');
       } else {
@@ -1492,7 +1407,7 @@
       highlightControls();
       syncTokenPanel();
       syncStageBackground();
-      syncThemeEditor(true);
+      syncThemeIntoScene(true);
       log('Theme cleared → module defaults');
     }
 
@@ -1659,8 +1574,7 @@
         diagram: { canvasBg: '#0b1220', nodeStroke: '#38bdf8' },
         automotive: 'sport',
       };
-      const jsonEl = document.getElementById('theme-json');
-      jsonEl.value = JSON.stringify(samplePack, null, 2);
+      // Sample packs apply via aside controls → Scene JSON.theme
 
       function loadAndApplyPack(pack, label) {
         if (typeof app.applyTheme === 'function') app.applyTheme(pack);
@@ -1670,18 +1584,17 @@
         syncTokenPanel();
         syncStageBackground();
         syncTextControlsFromTheme();
-        syncThemeEditor(true);
+        syncThemeIntoScene(true);
+        setCodePane('scene');
         setCodeStatus(label, 'ok');
         log(label);
       }
 
       document.getElementById('btn-sample-json').addEventListener('click', () => {
-        setCodePane('theme');
-        loadAndApplyPack(samplePack, 'Dark sample theme applied');
+        loadAndApplyPack(samplePack, 'Dark sample theme applied — see JSON.theme');
       });
       document.getElementById('btn-sample-photo').addEventListener('click', () => {
-        setCodePane('theme');
-        loadAndApplyPack(photoPack, 'Photo sample applied — pink primary, light chart text');
+        loadAndApplyPack(photoPack, 'Photo sample applied — see JSON.theme');
       });
 
       // Code dock
@@ -1696,7 +1609,7 @@
       document.getElementById('btn-reset-snippet').addEventListener('click', () => {
         snippetDirty = false;
         updateApiSnippet(true);
-        setCodeStatus('API code reset from Scene / Theme', 'ok');
+        setCodeStatus('API code reset from Scene JSON', 'ok');
       });
       document.getElementById('btn-toggle-dock').addEventListener('click', () => {
         const dock = document.getElementById('code-dock');
@@ -1714,7 +1627,6 @@
         if (isLiveApply()) runActiveCode();
       });
       document.getElementById('scene-json').addEventListener('input', scheduleSceneApply);
-      document.getElementById('theme-json').addEventListener('input', scheduleThemeApply);
       document.getElementById('api-snippet').addEventListener('input', () => {
         if (!syncingEditors) scheduleSnippetApply();
       });
@@ -1722,12 +1634,6 @@
         if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
           e.preventDefault();
           applySceneFromEditor();
-        }
-      });
-      document.getElementById('theme-json').addEventListener('keydown', (e) => {
-        if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-          e.preventDefault();
-          applyThemeFromEditor();
         }
       });
       document.getElementById('api-snippet').addEventListener('keydown', (e) => {
@@ -1769,7 +1675,7 @@
       window.__ldThemeDemo = { getApp: () => app };
 
       mountControls();
-      // Keep code dock open so Scene/Theme/API live-edit works in the hub iframe
+      // Keep code dock open so JSON / API live-edit works in the hub iframe
       const dock = document.getElementById('code-dock');
       const btn = document.getElementById('btn-toggle-dock');
       if (dock) dock.classList.remove('is-collapsed');
@@ -1781,10 +1687,10 @@
       buildScene();
       applyAppTheme('dark', { replace: true });
       syncTextControlsFromTheme();
-      syncThemeEditor(true);
+      syncThemeIntoScene(true);
       highlightControls();
-      setCodeStatus('Live playground ready — edit Scene, Theme, or API', 'ok');
-      log('Theme playground ready — edit code below for live re-render');
+      setCodeStatus('Live playground ready — edit JSON or API', 'ok');
+      log('Theme playground ready — edit JSON below for live re-render');
 
       // Gentle live pulse on charts when visible
       chartTimer = setInterval(() => {

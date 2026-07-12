@@ -191,6 +191,18 @@ body {
 
 .demo-canvas-wrap.light {
   background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  /* Tall UI scenes scroll inside the frame (same as theme stage) */
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  align-items: flex-start;
+}
+
+.demo-canvas-wrap.light #app {
+  flex: 0 0 auto;
+  height: auto;
+  min-height: 100%;
+  overflow: visible;
 }
 
 .demo-toolbar {
@@ -556,6 +568,18 @@ html.demo-embed .demo-main {
   height: 100%;
   padding: 0.5rem;
   gap: 0.5rem;
+  overflow: hidden;
+}
+
+html.demo-embed .demo-main.pg-has-live-dock {
+  overflow: hidden;
+}
+
+html.demo-embed #view-cluster .demo-canvas-wrap {
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  flex: 1 1 auto;
 }
 
 html.demo-embed .demo-options {
@@ -567,24 +591,110 @@ html.demo-embed .demo-log {
 }
 
 html.demo-embed .demo-layout-aside {
-  grid-template-columns: 1fr minmax(168px, 200px);
-  gap: 0.5rem;
+  grid-template-columns: 1fr;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0.45rem;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
 }
 
-html.demo-embed .demo-aside-panel {
-  padding: 0.65rem;
-  align-self: stretch;
-  overflow-y: auto;
+html.demo-embed .demo-layout-aside > .demo-aside-panel {
+  order: -1;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  max-height: none;
+  overflow: visible;
+  padding: 0.45rem 0.5rem;
+}
+
+html.demo-embed .demo-layout-aside > .demo-aside-panel h2,
+html.demo-embed .demo-layout-aside > .demo-aside-panel .demo-aside-hint,
+html.demo-embed .demo-layout-aside > .demo-aside-panel .demo-btn[onclick*='stopAll'] {
+  display: none;
 }
 
 html.demo-embed .demo-aside-panel .demo-btn {
-  font-size: 0.75rem;
-  padding: 0.35rem 0.55rem;
-  margin-bottom: 0.3rem;
+  width: auto;
+  flex: 0 0 auto;
+  font-size: 0.72rem;
+  padding: 0.32rem 0.55rem;
+  margin: 0;
 }
 
-html.demo-embed .demo-aside-hint {
+html.demo-embed .demo-layout-split {
+  grid-template-columns: 1fr;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0.45rem;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+}
+
+html.demo-embed .demo-diagram-sidebar,
+html.demo-embed .demo-layout-split > .demo-sidebar {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  max-height: none;
+  overflow: visible;
+  padding: 0.45rem 0.5rem;
+}
+
+html.demo-embed .demo-diagram-group {
+  display: contents;
+}
+
+html.demo-embed .demo-diagram-group h2,
+html.demo-embed .demo-diagram-info,
+html.demo-embed .demo-sidebar h2 {
   display: none;
+}
+
+html.demo-embed .demo-sidebar .demo-btn,
+html.demo-embed .demo-diagram-sidebar .demo-btn {
+  width: auto;
+  flex: 0 0 auto;
+  font-size: 0.72rem;
+  padding: 0.32rem 0.55rem;
+  margin: 0;
+}
+
+/* Help host already shows type tabs — drop the duplicate in-iframe picker */
+html.demo-embed-no-picker .demo-diagram-sidebar,
+html.demo-embed-no-picker .demo-layout-split > .demo-sidebar,
+html.demo-embed-no-picker .demo-layout-aside > .demo-aside-panel {
+  display: none !important;
+}
+
+html.demo-embed-no-picker .demo-layout-split,
+html.demo-embed-no-picker .demo-layout-aside {
+  grid-template-columns: 1fr;
+  grid-template-rows: minmax(0, 1fr);
+  gap: 0;
+}
+
+/* Keep JSON/API dock visible under the stage in help embeds */
+html.demo-embed .demo-main.pg-has-live-dock > .demo-layout-split,
+html.demo-embed .demo-main.pg-has-live-dock > .demo-layout-aside {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+html.demo-embed .demo-main.pg-has-live-dock > #live-dock-host {
+  flex: 0 0 auto;
+  min-height: 200px;
+}
+
+html.demo-embed .demo-main.pg-has-live-dock > #live-dock-host .pg-code-dock {
+  height: min(260px, 34vh);
+  min-height: 200px;
 }
 
 html.demo-embed .demo-canvas-wrap {
@@ -595,12 +705,6 @@ html.demo-embed .demo-canvas-wrap {
   border-radius: 8px;
   box-shadow: none;
   padding: 0;
-}
-
-html.demo-embed #view-cluster .demo-canvas-wrap {
-  height: auto;
-  min-height: 0;
-  max-height: none;
 }
 
 html.demo-embed .demo-toolbar {
@@ -618,6 +722,7 @@ html.demo-embed .cluster-status {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  overflow: hidden;
 }
 
 #view-cluster .demo-canvas-wrap {
@@ -626,6 +731,23 @@ html.demo-embed .cluster-status {
   height: clamp(360px, calc(100vh - 280px), 640px);
   min-height: 360px;
   max-height: 640px;
+}
+
+/* With a live code dock, canvas must flex into remaining space — not 100vh clamps */
+.demo-main.pg-has-live-dock #view-dashboard,
+.demo-main.pg-has-live-dock #view-cluster,
+.demo-main.pg-has-live-dock .chart-catalog-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.demo-main.pg-has-live-dock #view-cluster .demo-canvas-wrap,
+.demo-main.pg-has-live-dock #view-dashboard .demo-canvas-wrap {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+  max-height: none;
 }
 
 .cluster-toolbar {
@@ -1077,7 +1199,8 @@ html.demo-embed .demo-section-pills .demo-btn {
   background: linear-gradient(180deg, #10182a 0%, #0a0f1a 100%);
   box-shadow: var(--shadow);
   overflow: hidden;
-  height: min(360px, 42vh);
+  /* Tall enough to read ~14–18 lines of JSON without feeling full-height */
+  height: min(340px, 40vh);
   transition: height 0.2s ease;
 }
 
@@ -1227,7 +1350,9 @@ html.demo-embed .pg-toolbar-right .theme-check {
 }
 
 html.demo-embed .pg-code-dock {
-  height: min(220px, 30vh);
+  /* Readable JSON in help/hub iframes — not full viewport, not a one-line strip */
+  height: min(280px, 36vh);
+  min-height: 240px;
 }
 
 html.demo-embed .pg-code-dock.is-collapsed {
@@ -1265,7 +1390,13 @@ html.demo-embed .demo-main.pg-has-live-dock > .demo-layout-aside {
 }
 
 html.demo-embed .demo-aside-panel {
-  max-height: 100%;
+  max-height: none;
+}
+
+html.demo-embed .demo-main.pg-has-live-dock > .demo-layout-aside > .demo-aside-panel {
+  flex: 0 0 auto;
+  max-height: none;
+  overflow: visible;
 }
 
 /* Prefer canvas over aside chrome in tight embeds with a live dock */
@@ -1281,7 +1412,7 @@ html.demo-embed .demo-main.pg-has-live-dock .demo-aside-panel p {
   }
 
   .pg-code-dock {
-    height: min(280px, 40vh);
+    height: min(300px, 38vh);
   }
 }
 
@@ -1290,6 +1421,7 @@ html.demo-embed .demo-main.pg-has-live-dock .demo-aside-panel p {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow: hidden;
 }
 
 /* Grow the canvas / stage — not the control bar / pills row */
@@ -1301,12 +1433,22 @@ html.demo-embed .demo-main.pg-has-live-dock .demo-aside-panel p {
   min-height: 0;
 }
 
-.demo-main.pg-has-live-dock > .demo-control-bar {
+.demo-main.pg-has-live-dock > .demo-control-bar,
+.demo-main.pg-has-live-dock > .demo-view-tabs {
   flex: 0 0 auto;
 }
 
 .demo-main.pg-has-live-dock #live-dock-host {
+  flex: 0 0 auto;
   flex-shrink: 0;
+  position: relative;
+  z-index: 2;
+  background: var(--bg);
+}
+
+.demo-main.pg-has-live-dock #live-dock-host .pg-code-dock {
+  position: relative;
+  z-index: 2;
 }
 
 .pg-live-check {
@@ -1336,8 +1478,19 @@ html.demo-embed .pg-stage .demo-canvas-wrap {
   min-height: 0;
 }
 
-html.demo-embed .demo-main.pg-has-live-dock .demo-canvas-wrap {
+html.demo-embed .demo-main.pg-has-live-dock > .demo-canvas-wrap {
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  align-items: flex-start;
   min-height: 160px;
+}
+
+html.demo-embed .demo-main.pg-has-live-dock > .demo-canvas-wrap #app {
+  flex: 0 0 auto;
+  height: auto;
+  min-height: 100%;
+  overflow: visible;
 }
 
 html.demo-embed .pg-code-dock.is-collapsed .pg-code-tabs {

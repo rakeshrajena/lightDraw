@@ -23,18 +23,19 @@
           </button>
         </div>
       </div>
-      <div class="help-nav-group">Start</div>
+      <div class="help-nav-group" role="presentation">Start</div>
       <a href="#quickstart">Quick start</a>
       <a href="#theme">Theme</a>
       <a href="#scene-json">Scene JSON</a>
-      <div class="help-nav-group">Modules</div>
+      <div class="help-nav-group" role="presentation">Modules</div>
       <a href="#ui">UI</a>
       <a href="#dashboard">Dashboard</a>
       <a href="#automotive">Automotive</a>
       <a href="#diagram">Diagram</a>
-      <div class="help-nav-group">More</div>
+      <a href="#animation">Animation</a>
+      <div class="help-nav-group" role="presentation">More</div>
       <a href="/#theme">Live playground</a>
-      <a href="docs/getting-started.md">Full guides</a>
+      <a href="doc.html?src=docs/getting-started.md">Full guides</a>
       <a href="docs/api/index.html">API reference</a>
     </aside>
 
@@ -65,43 +66,43 @@ dot.animate({ x: 260, duration: 900, loop: true, reverse: true });</pre>
         </div>
         <div class="help-actions">
           <a class="stage-btn" href="/#core">Open in playground</a>
-          <a class="stage-btn stage-btn--ghost" href="docs/getting-started.md">Getting started guide</a>
+          <a class="stage-btn stage-btn--ghost" href="doc.html?src=docs/getting-started.md">Getting started guide</a>
         </div>
       </section>
 
       <section class="help-section" id="theme">
         <h2>Theme packs</h2>
         <p>
-          One <code>applyTheme</code> / <code>uiTheme</code> call styles UI, charts, and diagrams.
-          Edit Theme JSON live in the theme lab.
+          Put a <code>theme</code> pack on the scene root — one JSON styles UI, charts, and diagrams.
+          Edit it in the <strong>JSON</strong> tab (no separate Theme tab).
         </p>
         <div class="help-example">
-          <pre class="help-code">app.applyTheme({
-  preset: 'dark',
-  primary: '#0ea5e9',
-  text: '#f1f5f9',
-  fontSize: '14px',
+          <pre class="help-code">app.loadJSON({
+  type: 'group',
+  theme: {
+    preset: 'dark',
+    primary: '#0ea5e9',
+    text: '#f1f5f9',
+    fontSize: '14px',
+  },
+  children: [ /* … */ ],
 });
 
-// Or load with the scene:
-app.loadJSON({
-  type: 'group',
-  theme: { preset: 'slate', primary: 'pink' },
-  children: [ /* … */ ],
-});</pre>
+// Or at runtime:
+app.applyTheme({ primary: 'pink', fontSize: '16px' });</pre>
           <div class="help-live help-live--tall">
             <iframe src="examples/demo-theme.html?embed=1" title="Theme live demo" loading="lazy"></iframe>
           </div>
         </div>
         <div class="help-actions">
           <a class="stage-btn" href="/#theme">Theme playground</a>
-          <a class="stage-btn stage-btn--ghost" href="docs/ui-theme-guide.md">Theme guide</a>
+          <a class="stage-btn stage-btn--ghost" href="doc.html?src=docs/ui-theme-guide.md">Theme guide</a>
         </div>
       </section>
 
       <section class="help-section" id="scene-json">
         <h2>Scene JSON</h2>
-        <p>Describe widgets as JSON — great for AI, configs, and the live editors under every demo.</p>
+        <p>Describe widgets as JSON — great for AI, configs, and the live <strong>JSON</strong> / <strong>API</strong> editors under every demo. Optional root <code>theme</code> styles the pack.</p>
         <div class="help-example">
           <pre class="help-code">app.loadJSON({
   type: 'group',
@@ -113,19 +114,30 @@ app.loadJSON({
         </div>
         <div class="help-actions">
           <a class="stage-btn" href="/#ui">Try UI demo</a>
-          <a class="stage-btn stage-btn--ghost" href="docs/ai-integration-guide.md">AI + JSON guide</a>
+          <a class="stage-btn stage-btn--ghost" href="doc.html?src=docs/ai-integration-guide.md">AI + JSON guide</a>
         </div>
       </section>
 
       <section class="help-section" id="ui">
         <h2>UI components</h2>
         <p>Buttons, forms, tables, dialogs — themed through the same pack.</p>
-        <div class="help-live">
-          <iframe src="examples/demo-ui.html?embed=1" title="UI live demo" loading="lazy"></iframe>
+        <div class="help-example">
+          <pre class="help-code">app.loadJSON({
+  type: 'group',
+  theme: { preset: 'dark', primary: '#0ea5e9' },
+  children: [
+    { type: 'button', props: { label: 'Save', variant: 'primary', x: 16, y: 16 } },
+    { type: 'textInput', props: { label: 'Name', value: '', x: 16, y: 64, width: 200 } },
+    { type: 'checkbox', props: { label: 'Remember me', checked: true, x: 16, y: 120 } },
+  ],
+});</pre>
+          <div class="help-live help-live--tall">
+            <iframe src="examples/demo-ui.html?embed=1" title="UI live demo" loading="lazy"></iframe>
+          </div>
         </div>
         <div class="help-actions">
           <a class="stage-btn" href="/#ui">UI playground</a>
-          <a class="stage-btn stage-btn--ghost" href="docs/ui-components-schema.md">Component schema</a>
+          <a class="stage-btn stage-btn--ghost" href="doc.html?src=docs/ui-components-schema.md">Component schema</a>
         </div>
       </section>
 
@@ -133,41 +145,210 @@ app.loadJSON({
         <h2>Dashboard &amp; charts</h2>
         <p>Gauges, meters, and 80+ chart types with live value helpers.</p>
         <div class="help-example">
-          <pre class="help-code">LightDraw.animateLiveValue(gaugeNode, 'value', 82, 400);</pre>
-          <div class="help-live">
+          <pre class="help-code">app.loadJSON({
+  type: 'group',
+  children: [
+    { type: 'gauge', props: { value: 72, diameter: 120, x: 24, y: 24 } },
+    { type: 'lineChart', props: { width: 280, height: 140, x: 180, y: 24,
+      data: [12, 18, 15, 22, 28, 24] } },
+  ],
+});
+
+// Pulse a live value:
+LightDraw.animateLiveValue(gaugeNode, 'value', 82, 400);</pre>
+          <div class="help-live help-live--tall">
             <iframe src="examples/demo-dashboard.html?embed=1" title="Dashboard live demo" loading="lazy"></iframe>
           </div>
         </div>
         <div class="help-actions">
           <a class="stage-btn" href="/#dashboard">Dashboard playground</a>
-          <a class="stage-btn stage-btn--ghost" href="docs/dashboard-widgets-schema.md">Widget schema</a>
+          <a class="stage-btn stage-btn--ghost" href="doc.html?src=docs/dashboard-widgets-schema.md">Widget schema</a>
         </div>
       </section>
 
       <section class="help-section" id="automotive">
         <h2>Automotive cluster</h2>
         <p>Instrument clusters stay on classic / sport / digital palettes; app fontSize still scales labels.</p>
-        <div class="help-live">
-          <iframe src="examples/demo-automotive.html?embed=1" title="Automotive live demo" loading="lazy"></iframe>
+        <div class="help-example">
+          <pre class="help-code">app.loadJSON({
+  type: 'group',
+  theme: { automotive: 'sport' },
+  children: [
+    { type: 'instrumentCluster', props: {
+      theme: 'sport', width: 880, height: 360,
+      speed: 95, rpm: 3200, fuel: 68,
+    }},
+  ],
+});</pre>
+          <div class="help-live help-live--tall">
+            <iframe src="examples/demo-automotive.html?embed=1" title="Automotive live demo" loading="lazy"></iframe>
+          </div>
         </div>
         <div class="help-actions">
           <a class="stage-btn" href="/#automotive">Automotive playground</a>
-          <a class="stage-btn stage-btn--ghost" href="docs/automotive-examples.md">Examples</a>
+          <a class="stage-btn stage-btn--ghost" href="doc.html?src=docs/automotive-examples.md">Examples</a>
         </div>
       </section>
 
       <section class="help-section" id="diagram">
         <h2>Diagrams</h2>
-        <p>Flowcharts, networks, UML — edit config JSON in the live dock.</p>
-        <div class="help-live">
-          <iframe src="examples/demo-diagram.html?embed=1" title="Diagram live demo" loading="lazy"></iframe>
+        <p>Pick a diagram type — no scrolling a type list. Flowcharts, networks, UML, and more.</p>
+        <div class="help-example">
+          <pre class="help-code">app.loadJSON({
+  type: 'group',
+  children: [
+    { type: 'flowchart', props: {
+      width: 480, height: 280, x: 16, y: 16,
+      nodes: [
+        { id: 'a', kind: 'start', label: 'Start' },
+        { id: 'b', kind: 'process', label: 'Draw' },
+        { id: 'c', kind: 'end', label: 'Done' },
+      ],
+      edges: [{ from: 'a', to: 'b' }, { from: 'b', to: 'c' }],
+    }},
+  ],
+});</pre>
+          <div class="help-live-block">
+            <div class="help-type-tabs" role="tablist" aria-label="Diagram types" data-help-demo="diagram">
+              <button type="button" class="help-type-tab is-active" role="tab" aria-selected="true" data-id="flowchart">Flowchart</button>
+              <button type="button" class="help-type-tab" role="tab" aria-selected="false" data-id="stateMachine">State</button>
+              <button type="button" class="help-type-tab" role="tab" aria-selected="false" data-id="pipeline">Pipeline</button>
+              <button type="button" class="help-type-tab" role="tab" aria-selected="false" data-id="network">Network</button>
+              <button type="button" class="help-type-tab" role="tab" aria-selected="false" data-id="can">CAN Bus</button>
+              <button type="button" class="help-type-tab" role="tab" aria-selected="false" data-id="schematic">Schematic</button>
+              <button type="button" class="help-type-tab" role="tab" aria-selected="false" data-id="mindMap">Mind Map</button>
+              <button type="button" class="help-type-tab" role="tab" aria-selected="false" data-id="uml">UML</button>
+              <button type="button" class="help-type-tab" role="tab" aria-selected="false" data-id="org">Org</button>
+            </div>
+            <div class="help-live help-live--tall help-live--code">
+              <iframe
+                id="help-diagram-frame"
+                src="examples/demo-diagram.html?embed=1&picker=0"
+                title="Diagram live demo"
+                loading="lazy"
+              ></iframe>
+            </div>
+          </div>
         </div>
         <div class="help-actions">
           <a class="stage-btn" href="/#diagram">Diagram playground</a>
-          <a class="stage-btn stage-btn--ghost" href="docs/diagram-module-schema.md">Diagram schema</a>
+          <a class="stage-btn stage-btn--ghost" href="doc.html?src=docs/diagram-module-schema.md">Diagram schema</a>
+        </div>
+      </section>
+
+      <section class="help-section" id="animation">
+        <h2>Animation</h2>
+        <p>Switch motion demos with tabs — path, dash, morph, stagger, multi-property.</p>
+        <div class="help-example">
+          <pre class="help-code">const dot = app.circle({ x: 80, y: 120, radius: 14, fill: '#3ecfcf' });
+app.add(dot);
+dot.animate({
+  x: 320,
+  duration: 900,
+  loop: true,
+  reverse: true,
+  easing: 'easeInOutCubic',
+});</pre>
+          <div class="help-live-block">
+            <div class="help-type-tabs" role="tablist" aria-label="Animation scenes" data-help-demo="animation">
+              <button type="button" class="help-type-tab is-active" role="tab" aria-selected="true" data-id="motion">Motion Path</button>
+              <button type="button" class="help-type-tab" role="tab" aria-selected="false" data-id="dash">Stroke Dash</button>
+              <button type="button" class="help-type-tab" role="tab" aria-selected="false" data-id="morph">Path Morph</button>
+              <button type="button" class="help-type-tab" role="tab" aria-selected="false" data-id="stagger">Stagger</button>
+              <button type="button" class="help-type-tab" role="tab" aria-selected="false" data-id="group">Multi-Prop</button>
+            </div>
+            <div class="help-live help-live--tall help-live--code">
+              <iframe
+                id="help-animation-frame"
+                src="examples/demo-animation.html?embed=1&picker=0"
+                title="Animation live demo"
+                loading="lazy"
+              ></iframe>
+            </div>
+          </div>
+        </div>
+        <div class="help-actions">
+          <a class="stage-btn" href="/#animation">Animation playground</a>
+          <a class="stage-btn stage-btn--ghost" href="doc.html?src=docs/animation-guide.md">Animation guide</a>
         </div>
       </section>
     </main>
   </div>
+  <script>
+    (function () {
+      const nav = document.querySelector('.help-nav');
+      if (!nav) return;
+      const links = Array.from(nav.querySelectorAll('a[href^="#"]'));
+      const sections = links
+        .map((a) => {
+          const id = a.getAttribute('href').slice(1);
+          const el = document.getElementById(id);
+          return el ? { a, el } : null;
+        })
+        .filter(Boolean);
+
+      function setActive(id) {
+        links.forEach((a) => {
+          const on = a.getAttribute('href') === '#' + id;
+          a.classList.toggle('is-active', on);
+          if (on) a.setAttribute('aria-current', 'true');
+          else a.removeAttribute('aria-current');
+        });
+      }
+
+      function syncFromScroll() {
+        const y = window.scrollY + 120;
+        let current = sections[0] && sections[0].el.id;
+        for (const { el } of sections) {
+          if (el.offsetTop <= y) current = el.id;
+        }
+        if (current) setActive(current);
+      }
+
+      const hash = (location.hash || '').replace(/^#/, '');
+      if (hash && document.getElementById(hash)) setActive(hash);
+      else syncFromScroll();
+
+      window.addEventListener('scroll', syncFromScroll, { passive: true });
+      window.addEventListener('hashchange', () => {
+        const id = (location.hash || '').replace(/^#/, '');
+        if (id) setActive(id);
+      });
+
+      const frameByDemo = {
+        diagram: () => document.getElementById('help-diagram-frame'),
+        animation: () => document.getElementById('help-animation-frame'),
+      };
+
+      function pickHelpDemo(demo, id, tablist) {
+        tablist.querySelectorAll('.help-type-tab').forEach((btn) => {
+          const on = btn.dataset.id === id;
+          btn.classList.toggle('is-active', on);
+          btn.setAttribute('aria-selected', on ? 'true' : 'false');
+        });
+        const frame = frameByDemo[demo] && frameByDemo[demo]();
+        if (!frame || !frame.contentWindow) return;
+        frame.contentWindow.postMessage({ type: 'ld-demo-pick', demo: demo, id: id }, '*');
+      }
+
+      document.querySelectorAll('.help-type-tabs[data-help-demo]').forEach((tablist) => {
+        const demo = tablist.getAttribute('data-help-demo');
+        tablist.addEventListener('click', (e) => {
+          const btn = e.target.closest('.help-type-tab');
+          if (!btn || !btn.dataset.id) return;
+          pickHelpDemo(demo, btn.dataset.id, tablist);
+        });
+        const frame = frameByDemo[demo] && frameByDemo[demo]();
+        if (frame) {
+          frame.addEventListener('load', () => {
+            const active = tablist.querySelector('.help-type-tab.is-active');
+            if (active && active.dataset.id) {
+              pickHelpDemo(demo, active.dataset.id, tablist);
+            }
+          });
+        }
+      });
+    })();
+  </script>
 </body>
 </html>

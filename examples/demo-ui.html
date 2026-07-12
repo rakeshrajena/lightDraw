@@ -521,7 +521,7 @@
     initApp();
     LivePlayground.mount({
       app: () => app,
-      panes: ['scene', 'theme', 'snippet'],
+      panes: ['scene', 'snippet'],
       getScene: () => lastAuthorScene,
       applyScene(parsed) {
         app.clear();

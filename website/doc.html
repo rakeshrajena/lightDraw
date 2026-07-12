@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en" data-site-theme="night">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LightDraw.js — Docs</title>
+  <link rel="icon" href="data:,">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/styles/github-dark.min.css">
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/site-theme.js"></script>
+</head>
+<body class="site-body doc-page">
+  <div class="doc-shell">
+    <aside class="doc-nav" aria-label="Documentation">
+      <div class="rail-brand" style="border:0;padding:0.25rem 0.65rem 0.85rem">
+        <a href="/" class="rail-logo">LightDraw</a>
+        <div class="rail-brand-actions">
+          <button type="button" class="theme-toggle" id="btn-site-theme" data-theme="night" aria-pressed="false" title="Switch to day">
+            <span class="theme-toggle-icon" aria-hidden="true"></span>
+            <span data-theme-label>Night</span>
+          </button>
+        </div>
+      </div>
+      <div class="help-nav-group" role="presentation">Guides</div>
+      <a href="doc.html?src=docs/README.md">Docs home</a>
+      <a href="doc.html?src=docs/getting-started.md">Getting started</a>
+      <a href="doc.html?src=docs/ui-theme-guide.md">UI theme</a>
+      <a href="doc.html?src=docs/theme-architecture.md">Theme architecture</a>
+      <a href="doc.html?src=docs/ai-integration-guide.md">AI + JSON</a>
+      <a href="doc.html?src=docs/animation-guide.md">Animation</a>
+      <a href="doc.html?src=docs/responsive-guide.md">Responsive</a>
+      <a href="doc.html?src=docs/export-pipeline.md">Export</a>
+      <div class="help-nav-group" role="presentation">Schemas</div>
+      <a href="doc.html?src=docs/ui-components-schema.md">UI components</a>
+      <a href="doc.html?src=docs/dashboard-widgets-schema.md">Dashboard</a>
+      <a href="doc.html?src=docs/automotive-widgets-schema.md">Automotive</a>
+      <a href="doc.html?src=docs/automotive-examples.md">Auto examples</a>
+      <a href="doc.html?src=docs/diagram-module-schema.md">Diagram</a>
+      <div class="help-nav-group" role="presentation">More</div>
+      <a href="/help.html">Help center</a>
+      <a href="/">Playground</a>
+      <a href="docs/api/index.html">API reference</a>
+    </aside>
+
+    <main class="doc-main">
+      <header class="doc-toolbar">
+        <p class="doc-crumb" id="doc-crumb">Documentation</p>
+        <div class="doc-toolbar-actions">
+          <a class="stage-btn stage-btn--ghost" id="doc-raw" href="#" target="_blank" rel="noopener">Raw Markdown</a>
+          <a class="stage-btn stage-btn--ghost" href="/help.html">Help</a>
+        </div>
+      </header>
+      <article class="doc-prose" id="doc-content" aria-live="polite">
+        <p class="doc-loading">Loading guide…</p>
+      </article>
+    </main>
+  </div>
+
+  <!-- Open-source CDN: marked (Markdown → HTML), DOMPurify (sanitize), highlight.js (code) -->
+  <script src="https://cdn.jsdelivr.net/npm/marked@15.0.12/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/highlight.min.js"></script>
+  <script src="/doc-viewer.js"></script>
+</body>
+</html>

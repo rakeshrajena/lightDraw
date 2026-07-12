@@ -16,5 +16,12 @@ export default defineConfig({
   build: {
     outDir: resolve(__dirname, 'dist'),
     emptyOutDir: true,
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, 'index.html'),
+        help: resolve(__dirname, 'help.html'),
+        doc: resolve(__dirname, 'doc.html'),
+      },
+    },
   },
 });

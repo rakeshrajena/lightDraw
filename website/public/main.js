@@ -6,7 +6,7 @@ const DEMOS = [
   {
     id: 'theme',
     title: 'Theme',
-    blurb: 'Live Scene / Theme JSON — presets sync both ways.',
+    blurb: 'Live Scene JSON (with optional root theme) and API code.',
     src: 'examples/demo-theme.html?embed=1',
     full: 'examples/demo-theme.html',
   },
@@ -75,6 +75,21 @@ const DEMOS = [
   },
 ];
 
+const DEMO_GROUPS = [
+  {
+    label: 'Start',
+    ids: ['theme', 'core'],
+  },
+  {
+    label: 'Modules',
+    ids: ['ui', 'dashboard', 'color-stops', 'automotive', 'diagram'],
+  },
+  {
+    label: 'More',
+    ids: ['animation', 'export', 'a11y'],
+  },
+];
+
 function currentDemoId() {
   const hash = (location.hash || '').replace(/^#\/?/, '').split('?')[0];
   if (hash === 'playground' || hash === 'hero' || !hash) return 'theme';
@@ -86,15 +101,25 @@ function mountNav() {
   const nav = document.getElementById('demo-nav');
   if (!nav) return;
   nav.innerHTML = '';
-  DEMOS.forEach((demo) => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'rail-item';
-    btn.dataset.id = demo.id;
-    btn.setAttribute('role', 'tab');
-    btn.innerHTML = `${demo.title}<small>${demo.blurb}</small>`;
-    btn.addEventListener('click', () => selectDemo(demo.id, true));
-    nav.appendChild(btn);
+  const byId = Object.fromEntries(DEMOS.map((d) => [d.id, d]));
+  DEMO_GROUPS.forEach((group) => {
+    const label = document.createElement('div');
+    label.className = 'rail-group';
+    label.setAttribute('role', 'presentation');
+    label.textContent = group.label;
+    nav.appendChild(label);
+    group.ids.forEach((id) => {
+      const demo = byId[id];
+      if (!demo) return;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'rail-item';
+      btn.dataset.id = demo.id;
+      btn.setAttribute('role', 'tab');
+      btn.innerHTML = `${demo.title}<small>${demo.blurb}</small>`;
+      btn.addEventListener('click', () => selectDemo(demo.id, true));
+      nav.appendChild(btn);
+    });
   });
 }
 

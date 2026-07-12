@@ -146,7 +146,7 @@
     demoShapes();
     LivePlayground.mount({
       app: () => app,
-      panes: ['scene', 'theme', 'snippet'],
+      panes: ['scene', 'snippet'],
       getScene: () => lastAuthorScene || app.exportJSON(),
       applyScene(parsed) {
         clear();

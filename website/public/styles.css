@@ -304,6 +304,23 @@ body.site-body {
   gap: 0.2rem;
 }
 
+.rail-group {
+  margin: 0.7rem 0 0.2rem;
+  padding: 0 0.7rem;
+  font-size: 0.625rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 600;
+  opacity: 0.7;
+  pointer-events: none;
+  user-select: none;
+}
+
+.rail-group:first-child {
+  margin-top: 0.15rem;
+}
+
 .rail-item {
   appearance: none;
   width: 100%;
@@ -563,19 +580,24 @@ body.site-body {
 }
 
 .help-nav a:hover,
-.help-nav a.is-active {
+.help-nav a.is-active,
+.help-nav a[aria-current='true'] {
   color: var(--text);
   background: var(--cyan-dim);
 }
 
 .help-nav .help-nav-group {
-  margin: 0.85rem 0 0.35rem;
+  margin: 0.95rem 0 0.3rem;
   padding: 0 0.65rem;
-  font-size: 0.65rem;
-  letter-spacing: 0.06em;
+  font-size: 0.625rem;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--muted);
   font-weight: 600;
+  opacity: 0.7;
+  pointer-events: none;
+  user-select: none;
+  background: transparent;
 }
 
 .help-main {
@@ -640,19 +662,59 @@ body.site-body {
   border-radius: 12px;
   overflow: hidden;
   background: var(--frame-bg);
-  min-height: 280px;
+  min-height: 360px;
 }
 
 .help-live iframe {
   width: 100%;
-  height: 320px;
+  height: 480px;
   border: 0;
   display: block;
   background: var(--frame-bg);
 }
 
 .help-live--tall iframe {
-  height: 420px;
+  height: 560px;
+}
+
+.help-live--code iframe {
+  height: 620px;
+}
+
+.help-live-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.help-type-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.help-type-tab {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 0.35rem 0.7rem;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.help-type-tab:hover {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--cyan) 40%, var(--line));
+}
+
+.help-type-tab.is-active {
+  color: var(--text);
+  background: var(--cyan-dim);
+  border-color: color-mix(in srgb, var(--cyan) 45%, transparent);
 }
 
 .help-actions {
@@ -722,3 +784,236 @@ body.site-body {
     width: 100%;
   }
 }
+
+/* ── Markdown doc viewer (doc.html) ─────────────────────────────────────── */
+.doc-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(200px, 240px) minmax(0, 1fr);
+  background: var(--ink);
+}
+
+.doc-nav {
+  border-right: 1px solid var(--line);
+  background: linear-gradient(180deg, var(--panel-2) 0%, var(--panel) 100%);
+  padding: 1rem 0.75rem 1.5rem;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.doc-nav a {
+  display: block;
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  padding: 0.4rem 0.65rem;
+  border-radius: 8px;
+}
+
+.doc-nav a:hover,
+.doc-nav a.is-active,
+.doc-nav a[aria-current='true'] {
+  color: var(--text);
+  background: var(--cyan-dim);
+}
+
+.doc-main {
+  padding: 0 clamp(1rem, 3vw, 2.5rem) 3rem;
+  max-width: 920px;
+  width: 100%;
+  justify-self: center;
+}
+
+.doc-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1.25rem 0 1rem;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 1.5rem;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: color-mix(in srgb, var(--ink) 92%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+.doc-crumb {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.doc-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.doc-loading,
+.doc-error {
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+
+.doc-error {
+  color: #fda4af;
+}
+
+.doc-prose {
+  color: var(--text);
+  font-size: 0.9375rem;
+  line-height: 1.65;
+}
+
+.doc-prose > *:first-child {
+  margin-top: 0;
+}
+
+.doc-prose h1,
+.doc-prose h2,
+.doc-prose h3,
+.doc-prose h4 {
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  margin: 1.75rem 0 0.65rem;
+}
+
+.doc-prose h1 {
+  font-size: 1.85rem;
+}
+
+.doc-prose h2 {
+  font-size: 1.35rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.doc-prose h3 {
+  font-size: 1.1rem;
+}
+
+.doc-prose p,
+.doc-prose ul,
+.doc-prose ol,
+.doc-prose blockquote,
+.doc-prose table {
+  margin: 0 0 1rem;
+}
+
+.doc-prose ul,
+.doc-prose ol {
+  padding-left: 1.35rem;
+}
+
+.doc-prose li + li {
+  margin-top: 0.25rem;
+}
+
+.doc-prose a {
+  color: var(--cyan);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.doc-prose a:hover {
+  color: var(--signal);
+}
+
+.doc-prose code {
+  font-family: var(--mono);
+  font-size: 0.84em;
+  padding: 0.12em 0.35em;
+  border-radius: 5px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+}
+
+.doc-prose pre {
+  margin: 0 0 1.15rem;
+  padding: 0.95rem 1.05rem;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: #0a0f18;
+  overflow-x: auto;
+}
+
+:root[data-site-theme='day'] .doc-prose pre {
+  background: #1e2430;
+}
+
+.doc-prose pre code {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: 0.8rem;
+  line-height: 1.55;
+  color: #e8eef8;
+}
+
+.doc-prose blockquote {
+  margin-left: 0;
+  padding: 0.35rem 0 0.35rem 1rem;
+  border-left: 3px solid var(--cyan);
+  color: var(--muted);
+}
+
+.doc-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  display: block;
+  overflow-x: auto;
+}
+
+.doc-prose th,
+.doc-prose td {
+  border: 1px solid var(--line);
+  padding: 0.5rem 0.7rem;
+  text-align: left;
+}
+
+.doc-prose th {
+  background: var(--panel);
+  font-weight: 600;
+}
+
+.doc-prose hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 1.75rem 0;
+}
+
+.doc-prose img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+
+@media (max-width: 860px) {
+  .doc-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .doc-nav {
+    position: static;
+    height: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+
+  .doc-nav .help-nav-group {
+    width: 100%;
+  }
+}
+

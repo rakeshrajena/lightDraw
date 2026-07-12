@@ -120,7 +120,7 @@
       playgroundMounted = true;
       LivePlayground.mount({
         app: () => clusterApp,
-        panes: ['scene', 'theme', 'snippet'],
+        panes: ['scene', 'snippet'],
         getScene: () => lastAuthorScene,
         applyScene(parsed) {
           clusterApp.clear();

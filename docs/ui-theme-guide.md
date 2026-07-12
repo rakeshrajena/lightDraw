@@ -318,7 +318,7 @@ app.clearUiTheme();
 
 Library-wide contract (all modules): [theme-architecture.md](./theme-architecture.md).
 
-Live demo: [`examples/demo-theme.html`](../examples/demo-theme.html) — live playground with Scene/Theme JSON editors, presets, and automotive independence.
+Live demo: [`examples/demo-theme.html`](../examples/demo-theme.html) — live playground with Scene JSON (root `theme`), API code, presets, and automotive independence.
 
 ## Related
 

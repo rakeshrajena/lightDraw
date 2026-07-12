@@ -1,30 +1,25 @@
 /**
  * Shared live code playground for LightDraw demos.
- * Matches the theme lab: Scene JSON · Theme JSON · editable API snippet.
+ * Tabs: Scene JSON · editable API snippet.
+ * Put theme on the scene root (`{ theme, type, children }`) — no separate Theme tab.
  *
  *   LivePlayground.mount({
  *     app: () => app,
  *     getScene: () => lastAuthorScene,
  *     applyScene: (json) => { app.clear(); app.loadJSON(json); },
- *     // theme auto-wired from app.getTheme / applyTheme when omitted
  *     getSnippet / applySnippet,  // optional
- *     panes: ['scene', 'theme', 'snippet'], // default
+ *     panes: ['scene', 'snippet'], // default
  *   });
  *   LivePlayground.syncScene(true);
- *   LivePlayground.syncTheme(true);
  */
 (function (global) {
   'use strict';
 
-  const DEFAULT_PANES = ['scene', 'theme', 'snippet'];
+  const DEFAULT_PANES = ['scene', 'snippet'];
   let state = null;
 
   function $(sel, root) {
     return (root || document).querySelector(sel);
-  }
-
-  function isEmbed() {
-    return document.documentElement.classList.contains('demo-embed');
   }
 
   function isLive() {
@@ -99,10 +94,10 @@
 
   function paneLabels(panes) {
     const map = {
-      scene: 'Scene JSON',
+      scene: 'JSON',
       theme: 'Theme JSON',
       snippet: 'API code',
-      config: 'Config JSON',
+      config: 'JSON',
     };
     return panes.map((p) => ({ id: p, label: map[p] || p }));
   }
@@ -140,13 +135,13 @@
       `<button type="button" class="demo-btn" id="pg-btn-run">Run</button>` +
       `<button type="button" class="demo-btn secondary pg-btn-secondary" id="pg-btn-format">Format</button>` +
       `<button type="button" class="demo-btn secondary pg-btn-secondary" id="pg-btn-copy">Copy</button>` +
-      `<button type="button" class="demo-btn secondary pg-btn-secondary" id="pg-btn-reset-snippet" title="Reset API from Scene/Theme">Reset</button>` +
+      `<button type="button" class="demo-btn secondary pg-btn-secondary" id="pg-btn-reset-snippet" title="Reset API from Scene JSON">Reset</button>` +
       `<button type="button" class="demo-btn secondary" id="pg-btn-toggle" aria-expanded="${
         startCollapsed ? 'false' : 'true'
       }" title="${startCollapsed ? 'Expand code' : 'Collapse code'}">${startCollapsed ? 'Code ▸' : 'Code ▾'}</button>` +
       `</div></div>` +
       `<div class="pg-code-body">${panesHtml}` +
-      `<div class="pg-code-status" id="pg-code-status" data-tone="ok">Edit Scene · Theme · API</div>` +
+      `<div class="pg-code-status" id="pg-code-status" data-tone="ok">Edit JSON · API</div>` +
       `</div></section>`
     );
   }
@@ -178,18 +173,24 @@
 
   function defaultSnippet(scene, theme) {
     const themeObj = theme && typeof theme === 'object' ? theme : {};
-    const hasTheme = Object.keys(themeObj).length > 0;
+    const base = scene && typeof scene === 'object' ? { ...scene } : { type: 'group', children: [] };
+    // Prefer theme already on the scene; otherwise attach current app theme for the snippet.
+    if (
+      themeObj &&
+      Object.keys(themeObj).length > 0 &&
+      !(base.theme && typeof base.theme === 'object' && Object.keys(base.theme).length > 0)
+    ) {
+      base.theme = themeObj;
+    }
     return (
       `// Editable API — click Run (or Ctrl/Cmd+Enter) to execute\n` +
       `const app = LightDraw.createApp('#app', {\n` +
       `  renderer: 'canvas',\n` +
       `  background: '#0d1322',\n` +
-      (hasTheme ? `  uiTheme: ${indentBlock(themeObj, 2)},\n` : '') +
       `});\n\n` +
-      `app.loadJSON(${indentBlock(scene || { type: 'group', children: [] }, 0)});\n\n` +
-      (hasTheme
-        ? `// Or update theme live:\n// app.applyTheme({ primary: 'pink', fontSize: '16px' });\n`
-        : `// Theme live:\n// app.applyTheme({ preset: 'dark', primary: '#0ea5e9' });\n`)
+      `app.loadJSON(${indentBlock(base, 0)});\n\n` +
+      `// Theme lives on the scene root: { theme: { preset: 'dark', primary: '#0ea5e9' }, … }\n` +
+      `// Or at runtime: app.applyTheme({ primary: 'pink', fontSize: '16px' });\n`
     );
   }
 
@@ -496,7 +497,7 @@
       resetBtn.addEventListener('click', () => {
         state.snippetDirty = false;
         updateSnippet(true);
-        setStatus('API code reset from Scene / Theme', 'ok');
+        setStatus('API code reset from Scene JSON', 'ok');
       });
     }
     $('#pg-btn-toggle', state.root).addEventListener('click', () => {
@@ -549,32 +550,22 @@
   }
 
   function normalizePanes(opts) {
-    let panes = (opts.panes && opts.panes.length ? opts.panes.slice() : DEFAULT_PANES.slice());
-    // Always offer the theme-lab trio unless caller explicitly passed panes
-    if (!opts.panes || !opts.panes.length) {
-      panes = DEFAULT_PANES.slice();
-    } else {
-      // Ensure snippet exists for API editing
-      if (!panes.includes('snippet')) panes.push('snippet');
-      // Add theme when missing (like theme demo)
-      if (!panes.includes('theme')) {
-        const insertAt = panes.includes('scene') || panes.includes('config') ? 1 : 0;
-        panes.splice(insertAt, 0, 'theme');
-      }
-      // Prefer scene over config-only when both missing scene — keep config if that's what they use
-      if (!panes.includes('scene') && !panes.includes('config') && typeof opts.getScene === 'function') {
-        panes.unshift('scene');
-      }
+    let panes = opts.panes && opts.panes.length ? opts.panes.slice() : DEFAULT_PANES.slice();
+    // Drop legacy Theme tab — theme belongs on Scene JSON (`root.theme`)
+    panes = panes.filter((p) => p !== 'theme');
+    if (!panes.includes('snippet')) panes.push('snippet');
+    if (!panes.includes('scene') && !panes.includes('config') && typeof opts.getScene === 'function') {
+      panes.unshift('scene');
     }
+    if (!panes.length) panes = DEFAULT_PANES.slice();
     return panes;
   }
 
   function mount(opts) {
     destroy();
     const panes = normalizePanes(opts || {});
-    // Collapsed in embed so the canvas stays usable; open on full-page demos
-    const startCollapsed =
-      opts.startCollapsed != null ? opts.startCollapsed : isEmbed();
+    // Open by default so JSON is readable; caller can pass startCollapsed: true
+    const startCollapsed = opts.startCollapsed != null ? opts.startCollapsed : false;
     const host = ensureHost(opts.host);
     host.innerHTML = buildDockHtml(panes, startCollapsed);
 
@@ -606,7 +597,7 @@
     syncScene(true);
     syncTheme(true);
     updateSnippet(true);
-    setStatus('Live — edit Scene JSON · Theme JSON · API code', 'ok');
+    setStatus('Live — edit JSON · API code', 'ok');
     return api;
   }
 

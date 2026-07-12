@@ -135,7 +135,7 @@
     buildScene();
     LivePlayground.mount({
       app: () => app,
-      panes: ['scene', 'theme', 'snippet'],
+      panes: ['scene', 'snippet'],
       getScene: () => app.exportJSON({ includeTheme: false }),
       applyScene(parsed) {
         const hc = app.isHighContrast?.() ?? false;
