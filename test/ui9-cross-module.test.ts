@@ -29,7 +29,7 @@ describe('Phase UI-9 — Cross-module demo polish', () => {
 
   it('playground styles use responsive iframe heights', () => {
     const css = readFileSync(resolve(ROOT, 'website/public/styles.css'), 'utf8');
-    expect(css).toContain('.demo-frame--medium');
+    expect(css).toContain('.stage-frame');
     expect(css).toContain('clamp(');
     expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\)/);
   });
@@ -53,10 +53,12 @@ describe('Phase UI-9 — Cross-module demo polish', () => {
     });
   }
 
-  it('website playground embeds all demo iframes', () => {
+  it('website playground routes all demo embeds', () => {
     const html = readFileSync(resolve(ROOT, 'website/index.html'), 'utf8');
-    for (const file of PLAYGROUND_DEMOS.filter((f) => f !== 'demo.html')) {
-      expect(html).toMatch(new RegExp(`(?:/|\\./)?examples/${file}\\?embed=1`));
+    expect(html).toContain('id="demo-frame"');
+    const router = readFileSync(resolve(ROOT, 'website/main.js'), 'utf8');
+    for (const file of PLAYGROUND_DEMOS) {
+      expect(router).toMatch(new RegExp(`examples/${file}\\?embed=1`));
     }
   });
 
