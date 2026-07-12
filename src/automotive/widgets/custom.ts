@@ -13,7 +13,7 @@ import {
   setState,
   str,
 } from '../helpers';
-import { autoThemeName, getTheme, themeFromProps, type ThemePalette } from '../themes';
+import { autoThemeName, themeFromProps, type ThemePalette } from '../themes';
 import type { WidgetBounds } from '../layout';
 import { buildDialWidget, buildLampWidget } from '../primitives/builders';
 import { buildDialGauge, updateDialNeedle } from '../../primitives/dialGauge';

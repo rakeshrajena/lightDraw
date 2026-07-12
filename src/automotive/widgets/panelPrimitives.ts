@@ -2,7 +2,7 @@ import type { App } from '../../App';
 import type { Group } from '../../shapes/Group';
 import type { Node } from '../../Node';
 import { TextNode } from '../../shapes/index';
-import { createAutoGroup, setState, str } from '../helpers';
+import { createAutoGroup, setState } from '../helpers';
 import { themeFromProps, type ThemePalette } from '../themes';
 import type { WidgetBounds } from '../layout';
 import {
