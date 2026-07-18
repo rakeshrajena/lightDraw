@@ -6,7 +6,7 @@ import type { Obstacle } from './types';
 import { computeRoutePoints, getAnchor, collectObstaclesInParent, type RouteStyle } from './router';
 import { getConnectorAnchors, getCardSideAnchor } from './coords';
 import { createEdgeLabel } from './primitives';
-import { quadraticPathD, quadraticToPoints, mermaidHorizontalLink, mermaidOrgBusPaths } from './pathUtils';
+import { quadraticPathD, quadraticToPoints, mermaidHorizontalLink, mermaidOrgBusPaths, pathThroughWaypoints } from './pathUtils';
 
 export type ArrowStyle = 'filled' | 'open' | 'hollow' | 'diamond' | 'diamondHollow' | 'none';
 
@@ -16,6 +16,8 @@ export interface ConnectorOptions {
   parent?: Group;
   /** When set with parent, rebuild obstacles in parent-local space (drag-safe). */
   obstacleNodes?: Node[];
+  /** Manual bend points in parent-local space (double-click on wire). */
+  waypoints?: Array<{ x: number; y: number }>;
   stroke?: string;
   strokeWidth?: number;
   glowColor?: string;
@@ -205,16 +207,12 @@ export function createConnector(
   const arrowSize = Math.max(9, Math.min(14, strokeWidth * 5.5));
   const style = options.style ?? 'smart';
   const obstacles = options.obstacles ?? [];
+  const waypoints = options.waypoints?.filter((w) => Number.isFinite(w.x) && Number.isFinite(w.y)) ?? [];
 
-  const points = computeRoutePoints(
-    x1,
-    y1,
-    x2,
-    y2,
-    style,
-    obstacles,
-    options.cornerRadius
-  );
+  const points =
+    waypoints.length > 0
+      ? pathThroughWaypoints(x1, y1, waypoints, x2, y2, 16)
+      : computeRoutePoints(x1, y1, x2, y2, style, obstacles, options.cornerRadius);
   const group = app.group({ listening: false }) as Group;
 
   const trimEnd = arrowEnd !== 'none' ? arrowSize * 0.72 : 0;
@@ -261,12 +259,12 @@ export function createConnector(
   );
 
   const endAngle = segmentAngle(
-    points[points.length - 4],
-    points[points.length - 3],
-    points[points.length - 2],
-    points[points.length - 1]
+    display[display.length - 4],
+    display[display.length - 3],
+    display[display.length - 2],
+    display[display.length - 1]
   );
-  const startAngle = segmentAngle(points[0], points[1], points[2], points[3]);
+  const startAngle = segmentAngle(display[0], display[1], display[2], display[3]);
 
   addArrowMarker(app, group, arrowEnd, x2, y2, endAngle, stroke, strokeWidth, arrowSize);
   addArrowMarker(
@@ -282,7 +280,7 @@ export function createConnector(
   );
 
   if (options.label) {
-    const mid = pathMidpoint(points);
+    const mid = pathMidpoint(display.length >= 4 ? display : points);
     group.add(createEdgeLabel(app, options.label, mid.x, mid.y - 6, stroke));
   }
 
@@ -297,6 +295,8 @@ export function createConnector(
   group.metadata.edgeArrowEnd = arrowEnd;
   group.metadata.edgeArrowStart = arrowStart;
   if (options.dash) group.metadata.edgeDash = options.dash;
+  if (waypoints.length > 0) group.metadata.edgeWaypoints = waypoints.map((w) => ({ x: w.x, y: w.y }));
+  group.metadata.edgePoints = display.length >= 4 ? display.slice() : points.slice();
 
   return group;
 }
@@ -396,6 +396,7 @@ export function connectNodes(
       options.edgeId ??
       `${options.fromId ?? from.metadata?.diagramId ?? 'a'}-${options.toId ?? to.metadata?.diagramId ?? 'b'}`,
     ...options,
+    waypoints: options.waypoints,
     obstacles: routeObstacles,
   });
 }

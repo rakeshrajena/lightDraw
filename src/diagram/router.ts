@@ -3,14 +3,14 @@ import type { Node } from '../Node';
 import { Line, Polyline } from '../shapes/index';
 import { getCardObstacle, getCardObstacleInParent } from './coords';
 import type { Group } from '../shapes/Group';
-import { roundOrthogonalCorners } from './pathUtils';
+import { roundOrthogonalCorners, stringCurveFromOrthogonal } from './pathUtils';
 import type { Obstacle } from './types';
 import { getActiveDiagram } from './theme';
 
 export type RouteStyle = 'straight' | 'orthogonal' | 'smart';
 
 /** Default fillet radius for orthogonal / smart routes (px). */
-export const ROUTE_CORNER_RADIUS = 14;
+export const ROUTE_CORNER_RADIUS = 18;
 
 /** Check if a horizontal segment intersects a rectangle */
 function hSegIntersectsRect(
@@ -219,12 +219,18 @@ export function computeRoutePoints(
   if (style === 'smart') {
     points = smartOrthogonalRoute(x1, y1, x2, y2, obstacles);
   } else {
+    // Orthogonal default: prefer a soft U rail between ports
     const midY = (y1 + y2) / 2;
     points = [x1, y1, x1, midY, x2, midY, x2, y2];
   }
   points = collapseColinearPoints(points);
   if (points.length <= 4) return points;
-  return cornerRadius > 0 ? roundOrthogonalCorners(points, cornerRadius, 10) : points;
+
+  // String-like U / L / S bends (cubic) — stretches smoothly while dragging
+  if (style === 'smart' || style === 'orthogonal') {
+    return stringCurveFromOrthogonal(points, 30);
+  }
+  return cornerRadius > 0 ? roundOrthogonalCorners(points, cornerRadius, 12) : points;
 }
 
 /** Drop zero-length / colinear intermediate vertices before filleting */

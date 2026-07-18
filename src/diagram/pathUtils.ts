@@ -156,6 +156,205 @@ export function mermaidHorizontalLink(
 }
 
 /**
+ * L-bend as a single cubic — exits along the first leg, enters along the second
+ * (string / cable elbow, not a sharp corner).
+ */
+export function stringLCurve(
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  tension = 0.58,
+  steps = 28
+): number[] {
+  const t = Math.min(0.85, Math.max(0.35, tension));
+  const c1x = x0 + (x1 - x0) * t;
+  const c1y = y0 + (y1 - y0) * t;
+  const c2x = x2 + (x1 - x2) * t;
+  const c2y = y2 + (y1 - y2) * t;
+  return cubicToPoints(x0, y0, c1x, c1y, c2x, c2y, x2, y2, steps);
+}
+
+/**
+ * U-bend as a single cubic — vertical exit, horizontal span, vertical entry.
+ * Control points sit on the rail so the wire bows like a flexible string.
+ */
+export function stringUCurve(
+  x0: number,
+  y0: number,
+  railY: number,
+  x3: number,
+  y3: number,
+  steps = 32
+): number[] {
+  // Pull controls toward the rail; more separation → deeper, softer U
+  const span = Math.abs(railY - y0) + Math.abs(y3 - railY);
+  const soft = Math.min(1, Math.max(0.45, span / 120));
+  const c1y = y0 + (railY - y0) * (0.55 + soft * 0.25);
+  const c2y = y3 + (railY - y3) * (0.55 + soft * 0.25);
+  return cubicToPoints(x0, y0, x0, c1y, x3, c2y, x3, y3, steps);
+}
+
+/**
+ * Horizontal U (C-bend): leave left/right, span vertically, enter left/right.
+ */
+export function stringCCurve(
+  x0: number,
+  y0: number,
+  railX: number,
+  x3: number,
+  y3: number,
+  steps = 32
+): number[] {
+  const span = Math.abs(railX - x0) + Math.abs(x3 - railX);
+  const soft = Math.min(1, Math.max(0.45, span / 120));
+  const c1x = x0 + (railX - x0) * (0.55 + soft * 0.25);
+  const c2x = x3 + (railX - x3) * (0.55 + soft * 0.25);
+  return cubicToPoints(x0, y0, c1x, y0, c2x, y3, x3, y3, steps);
+}
+
+function nearlyEqual(a: number, b: number, eps = 1.25): boolean {
+  return Math.abs(a - b) < eps;
+}
+
+/**
+ * Convert an orthogonal polyline skeleton into string-like U / L / S curves.
+ * Keeps endpoints exact so arrows stay glued to connection ports.
+ */
+export function stringCurveFromOrthogonal(points: number[], steps = 28): number[] {
+  if (points.length < 6) return points.slice();
+
+  const n = points.length / 2;
+
+  // L: 3 points
+  if (n === 3) {
+    return stringLCurve(
+      points[0],
+      points[1],
+      points[2],
+      points[3],
+      points[4],
+      points[5],
+      0.6,
+      steps
+    );
+  }
+
+  // U / C / Z: 4 points
+  if (n === 4) {
+    const x0 = points[0];
+    const y0 = points[1];
+    const x1 = points[2];
+    const y1 = points[3];
+    const x2 = points[4];
+    const y2 = points[5];
+    const x3 = points[6];
+    const y3 = points[7];
+
+    // Classic U (TB): vertical, horizontal rail, vertical
+    if (nearlyEqual(x0, x1) && nearlyEqual(y1, y2) && nearlyEqual(x2, x3)) {
+      return stringUCurve(x0, y0, y1, x3, y3, steps);
+    }
+    // Classic C (LR): horizontal, vertical rail, horizontal
+    if (nearlyEqual(y0, y1) && nearlyEqual(x1, x2) && nearlyEqual(y2, y3)) {
+      return stringCCurve(x0, y0, x1, x3, y3, steps);
+    }
+
+    // Z / S: chain two L curves
+    const a = stringLCurve(x0, y0, x1, y1, x2, y2, 0.55, Math.max(12, Math.floor(steps / 2)));
+    const b = stringLCurve(x1, y1, x2, y2, x3, y3, 0.55, Math.max(12, Math.floor(steps / 2)));
+    // Join without duplicating the middle vertex
+    return a.concat(b.slice(2));
+  }
+
+  // Longer paths: adaptive large fillets (cable around corners)
+  let minSeg = Infinity;
+  for (let i = 0; i < points.length - 2; i += 2) {
+    minSeg = Math.min(minSeg, Math.hypot(points[i + 2] - points[i], points[i + 3] - points[i + 1]));
+  }
+  const radius = Math.min(36, Math.max(14, minSeg * 0.48));
+  return roundOrthogonalCorners(points, radius, 14);
+}
+
+/**
+ * Smooth path through free waypoints (string through beads).
+ * Uses Catmull-Rom → cubic segments so bends feel continuous while dragging.
+ */
+export function pathThroughWaypoints(
+  x1: number,
+  y1: number,
+  waypoints: Array<{ x: number; y: number }>,
+  x2: number,
+  y2: number,
+  stepsPerSeg = 14
+): number[] {
+  const pts: number[] = [x1, y1];
+  for (const w of waypoints) pts.push(w.x, w.y);
+  pts.push(x2, y2);
+  if (pts.length <= 4) return pts.slice();
+  return catmullRomToPoints(pts, stepsPerSeg);
+}
+
+/** Uniform Catmull-Rom spline sampled as a flat polyline. */
+export function catmullRomToPoints(points: number[], stepsPerSeg = 12): number[] {
+  const n = points.length / 2;
+  if (n < 2) return points.slice();
+  if (n === 2) return points.slice();
+
+  const out: number[] = [points[0], points[1]];
+  const get = (i: number): { x: number; y: number } => {
+    const j = Math.max(0, Math.min(n - 1, i));
+    return { x: points[j * 2], y: points[j * 2 + 1] };
+  };
+
+  for (let i = 0; i < n - 1; i++) {
+    const p0 = get(i - 1);
+    const p1 = get(i);
+    const p2 = get(i + 1);
+    const p3 = get(i + 2);
+    // Convert Catmull-Rom to cubic Bezier controls
+    const c1x = p1.x + (p2.x - p0.x) / 6;
+    const c1y = p1.y + (p2.y - p0.y) / 6;
+    const c2x = p2.x - (p3.x - p1.x) / 6;
+    const c2y = p2.y - (p3.y - p1.y) / 6;
+    const seg = cubicToPoints(p1.x, p1.y, c1x, c1y, c2x, c2y, p2.x, p2.y, stepsPerSeg);
+    out.push(...seg.slice(2));
+  }
+  return out;
+}
+
+/**
+ * Nearest point on a polyline to (x,y), plus insertion index for a new vertex
+ * after the segment that contains the projection (1-based vertex index).
+ */
+export function nearestPointOnPolyline(
+  points: number[],
+  x: number,
+  y: number
+): { x: number; y: number; segIndex: number; dist: number; t: number } {
+  let best = { x: points[0], y: points[1], segIndex: 0, dist: Infinity, t: 0 };
+  for (let i = 0; i < points.length - 2; i += 2) {
+    const x0 = points[i];
+    const y0 = points[i + 1];
+    const x1 = points[i + 2];
+    const y1 = points[i + 3];
+    const dx = x1 - x0;
+    const dy = y1 - y0;
+    const lenSq = dx * dx + dy * dy;
+    const t = lenSq < 1e-8 ? 0 : Math.max(0, Math.min(1, ((x - x0) * dx + (y - y0) * dy) / lenSq));
+    const px = x0 + dx * t;
+    const py = y0 + dy * t;
+    const dist = Math.hypot(x - px, y - py);
+    if (dist < best.dist) {
+      best = { x: px, y: py, segIndex: i / 2, dist, t };
+    }
+  }
+  return best;
+}
+
+/**
  * Mermaid flowchart TB bus geometry for parent → children.
  * Multi-child: shared stem + rail + drops; each drop path is also available
  * as a rounded elbow for professional T-junctions.
@@ -164,7 +363,7 @@ export function mermaidOrgBusPaths(
   parentX: number,
   parentBottomY: number,
   children: Array<{ x: number; topY: number }>,
-  cornerRadius = 10
+  _cornerRadius = 10
 ): { stem: number[]; bus: number[]; drops: number[][]; elbows: number[][] } {
   if (children.length === 0) {
     return { stem: [], bus: [], drops: [], elbows: [] };
@@ -173,10 +372,10 @@ export function mermaidOrgBusPaths(
   if (children.length === 1) {
     const c = children[0];
     const midY = (parentBottomY + c.topY) / 2;
-    const path = roundOrthogonalCorners(
+    // Single child: soft U / L string curve
+    const path = stringCurveFromOrthogonal(
       [parentX, parentBottomY, parentX, midY, c.x, midY, c.x, c.topY],
-      cornerRadius,
-      8
+      28
     );
     return { stem: path, bus: [], drops: [], elbows: [path] };
   }
@@ -191,10 +390,9 @@ export function mermaidOrgBusPaths(
   const maxX = Math.max(...xs, parentX);
 
   const elbows = children.map((c) =>
-    roundOrthogonalCorners(
+    stringCurveFromOrthogonal(
       [parentX, parentBottomY, parentX, busY, c.x, busY, c.x, c.topY],
-      cornerRadius,
-      8
+      26
     )
   );
 

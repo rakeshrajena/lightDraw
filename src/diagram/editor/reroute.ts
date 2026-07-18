@@ -69,6 +69,7 @@ export function rerouteDiagramEdges(app: App, root: Group, edges?: EditorEdgeRec
         arrowStart: edge.options?.arrowStart ?? 'none',
         dash: edge.options?.dash,
         cornerRadius: edge.options?.cornerRadius ?? 16,
+        waypoints: edge.waypoints ?? edge.options?.waypoints,
         edgeId: edge.id,
         fromId: edge.from,
         toId: edge.to,

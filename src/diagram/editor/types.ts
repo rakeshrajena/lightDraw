@@ -8,6 +8,8 @@ export interface EditorEdgeRecord {
   from: string;
   to: string;
   label?: string;
+  /** Manual bend points in diagram-local space */
+  waypoints?: Array<{ x: number; y: number }>;
   options?: Partial<ConnectorOptions>;
 }
 
@@ -31,6 +33,11 @@ export interface DiagramEditorOptions {
   allowResize?: boolean;
   /** Allow connect tool / edge rewiring / delete (default: true unless mode is arrange) */
   allowConnect?: boolean;
+  /**
+   * Double-click a wire to add bend points, then drag handles to reshape.
+   * Default: true
+   */
+  allowBendPoints?: boolean;
   /** Initial tool */
   tool?: DiagramEditorTool;
   /** Snap dragged nodes to grid */
