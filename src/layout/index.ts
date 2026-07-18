@@ -179,17 +179,22 @@ function nodeCardWidth(node: Group): number {
   return Math.max(b.width > 0 ? Math.min(b.width, 220) : 156, 40);
 }
 
-/** Org / tree children only — skip chrome, indicators, edge layers. */
+/** Org / tree children only — skip chrome, indicators, edge layers, and collapsed branches. */
 function treeChildren(node: Group): Group[] {
   const orgKids = node.children.filter(
-    (c): c is Group => !!c.metadata?.orgNode && 'children' in c
+    (c): c is Group =>
+      !!c.metadata?.orgNode &&
+      c.visible !== false &&
+      'children' in c
   );
   if (orgKids.length > 0) return orgKids;
   return node.children.filter(
     (c): c is Group =>
       'children' in c &&
       Array.isArray((c as Group).children) &&
-      !c.metadata?.diagramEdgeLayer
+      c.visible !== false &&
+      !c.metadata?.diagramEdgeLayer &&
+      !c.metadata?.orgCollapseBtn
   );
 }
 

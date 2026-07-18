@@ -455,7 +455,10 @@ function walkOrgBusConnect(app: App, root: Group, node: Group, edgeLayer: Group)
       return { x: top.x, topY: top.y };
     });
 
-    const stroke = getActiveDiagram().orgEdge;
+    const stroke =
+      (node.metadata?.orgBranchAccent as string | undefined) ??
+      (children[0]?.metadata?.orgBranchAccent as string | undefined) ??
+      getActiveDiagram().orgEdge;
     const sw = getActiveDiagram().orgEdgeWidth;
     // Always draw filleted elbows (shared stem/bus overdraw is same stroke — looks smooth).
     const { elbows } = mermaidOrgBusPaths(parentPt.x, parentPt.y, childPts, 12);
@@ -470,13 +473,15 @@ function walkOrgBusConnect(app: App, root: Group, node: Group, edgeLayer: Group)
     const fromId = (node.metadata?.diagramId ?? node.metadata?.orgName) as string;
     for (const child of children) {
       const toId = (child.metadata?.diagramId ?? child.metadata?.orgName) as string;
+      const childStroke =
+        (child.metadata?.orgBranchAccent as string | undefined) ?? stroke;
       const stub = app.group({ listening: false }) as Group;
       stub.metadata.edgeFrom = fromId;
       stub.metadata.edgeTo = toId;
       stub.metadata.edgeId = `org_${fromId}_${toId}`;
       stub.metadata.edgeStyle = 'orthogonal';
       stub.metadata.edgeArrowEnd = 'none';
-      stub.metadata.edgeStroke = stroke;
+      stub.metadata.edgeStroke = childStroke;
       stub.metadata.edgeStrokeWidth = sw;
       edgeLayer.add(stub);
     }

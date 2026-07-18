@@ -61,5 +61,7 @@ export interface DiagramEditorHandle {
   getSelectedEdgeId(): string | null;
   deleteSelectedEdge(): void;
   reroute(): void;
+  /** Clear stale selection chrome after collapse/expand/relayout. */
+  afterStructureChange(): void;
   destroy(): void;
 }

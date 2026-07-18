@@ -480,6 +480,73 @@ body {
     #0d1322;
 }
 
+/*
+ * Full-page diagram studio (not embed): lock shell to the viewport so the canvas
+ * gets a definite flex height. Without this, wrap height follows the canvas
+ * bitmap and ResizeObserver ↔ app.resize loops ("fluid" reflow).
+ */
+html:not(.demo-embed):has(#diagram-canvas-wrap) {
+  height: 100%;
+  overflow: hidden;
+}
+
+html:not(.demo-embed):has(#diagram-canvas-wrap) body {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+html:not(.demo-embed):has(#diagram-canvas-wrap) .demo-shell {
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+html:not(.demo-embed):has(#diagram-canvas-wrap) .demo-header {
+  flex: 0 0 auto;
+}
+
+html:not(.demo-embed):has(#diagram-canvas-wrap) .demo-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+html:not(.demo-embed):has(#diagram-canvas-wrap) .demo-main.pg-has-live-dock {
+  min-height: 0;
+  overflow: hidden;
+}
+
+html:not(.demo-embed):has(#diagram-canvas-wrap) .demo-layout-split {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+  overflow: hidden;
+  grid-template-rows: minmax(0, 1fr);
+  align-items: stretch;
+}
+
+html:not(.demo-embed):has(#diagram-canvas-wrap) .demo-canvas-wrap.demo-canvas-diagram {
+  height: 100%;
+  min-height: 0;
+  max-height: none;
+  align-self: stretch;
+  overflow: hidden;
+}
+
+/* Embed: fill iframe; no viewport lock */
+html.demo-embed .demo-canvas-wrap.demo-canvas-diagram {
+  height: auto;
+  max-height: none;
+  min-height: 0;
+  flex: 1;
+}
+
+html.demo-embed .demo-main.pg-has-live-dock .demo-layout-split {
+  height: 100%;
+}
+
 .demo-canvas-toolbar {
   position: absolute;
   top: 12px;
@@ -813,6 +880,63 @@ html.demo-embed .cluster-status {
   height: clamp(360px, calc(100vh - 280px), 640px);
   min-height: 360px;
   max-height: 640px;
+}
+
+/*
+ * Full-page automotive studio: lock shell to viewport so the cluster canvas
+ * has a definite flex height (avoids ResizeObserver ↔ resize fluid loop).
+ */
+html:not(.demo-embed):has(#view-cluster) {
+  height: 100%;
+  overflow: hidden;
+}
+
+html:not(.demo-embed):has(#view-cluster) body {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+html:not(.demo-embed):has(#view-cluster) .demo-shell {
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+html:not(.demo-embed):has(#view-cluster) .demo-header {
+  flex: 0 0 auto;
+}
+
+html:not(.demo-embed):has(#view-cluster) .demo-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+html:not(.demo-embed):has(#view-cluster) .demo-main.pg-has-live-dock {
+  min-height: 0;
+  overflow: hidden;
+}
+
+html:not(.demo-embed):has(#view-cluster) #view-cluster {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+html:not(.demo-embed):has(#view-cluster) #view-cluster .demo-canvas-wrap {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  overflow: hidden;
+}
+
+html:not(.demo-embed):has(#view-cluster) .chart-catalog-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
 }
 
 /* With a live code dock, canvas must flex into remaining space — not 100vh clamps */

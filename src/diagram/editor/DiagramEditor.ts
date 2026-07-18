@@ -16,6 +16,16 @@ import type { DiagramEditorHandle, DiagramEditorOptions, DiagramEditorTool } fro
 const HANDLE = 9;
 const BEND_R = 6;
 
+/** True if this node and every ancestor is visible. */
+function isEffectivelyVisible(node: Node): boolean {
+  let cur: Node | null = node;
+  while (cur) {
+    if (cur.visible === false) return false;
+    cur = cur.parent;
+  }
+  return true;
+}
+
 function resolveEditorFlags(options: DiagramEditorOptions): {
   allowLabelEdit: boolean;
   allowResize: boolean;
@@ -110,6 +120,36 @@ export class DiagramEditor implements DiagramEditorHandle {
 
   getSelectedNodeId(): string | null {
     return this.selectedId;
+  }
+
+  /**
+   * After org collapse/expand (or any relayout that hides nodes): drop selection
+   * chrome for hidden nodes so the dotted border doesn't linger in empty space.
+   */
+  afterStructureChange(): void {
+    if (this.destroyed) return;
+    if (this.selectedId) {
+      const node = findNodeByDiagramId(this.root, this.selectedId);
+      if (!node || !isEffectivelyVisible(node)) {
+        this.selectedId = null;
+      }
+    }
+    if (this.selectedEdgeId) {
+      const edgeLayer = findEdgeLayer(this.root);
+      const edges = edgeLayer ? collectEdgesFromLayer(edgeLayer) : [];
+      const edge = edges.find((e) => e.id === this.selectedEdgeId);
+      if (!edge) {
+        this.selectedEdgeId = null;
+      } else {
+        const from = findNodeByDiagramId(this.root, edge.from);
+        const to = findNodeByDiagramId(this.root, edge.to);
+        if (!from || !to || !isEffectivelyVisible(from) || !isEffectivelyVisible(to)) {
+          this.selectedEdgeId = null;
+        }
+      }
+    }
+    this.refreshOverlay();
+    this.app.requestRender();
   }
 
   reroute(): void {
@@ -333,7 +373,11 @@ export class DiagramEditor implements DiagramEditorHandle {
     }
     if (!this.selectedId) return;
     const node = findNodeByDiagramId(this.root, this.selectedId);
-    if (!node) return;
+    // Don't leave a dotted selection box in blank space after minimize
+    if (!node || !isEffectivelyVisible(node)) {
+      this.selectedId = null;
+      return;
+    }
 
     const pos = (() => {
       let x = 0;

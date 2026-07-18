@@ -455,6 +455,125 @@ export interface OrgNodeOptions {
   childCount?: number;
   collapsed?: boolean;
   depth?: number;
+  /** Branch grouping color (inherited by sub-branches) */
+  branchStyle?: { fill: string; stroke: string; accent: string };
+}
+
+/** Resolve executive vs branch/sub-branch grouping colors. */
+export function resolveOrgBranchStyle(
+  depth: number,
+  branchIndex: number | null | undefined
+): { fill: string; stroke: string; accent: string } {
+  const d = getActiveDiagram();
+  if (depth <= 0 || branchIndex == null || branchIndex < 0) {
+    return { ...d.orgTier[0] };
+  }
+  const palette = d.orgBranchPalette;
+  const base = palette[branchIndex % palette.length];
+  // Depth-1 teams: full branch color. Sub-branches inherit the same accent/stroke
+  // so the whole tree reads as one color group; fill softens slightly with depth.
+  if (depth === 1) return { ...base };
+  return {
+    fill: d.orgTier[Math.min(depth, d.orgTier.length - 1)]?.fill ?? base.fill,
+    stroke: base.stroke,
+    accent: base.accent,
+  };
+}
+
+/** Count every org node under `node` (all descendants, not just direct children). */
+export function countOrgDescendants(node: Group): number {
+  let total = 0;
+  for (const child of node.children) {
+    if (!child.metadata?.orgNode) continue;
+    total += 1 + countOrgDescendants(child as Group);
+  }
+  return total;
+}
+
+/** Draw professional minimize (−) / maximize (+) control; shows total subtree size. */
+export function drawOrgCollapseGlyph(
+  app: App,
+  btn: Group,
+  collapsed: boolean,
+  count: number
+): void {
+  const style = collapsed
+    ? getActiveDiagram().orgToggleCollapsed
+    : getActiveDiagram().orgToggleExpanded;
+
+  for (const child of [...btn.children]) {
+    btn.remove(child);
+    child.destroy();
+  }
+
+  const n = Math.max(0, Math.floor(count));
+  const shown = n > 99 ? '99' : String(n);
+  const label = collapsed ? `+${shown}` : `−${shown}`;
+  const height = 20;
+  const width = n > 9 ? 30 : 24;
+  btn.metadata.orgCollapseCount = n;
+
+  btn.add(
+    app.roundedRect({
+      x: 0,
+      y: 0,
+      width,
+      height,
+      cornerRadius: 6,
+      fill: style.fill,
+      stroke: style.stroke,
+      strokeWidth: 1.4,
+      listening: true,
+    })
+  );
+  btn.add(
+    app.roundedRect({
+      x: 1,
+      y: 1,
+      width: width - 2,
+      height: height - 2,
+      cornerRadius: 5,
+      fill: null,
+      stroke: 'rgba(255,255,255,0.12)',
+      strokeWidth: 1,
+      listening: false,
+    })
+  );
+
+  btn.add(
+    app.text({
+      text: label,
+      x: n > 9 ? 3 : 4.5,
+      y: 3.5,
+      fontSize: n > 9 ? 9 : 10,
+      fontWeight: '700',
+      fontFamily: getActiveDiagram().fontFamily,
+      fill: style.glyph,
+      listening: false,
+    })
+  );
+}
+
+/** Refresh minimize/maximize button after toggle (count = total descendants). */
+export function updateOrgCollapseButton(node: Group, collapsed: boolean): void {
+  const btn = node.metadata?.collapseButton as Group | undefined;
+  const app = node.getApp();
+  if (!btn || !app) return;
+  const live = countOrgDescendants(node);
+  const count =
+    live > 0
+      ? live
+      : typeof node.metadata?.descendantCount === 'number'
+        ? (node.metadata.descendantCount as number)
+        : ((node.metadata?.childCount as number) ?? 0);
+  node.metadata.descendantCount = count;
+  // Keep button flush to the card corner as width changes with digit count
+  const cardW = (node.metadata?.orgCardWidth as number) ?? 138;
+  const cardH = (node.metadata?.orgCardHeight as number) ?? 0;
+  const btnW = count > 9 ? 30 : 24;
+  btn.x = cardW - btnW - 6;
+  if (cardH > 0) btn.y = cardH - 26;
+  drawOrgCollapseGlyph(app, btn, collapsed, count);
 }
 
 /** Build a circular SVG avatar data-URI from initials (offline-safe fallback). */
@@ -486,7 +605,7 @@ export function createOrgNode(
   childCount = 0,
   collapsed = false,
   depth = 0
-): { node: Group; indicator?: ReturnType<App['text']> } {
+): { node: Group; indicator?: Group } {
   const opts: OrgNodeOptions =
     typeof nameOrOpts === 'string'
       ? { name: nameOrOpts, role, childCount, collapsed, depth }
@@ -505,9 +624,12 @@ export function createOrgNode(
     childCount: kids = 0,
     collapsed: isCollapsed = false,
     depth: level = 0,
+    branchStyle,
   } = opts;
 
-  const tier = getActiveDiagram().orgTier[Math.min(level, getActiveDiagram().orgTier.length - 1)];
+  const tier =
+    branchStyle ??
+    getActiveDiagram().orgTier[Math.min(level, getActiveDiagram().orgTier.length - 1)];
   const hasDept = Boolean(department);
   const width = 138;
   const photoR = 26;
@@ -517,6 +639,8 @@ export function createOrgNode(
   const node = app.group();
   node.metadata.orgCardWidth = width;
   node.metadata.orgCardHeight = height;
+  node.metadata.orgBranchStroke = tier.stroke;
+  node.metadata.orgBranchAccent = tier.accent;
 
   node.add(
     app.roundedRect({
@@ -527,6 +651,18 @@ export function createOrgNode(
       stroke: tier.stroke,
       strokeWidth: 1.5,
       shadow: getActiveDiagram().orgCardShadow,
+      listening: false,
+    })
+  );
+  // Branch accent bar (grouping cue)
+  node.add(
+    app.rect({
+      x: 0,
+      y: 0,
+      width,
+      height: 3,
+      fill: tier.accent,
+      stroke: null,
       listening: false,
     })
   );
@@ -625,7 +761,7 @@ export function createOrgNode(
       x: width / 2 - 3.5,
       y: height - 3.5,
       radius: 3.5,
-      fill: getActiveDiagram().orgEdge,
+      fill: tier.accent,
       stroke: getActiveDiagram().surface,
       strokeWidth: 1.25,
       listening: false,
@@ -634,31 +770,20 @@ export function createOrgNode(
 
   let indicator;
   if (kids > 0) {
-    const bx = width - 22;
-    const by = height - 22;
-    node.add(
-      app.roundedRect({
-        x: bx,
-        y: by,
-        width: 16,
-        height: 16,
-        cornerRadius: 4,
-        fill: getActiveDiagram().orgToggleBg,
-        stroke: tier.stroke,
-        strokeWidth: 1,
-        listening: false,
-      })
-    );
-    indicator = app.text({
-      text: isCollapsed ? `+${kids}` : '−',
-      x: bx + 3.5,
-      y: by + 2,
-      fontSize: getActiveDiagram().fontSize.xs,
-      fontWeight: 'bold',
-      fontFamily: getActiveDiagram().fontFamily,
-      fill: getActiveDiagram().orgToggle,
-    });
-    node.add(indicator);
+    const btnW = kids > 9 ? 30 : 24;
+    const bx = width - btnW - 6;
+    const by = height - 26;
+    const btn = app.group({
+      x: bx,
+      y: by,
+      listening: true,
+      zIndex: 20,
+    }) as Group;
+    btn.metadata.orgCollapseBtn = true;
+    drawOrgCollapseGlyph(app, btn, isCollapsed, kids);
+    node.add(btn);
+    node.metadata.collapseButton = btn;
+    indicator = btn;
   }
   return { node, indicator };
 }

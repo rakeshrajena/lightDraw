@@ -154,6 +154,19 @@ export const DIAGRAM = {
     { fill: '#1e293b', stroke: '#6366f1', accent: '#818cf8' },
     { fill: '#1a2332', stroke: '#64748b', accent: '#94a3b8' },
   ] as const,
+  /** Branch / sub-branch grouping colors (top-level teams inherit to descendants) */
+  orgBranchPalette: [
+    { fill: '#1e3a5f', stroke: '#3b82f6', accent: '#60a5fa' },
+    { fill: '#1e1b4b', stroke: '#818cf8', accent: '#a5b4fc' },
+    { fill: '#14532d', stroke: '#22c55e', accent: '#4ade80' },
+    { fill: '#3b0764', stroke: '#a855f7', accent: '#c084fc' },
+    { fill: '#422006', stroke: '#f59e0b', accent: '#fbbf24' },
+    { fill: '#164e63', stroke: '#06b6d4', accent: '#22d3ee' },
+  ] as const,
+  /** Minimize control (branch expanded — click to collapse) */
+  orgToggleExpanded: { fill: '#1e293b', stroke: '#64748b', glyph: '#e2e8f0' },
+  /** Maximize control (branch collapsed — click to expand) */
+  orgToggleCollapsed: { fill: '#1e3a5f', stroke: '#3b82f6', glyph: '#93c5fd' },
   orgToggle: '#cbd5e1',
   orgToggleBg: '#243044',
   orgRole: '#94a3b8',

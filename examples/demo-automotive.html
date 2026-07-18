@@ -84,6 +84,7 @@
     const widgetMounts = [];
     let lastClusterSize = { w: 0, h: 0 };
     let clusterResizeTimer = 0;
+    let clusterQuietUntil = 0;
 
     function clusterWrapSize() {
       const wrap = document.querySelector('#view-cluster .demo-canvas-wrap');
@@ -91,14 +92,15 @@
       const w = wrap.clientWidth;
       const h = wrap.clientHeight;
       return {
-        w: Math.max(320, w),
-        h: Math.max(200, h),
+        w: Math.max(320, Math.floor(w)),
+        h: Math.max(200, Math.floor(h)),
       };
     }
 
     function applyClusterCanvasSize(w, h) {
       const size = clusterApp.getSize?.() ?? { width: 0, height: 0 };
-      if (size.width === w && size.height === h) return;
+      if (Math.abs(size.width - w) < 2 && Math.abs(size.height - h) < 2) return;
+      clusterQuietUntil = Date.now() + 280;
       clusterApp.resize(w, h);
     }
 
@@ -163,7 +165,6 @@
       cluster = clusterApp.stage.children[0];
       clusterApp.render();
       syncCallChrome();
-      mountClusterPlayground();
       if (window.LivePlayground) LivePlayground.syncScene(true);
     }
 
@@ -185,10 +186,11 @@
     }
 
     function syncClusterSize() {
+      if (Date.now() < clusterQuietUntil) return;
       if (document.getElementById('view-cluster')?.hidden) return;
       const { w, h } = clusterWrapSize();
       if (w < 100 || h < 100) return;
-      if (Math.abs(lastClusterSize.w - w) < 2 && Math.abs(lastClusterSize.h - h) < 2) return;
+      if (Math.abs(lastClusterSize.w - w) < 3 && Math.abs(lastClusterSize.h - h) < 3) return;
       lastClusterSize = { w, h };
 
       const theme = document.getElementById('theme')?.value || 'classic';
@@ -205,8 +207,9 @@
     }
 
     function scheduleClusterResize() {
+      if (Date.now() < clusterQuietUntil) return;
       clearTimeout(clusterResizeTimer);
-      clusterResizeTimer = setTimeout(syncClusterSize, 120);
+      clusterResizeTimer = setTimeout(syncClusterSize, 200);
     }
 
     function initClusterLayoutWatch() {
@@ -214,8 +217,15 @@
       if (!wrap) return;
 
       const bootCluster = () => {
-        const theme = document.getElementById('theme')?.value || 'classic';
-        if (!cluster) loadCluster(theme);
+        // Dock first so remaining height is final, then one cluster paint
+        mountClusterPlayground();
+        clusterQuietUntil = Date.now() + 400;
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            const theme = document.getElementById('theme')?.value || 'classic';
+            if (!cluster) loadCluster(theme);
+          });
+        });
       };
 
       if (typeof ResizeObserver !== 'undefined') {
@@ -228,7 +238,7 @@
 
       window.addEventListener('resize', scheduleClusterResize);
 
-      const start = () => setTimeout(bootCluster, 160);
+      const start = () => setTimeout(bootCluster, 50);
       if (document.readyState === 'complete') start();
       else window.addEventListener('load', start, { once: true });
     }

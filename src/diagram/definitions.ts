@@ -7,6 +7,7 @@ import {
   applyPositions,
   autoLayoutNodesResponsive,
   createDiagramGroup,
+  fitDiagramToBounds,
   measureTextWidth,
   normalizeDiagramData,
   readCanvasSize,
@@ -21,6 +22,9 @@ import {
   createPipelineStage,
   createStateNode,
   createCanEcuNode,
+  countOrgDescendants,
+  resolveOrgBranchStyle,
+  updateOrgCollapseButton,
 } from './primitives';
 import {
   forceDirectedLayout,
@@ -405,14 +409,24 @@ export function createOrgChart(
 ): Group {
   const group = createDiagramGroup(app, 'orgChart', { ...options, root }, { name: 'orgChart' });
   const canvas = readCanvasSize(options as Record<string, unknown>);
+  const levelGap = Math.max(120, Math.round(canvas.height * 0.22));
+  const siblingGap = Math.max(28, Math.round(canvas.width * 0.04));
+  group.metadata.orgLayout = { levelGap, siblingGap };
   const rootNode = buildOrgNode(app, group, root, 0, 0, 0);
-  layoutDiagram(
-    rootNode,
-    Math.max(120, Math.round(canvas.height * 0.22)),
-    Math.max(28, Math.round(canvas.width * 0.04))
-  );
+  layoutDiagram(rootNode, levelGap, siblingGap);
   wireOrgChartConnectors(app, group);
+  wireOrgCollapseControls(app, group);
   return group;
+}
+
+/** Total nodes under this org data node (all descendants). */
+function countOrgDataDescendants(data: OrgChartNode): number {
+  if (!data.children?.length) return 0;
+  let total = 0;
+  for (const child of data.children) {
+    total += 1 + countOrgDataDescendants(child);
+  }
+  return total;
 }
 
 function buildOrgNode(
@@ -421,32 +435,57 @@ function buildOrgNode(
   data: OrgChartNode,
   x: number,
   y: number,
-  depth: number
+  depth: number,
+  branchIndex: number | null = null
 ): Group {
   const childCount = data.children?.length ?? 0;
+  const descendantCount = countOrgDataDescendants(data);
   const collapsed = data.collapsed ?? false;
+  const style = resolveOrgBranchStyle(depth, branchIndex);
   const { node, indicator } = createOrgNode(app, {
     name: data.name,
     role: data.role,
     image: data.image,
     department: data.department,
-    childCount,
+    // Button uses total subtree size, not just direct children
+    childCount: descendantCount,
     collapsed,
     depth,
+    branchStyle: style,
   });
   node.metadata.diagramId = data.name;
   node.metadata.orgName = data.name;
   node.x = x;
   node.y = y;
-  node.metadata = { ...node.metadata, orgNode: true, collapsed, childCount };
+  node.metadata = {
+    ...node.metadata,
+    orgNode: true,
+    collapsed,
+    childCount,
+    descendantCount,
+    orgBranchIndex: branchIndex,
+    orgChildrenData: data.children ?? [],
+  };
 
   if (indicator) {
     node.metadata.collapseIndicator = indicator;
   }
 
-  if (data.children && data.children.length > 0 && !collapsed) {
-    for (const child of data.children) {
-      buildOrgNode(app, node, child, 0, 0, depth + 1);
+  if (data.children && data.children.length > 0) {
+    data.children.forEach((child, i) => {
+      // Top-level teams get distinct branch colors; deeper nodes inherit
+      const childBranch = depth === 0 ? i : branchIndex;
+      const childNode = buildOrgNode(app, node, child, 0, 0, depth + 1, childBranch);
+      if (collapsed) childNode.visible = false;
+    });
+  }
+
+  // Prefer live tree count after children are attached (stays accurate if tree mutates)
+  if (descendantCount > 0) {
+    const live = countOrgDescendants(node);
+    node.metadata.descendantCount = live;
+    if (node.metadata.collapseButton) {
+      updateOrgCollapseButton(node, collapsed);
     }
   }
 
@@ -454,36 +493,86 @@ function buildOrgNode(
   return node;
 }
 
-/** Toggle org chart node collapse state */
+function findOrgChartRoot(node: Node): Group | null {
+  let cur: Node | null = node;
+  while (cur) {
+    if (cur.metadata?.diagramType === 'orgChart') return cur as Group;
+    cur = cur.parent;
+  }
+  return null;
+}
+
+/** Wire click handlers on minimize/expand buttons. */
+export function wireOrgCollapseControls(app: App, root: Group): void {
+  const walk = (parent: Group): void => {
+    for (const child of parent.children) {
+      if (!('children' in child)) continue;
+      const g = child as Group;
+      if (g.metadata?.orgNode) {
+        const btn = (g.metadata.collapseButton as Group | undefined)
+          ?? g.children.find((c) => c.metadata?.orgCollapseBtn);
+        if (btn && !btn.metadata?.orgCollapseWired) {
+          const onDown = (e: { stopPropagation: () => void }) => {
+            e.stopPropagation();
+          };
+          const onClick = (e: { stopPropagation: () => void }) => {
+            e.stopPropagation();
+            toggleOrgCollapse(g);
+            app.requestRender();
+          };
+          btn.on('mousedown', onDown as never);
+          btn.on('click', onClick as never);
+          btn.metadata.orgCollapseWired = true;
+          btn.listening = true;
+        }
+        // Keep collapse control above the editor hit target
+        if (btn && btn.parent === g) {
+          g.remove(btn);
+          g.add(btn);
+        }
+      }
+      if (g.children?.length) walk(g);
+    }
+  };
+  walk(root);
+}
+
+/** Toggle org chart branch collapse — hide/show children, relayout, rewire. */
 export function toggleOrgCollapse(node: Node): void {
   if (!node.metadata?.orgNode) return;
+  const group = node as Group;
   const collapsed = !node.metadata.collapsed;
   node.metadata.collapsed = collapsed;
   setDiagramState(node, { collapsed });
 
-  const children = (node as Group).children.filter(
-    (c) => c.metadata?.orgNode && c !== node.metadata.collapseIndicator
-  );
+  const children = group.children.filter((c) => c.metadata?.orgNode);
   for (const child of children) {
     child.visible = !collapsed;
+    child.markDirty();
   }
 
-  const indicator = node.metadata.collapseIndicator as Node | undefined;
-  if (indicator && 'text' in indicator) {
-    (indicator as { text: string }).text = collapsed
-      ? `+${node.metadata.childCount}`
-      : '−';
-  }
+  updateOrgCollapseButton(group, collapsed);
 
-  // Rewire bus connectors so collapsed branches do not leave orphan wires
-  let root: Node | null = node;
-  while (root?.parent) {
-    root = root.parent;
-    if (root.metadata?.diagramType === 'orgChart') break;
-  }
+  const root = findOrgChartRoot(node);
   const app = node.getApp();
-  if (app && root && root.metadata?.diagramType === 'orgChart') {
-    wireOrgChartConnectors(app, root as Group);
+  if (root && app) {
+    const layout = (root.metadata?.orgLayout as { levelGap?: number; siblingGap?: number }) ?? {};
+    const levelGap = layout.levelGap ?? 120;
+    const siblingGap = layout.siblingGap ?? 28;
+    for (const orgRoot of root.children.filter((c) => c.metadata?.orgNode)) {
+      layoutDiagram(orgRoot as Group, levelGap, siblingGap);
+    }
+    wireOrgChartConnectors(app, root);
+    wireOrgCollapseControls(app, root);
+    const canvas = readCanvasSize((root.metadata?.diagramState as Record<string, unknown>) ?? {});
+    if (canvas.width > 0 && canvas.height > 0) {
+      fitDiagramToBounds(root, canvas.width, canvas.height, 24);
+    }
+    // Clear dotted selection chrome for nodes now hidden under a minimized branch
+    const editor = root.metadata?.diagramEditor as
+      | { afterStructureChange?: () => void }
+      | undefined;
+    editor?.afterStructureChange?.();
   }
   node.markDirty();
 }

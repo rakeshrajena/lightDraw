@@ -11,6 +11,7 @@ export {
   createPipeline,
   toggleOrgCollapse,
   applyForceLayout,
+  wireOrgCollapseControls,
 } from './definitions';
 
 export {
@@ -67,6 +68,7 @@ import {
   createCanNetwork,
   createPipeline,
   toggleOrgCollapse,
+  wireOrgCollapseControls,
 } from './definitions';
 import { forceDirectedLayout, layoutDiagram } from './layouts';
 import { fitDiagramToBounds } from './helpers';
@@ -90,6 +92,7 @@ export const Diagram = {
   route: routeConnector,
   forceLayout: forceDirectedLayout,
   toggleCollapse: toggleOrgCollapse,
+  wireOrgCollapse: wireOrgCollapseControls,
   fitToBounds: fitDiagramToBounds,
   installEditor: installDiagramEditor,
   uninstallEditor: uninstallDiagramEditor,

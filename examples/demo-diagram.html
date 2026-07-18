@@ -27,7 +27,6 @@
           <div class="demo-diagram-group">
             <h2>Systems</h2>
             <button type="button" class="demo-btn secondary" data-diagram="network" onclick="pick(this, 'network')">Network</button>
-            <button type="button" class="demo-btn secondary" data-diagram="networkCatalog" onclick="pick(this, 'networkCatalog')">Icon Catalog</button>
             <button type="button" class="demo-btn secondary" data-diagram="can" onclick="pick(this, 'can')">CAN Bus</button>
             <button type="button" class="demo-btn secondary" data-diagram="schematic" onclick="pick(this, 'schematic')">Schematic</button>
           </div>
@@ -51,7 +50,7 @@
             <button type="button" class="demo-zoom-btn demo-zoom-fit" id="zoom-fit" title="Fit to view" aria-label="Fit to view">Fit</button>
           </div>
           <div id="app"></div>
-          <p class="demo-canvas-hint">Drag to move. Select a node → drag white edge/corner handles to resize. Double-click a wire for bends. Zoom + / −.</p>
+          <p class="demo-canvas-hint">Drag to move. Select a node → resize handles. Org chart: click − / + to minimize a branch. Double-click a wire for bends.</p>
         </div>
       </div>
     </main>
@@ -84,11 +83,6 @@
         title: 'Network Topology',
         desc: 'Standard Cisco/Visio-style icons — routers, firewalls, servers, cloud, IoT, and more.',
       },
-      networkCatalog: {
-        category: 'Systems',
-        title: 'Network Icon Catalog',
-        desc: 'Full library of global-standard network device icons by category.',
-      },
       can: {
         category: 'Systems',
         title: 'CAN Bus',
@@ -112,14 +106,16 @@
       org: {
         category: 'Structure',
         title: 'Org Chart',
-        desc: 'Classic hierarchy cards with optional photos, roles, and professional bus connectors.',
+        desc: 'Hierarchy cards with photos. Click − / + on a card to minimize or expand that branch.',
       },
     };
 
     function measureCanvas() {
-      const rect = canvasWrap.getBoundingClientRect();
-      canvasW = Math.max(320, Math.floor(rect.width - 8));
-      canvasH = Math.max(280, Math.floor(rect.height - 8));
+      // clientWidth/Height avoid subpixel getBoundingClientRect flicker loops
+      const w = canvasWrap.clientWidth || canvasWrap.getBoundingClientRect().width;
+      const h = canvasWrap.clientHeight || canvasWrap.getBoundingClientRect().height;
+      canvasW = Math.max(320, Math.floor(w - 8));
+      canvasH = Math.max(280, Math.floor(h - 8));
       return { width: canvasW, height: canvasH };
     }
 
@@ -245,8 +241,6 @@
             { from: 'cloud', to: 'fw', label: 'VPN' },
           ],
         }, diagramOpts()),
-      networkCatalog: () =>
-        LightDraw.Diagram.networkCatalog(app, diagramOpts({ columns: 8 })),
       can: () =>
         LightDraw.Diagram.canNetwork(
           app,
@@ -400,6 +394,22 @@
       LightDraw.Diagram.fitToBounds(currentGroup, canvasW, canvasH, 24);
     }
 
+    /** Resize canvas only — do not rebuild the scene (prevents fluid reflow loops). */
+    let resizeQuietUntil = 0;
+    function handleCanvasResize() {
+      if (Date.now() < resizeQuietUntil) return;
+      const prevW = canvasW;
+      const prevH = canvasH;
+      measureCanvas();
+      if (Math.abs(canvasW - prevW) < 3 && Math.abs(canvasH - prevH) < 3) return;
+      // Ignore observer feedback while we apply the new bitmap size
+      resizeQuietUntil = Date.now() + 250;
+      app.resize(canvasW, canvasH);
+      if (!currentGroup) return;
+      fitCurrentDiagram();
+      app.render();
+    }
+
     function pick(btn, name) {
       document.querySelectorAll('[data-diagram]').forEach((b) => b.classList.remove('is-active'));
       btn.classList.add('is-active');
@@ -414,6 +424,7 @@
         currentEditor.destroy();
         currentEditor = null;
       }
+      resizeQuietUntil = Date.now() + 250;
       app.resize(canvasW, canvasH);
       resetCamera();
       app.stage.clear();
@@ -440,9 +451,14 @@
     });
     updateZoomLabel();
 
+    let resizeRaf = 0;
     function scheduleResize() {
+      if (Date.now() < resizeQuietUntil) return;
       clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(() => showDiagram(currentDiagram), 120);
+      resizeTimer = setTimeout(() => {
+        cancelAnimationFrame(resizeRaf);
+        resizeRaf = requestAnimationFrame(handleCanvasResize);
+      }, 200);
     }
 
     if (typeof ResizeObserver !== 'undefined') {
@@ -451,7 +467,7 @@
     window.addEventListener('resize', scheduleResize);
 
     const boot = () => {
-      showDiagram('flowchart');
+      // Mount dock first so layout height is final before first diagram paint
       LivePlayground.mount({
         app: () => app,
         panes: ['scene', 'snippet'],
@@ -486,6 +502,10 @@
           );
           runner(LightDraw, app, showDiagram, samples);
         },
+      });
+      resizeQuietUntil = Date.now() + 400;
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => showDiagram('flowchart'));
       });
     };
     if (document.readyState === 'complete') boot();
