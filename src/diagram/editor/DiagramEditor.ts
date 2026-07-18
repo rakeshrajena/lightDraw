@@ -10,9 +10,10 @@ import { collectEditableNodes, collectEdgesFromLayer, findEdgeLayer, findNodeByD
 import { attachEdgeHitTarget, edgeAnchorPoint } from './edgeWiring';
 import { showLabelEditor } from './labelEdit';
 import { rerouteDiagramEdges, syncEdgesToState, syncPositionsToState } from './reroute';
+import { applyAnchoredResize, RESIZE_HANDLES, type ResizeHandleId } from './resize';
 import type { DiagramEditorHandle, DiagramEditorOptions, DiagramEditorTool } from './types';
 
-const HANDLE = 8;
+const HANDLE = 9;
 const BEND_R = 6;
 
 function resolveEditorFlags(options: DiagramEditorOptions): {
@@ -24,7 +25,8 @@ function resolveEditorFlags(options: DiagramEditorOptions): {
   const arrange = options.mode === 'arrange';
   return {
     allowLabelEdit: options.allowLabelEdit ?? !arrange,
-    allowResize: options.allowResize ?? !arrange,
+    // Resize from edges/corners is available in arrange mode too
+    allowResize: options.allowResize ?? true,
     allowConnect: options.allowConnect ?? !arrange,
     allowBendPoints: options.allowBendPoints ?? true,
   };
@@ -673,21 +675,33 @@ export class DiagramEditor implements DiagramEditorHandle {
   }
 
   private addResizeHandles(node: Group, x: number, y: number, w: number, h: number): void {
-    const corners = [
-      { cx: x, cy: y },
-      { cx: x + w, cy: y },
-      { cx: x + w, cy: y + h },
-      { cx: x, cy: y + h },
-    ];
-    const baseW = (node.metadata.editorBaseW as number) ?? w;
-    const baseH = (node.metadata.editorBaseH as number) ?? h;
-    const baseSx = (node.metadata.editorBaseScaleX as number) ?? 1;
-    const baseSy = (node.metadata.editorBaseScaleY as number) ?? 1;
+    const cardW = ((node.metadata?.orgCardWidth ?? node.metadata?.diagramCardWidth) as
+      | number
+      | undefined) ?? (node.metadata.editorBaseW as number) ?? w;
+    const cardH = ((node.metadata?.orgCardHeight ?? node.metadata?.diagramCardHeight) as
+      | number
+      | undefined) ?? (node.metadata.editorBaseH as number) ?? h;
+    const safeCardW = Math.max(cardW, 1);
+    const safeCardH = Math.max(cardH, 1);
 
-    for (const c of corners) {
+    // Visual box in diagram-local space (accounts for fitToBounds via stage↔local)
+    const startLocal = this.stageToRootLocal(x, y);
+    const startBR = this.stageToRootLocal(x + w, y + h);
+    const startBox = {
+      x: startLocal.x,
+      y: startLocal.y,
+      width: Math.max(startBR.x - startLocal.x, 1),
+      height: Math.max(startBR.y - startLocal.y, 1),
+    };
+    const startNodeX = node.x;
+    const startNodeY = node.y;
+
+    for (const spec of RESIZE_HANDLES) {
+      const hx = x + w * spec.u;
+      const hy = y + h * spec.v;
       const handle = this.app.rect({
-        x: c.cx - HANDLE / 2,
-        y: c.cy - HANDLE / 2,
+        x: hx - HANDLE / 2,
+        y: hy - HANDLE / 2,
         width: HANDLE,
         height: HANDLE,
         fill: '#fff',
@@ -697,23 +711,35 @@ export class DiagramEditor implements DiagramEditorHandle {
         cornerRadius: 2,
       });
       handle.metadata.diagramEditorOverlay = true;
+      handle.metadata.resizeHandle = spec.id;
       this.overlay.add(handle);
 
-      wirePointerDrag(handle, (worldX, worldY) => {
-        const cx = x + w / 2;
-        const cy = y + h / 2;
-        const halfW = Math.max(20, Math.abs(worldX - cx) * 2);
-        const halfH = Math.max(16, Math.abs(worldY - cy) * 2);
-        node.scaleX = Math.max(0.4, Math.min(3, (halfW / baseW) * baseSx));
-        node.scaleY = Math.max(0.4, Math.min(3, (halfH / baseH) * baseSy));
-        rerouteDiagramEdges(this.app, this.root);
-        this.refreshOverlay();
-        this.app.requestRender();
-      }, () => {
-        syncPositionsToState(this.root);
-        this.wireEdges();
-        this.emitChange();
-      });
+      const handleId = spec.id as ResizeHandleId;
+      wirePointerDrag(
+        handle,
+        (worldX, worldY) => {
+          const local = this.stageToRootLocal(worldX, worldY);
+          const next = applyAnchoredResize(startBox, handleId, local.x, local.y);
+          const scaleX = Math.max(0.35, Math.min(4, next.width / safeCardW));
+          const scaleY = Math.max(0.35, Math.min(4, next.height / safeCardH));
+          node.scaleX = scaleX;
+          node.scaleY = scaleY;
+          // Keep the anchored edge/corner fixed by shifting the node
+          node.x = startNodeX + (next.x - startBox.x);
+          node.y = startNodeY + (next.y - startBox.y);
+          node.markDirty();
+          rerouteDiagramEdges(this.app, this.root);
+          this.refreshOverlay();
+          this.app.requestRender();
+        },
+        () => {
+          syncPositionsToState(this.root);
+          this.wireEdges();
+          this.refreshOverlay();
+          this.emitChange();
+          this.app.requestRender();
+        }
+      );
     }
   }
 

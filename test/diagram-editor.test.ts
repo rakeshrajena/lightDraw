@@ -132,6 +132,14 @@ describe('Diagram editor', () => {
     expect(editor.getTool()).toBe('select');
     const nodes = collectEditableNodes(diagram);
     expect(nodes.every((n) => n.draggable)).toBe(true);
+    editor.selectNode('a');
+    app.render();
+    const overlay = app.stage.children.find((c) => c.metadata?.diagramEditorOverlay) as
+      | { children: Array<{ metadata?: Record<string, unknown> }> }
+      | undefined;
+    const resizeHandles =
+      overlay?.children.filter((c) => typeof c.metadata?.resizeHandle === 'string') ?? [];
+    expect(resizeHandles.length).toBe(8);
     uninstallDiagramEditor(diagram);
     app.destroy();
   });

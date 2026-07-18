@@ -64,17 +64,24 @@ export function positionInParent(node: Node, parent: Group): { x: number; y: num
 
 /** Local content box of a node (card metadata or children AABB), ignoring nested diagram nodes. */
 export function getLocalNodeBox(node: Node): { x: number; y: number; width: number; height: number } {
+  const sx = Number.isFinite(node.scaleX) && node.scaleX !== 0 ? node.scaleX : 1;
+  const sy = Number.isFinite(node.scaleY) && node.scaleY !== 0 ? node.scaleY : 1;
   const card = getDiagramCardSize(node);
-  if (card) return { x: 0, y: 0, width: card.width, height: card.height };
+  if (card) return { x: 0, y: 0, width: card.width * sx, height: card.height * sy };
 
   const group = node as Group;
   if (!Array.isArray(group.children) || group.children.length === 0) {
     const b = node.getBounds();
     // getBounds on leaves is local; on groups it may be world — prefer a safe fallback
     if (node.type !== 'group') {
-      return { x: b.x, y: b.y, width: Math.max(b.width, 24), height: Math.max(b.height, 24) };
+      return {
+        x: b.x * sx,
+        y: b.y * sy,
+        width: Math.max(b.width, 24) * sx,
+        height: Math.max(b.height, 24) * sy,
+      };
     }
-    return { x: 0, y: 0, width: 40, height: 32 };
+    return { x: 0, y: 0, width: 40 * sx, height: 32 * sy };
   }
 
   let minX = Infinity;
@@ -106,8 +113,13 @@ export function getLocalNodeBox(node: Node): { x: number; y: number; width: numb
     maxX = Math.max(maxX, child.x + cb.x + Math.max(cb.width, 1));
     maxY = Math.max(maxY, child.y + cb.y + Math.max(cb.height, 1));
   }
-  if (!Number.isFinite(minX)) return { x: 0, y: 0, width: 40, height: 32 };
-  return { x: minX, y: minY, width: Math.max(maxX - minX, 24), height: Math.max(maxY - minY, 24) };
+  if (!Number.isFinite(minX)) return { x: 0, y: 0, width: 40 * sx, height: 32 * sy };
+  return {
+    x: minX * sx,
+    y: minY * sy,
+    width: Math.max(maxX - minX, 24) * sx,
+    height: Math.max(maxY - minY, 24) * sy,
+  };
 }
 
 /** Node content box in a parent group's local coordinates (drag-safe). */

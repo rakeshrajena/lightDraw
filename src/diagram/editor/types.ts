@@ -24,12 +24,15 @@ export interface DiagramEditorOptions {
   /**
    * Interaction mode:
    * - `edit` — full editor (labels, resize, connect, edge delete)
-   * - `arrange` — drag nodes only; wires follow; no label/resize/connect editing
+   * - `arrange` — drag + resize nodes; wires follow; no label/connect editing
    */
   mode?: 'edit' | 'arrange';
   /** Allow double-click label editing (default: true unless mode is arrange) */
   allowLabelEdit?: boolean;
-  /** Show resize handles (default: true unless mode is arrange) */
+  /**
+   * Show 8 resize handles (4 edges + 4 corners). Drag outward/inward to grow/shrink.
+   * Default: true
+   */
   allowResize?: boolean;
   /** Allow connect tool / edge rewiring / delete (default: true unless mode is arrange) */
   allowConnect?: boolean;
