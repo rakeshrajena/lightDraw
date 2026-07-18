@@ -110,6 +110,32 @@ describe('Diagram editor', () => {
     app.destroy();
   });
 
+  it('arrange mode enables drag without connect tool', () => {
+    const container = createTestContainer(800, 500);
+    const app = createTestApp(container, { renderer: 'canvas', width: 800, height: 500 });
+    const diagram = createFlowchart(
+      app,
+      {
+        nodes: [
+          { id: 'a', label: 'A', x: 40, y: 40 },
+          { id: 'b', label: 'B', x: 200, y: 40 },
+        ],
+        edges: [{ from: 'a', to: 'b' }],
+      },
+      { width: 800, height: 500 }
+    );
+    app.add(diagram);
+    app.render();
+    const editor = installDiagramEditor(app, diagram, { mode: 'arrange' });
+    expect(editor.getTool()).toBe('select');
+    editor.setTool('connect');
+    expect(editor.getTool()).toBe('select');
+    const nodes = collectEditableNodes(diagram);
+    expect(nodes.every((n) => n.draggable)).toBe(true);
+    uninstallDiagramEditor(diagram);
+    app.destroy();
+  });
+
   it('deletes a selected edge', () => {
     const container = createTestContainer(800, 500);
     const app = createTestApp(container, { renderer: 'canvas', width: 800, height: 500 });

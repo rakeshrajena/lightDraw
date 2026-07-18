@@ -46,6 +46,85 @@ export function getDiagramCardSize(node: Node): { width: number; height: number 
   return null;
 }
 
+/**
+ * Accumulate node.x/y from `node` up to (but not including) `parent`.
+ * Uses live position values — correct during drag even if world matrices are stale.
+ */
+export function positionInParent(node: Node, parent: Group): { x: number; y: number } {
+  let x = 0;
+  let y = 0;
+  let cur: Node | null = node;
+  while (cur && cur !== parent) {
+    x += cur.x;
+    y += cur.y;
+    cur = cur.parent;
+  }
+  return { x, y };
+}
+
+/** Local content box of a node (card metadata or children AABB), ignoring nested diagram nodes. */
+export function getLocalNodeBox(node: Node): { x: number; y: number; width: number; height: number } {
+  const card = getDiagramCardSize(node);
+  if (card) return { x: 0, y: 0, width: card.width, height: card.height };
+
+  const group = node as Group;
+  if (!Array.isArray(group.children) || group.children.length === 0) {
+    const b = node.getBounds();
+    // getBounds on leaves is local; on groups it may be world — prefer a safe fallback
+    if (node.type !== 'group') {
+      return { x: b.x, y: b.y, width: Math.max(b.width, 24), height: Math.max(b.height, 24) };
+    }
+    return { x: 0, y: 0, width: 40, height: 32 };
+  }
+
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const child of group.children) {
+    if (child.metadata?.isDiagramHitTarget) continue;
+    if (child.metadata?.orgNode) continue;
+    if (child.metadata?.diagramEditorOverlay) continue;
+    if (child.visible === false) continue;
+    const cw =
+      (child.metadata?.orgCardWidth as number | undefined) ??
+      (child.metadata?.diagramCardWidth as number | undefined);
+    const ch =
+      (child.metadata?.orgCardHeight as number | undefined) ??
+      (child.metadata?.diagramCardHeight as number | undefined);
+    if (typeof cw === 'number' && typeof ch === 'number') {
+      minX = Math.min(minX, child.x);
+      minY = Math.min(minY, child.y);
+      maxX = Math.max(maxX, child.x + cw);
+      maxY = Math.max(maxY, child.y + ch);
+      continue;
+    }
+    if (child.type === 'group' && (child as Group).children?.length) continue;
+    const cb = child.getBounds();
+    minX = Math.min(minX, child.x + cb.x);
+    minY = Math.min(minY, child.y + cb.y);
+    maxX = Math.max(maxX, child.x + cb.x + Math.max(cb.width, 1));
+    maxY = Math.max(maxY, child.y + cb.y + Math.max(cb.height, 1));
+  }
+  if (!Number.isFinite(minX)) return { x: 0, y: 0, width: 40, height: 32 };
+  return { x: minX, y: minY, width: Math.max(maxX - minX, 24), height: Math.max(maxY - minY, 24) };
+}
+
+/** Node content box in a parent group's local coordinates (drag-safe). */
+export function getNodeBoxInParent(
+  node: Node,
+  parent: Group
+): { x: number; y: number; width: number; height: number } {
+  const pos = positionInParent(node, parent);
+  const box = getLocalNodeBox(node);
+  return {
+    x: pos.x + box.x,
+    y: pos.y + box.y,
+    width: box.width,
+    height: box.height,
+  };
+}
+
 /** Transform a point in node-local space into a parent group's local space */
 export function localPointToParent(
   node: Node,
@@ -53,34 +132,70 @@ export function localPointToParent(
   lx: number,
   ly: number
 ): { x: number; y: number } {
-  const wm = node.getWorldMatrix();
-  const world = wm.transformPoint(lx, ly);
-  return worldToParentLocal(parent, world.x, world.y);
+  // Prefer live x/y walk (correct while dragging) over world-matrix (can be stale)
+  const pos = positionInParent(node, parent);
+  return { x: pos.x + lx, y: pos.y + ly };
 }
 
 export type CardSide = 'top' | 'bottom' | 'left' | 'right' | 'center';
 
-/** Anchor on a diagram card edge (uses metadata size when available). */
+/** Connection port on a node edge (mid-side), in parent local space. */
 export function getCardSideAnchor(node: Node, parent: Group, side: CardSide): { x: number; y: number } {
-  const card = getDiagramCardSize(node);
-  if (card) {
-    let lx = card.width / 2;
-    let ly = card.height / 2;
-    if (side === 'top') ly = 0;
-    else if (side === 'bottom') ly = card.height;
-    else if (side === 'left') lx = 0;
-    else if (side === 'right') lx = card.width;
-    return localPointToParent(node, parent, lx, ly);
-  }
+  const box = getNodeBoxInParent(node, parent);
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+  if (side === 'center') return { x: cx, y: cy };
+  if (side === 'top') return { x: cx, y: box.y };
+  if (side === 'bottom') return { x: cx, y: box.y + box.height };
+  if (side === 'left') return { x: box.x, y: cy };
+  return { x: box.x + box.width, y: cy };
+}
 
-  const b = node.getBounds();
-  let wx = b.x + b.width / 2;
-  let wy = b.y + b.height / 2;
-  if (side === 'top') wy = b.y;
-  else if (side === 'bottom') wy = b.y + b.height;
-  else if (side === 'left') wx = b.x;
-  else if (side === 'right') wx = b.x + b.width;
-  return worldToParentLocal(parent, wx, wy);
+/**
+ * Pick the best pair of connection ports so the wire attaches to node edges
+ * and stretches as nodes move (draw.io-style).
+ */
+export function pickConnectionSides(
+  fromBox: { x: number; y: number; width: number; height: number },
+  toBox: { x: number; y: number; width: number; height: number }
+): { fromSide: CardSide; toSide: CardSide } {
+  const fromCx = fromBox.x + fromBox.width / 2;
+  const fromCy = fromBox.y + fromBox.height / 2;
+  const toCx = toBox.x + toBox.width / 2;
+  const toCy = toBox.y + toBox.height / 2;
+  const dx = toCx - fromCx;
+  const dy = toCy - fromCy;
+
+  if (Math.abs(dx) > Math.abs(dy) * 1.05) {
+    return {
+      fromSide: dx >= 0 ? 'right' : 'left',
+      toSide: dx >= 0 ? 'left' : 'right',
+    };
+  }
+  if (Math.abs(dy) > Math.abs(dx) * 1.05) {
+    return {
+      fromSide: dy >= 0 ? 'bottom' : 'top',
+      toSide: dy >= 0 ? 'top' : 'bottom',
+    };
+  }
+  // Near-diagonal: prefer vertical stack (TB) for flowchart-like layouts
+  if (Math.abs(dy) >= Math.abs(dx)) {
+    return {
+      fromSide: dy >= 0 ? 'bottom' : 'top',
+      toSide: dy >= 0 ? 'top' : 'bottom',
+    };
+  }
+  return {
+    fromSide: dx >= 0 ? 'right' : 'left',
+    toSide: dx >= 0 ? 'left' : 'right',
+  };
+}
+
+/** Card-only obstacle box in parent-local space (excludes nested children). */
+export function getCardObstacleInParent(node: Node, parent: Group): Obstacle | null {
+  const box = getNodeBoxInParent(node, parent);
+  if (box.width <= 0 || box.height <= 0) return null;
+  return { x: box.x, y: box.y, width: box.width, height: box.height };
 }
 
 /** Card-only obstacle box in world space (excludes nested children). */
@@ -101,35 +216,44 @@ export function getCardObstacle(node: Node): Obstacle | null {
   };
 }
 
-/** Anchor points between two nodes in parent group's local coordinates */
+/**
+ * Anchor points between two nodes in parent group's local coordinates.
+ * Ports sit on node edges and update from live x/y so wires stretch while dragging.
+ */
 export function getConnectorAnchors(
   from: Node,
   to: Node,
   parent: Group
 ): { x1: number; y1: number; x2: number; y2: number } {
-  if (getDiagramCardSize(from) && getDiagramCardSize(to)) {
-    const fromC = getCardSideAnchor(from, parent, 'center');
-    const toC = getCardSideAnchor(to, parent, 'center');
-    const dx = toC.x - fromC.x;
-    const dy = toC.y - fromC.y;
-    let fromSide: CardSide = 'bottom';
-    let toSide: CardSide = 'top';
-    if (Math.abs(dx) > Math.abs(dy)) {
-      fromSide = dx >= 0 ? 'right' : 'left';
-      toSide = dx >= 0 ? 'left' : 'right';
-    } else {
-      fromSide = dy >= 0 ? 'bottom' : 'top';
-      toSide = dy >= 0 ? 'top' : 'bottom';
-    }
-    const a = getCardSideAnchor(from, parent, fromSide);
-    const b = getCardSideAnchor(to, parent, toSide);
-    return { x1: a.x, y1: a.y, x2: b.x, y2: b.y };
-  }
+  const fromBox = getNodeBoxInParent(from, parent);
+  const toBox = getNodeBoxInParent(to, parent);
+  const { fromSide, toSide } = pickConnectionSides(fromBox, toBox);
 
+  const sidePoint = (
+    box: { x: number; y: number; width: number; height: number },
+    side: CardSide
+  ): { x: number; y: number } => {
+    const cx = box.x + box.width / 2;
+    const cy = box.y + box.height / 2;
+    if (side === 'top') return { x: cx, y: box.y };
+    if (side === 'bottom') return { x: cx, y: box.y + box.height };
+    if (side === 'left') return { x: box.x, y: cy };
+    if (side === 'right') return { x: box.x + box.width, y: cy };
+    return { x: cx, y: cy };
+  };
+
+  const a = sidePoint(fromBox, fromSide);
+  const b = sidePoint(toBox, toSide);
+  return { x1: a.x, y1: a.y, x2: b.x, y2: b.y };
+}
+
+/** Legacy world-space anchors (when no parent group is provided). */
+export function getConnectorAnchorsWorld(
+  from: Node,
+  to: Node
+): { x1: number; y1: number; x2: number; y2: number } {
   const toB = to.getBounds();
   const anchorWorld = getAnchor(from, toB.x + toB.width / 2, toB.y + toB.height / 2);
   const toAnchorWorld = getAnchor(to, anchorWorld.x, anchorWorld.y);
-  const a = worldToParentLocal(parent, anchorWorld.x, anchorWorld.y);
-  const b = worldToParentLocal(parent, toAnchorWorld.x, toAnchorWorld.y);
-  return { x1: a.x, y1: a.y, x2: b.x, y2: b.y };
+  return { x1: anchorWorld.x, y1: anchorWorld.y, x2: toAnchorWorld.x, y2: toAnchorWorld.y };
 }

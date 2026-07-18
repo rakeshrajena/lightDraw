@@ -299,28 +299,79 @@ function wireBetween(app: App, x1: number, y1: number, x2: number, y2: number): 
 export function buildSchematic(app: App, components: SchematicComponent[]): Group {
   const group = app.group({ name: 'schematic' });
   const wireLayer = app.group({ zIndex: -10, listening: false }) as Group;
+  wireLayer.metadata.diagramEdgeLayer = true;
+  layoutSchematicWires(app, wireLayer, components);
+  group.add(wireLayer);
+  for (const comp of components) {
+    const sym = createSymbol(app, comp.type, comp.x, comp.y, comp.label);
+    sym.metadata.diagramId = comp.id;
+    sym.metadata.diagramCardWidth = SYMBOL_SIZE;
+    sym.metadata.diagramCardHeight = SYMBOL_SIZE;
+    if (comp.rotation) sym.rotation = comp.rotation;
+    group.add(sym);
+  }
+  return group;
+}
+
+/** Rebuild schematic wires from current symbol positions (live drag). */
+export function rewireSchematic(app: App, root: Group): void {
+  let wireLayer = root.children.find((c) => c.metadata?.diagramEdgeLayer) as Group | undefined;
+  if (!wireLayer) {
+    wireLayer = app.group({ zIndex: -10, listening: false }) as Group;
+    wireLayer.metadata.diagramEdgeLayer = true;
+    root.add(wireLayer);
+  } else {
+    for (const child of [...wireLayer.children]) {
+      wireLayer.remove(child);
+      child.destroy();
+    }
+  }
+
+  const comps = root.children
+    .filter((c) => c.metadata?.symbolType && c.metadata?.diagramId)
+    .map((c) => ({
+      id: c.metadata.diagramId as string,
+      type: c.metadata.symbolType as SchematicComponent['type'],
+      x: c.x,
+      y: c.y,
+    }));
+  layoutSchematicWires(app, wireLayer, comps);
+  root.markDirty();
+}
+
+function layoutSchematicWires(
+  app: App,
+  wireLayer: Group,
+  components: Array<{ type: SchematicComponent['type']; x: number; y: number }>
+): void {
   const sorted = [...components].sort((a, b) => a.x - b.x);
   for (let i = 0; i < sorted.length - 1; i++) {
     const a = sorted[i];
     const b = sorted[i + 1];
     if (a.type === 'wire' || b.type === 'wire') continue;
-    const y = a.y + SYMBOL_SIZE / 2;
+    const y1 = a.y + SYMBOL_SIZE / 2;
+    const y2 = b.y + SYMBOL_SIZE / 2;
     const x1 = a.x + SYMBOL_SIZE;
     const x2 = b.x;
-    if (x2 > x1) {
-      wireLayer.add(wireBetween(app, x1, y, x2, y));
-      wireLayer.add(junctionDot(app, x1, y));
-      wireLayer.add(junctionDot(app, x2, y));
+    if (x2 <= x1 && Math.abs(y2 - y1) < 1) continue;
+    // Orthogonal flexible wire when components are offset vertically
+    if (Math.abs(y1 - y2) < 1.5) {
+      if (x2 > x1) {
+        wireLayer.add(wireBetween(app, x1, y1, x2, y2));
+        wireLayer.add(junctionDot(app, x1, y1));
+        wireLayer.add(junctionDot(app, x2, y2));
+      }
+    } else {
+      const midX = (x1 + x2) / 2;
+      wireLayer.add(wireBetween(app, x1, y1, midX, y1));
+      wireLayer.add(wireBetween(app, midX, y1, midX, y2));
+      wireLayer.add(wireBetween(app, midX, y2, x2, y2));
+      wireLayer.add(junctionDot(app, x1, y1));
+      wireLayer.add(junctionDot(app, midX, y1));
+      wireLayer.add(junctionDot(app, midX, y2));
+      wireLayer.add(junctionDot(app, x2, y2));
     }
   }
-  group.add(wireLayer);
-  for (const comp of components) {
-    const sym = createSymbol(app, comp.type, comp.x, comp.y, comp.label);
-    sym.metadata.diagramId = comp.id;
-    if (comp.rotation) sym.rotation = comp.rotation;
-    group.add(sym);
-  }
-  return group;
 }
 
 export const Symbols = {

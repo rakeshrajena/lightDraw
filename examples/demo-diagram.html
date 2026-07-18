@@ -13,7 +13,7 @@
     <header class="demo-header">
       <span class="demo-badge">Diagram Module</span>
       <h1>Diagram Gallery</h1>
-      <p>Polished, production-ready diagrams for flowcharts, state machines, networks, automotive buses, and more. Edit Config JSON below for live updates.</p>
+      <p>Drag components to rearrange — wires follow live. Use + / − to zoom. Not editable (no label resize).</p>
     </header>
     <main class="demo-main">
       <div class="demo-layout-split">
@@ -43,7 +43,14 @@
           </div>
         </aside>
         <div class="demo-canvas-wrap demo-canvas-diagram" id="diagram-canvas-wrap">
+          <div class="demo-canvas-toolbar" id="diagram-zoom-bar" aria-label="Canvas zoom">
+            <button type="button" class="demo-zoom-btn" id="zoom-out" title="Zoom out" aria-label="Zoom out">−</button>
+            <span class="demo-zoom-label" id="zoom-label">100%</span>
+            <button type="button" class="demo-zoom-btn" id="zoom-in" title="Zoom in" aria-label="Zoom in">+</button>
+            <button type="button" class="demo-zoom-btn demo-zoom-fit" id="zoom-fit" title="Fit to view" aria-label="Fit to view">Fit</button>
+          </div>
           <div id="app"></div>
+          <p class="demo-canvas-hint">Drag components to rearrange — wires follow. Zoom with + / −.</p>
         </div>
       </div>
     </main>
@@ -119,7 +126,49 @@
 
     let currentDiagram = 'flowchart';
     let currentGroup = null;
+    let currentEditor = null;
     let resizeTimer = null;
+    const ZOOM_MIN = 0.35;
+    const ZOOM_MAX = 2.75;
+    const ZOOM_STEP = 1.18;
+
+    function updateZoomLabel() {
+      const pct = Math.round((app.camera.zoom || 1) * 100);
+      const el = document.getElementById('zoom-label');
+      if (el) el.textContent = pct + '%';
+    }
+
+    function resetCamera() {
+      app.camera.setZoom(1);
+      app.camera.setPosition(0, 0);
+      updateZoomLabel();
+    }
+
+    function setCanvasZoom(next) {
+      const z = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, next));
+      app.camera.setZoom(z);
+      updateZoomLabel();
+      app.render();
+    }
+
+    function installArrangeEditor() {
+      if (!currentGroup || !LightDraw.Diagram.installEditor) return;
+      if (currentEditor) {
+        currentEditor.destroy();
+        currentEditor = null;
+      }
+      if (LightDraw.Diagram.uninstallEditor) {
+        try {
+          LightDraw.Diagram.uninstallEditor(currentGroup);
+        } catch (_) { /* ignore */ }
+      }
+      currentEditor = LightDraw.Diagram.installEditor(app, currentGroup, {
+        mode: 'arrange',
+        tool: 'select',
+        gridSize: 8,
+        showPorts: false,
+      });
+    }
 
     function diagramOpts(extra = {}) {
       return { width: canvasW, height: canvasH, ...extra };
@@ -340,15 +389,35 @@
       currentDiagram = name;
       updateDiagramInfo(name);
       measureCanvas();
+      if (currentEditor) {
+        currentEditor.destroy();
+        currentEditor = null;
+      }
       app.resize(canvasW, canvasH);
+      resetCamera();
       app.stage.clear();
       currentGroup = samples[name]();
       app.add(currentGroup);
       fitCurrentDiagram();
+      installArrangeEditor();
       app.render();
       if (window.LivePlayground) LivePlayground.syncScene(true);
     }
     window.showDiagram = showDiagram;
+    window.pick = pick;
+
+    document.getElementById('zoom-in').addEventListener('click', () => {
+      setCanvasZoom((app.camera.zoom || 1) * ZOOM_STEP);
+    });
+    document.getElementById('zoom-out').addEventListener('click', () => {
+      setCanvasZoom((app.camera.zoom || 1) / ZOOM_STEP);
+    });
+    document.getElementById('zoom-fit').addEventListener('click', () => {
+      resetCamera();
+      fitCurrentDiagram();
+      app.render();
+    });
+    updateZoomLabel();
 
     function scheduleResize() {
       clearTimeout(resizeTimer);

@@ -1,7 +1,8 @@
 import type { App } from '../App';
 import type { Node } from '../Node';
 import { Line, Polyline } from '../shapes/index';
-import { getCardObstacle } from './coords';
+import { getCardObstacle, getCardObstacleInParent } from './coords';
+import type { Group } from '../shapes/Group';
 import { roundOrthogonalCorners } from './pathUtils';
 import type { Obstacle } from './types';
 import { getActiveDiagram } from './theme';
@@ -9,7 +10,7 @@ import { getActiveDiagram } from './theme';
 export type RouteStyle = 'straight' | 'orthogonal' | 'smart';
 
 /** Default fillet radius for orthogonal / smart routes (px). */
-export const ROUTE_CORNER_RADIUS = 10;
+export const ROUTE_CORNER_RADIUS = 14;
 
 /** Check if a horizontal segment intersects a rectangle */
 function hSegIntersectsRect(
@@ -62,7 +63,10 @@ function padObstacle(obs: Obstacle, pad: number): Obstacle {
   };
 }
 
-/** Simple orthogonal route with obstacle avoidance via waypoint search */
+/**
+ * Flexible orthogonal route: prefers mid-span elbows that scale with distance
+ * so wires bend smoothly as nodes are dragged apart.
+ */
 function smartOrthogonalRoute(
   x1: number,
   y1: number,
@@ -70,22 +74,83 @@ function smartOrthogonalRoute(
   y2: number,
   obstacles: Obstacle[]
 ): number[] {
-  const padded = obstacles.map((o) => padObstacle(o, 8));
+  const padded = obstacles.map((o) => padObstacle(o, 10));
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const absDx = Math.abs(dx);
+  const absDy = Math.abs(dy);
+  // Adaptive stub length — grows with separation for a cable-like bend
+  const stubX = Math.min(72, Math.max(18, absDx * 0.28));
+  const stubY = Math.min(72, Math.max(18, absDy * 0.28));
+  const midX = (x1 + x2) / 2;
+  const midY = (y1 + y2) / 2;
+  const dirX = dx >= 0 ? 1 : -1;
+  const dirY = dy >= 0 ? 1 : -1;
 
   const candidates: number[][] = [
+    // Classic mid-Y / mid-X buses
+    [x1, y1, x1, midY, x2, midY, x2, y2],
+    [x1, y1, midX, y1, midX, y2, x2, y2],
+    // Exit horizontally then drop (cable elbow)
+    [x1, y1, x1 + dirX * stubX, y1, x1 + dirX * stubX, y2, x2, y2],
+    // Exit vertically then across
+    [x1, y1, x1, y1 + dirY * stubY, x2, y1 + dirY * stubY, x2, y2],
+    // Two-stub S-bend (HVH)
+    [
+      x1,
+      y1,
+      x1 + dirX * stubX,
+      y1,
+      x1 + dirX * stubX,
+      midY,
+      x2 - dirX * stubX,
+      midY,
+      x2 - dirX * stubX,
+      y2,
+      x2,
+      y2,
+    ],
+    // Two-stub S-bend (VHV)
+    [
+      x1,
+      y1,
+      x1,
+      y1 + dirY * stubY,
+      midX,
+      y1 + dirY * stubY,
+      midX,
+      y2 - dirY * stubY,
+      x2,
+      y2 - dirY * stubY,
+      x2,
+      y2,
+    ],
+    // Simple L shapes
     [x1, y1, x1, y2, x2, y2],
     [x1, y1, x2, y1, x2, y2],
-    [x1, y1, x1, (y1 + y2) / 2, x2, (y1 + y2) / 2, x2, y2],
-    [x1, y1, (x1 + x2) / 2, y1, (x1 + x2) / 2, y2, x2, y2],
   ];
 
+  let best: number[] | null = null;
+  let bestLen = Infinity;
   for (const path of candidates) {
-    if (!pathHitsObstacles(path, padded)) return path;
+    if (pathHitsObstacles(path, padded)) continue;
+    let len = 0;
+    for (let i = 0; i < path.length - 2; i += 2) {
+      len += Math.hypot(path[i + 2] - path[i], path[i + 3] - path[i + 1]);
+    }
+    // Prefer fewer corners when lengths are close
+    const corners = path.length / 2 - 2;
+    const score = len + corners * 12;
+    if (score < bestLen) {
+      bestLen = score;
+      best = path;
+    }
   }
+  if (best) return best;
 
   // Detour above or below all obstacles
-  const minY = Math.min(y1, y2, ...padded.map((o) => o.y)) - 30;
-  const maxY = Math.max(y1, y2, ...padded.map((o) => o.y + o.height)) + 30;
+  const minY = Math.min(y1, y2, ...padded.map((o) => o.y)) - 36;
+  const maxY = Math.max(y1, y2, ...padded.map((o) => o.y + o.height)) + 36;
   const above = [x1, y1, x1, minY, x2, minY, x2, y2];
   const below = [x1, y1, x1, maxY, x2, maxY, x2, y2];
   if (!pathHitsObstacles(above, padded)) return above;
@@ -93,7 +158,7 @@ function smartOrthogonalRoute(
   return candidates[0];
 }
 
-/** Collect bounding boxes from node groups as routing obstacles */
+/** Collect bounding boxes from node groups as routing obstacles (world space). */
 export function collectObstacles(nodes: Node[], exclude?: Node[]): Obstacle[] {
   const skip = new Set(exclude ?? []);
   const result: Obstacle[] = [];
@@ -107,6 +172,27 @@ export function collectObstacles(nodes: Node[], exclude?: Node[]): Obstacle[] {
     const b = node.getBounds();
     if (b.width > 0 && b.height > 0) {
       result.push({ x: b.x, y: b.y, width: b.width, height: b.height });
+    }
+  }
+  return result;
+}
+
+/**
+ * Collect obstacles in a parent group's local space using live x/y (drag-safe).
+ * Prefer this when routing connectors during interactive arrange.
+ */
+export function collectObstaclesInParent(
+  nodes: Node[],
+  parent: Group,
+  exclude?: Node[]
+): Obstacle[] {
+  const skip = new Set(exclude ?? []);
+  const result: Obstacle[] = [];
+  for (const node of nodes) {
+    if (skip.has(node)) continue;
+    const box = getCardObstacleInParent(node, parent);
+    if (box && box.width > 0 && box.height > 0) {
+      result.push(box);
     }
   }
   return result;
@@ -138,7 +224,7 @@ export function computeRoutePoints(
   }
   points = collapseColinearPoints(points);
   if (points.length <= 4) return points;
-  return cornerRadius > 0 ? roundOrthogonalCorners(points, cornerRadius) : points;
+  return cornerRadius > 0 ? roundOrthogonalCorners(points, cornerRadius, 10) : points;
 }
 
 /** Drop zero-length / colinear intermediate vertices before filleting */

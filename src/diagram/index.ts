@@ -21,9 +21,9 @@ export {
   layoutNodesForce,
 } from './layouts';
 
-export { routeConnector, collectObstacles, getAnchor } from './router';
+export { routeConnector, collectObstacles, collectObstaclesInParent, getAnchor } from './router';
 export type { RouteStyle } from './router';
-export { createSymbol, buildSchematic, Symbols } from './symbols';
+export { createSymbol, buildSchematic, rewireSchematic, Symbols } from './symbols';
 export { diagramToJSON, fitDiagramToBounds, resolveGridLayout, readCanvasSize } from './helpers';
 export { installDiagramEditor, uninstallDiagramEditor, DiagramEditor } from './editor';
 

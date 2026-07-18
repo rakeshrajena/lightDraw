@@ -55,13 +55,14 @@ export function createFlowchart(app: App, data: DiagramData, options: NodeOption
     const nodeGroup = createFlowchartNode(app, n.label, n.type ?? 'process');
     nodeGroup.x = n.x ?? 0;
     nodeGroup.y = n.y ?? 0;
-    nodeGroup.metadata = { diagramId: n.id };
+    nodeGroup.metadata = { ...nodeGroup.metadata, diagramId: n.id };
     nodeMap.set(n.id, nodeGroup);
   }
 
   const edgeLayer = app.group({ zIndex: -10, listening: false }) as Group;
   edgeLayer.metadata.diagramEdgeLayer = true;
-  const obstacles = collectObstacles([...nodeMap.values()]);
+  const allNodes = [...nodeMap.values()];
+  const obstacles = collectObstacles(allNodes);
   for (const edge of edges) {
     const fromNode = nodeMap.get(edge.from);
     const toNode = nodeMap.get(edge.to);
@@ -69,6 +70,7 @@ export function createFlowchart(app: App, data: DiagramData, options: NodeOption
     edgeLayer.add(
       connectNodes(app, fromNode, toNode, obstacles, {
         parent: group,
+        obstacleNodes: allNodes,
         stroke: getActiveDiagram().edge,
         glowColor: getActiveDiagram().edgeGlow,
         glow: false,
@@ -110,13 +112,14 @@ export function createStateMachine(
     const nodeGroup = createStateNode(app, s.label, s.type ?? 'normal');
     nodeGroup.x = s.x ?? 0;
     nodeGroup.y = s.y ?? 0;
-    nodeGroup.metadata = { diagramId: s.id };
+    nodeGroup.metadata = { ...nodeGroup.metadata, diagramId: s.id };
     nodeMap.set(s.id, nodeGroup);
   }
 
   const edgeLayer = app.group({ zIndex: -10, listening: false }) as Group;
   edgeLayer.metadata.diagramEdgeLayer = true;
-  const obstacles = collectObstacles([...nodeMap.values()]);
+  const allNodes = [...nodeMap.values()];
+  const obstacles = collectObstacles(allNodes);
   for (const t of data.transitions) {
     const from = nodeMap.get(t.from);
     const to = nodeMap.get(t.to);
@@ -124,6 +127,7 @@ export function createStateMachine(
     edgeLayer.add(
       connectNodes(app, from, to, obstacles, {
         parent: group,
+        obstacleNodes: allNodes,
         stroke: getActiveDiagram().edge,
         glowColor: getActiveDiagram().edgeGlow,
         glow: false,
@@ -160,57 +164,56 @@ export function createClassDiagram(
     group.add(nodeGroup);
   }
 
+  const allNodes = [...nodeMap.values()];
   const edgeLayer = app.group({ zIndex: -10, listening: false }) as Group;
   edgeLayer.metadata.diagramEdgeLayer = true;
   for (const rel of data.relations) {
     const from = nodeMap.get(rel.from);
     const to = nodeMap.get(rel.to);
     if (!from || !to) continue;
-    const pairObstacles = collectObstacles([...nodeMap.values()], [from, to]);
+    const pairObstacles = collectObstacles(allNodes, [from, to]);
+    const common = {
+      parent: group,
+      obstacleNodes: allNodes,
+      glow: false,
+      cornerRadius: 12,
+    } as const;
     if (rel.type === 'inheritance') {
       edgeLayer.add(
         connectNodes(app, from, to, pairObstacles, {
-          parent: group,
+          ...common,
           style: 'orthogonal',
           stroke: getActiveDiagram().umlInheritance,
-          glow: false,
           arrowEnd: 'hollow',
-          cornerRadius: 12,
         })
       );
     } else if (rel.type === 'association') {
       edgeLayer.add(
         connectNodes(app, from, to, pairObstacles, {
-          parent: group,
+          ...common,
           style: 'orthogonal',
           stroke: getActiveDiagram().umlAssociation,
-          glow: false,
           arrowEnd: 'open',
-          cornerRadius: 12,
         })
       );
     } else if (rel.type === 'composition') {
       edgeLayer.add(
         connectNodes(app, from, to, pairObstacles, {
-          parent: group,
+          ...common,
           style: 'orthogonal',
           stroke: getActiveDiagram().umlComposition,
-          glow: false,
           arrowStart: 'diamond',
           arrowEnd: 'none',
-          cornerRadius: 12,
         })
       );
     } else {
       edgeLayer.add(
         connectNodes(app, from, to, pairObstacles, {
-          parent: group,
+          ...common,
           style: 'orthogonal',
           stroke: getActiveDiagram().umlImplements,
-          glow: false,
           dash: rel.type === 'implements' ? [6, 4] : undefined,
           arrowEnd: 'hollow',
-          cornerRadius: 12,
         })
       );
     }
@@ -324,12 +327,13 @@ export function createNetworkDiagram(
     const nodeGroup = createNetworkNode(app, n.label, n.type ?? 'default');
     nodeGroup.x = n.x ?? 0;
     nodeGroup.y = n.y ?? 0;
-    nodeGroup.metadata = { diagramId: n.id };
+    nodeGroup.metadata = { ...nodeGroup.metadata, diagramId: n.id };
     nodeMap.set(n.id, nodeGroup);
     group.add(nodeGroup);
   }
 
-  const obstacles = collectObstacles([...nodeMap.values()]);
+  const allNodes = [...nodeMap.values()];
+  const obstacles = collectObstacles(allNodes);
   const edgeLayer = app.group({ zIndex: -10, listening: false }) as Group;
   edgeLayer.metadata.diagramEdgeLayer = true;
   for (const edge of edges) {
@@ -339,6 +343,7 @@ export function createNetworkDiagram(
     edgeLayer.add(
       connectNodes(app, from, to, obstacles, {
         parent: group,
+        obstacleNodes: allNodes,
         stroke: getActiveDiagram().edge,
         glowColor: getActiveDiagram().edgeGlow,
         glow: false,
@@ -593,7 +598,7 @@ export function createPipeline(
   const stageNodes: Node[] = [];
   for (const stage of stages) {
     const node = createPipelineStage(app, stage.label, stage.status ?? 'pending');
-    node.metadata = { diagramId: stage.id, pipelineStatus: stage.status };
+    node.metadata = { ...node.metadata, diagramId: stage.id, pipelineStatus: stage.status };
     group.add(node);
     stageNodes.push(node);
   }

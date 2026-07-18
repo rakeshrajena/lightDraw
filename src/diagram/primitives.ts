@@ -72,6 +72,8 @@ export function createLabeledBox(
 ): Group {
   const { strokeWidth, shadow } = defaultBoxStyle();
   const node = app.group();
+  node.metadata.diagramCardWidth = width;
+  node.metadata.diagramCardHeight = height;
   const fontSize = textOpts.fontSize ?? getActiveDiagram().fontSize.base;
   const radius = style.cornerRadius ?? getActiveDiagram().radii.md;
 
@@ -115,6 +117,8 @@ export function createFlowchartNode(
   const isTerminal = isStart || isEnd;
   const isDecision = type === 'decision';
   const node = app.group();
+  node.metadata.diagramCardWidth = width;
+  node.metadata.diagramCardHeight = height;
 
   const palette = isStart
     ? getActiveDiagram().flowchartStart
@@ -582,6 +586,10 @@ export function createNetworkNode(app: App, label: string, type: string): Group 
   const style = NETWORK_STYLES[netType];
   const size = netType === 'router' ? 56 : 48;
   const node = app.group();
+  // Include caption below icon so anchors / hit area cover the full visual
+  const cardH = size + getActiveDiagram().fontSize.sm + getActiveDiagram().spacing.xs + 10;
+  node.metadata.diagramCardWidth = size;
+  node.metadata.diagramCardHeight = cardH;
 
   addCardChrome(app, node, {
     width: size,
@@ -848,6 +856,8 @@ export function createPipelineStage(
   const width = 118;
   const height = 50;
   const node = app.group();
+  node.metadata.diagramCardWidth = width;
+  node.metadata.diagramCardHeight = height;
   const statusLabels: Record<string, string> = {
     pending: 'WAIT',
     active: 'RUN',

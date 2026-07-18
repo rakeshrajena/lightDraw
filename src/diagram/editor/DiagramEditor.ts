@@ -13,10 +13,24 @@ import type { DiagramEditorHandle, DiagramEditorOptions, DiagramEditorTool } fro
 
 const HANDLE = 8;
 
+function resolveEditorFlags(options: DiagramEditorOptions): {
+  allowLabelEdit: boolean;
+  allowResize: boolean;
+  allowConnect: boolean;
+} {
+  const arrange = options.mode === 'arrange';
+  return {
+    allowLabelEdit: options.allowLabelEdit ?? !arrange,
+    allowResize: options.allowResize ?? !arrange,
+    allowConnect: options.allowConnect ?? !arrange,
+  };
+}
+
 export class DiagramEditor implements DiagramEditorHandle {
   readonly root: Group;
   private app: App;
   private options: DiagramEditorOptions;
+  private flags: ReturnType<typeof resolveEditorFlags>;
   private overlay: Group;
   private tool: DiagramEditorTool = 'select';
   private selectedId: string | null = null;
@@ -26,25 +40,30 @@ export class DiagramEditor implements DiagramEditorHandle {
   private handlers: Array<{ node: Node; type: string; fn: (...args: unknown[]) => void }> = [];
   private keyHandler: ((e: KeyboardEvent) => void) | null = null;
   private destroyed = false;
+  private dragRaf = 0;
 
   constructor(app: App, root: Group, options: DiagramEditorOptions = {}) {
     this.app = app;
     this.root = root;
     this.options = { gridSize: 8, showPorts: true, ...options };
-    this.tool = options.tool ?? 'select';
+    this.flags = resolveEditorFlags(this.options);
+    this.tool = this.flags.allowConnect ? (options.tool ?? 'select') : 'select';
     this.overlay = app.group({ zIndex: 1000, listening: false }) as Group;
     this.overlay.metadata.diagramEditorOverlay = true;
     app.stage.add(this.overlay);
-    this.keyHandler = (e: KeyboardEvent) => {
-      if (e.key !== 'Delete' && e.key !== 'Backspace') return;
-      if (!this.selectedEdgeId) return;
-      e.preventDefault();
-      this.deleteSelectedEdge();
-    };
-    window.addEventListener('keydown', this.keyHandler);
+    if (this.flags.allowConnect) {
+      this.keyHandler = (e: KeyboardEvent) => {
+        if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+        if (!this.selectedEdgeId) return;
+        e.preventDefault();
+        this.deleteSelectedEdge();
+      };
+      window.addEventListener('keydown', this.keyHandler);
+    }
   }
 
   setTool(tool: DiagramEditorTool): void {
+    if (!this.flags.allowConnect && tool === 'connect') return;
     this.tool = tool;
     this.connectFromId = null;
     this.clearPreview();
@@ -88,7 +107,7 @@ export class DiagramEditor implements DiagramEditorHandle {
 
     const onClick = (e: { stopPropagation: () => void }) => {
       e.stopPropagation();
-      if (this.tool === 'connect') {
+      if (this.flags.allowConnect && this.tool === 'connect') {
         if (!this.connectFromId) {
           this.connectFromId = id;
           this.selectNode(id);
@@ -104,6 +123,7 @@ export class DiagramEditor implements DiagramEditorHandle {
 
     const onDblClick = (e: { stopPropagation: () => void }) => {
       e.stopPropagation();
+      if (!this.flags.allowLabelEdit) return;
       showLabelEditor(this.app, node, (text) => {
         this.updateNodeLabel(node, text);
         this.emitChange();
@@ -117,31 +137,49 @@ export class DiagramEditor implements DiagramEditorHandle {
         node.x = Math.round(node.x / grid) * grid;
         node.y = Math.round(node.y / grid) * grid;
       }
-      rerouteDiagramEdges(this.app, this.root);
-      this.refreshOverlay();
-      this.app.requestRender();
+      // Live wire follow — coalesce to one reroute per frame
+      if (this.dragRaf) cancelAnimationFrame(this.dragRaf);
+      this.dragRaf = requestAnimationFrame(() => {
+        this.dragRaf = 0;
+        if (this.destroyed) return;
+        rerouteDiagramEdges(this.app, this.root);
+        this.refreshOverlay();
+        this.app.requestRender();
+      });
     };
 
     const onDragEnd = () => {
+      if (this.dragRaf) {
+        cancelAnimationFrame(this.dragRaf);
+        this.dragRaf = 0;
+      }
+      rerouteDiagramEdges(this.app, this.root);
       syncPositionsToState(this.root);
       this.wireEdges();
+      this.refreshOverlay();
       this.emitChange();
+      this.app.requestRender();
     };
 
     node.on('click', onClick as never);
-    node.on('dblclick', onDblClick as never);
+    if (this.flags.allowLabelEdit) {
+      node.on('dblclick', onDblClick as never);
+    }
     node.on('dragmove', onDragMove as never);
     node.on('dragend', onDragEnd as never);
 
     this.handlers.push(
       { node, type: 'click', fn: onClick as never },
-      { node, type: 'dblclick', fn: onDblClick as never },
       { node, type: 'dragmove', fn: onDragMove as never },
       { node, type: 'dragend', fn: onDragEnd as never }
     );
+    if (this.flags.allowLabelEdit) {
+      this.handlers.push({ node, type: 'dblclick', fn: onDblClick as never });
+    }
   }
 
   wireEdges(): void {
+    if (!this.flags.allowConnect) return;
     const edgeLayer = findEdgeLayer(this.root);
     if (!edgeLayer) return;
 
@@ -253,7 +291,7 @@ export class DiagramEditor implements DiagramEditorHandle {
 
   private refreshOverlay(): void {
     this.overlay.clear();
-    if (this.selectedEdgeId) {
+    if (this.flags.allowConnect && this.selectedEdgeId) {
       this.drawEdgeSelection(this.selectedEdgeId);
       return;
     }
@@ -261,11 +299,31 @@ export class DiagramEditor implements DiagramEditorHandle {
     const node = findNodeByDiagramId(this.root, this.selectedId);
     if (!node) return;
 
-    const b = node.getBounds();
-    const wx = this.root.x + node.x + b.x;
-    const wy = this.root.y + node.y + b.y;
-    const w = b.width * node.scaleX;
-    const h = b.height * node.scaleY;
+    const pos = (() => {
+      let x = 0;
+      let y = 0;
+      let cur: Node | null = node;
+      while (cur && cur !== this.root) {
+        x += cur.x;
+        y += cur.y;
+        cur = cur.parent;
+      }
+      return { x, y };
+    })();
+    const cardW = (node.metadata?.orgCardWidth ?? node.metadata?.diagramCardWidth) as
+      | number
+      | undefined;
+    const cardH = (node.metadata?.orgCardHeight ?? node.metadata?.diagramCardHeight) as
+      | number
+      | undefined;
+    const bw = cardW ?? 40;
+    const bh = cardH ?? 32;
+    const sx = this.root.scaleX || 1;
+    const sy = this.root.scaleY || 1;
+    const wx = this.root.x + pos.x * sx;
+    const wy = this.root.y + pos.y * sy;
+    const w = bw * node.scaleX * sx;
+    const h = bh * node.scaleY * sy;
 
     this.overlay.add(
       this.app.rect({
@@ -275,16 +333,37 @@ export class DiagramEditor implements DiagramEditorHandle {
         height: h + 6,
         fill: null,
         stroke: getActiveDiagram().mindBranch.stroke,
-        strokeWidth: 2,
-        dash: [6, 4],
+        strokeWidth: 1.5,
+        dash: [5, 4],
         listening: false,
       })
     );
 
-    if (this.tool === 'select') {
+    // Connection ports (mid-side) — wires attach here and stretch when dragging
+    const ports = [
+      { px: wx + w / 2, py: wy },
+      { px: wx + w, py: wy + h / 2 },
+      { px: wx + w / 2, py: wy + h },
+      { px: wx, py: wy + h / 2 },
+    ];
+    for (const p of ports) {
+      this.overlay.add(
+        this.app.circle({
+          x: p.px - 3.5,
+          y: p.py - 3.5,
+          radius: 3.5,
+          fill: getActiveDiagram().edge,
+          stroke: '#fff',
+          strokeWidth: 1.25,
+          listening: false,
+        })
+      );
+    }
+
+    if (this.flags.allowResize && this.tool === 'select') {
       this.addResizeHandles(node, wx, wy, w, h);
     }
-    if (this.tool === 'connect' && this.options.showPorts) {
+    if (this.flags.allowConnect && this.tool === 'connect' && this.options.showPorts) {
       this.addPorts(node, wx, wy, w, h);
     }
   }
@@ -478,6 +557,10 @@ export class DiagramEditor implements DiagramEditorHandle {
   destroy(): void {
     if (this.destroyed) return;
     this.destroyed = true;
+    if (this.dragRaf) {
+      cancelAnimationFrame(this.dragRaf);
+      this.dragRaf = 0;
+    }
     if (this.keyHandler) {
       window.removeEventListener('keydown', this.keyHandler);
       this.keyHandler = null;

@@ -19,6 +19,18 @@ export interface EditorNodeRecord {
 export interface DiagramEditorOptions {
   /** Enable drag, resize, label edit, and rewiring */
   enabled?: boolean;
+  /**
+   * Interaction mode:
+   * - `edit` — full editor (labels, resize, connect, edge delete)
+   * - `arrange` — drag nodes only; wires follow; no label/resize/connect editing
+   */
+  mode?: 'edit' | 'arrange';
+  /** Allow double-click label editing (default: true unless mode is arrange) */
+  allowLabelEdit?: boolean;
+  /** Show resize handles (default: true unless mode is arrange) */
+  allowResize?: boolean;
+  /** Allow connect tool / edge rewiring / delete (default: true unless mode is arrange) */
+  allowConnect?: boolean;
   /** Initial tool */
   tool?: DiagramEditorTool;
   /** Snap dragged nodes to grid */

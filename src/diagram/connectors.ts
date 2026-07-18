@@ -3,8 +3,8 @@ import type { Node } from '../Node';
 import type { Group } from '../shapes/Group';
 import { getActiveDiagram } from './theme';
 import type { Obstacle } from './types';
-import { computeRoutePoints, getAnchor, type RouteStyle } from './router';
-import { getConnectorAnchors, obstacleToParentLocal, getCardSideAnchor } from './coords';
+import { computeRoutePoints, getAnchor, collectObstaclesInParent, type RouteStyle } from './router';
+import { getConnectorAnchors, getCardSideAnchor } from './coords';
 import { createEdgeLabel } from './primitives';
 import { quadraticPathD, quadraticToPoints, mermaidHorizontalLink, mermaidOrgBusPaths } from './pathUtils';
 
@@ -14,6 +14,8 @@ export interface ConnectorOptions {
   style?: RouteStyle;
   obstacles?: Obstacle[];
   parent?: Group;
+  /** When set with parent, rebuild obstacles in parent-local space (drag-safe). */
+  obstacleNodes?: Node[];
   stroke?: string;
   strokeWidth?: number;
   glowColor?: string;
@@ -373,7 +375,9 @@ export function connectNodes(
     y1 = anchors.y1;
     x2 = anchors.x2;
     y2 = anchors.y2;
-    routeObstacles = obstacles.map((o) => obstacleToParentLocal(parent, o));
+    if (options.obstacleNodes && options.obstacleNodes.length > 0) {
+      routeObstacles = collectObstaclesInParent(options.obstacleNodes, parent, [from, to]);
+    }
   } else {
     const toB = to.getBounds();
     const anchor = getAnchor(from, toB.x + toB.width / 2, toB.y + toB.height / 2);
