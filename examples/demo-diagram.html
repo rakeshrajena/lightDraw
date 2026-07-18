@@ -27,6 +27,7 @@
           <div class="demo-diagram-group">
             <h2>Systems</h2>
             <button type="button" class="demo-btn secondary" data-diagram="network" onclick="pick(this, 'network')">Network</button>
+            <button type="button" class="demo-btn secondary" data-diagram="networkCatalog" onclick="pick(this, 'networkCatalog')">Icon Catalog</button>
             <button type="button" class="demo-btn secondary" data-diagram="can" onclick="pick(this, 'can')">CAN Bus</button>
             <button type="button" class="demo-btn secondary" data-diagram="schematic" onclick="pick(this, 'schematic')">Schematic</button>
           </div>
@@ -81,7 +82,12 @@
       network: {
         category: 'Systems',
         title: 'Network Topology',
-        desc: 'Routers, servers, and clients with smart routing and interface labels.',
+        desc: 'Standard Cisco/Visio-style icons — routers, firewalls, servers, cloud, IoT, and more.',
+      },
+      networkCatalog: {
+        category: 'Systems',
+        title: 'Network Icon Catalog',
+        desc: 'Full library of global-standard network device icons by category.',
       },
       can: {
         category: 'Systems',
@@ -211,21 +217,36 @@
       network: () =>
         LightDraw.Diagram.network(app, {
           nodes: [
-            { id: 'r1', label: 'Edge Router', type: 'router', x: 400, y: 40 },
-            { id: 's1', label: 'API Server', type: 'server', x: 180, y: 170 },
-            { id: 's2', label: 'Database', type: 'server', x: 400, y: 170 },
-            { id: 's3', label: 'Cache', type: 'server', x: 620, y: 170 },
-            { id: 'c1', label: 'Client A', type: 'client', x: 120, y: 320 },
-            { id: 'c2', label: 'Client B', type: 'client', x: 680, y: 320 },
+            { id: 'inet', label: 'Internet', type: 'internet', x: 380, y: 8 },
+            { id: 'fw', label: 'NGFW', type: 'ngfw', x: 380, y: 100 },
+            { id: 'r1', label: 'Edge Router', type: 'edge_router', x: 380, y: 190 },
+            { id: 'sw', label: 'Core Switch', type: 'core_switch', x: 380, y: 280 },
+            { id: 'web', label: 'Web Server', type: 'web_server', x: 120, y: 280 },
+            { id: 'app', label: 'App Server', type: 'application_server', x: 220, y: 380 },
+            { id: 'db', label: 'SQL Database', type: 'sql_database', x: 380, y: 380 },
+            { id: 'redis', label: 'Redis Cache', type: 'redis', x: 540, y: 380 },
+            { id: 'lb', label: 'Load Balancer', type: 'load_balancer', x: 640, y: 280 },
+            { id: 'ap', label: 'Access Point', type: 'wap', x: 640, y: 190 },
+            { id: 'pc', label: 'Laptop', type: 'laptop', x: 760, y: 280 },
+            { id: 'cloud', label: 'Cloud Region', type: 'cloud_region', x: 120, y: 100 },
           ],
           edges: [
-            { from: 'r1', to: 's1', label: 'eth0' },
-            { from: 'r1', to: 's2' },
-            { from: 'r1', to: 's3' },
-            { from: 's1', to: 'c1' },
-            { from: 's3', to: 'c2' },
+            { from: 'inet', to: 'fw' },
+            { from: 'fw', to: 'r1' },
+            { from: 'r1', to: 'sw' },
+            { from: 'sw', to: 'web' },
+            { from: 'sw', to: 'db' },
+            { from: 'sw', to: 'lb' },
+            { from: 'web', to: 'app' },
+            { from: 'app', to: 'db' },
+            { from: 'db', to: 'redis' },
+            { from: 'lb', to: 'ap' },
+            { from: 'ap', to: 'pc' },
+            { from: 'cloud', to: 'fw', label: 'VPN' },
           ],
         }, diagramOpts()),
+      networkCatalog: () =>
+        LightDraw.Diagram.networkCatalog(app, diagramOpts({ columns: 8 })),
       can: () =>
         LightDraw.Diagram.canNetwork(
           app,

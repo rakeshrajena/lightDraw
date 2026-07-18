@@ -9,7 +9,12 @@ import {
   addTopSheen,
 } from './chrome';
 import { DIAGRAM, getActiveDiagram } from './theme';
-import { quadraticToPoints } from './pathUtils';
+import {
+  drawNetworkIcon,
+  getNetworkIconMeta,
+  networkStyleForKind,
+  resolveNetworkIconKind,
+} from './networkIcons';
 
 let measureCtx: CanvasRenderingContext2D | null = null;
 
@@ -338,270 +343,52 @@ export function createClassNode(
   return node;
 }
 
-type NetworkType = 'router' | 'server' | 'switch' | 'client' | 'default';
-
-const NETWORK_STYLES: Record<
-  NetworkType,
-  { fill: string; stroke: string; glyph: string; edge: string }
-> = {
-  router: getActiveDiagram().networkRouter,
-  server: getActiveDiagram().networkServer,
-  switch: getActiveDiagram().networkSwitch,
-  client: getActiveDiagram().networkClient,
-  default: getActiveDiagram().networkDefault,
-};
-
-/** Professional topology glyphs (Cisco-inspired, canvas primitives). */
-function addNetworkGlyph(
-  app: App,
-  parent: Group,
-  type: NetworkType,
-  size: number,
-  color: string
-): void {
-  const cx = size / 2;
-  const cy = size / 2 - (type === 'client' ? 1 : 0);
-  const sw = 1.6;
-
-  if (type === 'router') {
-    // Hexagonal chassis + antenna arcs
-    const r = size * 0.28;
-    const hex: number[] = [];
-    for (let i = 0; i < 6; i++) {
-      const a = (Math.PI / 3) * i - Math.PI / 6;
-      hex.push(cx + r * Math.cos(a), cy + 4 + r * Math.sin(a));
-    }
-    parent.add(
-      app.polygon({
-        points: hex,
-        fill: null,
-        stroke: color,
-        strokeWidth: sw,
-        listening: false,
-      })
-    );
-    parent.add(
-      app.circle({ x: cx, y: cy + 4, radius: 3.2, fill: color, stroke: null, listening: false })
-    );
-    for (const sign of [-1, 1] as const) {
-      parent.add(
-        app.polyline({
-          points: quadraticToPoints(
-            cx + sign * 6,
-            cy - 6,
-            cx + sign * 14,
-            cy - 14,
-            cx + sign * 4,
-            cy - 18,
-            6
-          ),
-          fill: null,
-          stroke: color,
-          strokeWidth: 1.4,
-          lineCap: 'round',
-          lineJoin: 'round',
-          listening: false,
-        })
-      );
-    }
-  } else if (type === 'server') {
-    // Rack chassis with drive bays + status LEDs
-    parent.add(
-      app.roundedRect({
-        x: cx - 14,
-        y: cy - 14,
-        width: 28,
-        height: 28,
-        cornerRadius: 3,
-        fill: null,
-        stroke: color,
-        strokeWidth: sw,
-        listening: false,
-      })
-    );
-    for (let i = 0; i < 3; i++) {
-      const y = cy - 10 + i * 8;
-      parent.add(
-        app.roundedRect({
-          x: cx - 10,
-          y,
-          width: 16,
-          height: 5,
-          cornerRadius: 1,
-          fill: null,
-          stroke: color,
-          strokeWidth: 1.1,
-          listening: false,
-        })
-      );
-      parent.add(
-        app.circle({
-          x: cx + 9,
-          y: y + 2.5,
-          radius: 1.4,
-          fill: i === 0 ? color : null,
-          stroke: color,
-          strokeWidth: 1,
-          listening: false,
-        })
-      );
-    }
-  } else if (type === 'switch') {
-    // Managed switch: body + RJ45 ports + uplink LED row
-    parent.add(
-      app.roundedRect({
-        x: cx - 16,
-        y: cy - 8,
-        width: 32,
-        height: 16,
-        cornerRadius: 3,
-        fill: null,
-        stroke: color,
-        strokeWidth: sw,
-        listening: false,
-      })
-    );
-    for (let i = 0; i < 6; i++) {
-      parent.add(
-        app.roundedRect({
-          x: cx - 13 + i * 4.4,
-          y: cy - 3,
-          width: 3.2,
-          height: 6,
-          cornerRadius: 0.6,
-          fill: i % 2 === 0 ? color : null,
-          stroke: color,
-          strokeWidth: 0.9,
-          opacity: i % 2 === 0 ? 0.85 : 1,
-          listening: false,
-        })
-      );
-    }
-    parent.add(
-      app.line({
-        x: cx - 14,
-        y: cy - 11,
-        x2: 28,
-        y2: 0,
-        stroke: color,
-        strokeWidth: 1.2,
-        lineCap: 'round',
-        listening: false,
-      })
-    );
-  } else if (type === 'client') {
-    // Desktop monitor + stand + base
-    parent.add(
-      app.roundedRect({
-        x: cx - 13,
-        y: cy - 12,
-        width: 26,
-        height: 18,
-        cornerRadius: 2.5,
-        fill: null,
-        stroke: color,
-        strokeWidth: sw,
-        listening: false,
-      })
-    );
-    parent.add(
-      app.roundedRect({
-        x: cx - 10,
-        y: cy - 9,
-        width: 20,
-        height: 12,
-        cornerRadius: 1.5,
-        fill: null,
-        stroke: color,
-        strokeWidth: 1,
-        opacity: 0.55,
-        listening: false,
-      })
-    );
-    parent.add(
-      app.line({
-        x: cx,
-        y: cy + 6,
-        x2: 0,
-        y2: 5,
-        stroke: color,
-        strokeWidth: sw,
-        lineCap: 'round',
-        listening: false,
-      })
-    );
-    parent.add(
-      app.line({
-        x: cx - 7,
-        y: cy + 12,
-        x2: 14,
-        y2: 0,
-        stroke: color,
-        strokeWidth: sw,
-        lineCap: 'round',
-        listening: false,
-      })
-    );
-  } else {
-    // Generic cloud / host
-    parent.add(
-      app.circle({
-        x: cx - 6,
-        y: cy + 2,
-        radius: 7,
-        fill: null,
-        stroke: color,
-        strokeWidth: sw,
-        listening: false,
-      })
-    );
-    parent.add(
-      app.circle({
-        x: cx + 5,
-        y: cy + 1,
-        radius: 8,
-        fill: null,
-        stroke: color,
-        strokeWidth: sw,
-        listening: false,
-      })
-    );
-    parent.add(
-      app.circle({
-        x: cx,
-        y: cy - 5,
-        radius: 6.5,
-        fill: null,
-        stroke: color,
-        strokeWidth: sw,
-        listening: false,
-      })
-    );
-  }
-}
-
 /** Network topology node with type icon and caption below. */
 export function createNetworkNode(app: App, label: string, type: string): Group {
-  const netType = (type in NETWORK_STYLES ? type : 'default') as NetworkType;
-  const style = NETWORK_STYLES[netType];
-  const size = netType === 'router' ? 56 : 48;
+  const kind = resolveNetworkIconKind(type);
+  const meta = getNetworkIconMeta(kind);
+  const style = networkStyleForKind(kind);
+  const isContainer = Boolean(meta.container);
+  const size = isContainer ? 64 : kind === 'router' || kind === 'firewall' ? 56 : 48;
   const node = app.group();
-  // Include caption below icon so anchors / hit area cover the full visual
   const cardH = size + getActiveDiagram().fontSize.sm + getActiveDiagram().spacing.xs + 10;
   node.metadata.diagramCardWidth = size;
   node.metadata.diagramCardHeight = cardH;
+  node.metadata.networkIconKind = kind;
+  node.metadata.networkIconCategory = meta.category;
 
   addCardChrome(app, node, {
     width: size,
     height: size,
-    cornerRadius: netType === 'server' ? getActiveDiagram().radii.md : size / 2,
+    cornerRadius: isContainer
+      ? getActiveDiagram().radii.md
+      : kind === 'server' || kind === 'storage' || kind === 'nas'
+        ? getActiveDiagram().radii.md
+        : size / 2,
     fill: style.fill,
     stroke: style.stroke,
     strokeWidth: getActiveDiagram().stroke.nodeEmphasis,
     shadow: getActiveDiagram().shadowElevated,
-    sheen: netType === 'server' || netType === 'switch',
+    sheen: kind === 'server' || kind === 'switch' || kind === 'storage',
   });
-  addNetworkGlyph(app, node, netType, size, style.glyph);
+  if (isContainer) {
+    node.add(
+      app.roundedRect({
+        x: 3,
+        y: 3,
+        width: size - 6,
+        height: size - 6,
+        cornerRadius: getActiveDiagram().radii.sm,
+        fill: null,
+        stroke: style.stroke,
+        strokeWidth: 1.1,
+        dash: [4, 3],
+        opacity: 0.55,
+        listening: false,
+      })
+    );
+  }
+  drawNetworkIcon(app, node, kind, size, style.glyph);
 
   const labelW = Math.max(size + 8, measureTextWidth(label, getActiveDiagram().fontSize.sm) + 18);
   const tw = measureTextWidth(label, getActiveDiagram().fontSize.sm);

@@ -31,6 +31,7 @@ import {
 import { collectObstacles } from './router';
 import { connectNodes, wireMindMapConnectors, wireOrgChartConnectors } from './connectors';
 import { buildSchematic } from './symbols';
+import { listNetworkIconKinds } from './networkIcons';
 import type {
   CanNetworkData,
   ClassDiagramData,
@@ -355,6 +356,44 @@ export function createNetworkDiagram(
   }
   group.add(edgeLayer);
 
+  return group;
+}
+
+/**
+ * Grid catalog of standard network icons (one tile per canonical kind).
+ * Pass `category` to filter (e.g. 'security', 'iot').
+ */
+export function createNetworkIconCatalog(
+  app: App,
+  options: NodeOptions & { category?: string; columns?: number } = {}
+): Group {
+  const category = options.category;
+  const kinds = listNetworkIconKinds().filter((m) => !category || m.category === category);
+  const columns = Math.max(4, options.columns ?? 8);
+  const canvas = readCanvasSize(options as Record<string, unknown>);
+  const group = createDiagramGroup(
+    app,
+    'networkIconCatalog',
+    { ...options, category },
+    { name: 'networkCatalog' }
+  );
+
+  const gapX = 96;
+  const gapY = 92;
+  const startX = 24;
+  const startY = 16;
+  kinds.forEach((meta, i) => {
+    const col = i % columns;
+    const row = Math.floor(i / columns);
+    const node = createNetworkNode(app, meta.label, meta.kind);
+    node.x = startX + col * gapX;
+    node.y = startY + row * gapY;
+    node.metadata = { ...node.metadata, diagramId: meta.kind };
+    group.add(node);
+  });
+
+  // Keep canvas size metadata for fitToBounds
+  void canvas;
   return group;
 }
 

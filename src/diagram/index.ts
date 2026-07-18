@@ -4,6 +4,7 @@ export {
   createClassDiagram,
   createMindMap,
   createNetworkDiagram,
+  createNetworkIconCatalog,
   createOrgChart,
   createSchematic,
   createCanNetwork,
@@ -11,6 +12,15 @@ export {
   toggleOrgCollapse,
   applyForceLayout,
 } from './definitions';
+
+export {
+  resolveNetworkIconKind,
+  listNetworkIconKinds,
+  listNetworkTypeAliases,
+  drawNetworkIcon,
+  getNetworkIconMeta,
+} from './networkIcons';
+export type { NetworkIconKind, NetworkIconCategory, NetworkIconMeta } from './networkIcons';
 
 export {
   forceDirectedLayout,
@@ -51,6 +61,7 @@ import {
   createClassDiagram,
   createMindMap,
   createNetworkDiagram,
+  createNetworkIconCatalog,
   createOrgChart,
   createSchematic,
   createCanNetwork,
@@ -61,6 +72,7 @@ import { forceDirectedLayout, layoutDiagram } from './layouts';
 import { fitDiagramToBounds } from './helpers';
 import { installDiagramEditor, uninstallDiagramEditor } from './editor';
 import { routeConnector } from './router';
+import { listNetworkIconKinds, resolveNetworkIconKind } from './networkIcons';
 
 /** Diagram module namespace for plugin install */
 export const Diagram = {
@@ -69,6 +81,7 @@ export const Diagram = {
   classDiagram: createClassDiagram,
   mindMap: createMindMap,
   network: createNetworkDiagram,
+  networkCatalog: createNetworkIconCatalog,
   orgChart: createOrgChart,
   schematic: createSchematic,
   canNetwork: createCanNetwork,
@@ -80,4 +93,6 @@ export const Diagram = {
   fitToBounds: fitDiagramToBounds,
   installEditor: installDiagramEditor,
   uninstallEditor: uninstallDiagramEditor,
+  listNetworkIcons: listNetworkIconKinds,
+  resolveNetworkIcon: resolveNetworkIconKind,
 };
