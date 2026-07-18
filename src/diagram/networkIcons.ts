@@ -620,25 +620,29 @@ export function networkStyleForKind(kind: NetworkIconKind): NetworkIconStyle {
   return { ...d.networkDefault };
 }
 
+const SW = 1.7;
+
+/** Line from (x,y) with delta (dx,dy). */
 function L(
   app: App,
   parent: Group,
   x: number,
   y: number,
-  x2: number,
-  y2: number,
+  dx: number,
+  dy: number,
   color: string,
-  sw = 1.5
+  sw = SW
 ): void {
   parent.add(
     app.line({
       x,
       y,
-      x2,
-      y2,
+      x2: dx,
+      y2: dy,
       stroke: color,
       strokeWidth: sw,
       lineCap: 'round',
+      lineJoin: 'round',
       listening: false,
     })
   );
@@ -652,8 +656,8 @@ function R(
   w: number,
   h: number,
   color: string,
-  sw = 1.5,
-  cr = 2,
+  sw = SW,
+  cr = 2.5,
   fill: string | null = null
 ): void {
   parent.add(
@@ -671,18 +675,51 @@ function R(
   );
 }
 
+/** Circle centered at (cx, cy) — compensates for top-left circle origin. */
 function C(
   app: App,
   parent: Group,
-  x: number,
-  y: number,
+  cx: number,
+  cy: number,
   r: number,
   color: string,
-  sw = 1.5,
+  sw = SW,
   fill: string | null = null
 ): void {
   parent.add(
-    app.circle({ x, y, radius: r, fill, stroke: color, strokeWidth: sw, listening: false })
+    app.circle({
+      x: cx - r,
+      y: cy - r,
+      radius: r,
+      fill,
+      stroke: fill ? null : color,
+      strokeWidth: fill ? 0 : sw,
+      listening: false,
+    })
+  );
+}
+
+function E(
+  app: App,
+  parent: Group,
+  cx: number,
+  cy: number,
+  rx: number,
+  ry: number,
+  color: string,
+  sw = SW
+): void {
+  parent.add(
+    app.ellipse({
+      x: cx - rx,
+      y: cy - ry,
+      radiusX: rx,
+      radiusY: ry,
+      fill: null,
+      stroke: color,
+      strokeWidth: sw,
+      listening: false,
+    })
   );
 }
 
@@ -691,77 +728,187 @@ function poly(
   parent: Group,
   points: number[],
   color: string,
-  sw = 1.5
+  sw = SW,
+  fill: string | null = null
 ): void {
   parent.add(
-    app.polygon({ points, fill: null, stroke: color, strokeWidth: sw, listening: false })
+    app.polygon({ points, fill, stroke: color, strokeWidth: sw, listening: false })
   );
 }
 
+function pline(
+  app: App,
+  parent: Group,
+  points: number[],
+  color: string,
+  sw = SW
+): void {
+  parent.add(
+    app.polyline({
+      points,
+      fill: null,
+      stroke: color,
+      strokeWidth: sw,
+      lineCap: 'round',
+      lineJoin: 'round',
+      listening: false,
+    })
+  );
+}
+
+/** Continuous cloud outline (Visio-style). */
 function drawCloudShape(app: App, parent: Group, cx: number, cy: number, color: string): void {
-  C(app, parent, cx - 7, cy + 2, 7, color);
-  C(app, parent, cx + 6, cy + 1, 8, color);
-  C(app, parent, cx, cy - 5, 6.5, color);
+  const bumps = [
+    { x: cx - 10, y: cy + 3, r: 6.5 },
+    { x: cx - 2, y: cy - 5, r: 7.5 },
+    { x: cx + 9, y: cy - 2, r: 7 },
+    { x: cx + 11, y: cy + 5, r: 5.5 },
+    { x: cx, y: cy + 7, r: 6 },
+  ];
+  for (const b of bumps) C(app, parent, b.x, b.y, b.r, color, 1.55);
+}
+
+function drawGlobe(app: App, parent: Group, cx: number, cy: number, color: string): void {
+  C(app, parent, cx, cy, 13, color, 1.75);
+  E(app, parent, cx, cy, 6, 13, color, 1.35);
+  L(app, parent, cx - 13, cy, 26, 0, color, 1.35);
+  L(app, parent, cx - 11, cy - 6, 22, 0, color, 1.15);
+  L(app, parent, cx - 11, cy + 6, 22, 0, color, 1.15);
 }
 
 function drawRouterHex(app: App, parent: Group, cx: number, cy: number, size: number, color: string): void {
-  const r = size * 0.28;
+  const r = size * 0.3;
   const hex: number[] = [];
   for (let i = 0; i < 6; i++) {
     const a = (Math.PI / 3) * i - Math.PI / 6;
-    hex.push(cx + r * Math.cos(a), cy + 4 + r * Math.sin(a));
+    hex.push(cx + r * Math.cos(a), cy + 2 + r * Math.sin(a));
   }
-  poly(app, parent, hex, color);
-  C(app, parent, cx, cy + 4, 3, color, 1, color);
+  poly(app, parent, hex, color, 1.85);
+  C(app, parent, cx, cy + 2, 3.4, color, 1, color);
   for (const sign of [-1, 1] as const) {
-    parent.add(
-      app.polyline({
-        points: quadraticToPoints(cx + sign * 6, cy - 6, cx + sign * 14, cy - 14, cx + sign * 4, cy - 18, 6),
-        fill: null,
-        stroke: color,
-        strokeWidth: 1.4,
-        lineCap: 'round',
-        lineJoin: 'round',
-        listening: false,
-      })
+    pline(
+      app,
+      parent,
+      quadraticToPoints(cx + sign * 5, cy - 8, cx + sign * 13, cy - 16, cx + sign * 3, cy - 19, 7),
+      color,
+      1.45
     );
   }
 }
 
 function drawServerRack(app: App, parent: Group, cx: number, cy: number, color: string): void {
-  R(app, parent, cx - 14, cy - 14, 28, 28, color, 1.6, 3);
+  R(app, parent, cx - 13, cy - 15, 26, 30, color, 1.75, 3.5);
   for (let i = 0; i < 3; i++) {
-    const y = cy - 10 + i * 8;
-    R(app, parent, cx - 10, y, 16, 5, color, 1.1, 1);
-    C(app, parent, cx + 9, y + 2.5, 1.4, color, 1, i === 0 ? color : null);
+    const y = cy - 11 + i * 8.5;
+    R(app, parent, cx - 9, y, 14, 5.5, color, 1.15, 1.2);
+    C(app, parent, cx + 8.5, y + 2.75, 1.5, color, 1, i === 0 ? color : null);
   }
 }
 
 function drawSwitchBody(app: App, parent: Group, cx: number, cy: number, color: string): void {
-  R(app, parent, cx - 16, cy - 8, 32, 16, color, 1.6, 3);
-  for (let i = 0; i < 6; i++) {
-    R(app, parent, cx - 13 + i * 4.4, cy - 3, 3.2, 6, color, 0.9, 0.6, i % 2 === 0 ? color : null);
+  R(app, parent, cx - 16, cy - 9, 32, 18, color, 1.75, 3.5);
+  for (let i = 0; i < 8; i++) {
+    R(
+      app,
+      parent,
+      cx - 14 + i * 3.6,
+      cy - 3,
+      2.6,
+      7,
+      color,
+      0.95,
+      0.5,
+      i % 2 === 0 ? color : null
+    );
   }
-  L(app, parent, cx - 14, cy - 11, 28, 0, color, 1.2);
+  L(app, parent, cx - 13, cy - 12, 26, 0, color, 1.25);
+  C(app, parent, cx + 12, cy - 12, 1.4, color, 1, color);
 }
 
 function drawMonitor(app: App, parent: Group, cx: number, cy: number, color: string): void {
-  R(app, parent, cx - 13, cy - 12, 26, 18, color, 1.6, 2.5);
-  R(app, parent, cx - 10, cy - 9, 20, 12, color, 1, 1.5);
-  L(app, parent, cx, cy + 6, 0, 5, color);
-  L(app, parent, cx - 7, cy + 12, 14, 0, color);
+  R(app, parent, cx - 14, cy - 13, 28, 18, color, 1.75, 3);
+  R(app, parent, cx - 11, cy - 10, 22, 12, color, 1.15, 1.5);
+  L(app, parent, cx, cy + 5, 0, 5, color, 1.7);
+  L(app, parent, cx - 8, cy + 11, 16, 0, color, 1.7);
 }
 
-function drawShield(app: App, parent: Group, cx: number, cy: number, color: string): void {
-  poly(app, parent, [cx, cy - 14, cx + 12, cy - 8, cx + 12, cy + 4, cx, cy + 14, cx - 12, cy + 4, cx - 12, cy - 8], color);
-  L(app, parent, cx - 5, cy, 5, 5, color, 1.4);
-  L(app, parent, cx, cy + 5, 6, -8, color, 1.4);
+function drawShield(
+  app: App,
+  parent: Group,
+  cx: number,
+  cy: number,
+  color: string,
+  mark: 'check' | 'eye' | 'lock' | 'none' = 'check'
+): void {
+  poly(
+    app,
+    parent,
+    [cx, cy - 15, cx + 12, cy - 9, cx + 11, cy + 3, cx, cy + 15, cx - 11, cy + 3, cx - 12, cy - 9],
+    color,
+    1.8
+  );
+  if (mark === 'check') {
+    pline(app, parent, [cx - 5, cy + 1, cx - 1, cy + 6, cx + 7, cy - 5], color, 1.7);
+  } else if (mark === 'eye') {
+    E(app, parent, cx, cy, 5, 3.2, color, 1.35);
+    C(app, parent, cx, cy, 1.8, color, 1, color);
+  } else if (mark === 'lock') {
+    R(app, parent, cx - 4, cy - 1, 8, 7, color, 1.35, 1.2);
+    pline(app, parent, [cx - 3, cy - 1, cx - 3, cy - 5, cx + 3, cy - 5, cx + 3, cy - 1], color, 1.35);
+  }
 }
 
 function drawCylinder(app: App, parent: Group, cx: number, cy: number, color: string): void {
-  R(app, parent, cx - 10, cy - 6, 20, 14, color, 1.5, 2);
-  R(app, parent, cx - 10, cy - 12, 20, 8, color, 1.3, 8);
-  R(app, parent, cx - 10, cy + 4, 20, 8, color, 1.3, 8);
+  const w = 22;
+  const h = 16;
+  const rx = w / 2;
+  const ry = 4.5;
+  E(app, parent, cx, cy - h / 2, rx, ry, color, 1.55);
+  L(app, parent, cx - rx, cy - h / 2, 0, h, color, 1.55);
+  L(app, parent, cx + rx, cy - h / 2, 0, h, color, 1.55);
+  E(app, parent, cx, cy + h / 2, rx, ry, color, 1.55);
+  E(app, parent, cx, cy - 1, rx, ry * 0.85, color, 1.15);
+}
+
+function drawWifiArcs(app: App, parent: Group, cx: number, cy: number, color: string): void {
+  C(app, parent, cx, cy + 8, 2.4, color, 1, color);
+  for (const r of [7, 11, 15]) {
+    pline(
+      app,
+      parent,
+      quadraticToPoints(cx - r, cy + 4, cx, cy + 4 - r * 0.85, cx + r, cy + 4, 10),
+      color,
+      1.55
+    );
+  }
+}
+
+function drawLoadBalancer(app: App, parent: Group, cx: number, cy: number, color: string): void {
+  R(app, parent, cx - 5, cy - 13, 10, 9, color, 1.6, 2);
+  L(app, parent, cx, cy - 4, 0, 5, color, 1.55);
+  L(app, parent, cx - 11, cy + 2, 22, 0, color, 1.55);
+  for (const ox of [-11, 0, 11]) {
+    L(app, parent, cx + ox, cy + 2, 0, 8, color, 1.45);
+    C(app, parent, cx + ox, cy + 12, 2.2, color, 1.2);
+  }
+}
+
+function drawZoneBox(app: App, parent: Group, cx: number, cy: number, color: string): void {
+  R(app, parent, cx - 15, cy - 11, 30, 22, color, 1.55, 4);
+  parent.add(
+    app.roundedRect({
+      x: cx - 11,
+      y: cy - 7,
+      width: 22,
+      height: 14,
+      cornerRadius: 2.5,
+      fill: null,
+      stroke: color,
+      strokeWidth: 1.2,
+      dash: [3.5, 2.5],
+      listening: false,
+    })
+  );
 }
 
 /** Draw a standard network glyph centered in a size×size box. */
@@ -777,10 +924,7 @@ export function drawNetworkIcon(
 
   switch (kind) {
     case 'internet':
-      C(app, parent, cx, cy, 12, color);
-      L(app, parent, cx - 12, cy, 24, 0, color, 1.2);
-      L(app, parent, cx, cy - 12, 0, 24, color, 1.2);
-      C(app, parent, cx, cy, 7, color, 1.2);
+      drawGlobe(app, parent, cx, cy, color);
       break;
     case 'cloud':
     case 'cdn':
@@ -795,85 +939,72 @@ export function drawNetworkIcon(
     case 'iotGateway':
     case 'canGateway':
     case 'ethGateway':
-      drawRouterHex(app, parent, cx, cy - 2, size, color);
+      drawRouterHex(app, parent, cx, cy - 1, size, color);
       break;
     case 'switch':
     case 'industrialSwitch':
       drawSwitchBody(app, parent, cx, cy, color);
       break;
     case 'hub':
-      C(app, parent, cx, cy, 5, color, 1.5, color);
+      C(app, parent, cx, cy, 4.5, color, 1, color);
       for (let i = 0; i < 6; i++) {
-        const a = (Math.PI / 3) * i;
-        L(app, parent, cx + Math.cos(a) * 6, cy + Math.sin(a) * 6, Math.cos(a) * 10, Math.sin(a) * 10, color, 1.3);
-        C(app, parent, cx + Math.cos(a) * 16, cy + Math.sin(a) * 16, 2.2, color, 1, color);
+        const a = (Math.PI / 3) * i - Math.PI / 6;
+        L(app, parent, cx + Math.cos(a) * 5, cy + Math.sin(a) * 5, Math.cos(a) * 9, Math.sin(a) * 9, color, 1.4);
+        C(app, parent, cx + Math.cos(a) * 15, cy + Math.sin(a) * 15, 2.3, color, 1, color);
       }
       break;
     case 'bridge':
-      R(app, parent, cx - 16, cy - 4, 12, 8, color, 1.4, 2);
-      R(app, parent, cx + 4, cy - 4, 12, 8, color, 1.4, 2);
-      L(app, parent, cx - 4, cy, 8, 0, color, 2);
+      R(app, parent, cx - 17, cy - 5, 13, 10, color, 1.6, 2.5);
+      R(app, parent, cx + 4, cy - 5, 13, 10, color, 1.6, 2.5);
+      L(app, parent, cx - 4, cy, 8, 0, color, 2.2);
+      C(app, parent, cx, cy, 2.2, color, 1, color);
       break;
     case 'repeater':
     case 'extender':
-      C(app, parent, cx - 8, cy, 5, color);
-      C(app, parent, cx + 8, cy, 5, color);
-      L(app, parent, cx - 3, cy, 6, 0, color, 1.5);
+      C(app, parent, cx - 9, cy, 5.5, color);
+      C(app, parent, cx + 9, cy, 5.5, color);
+      L(app, parent, cx - 3.5, cy, 7, 0, color, 1.8);
+      C(app, parent, cx, cy, 2, color, 1, color);
       break;
     case 'modem':
-      R(app, parent, cx - 14, cy - 6, 28, 14, color, 1.5, 3);
-      for (let i = 0; i < 3; i++) C(app, parent, cx - 6 + i * 6, cy, 1.8, color, 1, color);
-      L(app, parent, cx, cy - 10, 0, -4, color, 1.4);
+      R(app, parent, cx - 15, cy - 7, 30, 15, color, 1.7, 3.5);
+      for (let i = 0; i < 4; i++) C(app, parent, cx - 8 + i * 5.5, cy + 1, 1.7, color, 1, color);
+      L(app, parent, cx + 2, cy - 11, 0, -5, color, 1.5);
+      L(app, parent, cx - 2, cy - 14, 8, 0, color, 1.35);
       break;
     case 'wlc':
     case 'wap':
     case 'mesh':
     case 'wifi':
-      C(app, parent, cx, cy + 6, 2.5, color, 1, color);
-      for (const r of [6, 10, 14]) {
-        parent.add(
-          app.polyline({
-            points: quadraticToPoints(cx - r, cy + 2, cx, cy - r * 0.6, cx + r, cy + 2, 8),
-            fill: null,
-            stroke: color,
-            strokeWidth: 1.3,
-            lineCap: 'round',
-            listening: false,
-          })
-        );
-      }
+      drawWifiArcs(app, parent, cx, cy, color);
       break;
     case 'firewall':
+      drawShield(app, parent, cx, cy, color, 'check');
+      break;
     case 'ngfw':
     case 'waf':
     case 'swg':
+      drawShield(app, parent, cx, cy, color, 'lock');
+      break;
     case 'bastion':
-      drawShield(app, parent, cx, cy, color);
+      drawShield(app, parent, cx, cy, color, 'lock');
       break;
     case 'vpn':
     case 'vpnTunnel':
-      R(app, parent, cx - 12, cy - 6, 24, 14, color, 1.5, 3);
-      L(app, parent, cx - 6, cy, 4, 0, color);
-      L(app, parent, cx + 2, cy, 4, 0, color);
-      C(app, parent, cx, cy, 3, color);
+      R(app, parent, cx - 13, cy - 7, 26, 14, color, 1.7, 4);
+      pline(app, parent, [cx - 7, cy, cx - 3, cy, cx - 1, cy - 3, cx + 1, cy + 3, cx + 3, cy, cx + 7, cy], color, 1.6);
       break;
     case 'ids':
     case 'ips':
     case 'siem':
     case 'nac':
-      drawShield(app, parent, cx, cy, color);
-      C(app, parent, cx, cy - 1, 3.5, color);
+      drawShield(app, parent, cx, cy, color, 'eye');
       break;
     case 'proxy':
     case 'reverseProxy':
     case 'apiGateway':
     case 'loadBalancer':
-      R(app, parent, cx - 4, cy - 10, 8, 8, color, 1.4, 2);
-      L(app, parent, cx, cy - 2, 0, 6, color);
-      L(app, parent, cx - 10, cy + 8, 20, 0, color);
-      L(app, parent, cx - 10, cy + 8, 0, 6, color);
-      L(app, parent, cx, cy + 8, 0, 6, color);
-      L(app, parent, cx + 10, cy + 8, 0, 6, color);
+      drawLoadBalancer(app, parent, cx, cy, color);
       break;
     case 'server':
     case 'hypervisor':
@@ -882,22 +1013,32 @@ export function drawNetworkIcon(
       break;
     case 'vm':
       drawServerRack(app, parent, cx, cy, color);
-      R(app, parent, cx - 6, cy - 6, 12, 10, color, 1.2, 1);
+      R(app, parent, cx - 7, cy - 7, 14, 11, color, 1.25, 1.5);
       break;
     case 'container':
-      R(app, parent, cx - 12, cy - 8, 24, 16, color, 1.5, 2);
-      L(app, parent, cx - 12, cy, 24, 0, color, 1.2);
-      L(app, parent, cx, cy - 8, 0, 16, color, 1.2);
+      R(app, parent, cx - 13, cy - 9, 26, 18, color, 1.7, 2.5);
+      L(app, parent, cx - 13, cy, 26, 0, color, 1.25);
+      L(app, parent, cx - 4, cy - 9, 0, 18, color, 1.25);
+      L(app, parent, cx + 4, cy - 9, 0, 18, color, 1.25);
       break;
-    case 'k8s':
+    case 'k8s': {
+      const arm = 13;
       for (let i = 0; i < 6; i++) {
         const a = (Math.PI / 3) * i - Math.PI / 6;
-        L(app, parent, cx, cy, Math.cos(a) * 12, Math.sin(a) * 12, color, 1.4);
+        L(app, parent, cx, cy, Math.cos(a) * arm, Math.sin(a) * arm, color, 1.55);
+        C(app, parent, cx + Math.cos(a) * arm, cy + Math.sin(a) * arm, 2.2, color, 1, color);
       }
-      C(app, parent, cx, cy, 4, color, 1.4, color);
+      C(app, parent, cx, cy, 4.2, color, 1.5, color);
       break;
+    }
     case 'serverless':
-      poly(app, parent, [cx + 2, cy - 12, cx - 6, cy + 2, cx + 1, cy + 2, cx - 2, cy + 12, cx + 6, cy - 2, cx - 1, cy - 2], color);
+      poly(
+        app,
+        parent,
+        [cx + 3, cy - 14, cx - 8, cy + 1, cx + 1, cy + 1, cx - 3, cy + 14, cx + 8, cy - 1, cx - 1, cy - 1],
+        color,
+        1.7
+      );
       break;
     case 'database':
     case 'sql':
@@ -910,8 +1051,11 @@ export function drawNetworkIcon(
     case 'storage':
     case 'nas':
     case 'san':
-      R(app, parent, cx - 14, cy - 12, 28, 24, color, 1.5, 3);
-      for (let i = 0; i < 3; i++) L(app, parent, cx - 10, cy - 6 + i * 6, 20, 0, color, 1.2);
+      R(app, parent, cx - 14, cy - 13, 28, 26, color, 1.7, 3.5);
+      for (let i = 0; i < 3; i++) {
+        L(app, parent, cx - 10, cy - 7 + i * 7, 20, 0, color, 1.3);
+        C(app, parent, cx + 9, cy - 7 + i * 7, 1.3, color, 1, i === 0 ? color : null);
+      }
       break;
     case 'desktop':
     case 'workstation':
@@ -919,34 +1063,43 @@ export function drawNetworkIcon(
       drawMonitor(app, parent, cx, cy, color);
       break;
     case 'laptop':
-      R(app, parent, cx - 14, cy - 10, 28, 16, color, 1.5, 2);
-      R(app, parent, cx - 16, cy + 6, 32, 5, color, 1.4, 1);
+      R(app, parent, cx - 14, cy - 11, 28, 16, color, 1.7, 2.5);
+      R(app, parent, cx - 11, cy - 8, 22, 10, color, 1.15, 1.2);
+      R(app, parent, cx - 17, cy + 6, 34, 5, color, 1.55, 1.5);
       break;
     case 'phone':
-      R(app, parent, cx - 7, cy - 14, 14, 26, color, 1.5, 3);
-      C(app, parent, cx, cy + 9, 1.5, color, 1, color);
+      R(app, parent, cx - 7, cy - 15, 14, 28, color, 1.7, 3.5);
+      R(app, parent, cx - 5, cy - 12, 10, 20, color, 1.1, 1.5);
+      C(app, parent, cx, cy + 10, 1.4, color, 1, color);
       break;
     case 'tablet':
-      R(app, parent, cx - 11, cy - 14, 22, 28, color, 1.5, 3);
-      C(app, parent, cx, cy + 11, 1.3, color, 1, color);
+      R(app, parent, cx - 12, cy - 15, 24, 30, color, 1.7, 3.5);
+      R(app, parent, cx - 9, cy - 12, 18, 22, color, 1.1, 1.5);
+      C(app, parent, cx, cy + 12, 1.3, color, 1, color);
       break;
     case 'printer':
-      R(app, parent, cx - 12, cy - 4, 24, 12, color, 1.5, 2);
-      R(app, parent, cx - 8, cy - 12, 16, 10, color, 1.3, 1);
-      R(app, parent, cx - 8, cy + 6, 16, 6, color, 1.3, 1);
+      R(app, parent, cx - 13, cy - 3, 26, 12, color, 1.65, 2.5);
+      R(app, parent, cx - 9, cy - 12, 18, 10, color, 1.4, 1.5);
+      R(app, parent, cx - 9, cy + 7, 18, 7, color, 1.35, 1.2);
+      L(app, parent, cx - 6, cy + 10, 12, 0, color, 1.1);
       break;
     case 'scanner':
-      R(app, parent, cx - 14, cy - 4, 28, 10, color, 1.5, 2);
-      L(app, parent, cx - 10, cy, 20, 0, color, 1.2);
+      R(app, parent, cx - 15, cy - 5, 30, 12, color, 1.65, 3);
+      L(app, parent, cx - 11, cy, 22, 0, color, 1.35);
+      R(app, parent, cx - 8, cy - 12, 16, 6, color, 1.3, 1);
       break;
     case 'ipPhone':
-      R(app, parent, cx - 10, cy - 8, 20, 16, color, 1.5, 2);
-      L(app, parent, cx + 10, cy - 2, 6, -6, color, 1.4);
+      R(app, parent, cx - 11, cy - 8, 20, 16, color, 1.65, 2.5);
+      for (let r = 0; r < 2; r++)
+        for (let c = 0; c < 3; c++)
+          C(app, parent, cx - 5 + c * 5, cy - 3 + r * 5, 1.2, color, 1, color);
+      pline(app, parent, [cx + 10, cy - 2, cx + 15, cy - 8, cx + 15, cy + 2], color, 1.45);
       break;
     case 'smartTv':
-      R(app, parent, cx - 16, cy - 10, 32, 18, color, 1.5, 2);
-      L(app, parent, cx, cy + 8, 0, 4, color);
-      L(app, parent, cx - 8, cy + 12, 16, 0, color);
+      R(app, parent, cx - 17, cy - 11, 34, 20, color, 1.7, 3);
+      R(app, parent, cx - 14, cy - 8, 28, 14, color, 1.15, 1.5);
+      L(app, parent, cx, cy + 9, 0, 4, color, 1.6);
+      L(app, parent, cx - 9, cy + 13, 18, 0, color, 1.6);
       break;
     case 'vpc':
     case 'subnet':
@@ -959,21 +1112,7 @@ export function drawNetworkIcon(
     case 'vlan':
     case 'privateNet':
     case 'publicNet':
-      R(app, parent, cx - 14, cy - 10, 28, 20, color, 1.4, 3);
-      parent.add(
-        app.roundedRect({
-          x: cx - 14,
-          y: cy - 10,
-          width: 28,
-          height: 20,
-          cornerRadius: 3,
-          fill: null,
-          stroke: color,
-          strokeWidth: 1.2,
-          dash: [3, 2],
-          listening: false,
-        })
-      );
+      drawZoneBox(app, parent, cx, cy, color);
       break;
     case 'queue':
     case 'kafka':
@@ -981,23 +1120,37 @@ export function drawNetworkIcon(
     case 'mqtt':
     case 'eventBus':
     case 'serviceBus':
-      for (let i = 0; i < 3; i++) R(app, parent, cx - 12, cy - 10 + i * 8, 24, 6, color, 1.3, 1);
+      for (let i = 0; i < 3; i++) {
+        R(app, parent, cx - 13, cy - 12 + i * 9, 26, 7, color, 1.45, 2);
+        L(app, parent, cx + 8, cy - 8.5 + i * 9, 5, 0, color, 1.3);
+      }
       break;
     case 'monitor':
     case 'logging':
     case 'snmp':
     case 'config':
     case 'nms':
-      drawMonitor(app, parent, cx, cy - 2, color);
-      L(app, parent, cx - 6, cy - 4, 12, 0, color, 1.2);
+      drawMonitor(app, parent, cx, cy - 1, color);
+      pline(app, parent, [cx - 7, cy - 5, cx - 2, cy, cx + 2, cy - 4, cx + 7, cy + 1], color, 1.35);
       break;
     case 'plc':
     case 'rtu':
     case 'modbus':
     case 'esp32':
     case 'raspberryPi':
-      R(app, parent, cx - 12, cy - 10, 24, 20, color, 1.5, 2);
-      for (let i = 0; i < 4; i++) C(app, parent, cx - 6 + (i % 2) * 12, cy - 4 + Math.floor(i / 2) * 10, 2, color, 1, i < 2 ? color : null);
+      R(app, parent, cx - 13, cy - 11, 26, 22, color, 1.7, 2.5);
+      for (let i = 0; i < 4; i++) {
+        C(
+          app,
+          parent,
+          cx - 6 + (i % 2) * 12,
+          cy - 4 + Math.floor(i / 2) * 10,
+          2.2,
+          color,
+          1,
+          i < 2 ? color : null
+        );
+      }
       break;
     case 'hmi':
     case 'scada':
@@ -1006,44 +1159,52 @@ export function drawNetworkIcon(
       break;
     case 'opcua':
     case 'sensor':
-      C(app, parent, cx, cy, 8, color);
-      C(app, parent, cx, cy, 3, color, 1, color);
-      L(app, parent, cx, cy + 8, 0, 6, color);
+      C(app, parent, cx, cy - 1, 8.5, color);
+      C(app, parent, cx, cy - 1, 3.2, color, 1, color);
+      L(app, parent, cx, cy + 7.5, 0, 7, color, 1.6);
+      C(app, parent, cx, cy + 15, 1.8, color, 1, color);
       break;
     case 'actuator':
-      R(app, parent, cx - 4, cy - 12, 8, 16, color, 1.4, 1);
-      C(app, parent, cx, cy + 8, 6, color);
+      R(app, parent, cx - 4.5, cy - 13, 9, 14, color, 1.55, 1.5);
+      C(app, parent, cx, cy + 7, 7, color);
+      C(app, parent, cx, cy + 7, 3, color, 1, color);
       break;
     case 'ecu':
     case 'adas':
     case 'telematics':
-      R(app, parent, cx - 12, cy - 8, 24, 16, color, 1.5, 2);
+      R(app, parent, cx - 13, cy - 9, 26, 18, color, 1.7, 2.5);
       for (let i = 0; i < 3; i++) {
-        L(app, parent, cx - 12, cy - 4 + i * 4, -4, 0, color, 1.2);
-        L(app, parent, cx + 12, cy - 4 + i * 4, 4, 0, color, 1.2);
+        L(app, parent, cx - 13, cy - 4 + i * 5, -5, 0, color, 1.3);
+        L(app, parent, cx + 13, cy - 4 + i * 5, 5, 0, color, 1.3);
       }
+      R(app, parent, cx - 5, cy - 4, 10, 8, color, 1.2, 1);
       break;
     case 'canBus':
     case 'linBus':
     case 'flexray':
-      L(app, parent, cx - 14, cy, 28, 0, color, 2);
-      for (const x of [-8, 0, 8]) C(app, parent, cx + x, cy, 3, color, 1.2);
+      L(app, parent, cx - 15, cy, 30, 0, color, 2.2);
+      for (const x of [-9, 0, 9]) {
+        C(app, parent, cx + x, cy, 3.2, color);
+        L(app, parent, cx + x, cy + 3.2, 0, 5, color, 1.3);
+      }
       break;
     case 'gps':
     case 'satellite':
-      C(app, parent, cx, cy + 4, 4, color, 1.4, color);
-      poly(app, parent, [cx, cy - 12, cx + 8, cy + 2, cx - 8, cy + 2], color);
+      poly(app, parent, [cx, cy - 13, cx + 9, cy + 4, cx - 9, cy + 4], color, 1.7);
+      C(app, parent, cx, cy + 8, 3.5, color, 1.4, color);
+      C(app, parent, cx, cy + 8, 7, color, 1.2);
       break;
     case 'camera':
-      R(app, parent, cx - 12, cy - 8, 24, 16, color, 1.5, 3);
-      C(app, parent, cx, cy, 5, color);
-      C(app, parent, cx, cy, 2, color, 1, color);
+      R(app, parent, cx - 13, cy - 8, 26, 16, color, 1.7, 4);
+      C(app, parent, cx, cy, 5.5, color);
+      C(app, parent, cx, cy, 2.4, color, 1, color);
+      R(app, parent, cx + 8, cy - 11, 5, 4, color, 1.2, 1);
       break;
     case 'radar':
     case 'lidar':
-      C(app, parent, cx, cy, 4, color, 1, color);
-      for (const r of [8, 12]) C(app, parent, cx, cy, r, color, 1.2);
-      L(app, parent, cx, cy, 10, -8, color, 1.3);
+      C(app, parent, cx, cy, 3.5, color, 1, color);
+      for (const r of [8, 12, 16]) C(app, parent, cx, cy, r, color, 1.25);
+      L(app, parent, cx, cy, 12, -9, color, 1.45);
       break;
     case 'isp':
     case 'dnsProvider':
@@ -1054,8 +1215,8 @@ export function drawNetworkIcon(
     case 'mapsApi':
     case 'sms':
     case 'push':
-      drawCloudShape(app, parent, cx, cy - 2, color);
-      R(app, parent, cx - 6, cy + 6, 12, 6, color, 1.2, 1);
+      drawCloudShape(app, parent, cx, cy - 3, color);
+      R(app, parent, cx - 8, cy + 8, 16, 7, color, 1.35, 2);
       break;
     case 'ethernet':
     case 'fiber':
@@ -1063,24 +1224,32 @@ export function drawNetworkIcon(
     case 'sdwan':
     case 'serial':
     case 'usb':
-      L(app, parent, cx - 14, cy, 28, 0, color, 2);
-      R(app, parent, cx - 16, cy - 4, 6, 8, color, 1.3, 1);
-      R(app, parent, cx + 10, cy - 4, 6, 8, color, 1.3, 1);
+      L(app, parent, cx - 14, cy, 28, 0, color, 2.1);
+      R(app, parent, cx - 17, cy - 5, 7, 10, color, 1.45, 1.5);
+      R(app, parent, cx + 10, cy - 5, 7, 10, color, 1.45, 1.5);
+      if (kind === 'fiber') {
+        C(app, parent, cx, cy - 6, 2, color, 1, color);
+      }
       break;
     case 'bluetooth':
     case 'zigbee':
     case 'lorawan':
     case 'cellular':
-      L(app, parent, cx, cy - 10, 0, 20, color, 1.6);
+      L(app, parent, cx, cy - 12, 0, 24, color, 1.75);
       for (const sign of [-1, 1] as const) {
-        parent.add(
-          app.polyline({
-            points: quadraticToPoints(cx, cy - 4, cx + sign * 8, cy, cx, cy + 4, 6),
-            fill: null,
-            stroke: color,
-            strokeWidth: 1.3,
-            listening: false,
-          })
+        pline(
+          app,
+          parent,
+          quadraticToPoints(cx, cy - 5, cx + sign * 9, cy, cx, cy + 5, 8),
+          color,
+          1.45
+        );
+        pline(
+          app,
+          parent,
+          quadraticToPoints(cx, cy - 2, cx + sign * 5, cy, cx, cy + 2, 5),
+          color,
+          1.25
         );
       }
       break;

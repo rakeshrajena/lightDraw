@@ -378,10 +378,10 @@ export function createNetworkIconCatalog(
     { name: 'networkCatalog' }
   );
 
-  const gapX = 96;
-  const gapY = 92;
-  const startX = 24;
-  const startY = 16;
+  const gapX = 104;
+  const gapY = 100;
+  const startX = 20;
+  const startY = 12;
   kinds.forEach((meta, i) => {
     const col = i % columns;
     const row = Math.floor(i / columns);
