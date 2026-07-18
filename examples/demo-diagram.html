@@ -169,11 +169,88 @@
         tool: 'select',
         gridSize: 8,
         showPorts: false,
+        onChange() {
+          if (window.LivePlayground) LivePlayground.syncScene(true);
+        },
       });
     }
 
+    const DIAGRAM_TYPE_TO_SAMPLE = {
+      flowchart: 'flowchart',
+      stateMachine: 'stateMachine',
+      processPipeline: 'pipeline',
+      networkTopology: 'network',
+      canNetwork: 'can',
+      electricalSchematic: 'schematic',
+      mindMap: 'mindMap',
+      classDiagram: 'uml',
+      orgChart: 'org',
+    };
+
     function diagramOpts(extra = {}) {
       return { width: canvasW, height: canvasH, ...extra };
+    }
+
+    function getDiagramScene() {
+      if (!currentGroup) {
+        return { type: 'flowchart', props: { width: canvasW, height: canvasH }, diagram: currentDiagram };
+      }
+      const serialized = LightDraw.Diagram.toJSON
+        ? LightDraw.Diagram.toJSON(currentGroup)
+        : {
+            type: currentGroup.metadata.diagramType,
+            props: { ...(currentGroup.metadata.diagramState || {}) },
+          };
+      const props = { ...(serialized.props || {}) };
+      props.width = canvasW;
+      props.height = canvasH;
+      return {
+        type: serialized.type,
+        props,
+        diagram: currentDiagram,
+      };
+    }
+
+    function mountDiagramGroup(group, sampleKey) {
+      if (currentEditor) {
+        currentEditor.destroy();
+        currentEditor = null;
+      }
+      resizeQuietUntil = Date.now() + 250;
+      app.resize(canvasW, canvasH);
+      resetCamera();
+      app.stage.clear();
+      currentGroup = group;
+      if (sampleKey) currentDiagram = sampleKey;
+      app.add(currentGroup);
+      fitCurrentDiagram();
+      installArrangeEditor();
+      app.render();
+      if (window.LivePlayground) LivePlayground.syncScene(true);
+    }
+
+    function showDiagramFromJSON(parsed) {
+      const type = parsed && parsed.type;
+      if (!type) throw new Error('Diagram JSON needs a type (e.g. "flowchart")');
+      const props = { ...(parsed.props || {}) };
+      props.width = canvasW;
+      props.height = canvasH;
+      const group = LightDraw.Diagram.fromJSON
+        ? LightDraw.Diagram.fromJSON(type, props, app)
+        : LightDraw.Diagram.fromProps(type, props, app);
+      if (!group) throw new Error('Unknown diagram type: ' + type);
+      const sampleKey =
+        DIAGRAM_TYPE_TO_SAMPLE[type] ||
+        (parsed.diagram && samples[parsed.diagram] ? parsed.diagram : currentDiagram);
+      if (sampleKey && samples[sampleKey]) {
+        const btn = document.querySelector(`[data-diagram="${sampleKey}"]`);
+        if (btn) {
+          document.querySelectorAll('[data-diagram]').forEach((b) => b.classList.remove('is-active'));
+          btn.classList.add('is-active');
+        }
+        updateDiagramInfo(sampleKey);
+      }
+      mountDiagramGroup(group, sampleKey);
     }
 
     const samples = {
@@ -420,23 +497,11 @@
       currentDiagram = name;
       updateDiagramInfo(name);
       measureCanvas();
-      if (currentEditor) {
-        currentEditor.destroy();
-        currentEditor = null;
-      }
-      resizeQuietUntil = Date.now() + 250;
-      app.resize(canvasW, canvasH);
-      resetCamera();
-      app.stage.clear();
-      currentGroup = samples[name]();
-      app.add(currentGroup);
-      fitCurrentDiagram();
-      installArrangeEditor();
-      app.render();
-      if (window.LivePlayground) LivePlayground.syncScene(true);
+      mountDiagramGroup(samples[name](), name);
     }
     window.showDiagram = showDiagram;
     window.pick = pick;
+    window.showDiagramFromJSON = showDiagramFromJSON;
 
     document.getElementById('zoom-in').addEventListener('click', () => {
       setCanvasZoom((app.camera.zoom || 1) * ZOOM_STEP);
@@ -471,11 +536,17 @@
       LivePlayground.mount({
         app: () => app,
         panes: ['scene', 'snippet'],
-        getScene: () => ({ diagram: currentDiagram }),
+        getScene: () => getDiagramScene(),
         applyScene(parsed) {
+          if (parsed && parsed.type && parsed.props) {
+            showDiagramFromJSON(parsed);
+            return;
+          }
           const name = parsed && parsed.diagram;
           if (!name || !samples[name]) {
-            throw new Error('Unknown diagram: ' + (name || '(missing)'));
+            throw new Error(
+              'Expected diagram JSON like { "type": "flowchart", "props": { "data": { ... } } }'
+            );
           }
           const btn = document.querySelector(`[data-diagram="${name}"]`);
           if (btn) {
@@ -484,12 +555,15 @@
           }
           showDiagram(name);
         },
-        getSnippet(config) {
-          const name = (config && config.diagram) || 'flowchart';
+        getSnippet(scene) {
+          const type = (scene && scene.type) || 'flowchart';
+          const props = (scene && scene.props) || {};
+          const pretty = JSON.stringify({ type, props }, null, 2);
           return (
             `// Editable API — Run or Ctrl/Cmd+Enter\n` +
-            `showDiagram(${JSON.stringify(name)});\n` +
-            `// Valid: ${Object.keys(samples).join(', ')}\n`
+            `// Full diagram JSON is in the JSON tab (type + props).\n` +
+            `const scene = ${pretty};\n` +
+            `showDiagramFromJSON(scene);\n`
           );
         },
         applySnippet(code) {
@@ -497,10 +571,11 @@
             'LightDraw',
             'app',
             'showDiagram',
+            'showDiagramFromJSON',
             'samples',
             '"use strict";\n' + code
           );
-          runner(LightDraw, app, showDiagram, samples);
+          runner(LightDraw, app, showDiagram, showDiagramFromJSON, samples);
         },
       });
       resizeQuietUntil = Date.now() + 400;

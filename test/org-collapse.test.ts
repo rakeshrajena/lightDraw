@@ -169,11 +169,30 @@ describe('Org chart branch minimize', () => {
     expect(cmo.metadata.orgBranchAccent).toBeTruthy();
     expect(cto.metadata.orgBranchAccent).not.toBe(cfo.metadata.orgBranchAccent);
     expect(cfo.metadata.orgBranchAccent).not.toBe(cmo.metadata.orgBranchAccent);
+    expect(cto.metadata.orgBranchAccent).not.toBe(cmo.metadata.orgBranchAccent);
     // Sub-branch inherits parent branch accent
     expect(devLead.metadata.orgBranchAccent).toBe(cto.metadata.orgBranchAccent);
     expect(ceo.metadata.orgBranchIndex).toBeNull();
     expect(cto.metadata.orgBranchIndex).toBe(0);
     expect(devLead.metadata.orgBranchIndex).toBe(0);
+
+    app.destroy();
+  });
+
+  it('gives unique colors for many top-level branches (no palette wrap repeats)', () => {
+    const container = createTestContainer(1200, 600);
+    const app = createTestApp(container, { renderer: 'canvas', width: 1200, height: 600 });
+    const children = Array.from({ length: 12 }, (_, i) => ({ name: `VP-${i}` }));
+    const org = createOrgChart(app, { name: 'CEO', children }, { width: 1200, height: 600 });
+    app.add(org);
+    app.render();
+
+    const ceo = org.children.find((c) => c.metadata?.orgNode) as Group;
+    const accents = ceo.children
+      .filter((c) => c.metadata?.orgNode)
+      .map((c) => c.metadata.orgBranchAccent as string);
+    expect(accents.length).toBe(12);
+    expect(new Set(accents).size).toBe(12);
 
     app.destroy();
   });

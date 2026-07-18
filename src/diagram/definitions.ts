@@ -24,6 +24,8 @@ import {
   createCanEcuNode,
   countOrgDescendants,
   resolveOrgBranchStyle,
+  buildDistinctOrgBranchPalette,
+  hashOrgBranchSeed,
   updateOrgCollapseButton,
 } from './primitives';
 import {
@@ -436,12 +438,13 @@ function buildOrgNode(
   x: number,
   y: number,
   depth: number,
-  branchIndex: number | null = null
+  branchIndex: number | null = null,
+  branchPalette: ReturnType<typeof buildDistinctOrgBranchPalette> | null = null
 ): Group {
   const childCount = data.children?.length ?? 0;
   const descendantCount = countOrgDataDescendants(data);
   const collapsed = data.collapsed ?? false;
-  const style = resolveOrgBranchStyle(depth, branchIndex);
+  const style = resolveOrgBranchStyle(depth, branchIndex, branchPalette);
   const { node, indicator } = createOrgNode(app, {
     name: data.name,
     role: data.role,
@@ -472,10 +475,17 @@ function buildOrgNode(
   }
 
   if (data.children && data.children.length > 0) {
+    // Root: allocate unique colors for every top-level branch (N, no repeats)
+    const palette =
+      depth === 0
+        ? buildDistinctOrgBranchPalette(
+            data.children.length,
+            hashOrgBranchSeed(data.children.map((c) => c.name))
+          )
+        : branchPalette;
     data.children.forEach((child, i) => {
-      // Top-level teams get distinct branch colors; deeper nodes inherit
       const childBranch = depth === 0 ? i : branchIndex;
-      const childNode = buildOrgNode(app, node, child, 0, 0, depth + 1, childBranch);
+      const childNode = buildOrgNode(app, node, child, 0, 0, depth + 1, childBranch, palette);
       if (collapsed) childNode.visible = false;
     });
   }

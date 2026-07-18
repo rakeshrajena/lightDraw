@@ -459,19 +459,116 @@ export interface OrgNodeOptions {
   branchStyle?: { fill: string; stroke: string; accent: string };
 }
 
+export type OrgBranchStyle = { fill: string; stroke: string; accent: string };
+
+/** FNV-1a style seed from branch names (stable across rebuilds). */
+export function hashOrgBranchSeed(names: string[]): number {
+  let h = 2166136261;
+  for (const name of names) {
+    for (let i = 0; i < name.length; i++) {
+      h ^= name.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    h ^= 124;
+    h = Math.imul(h, 16777619);
+  }
+  return (h ^ (names.length * 2654435761)) >>> 0;
+}
+
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0 || 1;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function hslToHex(h: number, sPct: number, lPct: number): string {
+  const s = Math.max(0, Math.min(100, sPct)) / 100;
+  const l = Math.max(0, Math.min(100, lPct)) / 100;
+  const hue = ((h % 360) + 360) % 360;
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((hue / 60) % 2) - 1));
+  const m = l - c / 2;
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  if (hue < 60) [r, g, b] = [c, x, 0];
+  else if (hue < 120) [r, g, b] = [x, c, 0];
+  else if (hue < 180) [r, g, b] = [0, c, x];
+  else if (hue < 240) [r, g, b] = [0, x, c];
+  else if (hue < 300) [r, g, b] = [x, 0, c];
+  else [r, g, b] = [c, 0, x];
+  const to = (v: number) =>
+    Math.round((v + m) * 255)
+      .toString(16)
+      .padStart(2, '0');
+  return `#${to(r)}${to(g)}${to(b)}`;
+}
+
+/**
+ * Build N unique branch colors (no repeats).
+ * Hues are spaced on the wheel then shuffled with a seeded RNG so assignment
+ * feels random but stays stable for the same seed / rebuild.
+ */
+export function buildDistinctOrgBranchPalette(
+  count: number,
+  seed = 1
+): OrgBranchStyle[] {
+  const n = Math.max(0, Math.floor(count));
+  if (n <= 0) return [];
+
+  const base = getActiveDiagram().orgBranchPalette as readonly OrgBranchStyle[];
+  // Prefer curated theme swatches first (still unique), then generate more
+  if (n <= base.length) {
+    const rand = mulberry32(seed);
+    const idxs = Array.from({ length: base.length }, (_, i) => i);
+    for (let i = idxs.length - 1; i > 0; i--) {
+      const j = Math.floor(rand() * (i + 1));
+      [idxs[i], idxs[j]] = [idxs[j], idxs[i]];
+    }
+    return idxs.slice(0, n).map((i) => ({ ...base[i] }));
+  }
+
+  const rand = mulberry32(seed);
+  const GOLDEN = 137.508;
+  const start = rand() * 360;
+  const hues = Array.from({ length: n }, (_, i) => (start + i * GOLDEN) % 360);
+  for (let i = hues.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [hues[i], hues[j]] = [hues[j], hues[i]];
+  }
+
+  return hues.map((h, i) => {
+    // Slight sat/light jitter so neighboring hues still read distinct on dark cards
+    const satJitter = 4 * (i % 3);
+    const lightJitter = 2 * (i % 2);
+    return {
+      fill: hslToHex(h, 42 + satJitter, 13 + lightJitter),
+      stroke: hslToHex(h, 68 + satJitter, 52 + lightJitter),
+      accent: hslToHex(h, 74 + satJitter, 66 + lightJitter),
+    };
+  });
+}
+
 /** Resolve executive vs branch/sub-branch grouping colors. */
 export function resolveOrgBranchStyle(
   depth: number,
-  branchIndex: number | null | undefined
-): { fill: string; stroke: string; accent: string } {
+  branchIndex: number | null | undefined,
+  branchPalette?: readonly OrgBranchStyle[] | null
+): OrgBranchStyle {
   const d = getActiveDiagram();
   if (depth <= 0 || branchIndex == null || branchIndex < 0) {
     return { ...d.orgTier[0] };
   }
-  const palette = d.orgBranchPalette;
-  const base = palette[branchIndex % palette.length];
-  // Depth-1 teams: full branch color. Sub-branches inherit the same accent/stroke
-  // so the whole tree reads as one color group; fill softens slightly with depth.
+  const palette =
+    branchPalette && branchPalette.length > 0
+      ? branchPalette
+      : (d.orgBranchPalette as readonly OrgBranchStyle[]);
+  // Palette is built per chart with unique entries — never modulo-cycle
+  const base = palette[Math.min(branchIndex, palette.length - 1)] ?? palette[0];
   if (depth === 1) return { ...base };
   return {
     fill: d.orgTier[Math.min(depth, d.orgTier.length - 1)]?.fill ?? base.fill,

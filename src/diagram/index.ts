@@ -12,6 +12,7 @@ export {
   toggleOrgCollapse,
   applyForceLayout,
   wireOrgCollapseControls,
+  createDiagramFromProps,
 } from './definitions';
 
 export {
@@ -69,12 +70,16 @@ import {
   createPipeline,
   toggleOrgCollapse,
   wireOrgCollapseControls,
+  createDiagramFromProps,
 } from './definitions';
 import { forceDirectedLayout, layoutDiagram } from './layouts';
-import { fitDiagramToBounds } from './helpers';
+import { fitDiagramToBounds, diagramToJSON } from './helpers';
 import { installDiagramEditor, uninstallDiagramEditor } from './editor';
 import { routeConnector } from './router';
 import { listNetworkIconKinds, resolveNetworkIconKind } from './networkIcons';
+import { createDiagramFromJSON } from './registryCore';
+
+export { createDiagramFromJSON } from './registryCore';
 
 /** Diagram module namespace for plugin install */
 export const Diagram = {
@@ -98,4 +103,9 @@ export const Diagram = {
   uninstallEditor: uninstallDiagramEditor,
   listNetworkIcons: listNetworkIconKinds,
   resolveNetworkIcon: resolveNetworkIconKind,
+  /** Serialize a diagram root to `{ type, props }` JSON. */
+  toJSON: diagramToJSON,
+  /** Build a diagram from type + props JSON. */
+  fromJSON: createDiagramFromJSON,
+  fromProps: createDiagramFromProps,
 };
