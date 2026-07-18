@@ -16,6 +16,7 @@ export {
   forceDirectedLayout,
   layoutDiagram,
   radialLayout,
+  mindMapLayout,
   pipelineLayout,
   layoutNodesForce,
 } from './layouts';
@@ -38,6 +39,9 @@ export type {
   SchematicComponent,
   Obstacle,
 } from './types';
+
+export type { OrgNodeOptions } from './primitives';
+export { orgInitialsAvatarDataUri } from './primitives';
 
 export type { ForceLayoutOptions, ForceNode, ForceEdge } from './layouts';
 

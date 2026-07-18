@@ -17,7 +17,7 @@ Load diagrams via `app.loadJSON({ type: '<diagram>', props: { ... } })` or `Ligh
 | classDiagram | `Diagram.classDiagram(app, data)` | `data.classes`, `data.relations` |
 | mindMap | `Diagram.mindMap(app, center, branches)` | `center`, `branches[]` |
 | networkTopology | `Diagram.network(app, data)` | `data.nodes`, `data.edges` |
-| orgChart | `Diagram.orgChart(app, root)` | `root` tree with `collapsed` |
+| orgChart | `Diagram.orgChart(app, root)` | Tree of `{ name, role?, image?, department?, collapsed?, children? }` |
 | electricalSchematic | `Diagram.schematic(app, components)` | `components[]` |
 | canNetwork | `Diagram.canNetwork(app, data)` | `data.ecus`, `data.busLabel` |
 | processPipeline | `Diagram.pipeline(app, stages)` | `stages[]` with `status` |
@@ -97,6 +97,25 @@ Styles: `straight`, `orthogonal`, `smart` (avoids node bounding boxes).
 | Switch | `switch` |
 | LED | `led` |
 | Wire | `wire` |
+
+## Org chart
+
+```javascript
+LightDraw.Diagram.orgChart(app, {
+  name: 'Alex Rivera',
+  role: 'CEO',
+  department: 'Executive',
+  image: 'https://example.com/alex.jpg', // optional photo URL or data URI
+  children: [
+    {
+      name: 'Sam Chen',
+      role: 'CTO',
+      // image omitted → initials avatar is generated
+      children: [{ name: 'Jordan Lee', role: 'Eng Lead' }],
+    },
+  ],
+});
+```
 
 ## Org chart collapse
 

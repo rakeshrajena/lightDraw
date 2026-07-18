@@ -7,7 +7,6 @@ import {
   applyPositions,
   autoLayoutNodesResponsive,
   createDiagramGroup,
-  createNodeBox,
   measureTextWidth,
   normalizeDiagramData,
   readCanvasSize,
@@ -16,6 +15,7 @@ import {
 import {
   createClassNode,
   createFlowchartNode,
+  createLabeledBox,
   createNetworkNode,
   createOrgNode,
   createPipelineStage,
@@ -25,8 +25,8 @@ import {
 import {
   forceDirectedLayout,
   layoutDiagram,
+  mindMapLayout,
   pipelineLayout,
-  radialLayout,
 } from './layouts';
 import { collectObstacles } from './router';
 import { connectNodes, wireMindMapConnectors, wireOrgChartConnectors } from './connectors';
@@ -71,8 +71,10 @@ export function createFlowchart(app: App, data: DiagramData, options: NodeOption
         parent: group,
         stroke: getActiveDiagram().edge,
         glowColor: getActiveDiagram().edgeGlow,
+        glow: false,
         strokeWidth: edgeWidth,
         label: edge.label,
+        cornerRadius: 12,
       })
     );
   }
@@ -124,8 +126,10 @@ export function createStateMachine(
         parent: group,
         stroke: getActiveDiagram().edge,
         glowColor: getActiveDiagram().edgeGlow,
+        glow: false,
         strokeWidth: edgeWidth,
         label: t.label,
+        cornerRadius: 14,
       })
     );
   }
@@ -151,7 +155,7 @@ export function createClassDiagram(
     const nodeGroup = createClassNode(app, cls.name, cls.attributes ?? [], cls.methods ?? []);
     nodeGroup.x = cls.x ?? 0;
     nodeGroup.y = cls.y ?? 0;
-    nodeGroup.metadata = { diagramId: cls.id };
+    nodeGroup.metadata = { ...nodeGroup.metadata, diagramId: cls.id };
     nodeMap.set(cls.id, nodeGroup);
     group.add(nodeGroup);
   }
@@ -162,45 +166,51 @@ export function createClassDiagram(
     const from = nodeMap.get(rel.from);
     const to = nodeMap.get(rel.to);
     if (!from || !to) continue;
+    const pairObstacles = collectObstacles([...nodeMap.values()], [from, to]);
     if (rel.type === 'inheritance') {
       edgeLayer.add(
-        connectNodes(app, from, to, [], {
+        connectNodes(app, from, to, pairObstacles, {
           parent: group,
           style: 'orthogonal',
           stroke: getActiveDiagram().umlInheritance,
-          glowColor: 'rgba(245,158,11,0.18)',
+          glow: false,
           arrowEnd: 'hollow',
+          cornerRadius: 12,
         })
       );
     } else if (rel.type === 'association') {
       edgeLayer.add(
-        connectNodes(app, from, to, [], {
+        connectNodes(app, from, to, pairObstacles, {
           parent: group,
           style: 'orthogonal',
           stroke: getActiveDiagram().umlAssociation,
-          glowColor: getActiveDiagram().edgeGlow,
+          glow: false,
           arrowEnd: 'open',
+          cornerRadius: 12,
         })
       );
     } else if (rel.type === 'composition') {
       edgeLayer.add(
-        connectNodes(app, from, to, [], {
+        connectNodes(app, from, to, pairObstacles, {
           parent: group,
           style: 'orthogonal',
           stroke: getActiveDiagram().umlComposition,
-          glowColor: 'rgba(244,114,182,0.16)',
-          arrowEnd: 'filled',
+          glow: false,
+          arrowStart: 'diamond',
+          arrowEnd: 'none',
+          cornerRadius: 12,
         })
       );
     } else {
       edgeLayer.add(
-        connectNodes(app, from, to, [], {
+        connectNodes(app, from, to, pairObstacles, {
           parent: group,
           style: 'orthogonal',
           stroke: getActiveDiagram().umlImplements,
-          glowColor: 'rgba(167,139,250,0.16)',
+          glow: false,
           dash: rel.type === 'implements' ? [6, 4] : undefined,
-          arrowEnd: 'open',
+          arrowEnd: 'hollow',
+          cornerRadius: 12,
         })
       );
     }
@@ -210,7 +220,7 @@ export function createClassDiagram(
   return group;
 }
 
-/** Create mind map with radial layout */
+/** Create mind map — Mermaid-style left/right tree with smooth horizontal links */
 export function createMindMap(
   app: App,
   center: string,
@@ -219,47 +229,79 @@ export function createMindMap(
 ): Group {
   const group = createDiagramGroup(app, 'mindMap', { ...options, center, branches }, { name: 'mindMap' });
   const canvas = readCanvasSize(options as Record<string, unknown>);
-  const minDim = Math.min(canvas.width, canvas.height);
 
-  const centerNode = createNodeBox(app, center, 112, 54, {
-    fill: getActiveDiagram().mindCenter.fill,
-    stroke: getActiveDiagram().mindCenter.stroke,
-    cornerRadius: 27,
-    accentColor: getActiveDiagram().mindCenter.accent,
-  });
+  const centerNode = createLabeledBox(
+    app,
+    center,
+    140,
+    52,
+    {
+      fill: getActiveDiagram().mindCenter.fill,
+      stroke: getActiveDiagram().mindCenter.stroke,
+      cornerRadius: 26,
+      strokeWidth: 2,
+      shadow: null,
+      sheen: false,
+    },
+    { fontSize: getActiveDiagram().fontSize.lg, fontWeight: '700' }
+  );
   centerNode.metadata.diagramId = 'center';
+  centerNode.metadata.diagramCardWidth = 140;
+  centerNode.metadata.diagramCardHeight = 52;
   group.add(centerNode);
 
   branches.forEach((branch, bi) => {
     const palette = getActiveDiagram().mindBranchPalette[bi % getActiveDiagram().mindBranchPalette.length];
-    const branchNode = createNodeBox(app, branch.label, 100, 40, {
-      fill: palette.fill,
-      stroke: palette.stroke,
-      accentColor: palette.accent,
-    });
+    const branchNode = createLabeledBox(
+      app,
+      branch.label,
+      112,
+      40,
+      {
+        fill: palette.fill,
+        stroke: palette.stroke,
+        cornerRadius: 20,
+        strokeWidth: 1.75,
+        shadow: null,
+        sheen: false,
+      },
+      { fontSize: getActiveDiagram().fontSize.base, fontWeight: '600' }
+    );
     branchNode.metadata = {
       diagramId: `branch_${bi}`,
       mindBranchColor: palette.stroke,
       mindBranchGlow: palette.glow,
+      diagramCardWidth: 112,
+      diagramCardHeight: 40,
     };
     group.add(branchNode);
 
     if (branch.children) {
       branch.children.forEach((child, ci) => {
-        const childNode = createNodeBox(app, child, 88, 34, {
-          fill: getActiveDiagram().mindLeaf.fill,
-          stroke: palette.stroke,
-          accentColor: palette.accent,
-        });
+        const childNode = createLabeledBox(
+          app,
+          child,
+          96,
+          30,
+          {
+            fill: getActiveDiagram().mindLeaf.fill,
+            stroke: palette.stroke,
+            cornerRadius: 15,
+            strokeWidth: 1.5,
+            shadow: null,
+            sheen: false,
+          },
+          { fontSize: getActiveDiagram().fontSize.sm, fontWeight: '500' }
+        );
         childNode.metadata.diagramId = `branch_${bi}_leaf_${ci}`;
-        childNode.x = -12 + ci * 92;
-        childNode.y = 50;
+        childNode.metadata.diagramCardWidth = 96;
+        childNode.metadata.diagramCardHeight = 30;
         branchNode.add(childNode);
       });
     }
   });
 
-  radialLayout(group, canvas.width / 2, canvas.height / 2, minDim * 0.2, minDim * 0.34);
+  mindMapLayout(group, canvas.width, canvas.height);
   wireMindMapConnectors(app, group);
   return group;
 }
@@ -299,8 +341,10 @@ export function createNetworkDiagram(
         parent: group,
         stroke: getActiveDiagram().edge,
         glowColor: getActiveDiagram().edgeGlow,
+        glow: false,
         strokeWidth: edgeWidth,
         label: edge.label,
+        cornerRadius: 12,
       })
     );
   }
@@ -317,11 +361,11 @@ export function createOrgChart(
 ): Group {
   const group = createDiagramGroup(app, 'orgChart', { ...options, root }, { name: 'orgChart' });
   const canvas = readCanvasSize(options as Record<string, unknown>);
-  buildOrgNode(app, group, root, 0, 0, 0);
+  const rootNode = buildOrgNode(app, group, root, 0, 0, 0);
   layoutDiagram(
-    group,
-    Math.max(80, Math.round(canvas.height * 0.16)),
-    Math.max(56, Math.round(canvas.width * 0.11))
+    rootNode,
+    Math.max(120, Math.round(canvas.height * 0.22)),
+    Math.max(28, Math.round(canvas.width * 0.04))
   );
   wireOrgChartConnectors(app, group);
   return group;
@@ -337,7 +381,15 @@ function buildOrgNode(
 ): Group {
   const childCount = data.children?.length ?? 0;
   const collapsed = data.collapsed ?? false;
-  const { node, indicator } = createOrgNode(app, data.name, undefined, childCount, collapsed, depth);
+  const { node, indicator } = createOrgNode(app, {
+    name: data.name,
+    role: data.role,
+    image: data.image,
+    department: data.department,
+    childCount,
+    collapsed,
+    depth,
+  });
   node.metadata.diagramId = data.name;
   node.metadata.orgName = data.name;
   node.x = x;
@@ -378,6 +430,17 @@ export function toggleOrgCollapse(node: Node): void {
       ? `+${node.metadata.childCount}`
       : '−';
   }
+
+  // Rewire bus connectors so collapsed branches do not leave orphan wires
+  let root: Node | null = node;
+  while (root?.parent) {
+    root = root.parent;
+    if (root.metadata?.diagramType === 'orgChart') break;
+  }
+  const app = node.getApp();
+  if (app && root && root.metadata?.diagramType === 'orgChart') {
+    wireOrgChartConnectors(app, root as Group);
+  }
   node.markDirty();
 }
 
@@ -407,66 +470,88 @@ export function createCanNetwork(
   const strokeCtx = strokeContextForCanvas(canvas.width, canvas.height);
   const nodeStroke = resolveStrokeWidth(getActiveDiagram().stroke.node, strokeCtx);
   const busY = 72;
-  const busWidth = Math.max(
-    280,
-    Math.min(canvas.width - 48, Math.max(440, data.ecus.length * 110))
-  );
+  const ecuW = 96;
+  const margin = 36;
+  const n = Math.max(1, data.ecus.length);
+  // Stretch bus across the canvas so every ECU is fully visible with even gaps
+  const busWidth = Math.max(280, canvas.width - margin * 2);
   const busLabel = data.busLabel ?? 'CAN Bus';
 
+  const busGlow = getActiveDiagram().canBusGlow;
+  const busFill = getActiveDiagram().canBus;
   group.add(
     app.roundedRect({
-      x: 14,
-      y: busY - 5,
-      width: busWidth + 4,
-      height: 10,
-      cornerRadius: 5,
-      fill: getActiveDiagram().canBusGlow,
+      x: margin - 4,
+      y: busY - 11,
+      width: busWidth + 8,
+      height: 22,
+      cornerRadius: 6,
+      fill: busGlow,
       stroke: null,
-      opacity: 0.6,
+      opacity: 0.35,
+      listening: false,
+    })
+  );
+  // CAN-H (upper) / CAN-L (lower) — distinct opacity for dual-line bus
+  group.add(
+    app.line({
+      x: margin,
+      y: busY - 4,
+      x2: busWidth,
+      y2: 0,
+      stroke: busFill,
+      strokeWidth: 2.5,
+      lineCap: 'round',
       listening: false,
     })
   );
   group.add(
-    app.roundedRect({
-      x: 16,
-      y: busY - 3,
-      width: busWidth,
-      height: 6,
-      cornerRadius: 3,
-      fill: getActiveDiagram().canBus,
-      stroke: null,
-      shadow: getActiveDiagram().shadowSoft,
+    app.line({
+      x: margin,
+      y: busY + 4,
+      x2: busWidth,
+      y2: 0,
+      stroke: busFill,
+      strokeWidth: 2.5,
+      lineCap: 'round',
+      opacity: 0.55,
       listening: false,
     })
   );
-  group.add(
-    app.circle({
-      x: 16,
-      y: busY,
-      radius: 5,
-      fill: getActiveDiagram().canTermination,
-      stroke: getActiveDiagram().surface,
-      strokeWidth: 2,
-      listening: false,
-    })
-  );
-  group.add(
-    app.circle({
-      x: 16 + busWidth,
-      y: busY,
-      radius: 5,
-      fill: getActiveDiagram().canTermination,
-      stroke: getActiveDiagram().surface,
-      strokeWidth: 2,
-      listening: false,
-    })
-  );
+  // Termination: twin vertical bars (schematic-style resistors), not status dots
+  const termColor = getActiveDiagram().canTermination;
+  for (const tx of [margin, margin + busWidth]) {
+    group.add(
+      app.line({
+        x: tx,
+        y: busY - 10,
+        x2: 0,
+        y2: 20,
+        stroke: termColor,
+        strokeWidth: 2.5,
+        lineCap: 'round',
+        listening: false,
+      })
+    );
+    group.add(
+      app.line({
+        x: tx + (tx === margin ? 5 : -5),
+        y: busY - 10,
+        x2: 0,
+        y2: 20,
+        stroke: termColor,
+        strokeWidth: 2.5,
+        lineCap: 'round',
+        listening: false,
+      })
+    );
+  }
   const labelW = measureTextWidth(busLabel, getActiveDiagram().fontSize.base, 'bold');
   group.add(
     app.text({
       text: busLabel,
-      x: busWidth / 2 - labelW / 2 + 16,
-      y: busY - 24,
+      x: margin + busWidth / 2 - labelW / 2,
+      y: busY - 30,
       fontSize: getActiveDiagram().fontSize.base,
       fill: getActiveDiagram().edge,
       fontWeight: 'bold',
@@ -475,15 +560,19 @@ export function createCanNetwork(
     })
   );
 
-  const spacing = busWidth / (data.ecus.length + 1);
+  const spacing = busWidth / (n + 1);
   for (let i = 0; i < data.ecus.length; i++) {
     const ecu = data.ecus[i];
     const ecuColor = getActiveDiagram().canEcuPalette[i % getActiveDiagram().canEcuPalette.length];
-    const x = 16 + spacing * (i + 1) - 44;
+    const x = margin + spacing * (i + 1) - ecuW / 2;
     const ecuGroup = createCanEcuNode(app, ecu.label, ecu.address, ecuColor, nodeStroke);
     ecuGroup.x = x;
-    ecuGroup.y = busY + 14;
-    ecuGroup.metadata = { diagramId: ecu.id };
+    // Top of card sits 18px below bus midline → tap of 18 meets CAN-H/L center
+    ecuGroup.y = busY + 18;
+    ecuGroup.metadata = {
+      ...ecuGroup.metadata,
+      diagramId: ecu.id,
+    };
     group.add(ecuGroup);
   }
 

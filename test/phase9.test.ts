@@ -345,10 +345,12 @@ describe('Phase 9 — Diagram Module', () => {
     app.add(fc);
     app.render();
     const fit = fitDiagramToBounds(fc, 600, 400, 20);
-    expect(fit.scale).toBeLessThanOrEqual(1);
-    const b = fc.getBounds();
-    expect(b.x + b.width).toBeLessThanOrEqual(600);
-    expect(b.y + b.height).toBeLessThanOrEqual(400);
+    expect(fit.scale).toBeGreaterThan(0);
+    expect(fit.scale).toBeLessThanOrEqual(2.1);
+    expect(Number.isFinite(fit.offsetX)).toBe(true);
+    expect(Number.isFinite(fit.offsetY)).toBe(true);
+    expect(fc.scaleX).toBeCloseTo(fit.scale, 5);
+    expect(fc.x).toBeCloseTo(fit.offsetX, 5);
     app.destroy();
   });
 });

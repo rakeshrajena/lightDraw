@@ -68,7 +68,7 @@ export const DIAGRAM = {
 
   /** Connector palette */
   edge: '#60a5fa',
-  edgeGlow: 'rgba(96,165,250,0.18)',
+  edgeGlow: 'rgba(96,165,250,0.12)',
   edgeMuted: '#64748b',
   edgeMutedGlow: 'rgba(100,116,139,0.14)',
   edgeLabel: '#e2e8f0',
@@ -139,6 +139,15 @@ export const DIAGRAM = {
   orgToggle: '#cbd5e1',
   orgToggleBg: '#243044',
   orgRole: '#94a3b8',
+  /** Connector color for org charts (neutral professional) */
+  orgEdge: '#64748b',
+  orgEdgeWidth: 1.75,
+  orgCardShadow: {
+    color: 'rgba(0,0,0,0.38)',
+    blur: 12,
+    offsetX: 0,
+    offsetY: 4,
+  },
 
   canBus: '#3b82f6',
   canBusGlow: 'rgba(59,130,246,0.25)',

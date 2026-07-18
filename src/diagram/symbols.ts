@@ -4,7 +4,7 @@ import type { SchematicComponent } from './types';
 import { addCardChrome } from './chrome';
 import { getActiveDiagram } from './theme';
 
-const SYMBOL_SIZE = 44;
+const SYMBOL_SIZE = 48;
 
 function schematicStroke(): string {
   return getActiveDiagram().schematicStroke;
@@ -36,79 +36,142 @@ function symbolPad(app: App, w: number, h: number, accent?: string): Group {
   return g;
 }
 
-/** Draw a resistor (zigzag) */
+/** IEC-style zigzag resistor */
 function resistor(app: App, x: number, y: number): Group {
   const g = symbolPad(app, SYMBOL_SIZE, SYMBOL_SIZE, symbolAccent('resistor'));
   g.x = x;
   g.y = y;
-  const pts = [4, 22, 12, 8, 20, 36, 28, 8, 36, 36, 40, 22];
-  g.add(app.polyline({ points: pts, fill: null, stroke: schematicStroke(), strokeWidth: 2, lineCap: 'round', listening: false }));
+  const mid = SYMBOL_SIZE / 2;
+  const pts = [
+    4, mid,
+    10, mid,
+    14, mid - 10,
+    20, mid + 10,
+    26, mid - 10,
+    32, mid + 10,
+    38, mid,
+    44, mid,
+  ];
+  g.add(
+    app.polyline({
+      points: pts,
+      fill: null,
+      stroke: schematicStroke(),
+      strokeWidth: 2.25,
+      lineCap: 'round',
+      lineJoin: 'round',
+      listening: false,
+    })
+  );
   return g;
 }
 
-/** Draw a capacitor (two parallel plates) */
+/** Parallel-plate capacitor */
 function capacitor(app: App, x: number, y: number): Group {
   const g = symbolPad(app, SYMBOL_SIZE, SYMBOL_SIZE);
   g.x = x;
   g.y = y;
-  g.add(app.line({ x: 4, y: 22, x2: 16, y2: 0, stroke: schematicStroke(), strokeWidth: 2, lineCap: 'round', listening: false }));
-  g.add(app.line({ x: 18, y: 10, x2: 0, y2: 24, stroke: schematicStroke(), strokeWidth: 2.5, listening: false }));
-  g.add(app.line({ x: 24, y: 10, x2: 0, y2: 24, stroke: schematicStroke(), strokeWidth: 2.5, listening: false }));
-  g.add(app.line({ x: 26, y: 22, x2: 16, y2: 0, stroke: schematicStroke(), strokeWidth: 2, lineCap: 'round', listening: false }));
+  const mid = SYMBOL_SIZE / 2;
+  g.add(app.line({ x: 4, y: mid, x2: 16, y2: 0, stroke: schematicStroke(), strokeWidth: 2, lineCap: 'round', listening: false }));
+  g.add(app.line({ x: 18, y: 10, x2: 0, y2: 28, stroke: schematicStroke(), strokeWidth: 2.75, lineCap: 'round', listening: false }));
+  g.add(app.line({ x: 26, y: 10, x2: 0, y2: 28, stroke: schematicStroke(), strokeWidth: 2.75, lineCap: 'round', listening: false }));
+  g.add(app.line({ x: 28, y: mid, x2: 16, y2: 0, stroke: schematicStroke(), strokeWidth: 2, lineCap: 'round', listening: false }));
   return g;
 }
 
-/** Draw a ground symbol */
+/** Earth / ground */
 function ground(app: App, x: number, y: number): Group {
   const g = symbolPad(app, SYMBOL_SIZE, SYMBOL_SIZE, getActiveDiagram().edgeMuted);
   g.x = x;
   g.y = y;
-  g.add(app.line({ x: 22, y: 8, x2: 0, y2: 12, stroke: schematicStroke(), strokeWidth: 2, lineCap: 'round', listening: false }));
-  g.add(app.line({ x: 8, y: 24, x2: 28, y2: 0, stroke: schematicStroke(), strokeWidth: 2, lineCap: 'round', listening: false }));
-  g.add(app.line({ x: 14, y: 30, x2: 20, y2: 0, stroke: schematicStroke(), strokeWidth: 2, lineCap: 'round', listening: false }));
-  g.add(app.line({ x: 18, y: 36, x2: 4, y2: 0, stroke: schematicStroke(), strokeWidth: 2, lineCap: 'round', listening: false }));
+  g.add(app.line({ x: 24, y: 6, x2: 0, y2: 14, stroke: schematicStroke(), strokeWidth: 2, lineCap: 'round', listening: false }));
+  g.add(app.line({ x: 10, y: 22, x2: 28, y2: 0, stroke: schematicStroke(), strokeWidth: 2.25, lineCap: 'round', listening: false }));
+  g.add(app.line({ x: 14, y: 28, x2: 20, y2: 0, stroke: schematicStroke(), strokeWidth: 2, lineCap: 'round', listening: false }));
+  g.add(app.line({ x: 18, y: 34, x2: 12, y2: 0, stroke: schematicStroke(), strokeWidth: 1.75, lineCap: 'round', listening: false }));
   return g;
 }
 
-/** Draw a battery */
+/** Battery cell (long = positive) */
 function battery(app: App, x: number, y: number): Group {
   const g = symbolPad(app, SYMBOL_SIZE, SYMBOL_SIZE, symbolAccent('battery'));
   g.x = x;
   g.y = y;
-  g.add(app.line({ x: 14, y: 10, x2: 0, y2: 28, stroke: schematicStroke(), strokeWidth: 2, lineCap: 'round', listening: false }));
-  g.add(app.line({ x: 22, y: 6, x2: 0, y2: 32, stroke: getActiveDiagram().schematicBattery, strokeWidth: 3, lineCap: 'round', listening: false }));
-  g.add(app.line({ x: 30, y: 10, x2: 0, y2: 28, stroke: schematicStroke(), strokeWidth: 2, lineCap: 'round', listening: false }));
+  g.add(app.line({ x: 8, y: 24, x2: 8, y2: 0, stroke: schematicStroke(), strokeWidth: 2, lineCap: 'round', listening: false }));
+  g.add(app.line({ x: 18, y: 12, x2: 0, y2: 24, stroke: schematicStroke(), strokeWidth: 2, lineCap: 'round', listening: false }));
+  g.add(app.line({ x: 26, y: 8, x2: 0, y2: 32, stroke: getActiveDiagram().schematicBattery, strokeWidth: 3.25, lineCap: 'round', listening: false }));
+  g.add(app.line({ x: 34, y: 12, x2: 0, y2: 24, stroke: schematicStroke(), strokeWidth: 2, lineCap: 'round', listening: false }));
+  g.add(app.line({ x: 40, y: 24, x2: 4, y2: 0, stroke: schematicStroke(), strokeWidth: 2, lineCap: 'round', listening: false }));
   return g;
 }
 
-/** Draw a switch */
+/** SPST switch */
 function switchSymbol(app: App, x: number, y: number): Group {
   const g = symbolPad(app, SYMBOL_SIZE, SYMBOL_SIZE, symbolAccent('switch'));
   g.x = x;
   g.y = y;
-  g.add(app.line({ x: 4, y: 22, x2: 14, y2: 0, stroke: schematicStroke(), strokeWidth: 2, lineCap: 'round', listening: false }));
-  g.add(app.line({ x: 14, y: 22, x2: 4, y2: -10, stroke: getActiveDiagram().schematicSwitch, strokeWidth: 2, lineCap: 'round', listening: false }));
-  g.add(app.circle({ x: 14, y: 22, radius: 2.5, fill: getActiveDiagram().schematicSwitch, listening: false }));
-  g.add(app.line({ x: 30, y: 22, x2: -12, y2: 0, stroke: schematicStroke(), strokeWidth: 2, lineCap: 'round', listening: false }));
+  const mid = SYMBOL_SIZE / 2;
+  g.add(app.line({ x: 4, y: mid, x2: 14, y2: 0, stroke: schematicStroke(), strokeWidth: 2, lineCap: 'round', listening: false }));
+  g.add(app.circle({ x: 16, y: mid, radius: 2.75, fill: getActiveDiagram().schematicSwitch, listening: false }));
+  g.add(
+    app.line({
+      x: 16,
+      y: mid,
+      x2: 14,
+      y2: -12,
+      stroke: getActiveDiagram().schematicSwitch,
+      strokeWidth: 2.25,
+      lineCap: 'round',
+      listening: false,
+    })
+  );
+  g.add(app.circle({ x: 34, y: mid, radius: 2.75, fill: null, stroke: schematicStroke(), strokeWidth: 1.75, listening: false }));
+  g.add(app.line({ x: 36, y: mid, x2: 8, y2: 0, stroke: schematicStroke(), strokeWidth: 2, lineCap: 'round', listening: false }));
   return g;
 }
 
-/** Draw an LED */
+/** LED (diode triangle + emission arrows) */
 function led(app: App, x: number, y: number): Group {
   const g = symbolPad(app, SYMBOL_SIZE, SYMBOL_SIZE, symbolAccent('led'));
   g.x = x;
   g.y = y;
-  g.add(app.line({ x: 4, y: 22, x2: 12, y2: 0, stroke: schematicStroke(), strokeWidth: 2, lineCap: 'round', listening: false }));
+  const mid = SYMBOL_SIZE / 2;
+  g.add(app.line({ x: 4, y: mid, x2: 12, y2: 0, stroke: schematicStroke(), strokeWidth: 2, lineCap: 'round', listening: false }));
   g.add(
     app.polygon({
-      points: [12, 14, 32, 22, 12, 30],
+      points: [14, mid - 9, 32, mid, 14, mid + 9],
       fill: getActiveDiagram().schematicLedFill,
       stroke: getActiveDiagram().schematicLedStroke,
       strokeWidth: getActiveDiagram().stroke.node,
       listening: false,
     })
   );
-  g.add(app.line({ x: 32, y: 22, x2: -8, y2: 0, stroke: schematicStroke(), strokeWidth: 2, lineCap: 'round', listening: false }));
+  g.add(app.line({ x: 32, y: mid - 10, x2: 0, y2: 20, stroke: getActiveDiagram().schematicLedStroke, strokeWidth: 2, listening: false }));
+  g.add(app.line({ x: 34, y: mid, x2: 10, y2: 0, stroke: schematicStroke(), strokeWidth: 2, lineCap: 'round', listening: false }));
+  // Emission arrows
+  g.add(
+    app.line({
+      x: 28,
+      y: mid - 14,
+      x2: 8,
+      y2: -6,
+      stroke: getActiveDiagram().schematicLedStroke,
+      strokeWidth: 1.4,
+      lineCap: 'round',
+      listening: false,
+    })
+  );
+  g.add(
+    app.line({
+      x: 34,
+      y: mid - 12,
+      x2: 6,
+      y2: -6,
+      stroke: getActiveDiagram().schematicLedStroke,
+      strokeWidth: 1.4,
+      lineCap: 'round',
+      listening: false,
+    })
+  );
   return g;
 }
 
@@ -131,9 +194,9 @@ const SYMBOL_FACTORIES: Record<
         x2: 48,
         y2: 0,
         stroke: getActiveDiagram().schematicWireGlow,
-        strokeWidth: 6,
+        strokeWidth: 5,
         lineCap: 'round',
-        opacity: 0.85,
+        opacity: 0.55,
         listening: false,
       })
     );
@@ -144,7 +207,7 @@ const SYMBOL_FACTORIES: Record<
         x2: 48,
         y2: 0,
         stroke: getActiveDiagram().schematicWire,
-        strokeWidth: 2.5,
+        strokeWidth: 2.25,
         lineCap: 'round',
         listening: false,
       })
@@ -186,18 +249,34 @@ function centerLabelX(label: string, boxWidth: number): number {
   return Math.max(0, (boxWidth - approx) / 2);
 }
 
+function junctionDot(app: App, x: number, y: number): Group {
+  const g = app.group({ listening: false });
+  g.add(
+    app.circle({
+      x,
+      y,
+      radius: 3,
+      fill: getActiveDiagram().schematicWire,
+      stroke: getActiveDiagram().surface,
+      strokeWidth: 1,
+      listening: false,
+    })
+  );
+  return g;
+}
+
 function wireBetween(app: App, x1: number, y1: number, x2: number, y2: number): Group {
   const g = app.group({ listening: false });
   g.add(
     app.line({
       x: x1,
       y: y1,
-      x2: x2,
-      y2: y2,
+      x2: x2 - x1,
+      y2: y2 - y1,
       stroke: getActiveDiagram().schematicWireGlow,
-      strokeWidth: 6,
+      strokeWidth: 5,
       lineCap: 'round',
-      opacity: 0.85,
+      opacity: 0.5,
       listening: false,
     })
   );
@@ -205,10 +284,10 @@ function wireBetween(app: App, x1: number, y1: number, x2: number, y2: number): 
     app.line({
       x: x1,
       y: y1,
-      x2: x2,
-      y2: y2,
+      x2: x2 - x1,
+      y2: y2 - y1,
       stroke: getActiveDiagram().schematicWire,
-      strokeWidth: 2.5,
+      strokeWidth: 2.25,
       lineCap: 'round',
       listening: false,
     })
@@ -230,6 +309,8 @@ export function buildSchematic(app: App, components: SchematicComponent[]): Grou
     const x2 = b.x;
     if (x2 > x1) {
       wireLayer.add(wireBetween(app, x1, y, x2, y));
+      wireLayer.add(junctionDot(app, x1, y));
+      wireLayer.add(junctionDot(app, x2, y));
     }
   }
   group.add(wireLayer);

@@ -1,6 +1,6 @@
 import type { App } from '../../App';
 import type { Group } from '../../shapes/Group';
-import { connectNodes } from '../connectors';
+import { connectNodes, wireOrgChartConnectors, wireMindMapConnectors } from '../connectors';
 import { getActiveDiagram } from '../theme';
 import { collectObstacles } from '../router';
 import {
@@ -14,6 +14,26 @@ import type { EditorEdgeRecord } from './types';
 
 /** Rebuild all connectors in the diagram edge layer from stored edge metadata. */
 export function rerouteDiagramEdges(app: App, root: Group, edges?: EditorEdgeRecord[]): void {
+  const type = root.metadata?.diagramType as string | undefined;
+
+  // Keep Mermaid-style wiring for org / mind maps
+  if (type === 'orgChart') {
+    wireOrgChartConnectors(app, root);
+    root.markDirty();
+    return;
+  }
+  if (type === 'mindMap') {
+    for (const child of [...root.children]) {
+      if (child.metadata?.diagramEdgeLayer) {
+        root.remove(child);
+        child.destroy();
+      }
+    }
+    wireMindMapConnectors(app, root);
+    root.markDirty();
+    return;
+  }
+
   const edgeLayer = findEdgeLayer(root);
   if (!edgeLayer) return;
 

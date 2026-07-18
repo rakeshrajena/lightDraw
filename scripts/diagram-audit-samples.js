@@ -5,10 +5,10 @@ window.DIAGRAM_AUDIT_SAMPLES = {
       app,
       {
         nodes: [
-          { id: 'start', label: 'Start', type: 'start', x: 380, y: 24 },
-          { id: 'check', label: 'Valid input?', type: 'decision', x: 350, y: 100 },
-          { id: 'process', label: 'Process data', x: 350, y: 190 },
-          { id: 'end', label: 'Complete', type: 'end', x: 380, y: 280 },
+          { id: 'start', label: 'Start', type: 'start', x: 384, y: 24 },
+          { id: 'check', label: 'Valid input?', type: 'decision', x: 384, y: 110 },
+          { id: 'process', label: 'Process data', x: 384, y: 210 },
+          { id: 'end', label: 'Complete', type: 'end', x: 384, y: 300 },
         ],
         edges: [
           { from: 'start', to: 'check' },
@@ -24,18 +24,20 @@ window.DIAGRAM_AUDIT_SAMPLES = {
       app,
       {
         states: [
-          { id: 'idle', label: 'Idle', type: 'initial', x: 60, y: 200 },
-          { id: 'load', label: 'Loading', x: 240, y: 80 },
-          { id: 'run', label: 'Running', x: 440, y: 200 },
-          { id: 'err', label: 'Error', x: 240, y: 340 },
-          { id: 'done', label: 'Done', type: 'final', x: 640, y: 200 },
+          { id: 'init', label: '', type: 'initial', x: 40, y: 211 },
+          { id: 'idle', label: 'Idle', x: 100, y: 200 },
+          { id: 'load', label: 'Loading', x: 300, y: 80 },
+          { id: 'run', label: 'Running', x: 500, y: 200 },
+          { id: 'err', label: 'Error', x: 300, y: 340 },
+          { id: 'done', label: 'Done', type: 'final', x: 700, y: 200 },
         ],
         transitions: [
+          { from: 'init', to: 'idle' },
           { from: 'idle', to: 'load', label: 'fetch' },
           { from: 'load', to: 'run', label: 'ok' },
           { from: 'load', to: 'err', label: 'fail' },
           { from: 'run', to: 'done', label: 'complete' },
-          { from: 'err', to: 'idle', label: 'retry' },
+          { from: 'err', to: 'load', label: 'retry' },
         ],
       },
       { width: w, height: h }
@@ -77,7 +79,7 @@ window.DIAGRAM_AUDIT_SAMPLES = {
           { id: 'icu', label: 'ICU', address: '0x7E4' },
         ],
       },
-      { width: w, height: h, x: 24, y: 100 }
+      { width: w, height: h, x: 0, y: 80 }
     );
   },
   pipeline(app, w, h) {
@@ -114,23 +116,24 @@ window.DIAGRAM_AUDIT_SAMPLES = {
           {
             id: 'node',
             name: 'Node',
-            x: 80,
-            y: 40,
+            x: 340,
+            y: 36,
             attributes: ['- x: number', '- y: number'],
             methods: ['+ render(): void'],
           },
           {
             id: 'shape',
             name: 'Shape',
-            x: 80,
-            y: 200,
+            x: 120,
+            y: 260,
+            attributes: ['- fill: string'],
             methods: ['+ hitTest(): boolean'],
           },
           {
             id: 'group',
             name: 'Group',
-            x: 380,
-            y: 40,
+            x: 560,
+            y: 260,
             attributes: ['- children: Node[]'],
             methods: ['+ add(node): void'],
           },
@@ -138,6 +141,7 @@ window.DIAGRAM_AUDIT_SAMPLES = {
         relations: [
           { from: 'shape', to: 'node', type: 'inheritance' },
           { from: 'group', to: 'node', type: 'inheritance' },
+          { from: 'group', to: 'shape', type: 'composition' },
         ],
       },
       { width: w, height: h }
@@ -160,11 +164,35 @@ window.DIAGRAM_AUDIT_SAMPLES = {
     return LightDraw.Diagram.orgChart(
       app,
       {
-        name: 'CEO',
+        name: 'Alex Rivera',
+        role: 'CEO',
+        department: 'Executive',
+        image: 'https://api.dicebear.com/9.x/notionists/svg?seed=AlexRivera&backgroundColor=1e3a5f',
         children: [
-          { name: 'CTO', children: [{ name: 'Engineering Lead' }, { name: 'QA Lead' }] },
-          { name: 'CFO', children: [{ name: 'Accounting' }] },
-          { name: 'COO', collapsed: true, children: [{ name: 'Operations Manager' }] },
+          {
+            name: 'Sam Chen',
+            role: 'CTO',
+            department: 'Engineering',
+            image: 'https://api.dicebear.com/9.x/notionists/svg?seed=SamChen&backgroundColor=1e1b4b',
+            children: [
+              { name: 'Jordan Lee', role: 'Eng Lead', department: 'Platform' },
+              { name: 'Riley Park', role: 'QA Lead', department: 'Quality' },
+            ],
+          },
+          {
+            name: 'Morgan Blake',
+            role: 'CFO',
+            department: 'Finance',
+            image: 'https://api.dicebear.com/9.x/notionists/svg?seed=MorganBlake&backgroundColor=3b0764',
+            children: [{ name: 'Casey Ng', role: 'Accounting', department: 'Finance' }],
+          },
+          {
+            name: 'Taylor Kim',
+            role: 'COO',
+            department: 'Operations',
+            image: 'https://api.dicebear.com/9.x/notionists/svg?seed=TaylorKim&backgroundColor=0f172a',
+            children: [{ name: 'Avery Brooks', role: 'Ops Manager', department: 'Operations' }],
+          },
         ],
       },
       { width: w, height: h }

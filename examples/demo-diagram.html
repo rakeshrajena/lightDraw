@@ -89,7 +89,7 @@
       mindMap: {
         category: 'Structure',
         title: 'Mind Map',
-        desc: 'Radial branches with color-coded tiers for architecture overviews.',
+        desc: 'Left/right branches with smooth horizontal links — Mermaid-style overview maps.',
       },
       uml: {
         category: 'Structure',
@@ -99,7 +99,7 @@
       org: {
         category: 'Structure',
         title: 'Org Chart',
-        desc: 'Hierarchical roles with tier styling and parent–child connectors.',
+        desc: 'Classic hierarchy cards with optional photos, roles, and professional bus connectors.',
       },
     };
 
@@ -129,10 +129,10 @@
       flowchart: () =>
         LightDraw.Diagram.flowchart(app, {
           nodes: [
-            { id: 'start', label: 'Start', type: 'start', x: 380, y: 24 },
-            { id: 'check', label: 'Valid input?', type: 'decision', x: 350, y: 100 },
-            { id: 'process', label: 'Process data', x: 350, y: 190 },
-            { id: 'end', label: 'Complete', type: 'end', x: 380, y: 280 },
+            { id: 'start', label: 'Start', type: 'start', x: 384, y: 24 },
+            { id: 'check', label: 'Valid input?', type: 'decision', x: 384, y: 110 },
+            { id: 'process', label: 'Process data', x: 384, y: 210 },
+            { id: 'end', label: 'Complete', type: 'end', x: 384, y: 300 },
           ],
           edges: [
             { from: 'start', to: 'check' },
@@ -143,18 +143,20 @@
       stateMachine: () =>
         LightDraw.Diagram.stateMachine(app, {
           states: [
-            { id: 'idle', label: 'Idle', type: 'initial', x: 60, y: 200 },
-            { id: 'load', label: 'Loading', x: 240, y: 80 },
-            { id: 'run', label: 'Running', x: 440, y: 200 },
-            { id: 'err', label: 'Error', x: 240, y: 340 },
-            { id: 'done', label: 'Done', type: 'final', x: 640, y: 200 },
+            { id: 'init', label: '', type: 'initial', x: 40, y: 211 },
+            { id: 'idle', label: 'Idle', x: 100, y: 200 },
+            { id: 'load', label: 'Loading', x: 300, y: 80 },
+            { id: 'run', label: 'Running', x: 500, y: 200 },
+            { id: 'err', label: 'Error', x: 300, y: 340 },
+            { id: 'done', label: 'Done', type: 'final', x: 700, y: 200 },
           ],
           transitions: [
+            { from: 'init', to: 'idle' },
             { from: 'idle', to: 'load', label: 'fetch' },
             { from: 'load', to: 'run', label: 'ok' },
             { from: 'load', to: 'err', label: 'fail' },
             { from: 'run', to: 'done', label: 'complete' },
-            { from: 'err', to: 'idle', label: 'retry' },
+            { from: 'err', to: 'load', label: 'retry' },
           ],
         }, diagramOpts()),
       network: () =>
@@ -188,7 +190,7 @@
               { id: 'icu', label: 'ICU', address: '0x7E4' },
             ],
           },
-          diagramOpts({ x: 24, y: 100 })
+          diagramOpts({ x: 0, y: 80 })
         ),
       pipeline: () =>
         LightDraw.Diagram.pipeline(
@@ -215,23 +217,24 @@
             {
               id: 'node',
               name: 'Node',
-              x: 80,
-              y: 40,
+              x: 340,
+              y: 36,
               attributes: ['- x: number', '- y: number'],
               methods: ['+ render(): void'],
             },
             {
               id: 'shape',
               name: 'Shape',
-              x: 80,
-              y: 200,
+              x: 120,
+              y: 260,
+              attributes: ['- fill: string'],
               methods: ['+ hitTest(): boolean'],
             },
             {
               id: 'group',
               name: 'Group',
-              x: 380,
-              y: 40,
+              x: 560,
+              y: 260,
               attributes: ['- children: Node[]'],
               methods: ['+ add(node): void'],
             },
@@ -239,6 +242,7 @@
           relations: [
             { from: 'shape', to: 'node', type: 'inheritance' },
             { from: 'group', to: 'node', type: 'inheritance' },
+            { from: 'group', to: 'shape', type: 'composition' },
           ],
         }, diagramOpts()),
       schematic: () =>
@@ -251,11 +255,59 @@
         ], diagramOpts()),
       org: () =>
         LightDraw.Diagram.orgChart(app, {
-          name: 'CEO',
+          name: 'Alex Rivera',
+          role: 'Chief Executive Officer',
+          department: 'Executive',
+          image: 'https://api.dicebear.com/9.x/notionists/svg?seed=AlexRivera&backgroundColor=1e3a5f',
           children: [
-            { name: 'CTO', children: [{ name: 'Engineering Lead' }, { name: 'QA Lead' }] },
-            { name: 'CFO', children: [{ name: 'Accounting' }] },
-            { name: 'COO', collapsed: true, children: [{ name: 'Operations Manager' }] },
+            {
+              name: 'Sam Chen',
+              role: 'Chief Technology Officer',
+              department: 'Engineering',
+              image: 'https://api.dicebear.com/9.x/notionists/svg?seed=SamChen&backgroundColor=1e1b4b',
+              children: [
+                {
+                  name: 'Jordan Lee',
+                  role: 'Engineering Lead',
+                  department: 'Platform',
+                  image: 'https://api.dicebear.com/9.x/notionists/svg?seed=JordanLee&backgroundColor=14532d',
+                },
+                {
+                  name: 'Riley Park',
+                  role: 'QA Lead',
+                  department: 'Quality',
+                  image: 'https://api.dicebear.com/9.x/notionists/svg?seed=RileyPark&backgroundColor=422006',
+                },
+              ],
+            },
+            {
+              name: 'Morgan Blake',
+              role: 'Chief Financial Officer',
+              department: 'Finance',
+              image: 'https://api.dicebear.com/9.x/notionists/svg?seed=MorganBlake&backgroundColor=3b0764',
+              children: [
+                {
+                  name: 'Casey Ng',
+                  role: 'Accounting Manager',
+                  department: 'Finance',
+                  image: 'https://api.dicebear.com/9.x/notionists/svg?seed=CaseyNg&backgroundColor=1c2740',
+                },
+              ],
+            },
+            {
+              name: 'Taylor Kim',
+              role: 'Chief Operating Officer',
+              department: 'Operations',
+              image: 'https://api.dicebear.com/9.x/notionists/svg?seed=TaylorKim&backgroundColor=0f172a',
+              children: [
+                {
+                  name: 'Avery Brooks',
+                  role: 'Ops Manager',
+                  department: 'Operations',
+                  image: 'https://api.dicebear.com/9.x/notionists/svg?seed=AveryBrooks&backgroundColor=1e293b',
+                },
+              ],
+            },
           ],
         }, diagramOpts()),
     };
