@@ -70,7 +70,7 @@ Consumer-facing surface of LightDraw. For generated class/method pages run `npm 
 | **UI** | `registerComponent`, `createComponentFromJSON` — button, slider, dialog, tabs, … |
 | **Dashboard** | `registerDashboard`, `updateChartProps`, `pushChartValue`, `setLiveValue`, chart resize observers |
 | **Automotive** | `createAutomotiveFromJSON`, `applyDriveState`, `sampleDriveFrames`, `updateAutoWidgetProps`, `listAutomotiveWidgets` |
-| **Diagram** | `Diagram.*` helpers, editor, network/pipeline/schematic catalogs |
+| **Diagram** | `Diagram.*` helpers, editor (drag / resize / rotate / wire bends), catalogs |
 
 ## Plugins
 

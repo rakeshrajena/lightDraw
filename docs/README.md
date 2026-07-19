@@ -43,7 +43,7 @@ This folder is the **single source of truth** for guides and schemas. The websit
 | [UI components](./ui-components-schema.md) | Button, slider, dialog, … |
 | [Dashboard](./dashboard-widgets-schema.md) | Charts, gauges, thermometer |
 | [Automotive](./automotive-widgets-schema.md) | Cluster, TPMS, CAN |
-| [Diagram](./diagram-module-schema.md) | Flowchart, network, org chart, editor |
+| [Diagram](./diagram-module-schema.md) | Flowchart, network, org chart, editor (resize / rotate / wires) |
 
 ---
 
@@ -109,7 +109,7 @@ Source of truth for demos. Prepared copy lands in `website/public/examples/`.
 | `demo-ui.html` / `demo-ui-catalog.html` | UI components |
 | `demo-dashboard.html` / `demo-charts.html` | Charts & gauges |
 | `demo-automotive.html` | Instrument cluster + catalog |
-| `demo-diagram.html` | Interactive diagrams |
+| `demo-diagram.html` | Interactive diagrams (drag / resize / rotate / bends) |
 | `demo-export.html` | Export formats |
 | `demo-a11y.html` | Keyboard & ARIA |
 | `demo-theme.html` | Theme lab |

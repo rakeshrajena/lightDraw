@@ -5,6 +5,17 @@ All notable changes to LightDraw.js will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added — Diagram rotate
+
+- Editor **rotate handle** on selected symbols (`allowRotate`, default on): 15° snap, **Shift** = free angle; spins around card center
+- JSON `rotation` (degrees) on flowchart / network / pipeline / state machine / class diagram nodes (schematic already had it)
+- On rotate: connected wires clear temporary bends and **smart-route** to facing ports; manual bends still work afterward
+- Selection chrome follows rotation (AABB + rotated outline + mid-side ports)
+
+Docs: [diagram-module-schema.md](./docs/diagram-module-schema.md)
+
 ### Added — Component lab (Help)
 
 - Help **Component lab**: pick family → component, live single-component preview, editable JSON / API

@@ -78,14 +78,20 @@ const editor = LightDraw.Diagram.installEditor(app, org, {
 LightDraw.Diagram.uninstallEditor(org);
 ```
 
-**Rotate:** select a symbol → drag the circular handle above the box. Snaps to 15° by default; hold **Shift** for free angles.
+**Rotate:** select a symbol → drag the circular handle above the selection. Snaps to **15°** by default; hold **Shift** for free angles. Spins around the symbol center.
+
 | Capability | How |
 |------------|-----|
 | Drag nodes | Arrange/edit mode |
-| Resize | 8 handles (edges + corners); outward/inward |
-| Wire bends | Double-click a wire → drag bend handles |
+| Resize | 8 handles on the selection bounds (edges + corners) |
+| Rotate | Handle above selection; `allowRotate` (default `true`) |
+| Selection chrome | Dashed AABB + rotated card outline + ports on real mid-sides |
+| Wires on rotate | Linked edges drop temporary bends and **smart-route** to facing ports |
+| Wire bends | Double-click a wire → drag bend handles (after auto-route, anytime) |
 | Org collapse | Click `−N` / `+N` on a card (N = total descendants) |
-| Selection chrome | Cleared automatically when a branch is minimized |
+| Selection after collapse | Chrome cleared when a branch is minimized |
+
+JSON `rotation` is persisted on flowchart / network / pipeline / state / class / schematic nodes via `diagramState` (and `editorPositions`).
 
 ## Network icons
 

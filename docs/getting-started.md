@@ -97,7 +97,7 @@ npm run prepare:website   # copies dist + examples into website/public (gitignor
 npm run dev:website       # http://localhost:5173
 ```
 
-- **Playground** — theme lab, UI, charts, automotive, **interactive diagrams** (drag / resize / wire bends / org collapse) with a live Scene / API dock  
+- **Playground** — theme lab, UI, charts, automotive, **interactive diagrams** (drag / resize / **rotate** / wire bends / org collapse) with a live Scene / API dock  
 - **Help** — `/help.html` topics with live embeds  
 - Site chrome defaults to **Night**; toggle Day/Night in the rail  
 
@@ -112,12 +112,16 @@ const chart = LightDraw.Diagram.orgChart(app, { name: 'CEO', children: [{ name: 
 });
 app.add(chart);
 LightDraw.Diagram.fitToBounds(chart, 800, 480, 24);
-LightDraw.Diagram.installEditor(app, chart, { mode: 'arrange', allowResize: true });
-// Double-click wires for bends; click −N / +N on org cards to collapse branches
+LightDraw.Diagram.installEditor(app, chart, {
+  mode: 'arrange',
+  allowResize: true,
+  allowRotate: true,
+});
+// Select a node → resize / rotate handles. Double-click wires for bends.
+// Org cards: click −N / +N to collapse branches.
 ```
 
-See [Diagram module schema](./diagram-module-schema.md).
-
+See [Diagram module schema](./diagram-module-schema.md) (`rotation` on nodes, wire re-route on rotate).
 ## Plugins
 
 ```javascript
