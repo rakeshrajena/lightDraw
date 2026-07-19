@@ -25,7 +25,7 @@ import {
   Sprite,
 } from './shapes/index';
 import { detectBestRenderer, getPixelRatio, resolveContainer, requestFrame, cancelFrame } from './utils';
-import { fromJSON, toJSON } from './io/json';
+import { fromJSON, exportStageJSON, isHoistableRootGroup } from './io/json';
 import { exportScene, exportApp } from './io/export';
 import { formatJsonParseError } from './io/schema';
 import type { ExportFormat, ExportOptions, ExportResult } from './io/exportTypes';
@@ -484,6 +484,19 @@ export class App extends EventEmitter {
     }
     const node = fromJSON(scene as unknown as SceneJSON, this);
     this.stage.clear();
+    // Hoist plain root groups so export → load → export does not nest an extra group
+    if (isHoistableRootGroup(node) && node.children.length > 0) {
+      for (const child of [...node.children]) {
+        node.remove(child);
+        this.stage.add(child);
+      }
+      this.nodeCount = countNodes(this.stage);
+      this.spatialIndex.clear();
+      this.renderer.forceFullRedraw();
+      this.requestRender();
+      return this.stage.children.length === 1 ? this.stage.children[0]! : this.stage;
+    }
+
     this.stage.add(node);
     this.nodeCount = countNodes(this.stage);
     this.spatialIndex.clear();
@@ -493,8 +506,8 @@ export class App extends EventEmitter {
   }
 
   /** Export scene. Pass `{ includeTheme: true }` to embed the current theme pack. */
-  exportJSON(options?: { includeTheme?: boolean }): SceneJSON {
-    const scene = toJSON(this.stage) as SceneJSON;
+  exportJSON(options?: { includeTheme?: boolean; compact?: boolean }): SceneJSON {
+    const scene = exportStageJSON(this.stage, { compact: options?.compact });
     if (options?.includeTheme) {
       const theme = this.getTheme();
       if (Object.keys(theme).length > 0) {

@@ -89,6 +89,8 @@ Use dashboard widget types from the schema.
 
 ## Round-trip validation
 
+`app.exportJSON()` keeps **authoring** shapes (widgets stay `{ type, props }` leaves). See [JSON format](./json-format.md).
+
 ```javascript
 import { scenesEqual } from 'lightdraw/core';
 
@@ -98,6 +100,8 @@ app.loadJSON(a);
 const b = app.exportJSON();
 console.log(scenesEqual(a, b)); // true for stable widgets
 ```
+
+For smaller AI/hand dumps: `app.exportJSON({ compact: true })`.
 
 ## Export for offline review
 

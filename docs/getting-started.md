@@ -87,7 +87,7 @@ app.loadJSON(json);
 const exported = app.exportJSON({ includeTheme: true });
 ```
 
-Full guide: [AI Integration](./ai-integration-guide.md) · schemas under [docs/README](./README.md).
+Full guide: [JSON format](./json-format.md) · [AI Integration](./ai-integration-guide.md) · schemas under [docs/README](./README.md).
 
 ## Local playground
 

@@ -23,14 +23,12 @@
             <button type="button" class="demo-btn secondary is-active" data-diagram="flowchart" onclick="pick(this, 'flowchart')">Flowchart</button>
             <button type="button" class="demo-btn secondary" data-diagram="stateMachine" onclick="pick(this, 'stateMachine')">State Machine</button>
             <button type="button" class="demo-btn secondary" data-diagram="pipeline" onclick="pick(this, 'pipeline')">Pipeline</button>
-            <button type="button" class="demo-btn secondary" data-diagram="pipelineCatalog" onclick="pick(this, 'pipelineCatalog')">Pipeline Catalog</button>
           </div>
           <div class="demo-diagram-group">
             <h2>Systems</h2>
             <button type="button" class="demo-btn secondary" data-diagram="network" onclick="pick(this, 'network')">Network</button>
             <button type="button" class="demo-btn secondary" data-diagram="can" onclick="pick(this, 'can')">CAN Bus</button>
             <button type="button" class="demo-btn secondary" data-diagram="schematic" onclick="pick(this, 'schematic')">Schematic</button>
-            <button type="button" class="demo-btn secondary" data-diagram="schematicCatalog" onclick="pick(this, 'schematicCatalog')">Electronics Catalog</button>
           </div>
           <div class="demo-diagram-group">
             <h2>Structure</h2>
@@ -109,11 +107,6 @@
         title: 'Pipeline',
         desc: 'Stage status badges with optional process symbols for CI/CD, manufacturing, and workflows.',
       },
-      pipelineCatalog: {
-        category: 'Process',
-        title: 'Pipeline Catalog',
-        desc: '250 process / engineering / manufacturing symbols — gateways, CI/CD, plant floor, cloud, and more.',
-      },
       network: {
         category: 'Systems',
         title: 'Network Topology',
@@ -128,11 +121,6 @@
         category: 'Systems',
         title: 'Schematic',
         desc: 'IEC electronic symbols with auto-wiring — battery → fuse → switch → load → ground.',
-      },
-      schematicCatalog: {
-        category: 'Systems',
-        title: 'Electronics Catalog',
-        desc: 'Full symbol library: power, passives, semiconductors, logic, sensors, actuators, connectors, and more.',
       },
       mindMap: {
         category: 'Structure',
@@ -393,12 +381,7 @@
       app.add(currentGroup);
       fitCurrentDiagram();
       installArrangeEditor();
-      // Ensure flow matches UI (catalogs may omit flow)
-      if (sampleKey !== 'pipelineCatalog' && sampleKey !== 'schematicCatalog') {
-        applyFlowFromUi();
-      } else {
-        syncFlowToolbar();
-      }
+      applyFlowFromUi();
       app.render();
       if (window.LivePlayground) LivePlayground.syncScene(true);
     }
@@ -520,8 +503,6 @@
           ],
           diagramOpts()
         ),
-      pipelineCatalog: () =>
-        LightDraw.Diagram.pipelineCatalog(app, { ...diagramOpts(), columns: 10 }),
       mindMap: () =>
         LightDraw.Diagram.mindMap(app, 'LightDraw.js', [
           { label: 'Core Engine', children: ['Shapes', 'Renderers', 'Animation'] },
@@ -572,8 +553,6 @@
           { id: 'd1', type: 'led', x: 400, y: 180, label: 'LED' },
           { id: 'g1', type: 'ground', x: 490, y: 180 },
         ], diagramOpts()),
-      schematicCatalog: () =>
-        LightDraw.Diagram.schematicCatalog(app, { ...diagramOpts(), columns: 10 }),
       org: () =>
         LightDraw.Diagram.orgChart(app, {
           name: 'Alex Rivera',

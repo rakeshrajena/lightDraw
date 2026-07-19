@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — Scene JSON export fidelity
+
+- `toJSON` / `app.exportJSON()` keep module widgets as opaque `{ type, props }` leaves (no visual-tree expansion)
+- Opt-in `exportJSON({ compact: true })` / `toJSON(node, { compact: true })` omits identity defaults
+- Docs: [json-format.md](./docs/json-format.md)
+
 ### Added — Diagram wire flow
 
 - `Diagram.applyFlow` / `stopFlow` / `refreshFlow` — marching dashes, traveling packets, node pulse/flash

@@ -30,7 +30,7 @@ Consumer-facing surface of LightDraw. For generated class/method pages run `npm 
 | API | Purpose |
 |-----|---------|
 | `app.loadJSON(scene, options?)` | Build scene from JSON (applies `theme` if present) |
-| `app.exportJSON()` | Serialize current scene |
+| `app.exportJSON(opts?)` | Serialize scene (`includeTheme`, `compact`) — authoring-shaped |
 | `fromJSON` / `toJSON` | Core helpers |
 | `validateSceneJSON(scene)` | Schema check → `{ valid, errors }` |
 | `parseAndValidateSceneJSON(text)` | Parse + validate with caret errors |

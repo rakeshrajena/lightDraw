@@ -12,6 +12,7 @@ This folder is the **single source of truth** for guides and schemas. The websit
 | Doc | Audience |
 |-----|----------|
 | [Getting started](./getting-started.md) | Install, first scene, JSON, playground |
+| [JSON format](./json-format.md) | Shared `{ type, props }` rules, export round-trip |
 | [Architecture](./architecture.md) | Entry points, `src/` layout, plugins |
 | [API overview](./api-overview.md) | Key functions (TypeDoc for full detail) |
 | [Root README](../README.md) | Product overview, use cases, CDN / npm |

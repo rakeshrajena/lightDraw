@@ -1,7 +1,7 @@
 import type { App } from '../App';
 import type { SceneJSON } from '../types';
 import type { Node } from '../Node';
-import { toJSON } from './json';
+import { exportStageJSON } from './json';
 import { validateSceneJSON } from './schema';
 import {
   buildPdfFromJpegPages,
@@ -159,7 +159,7 @@ function exportPdf(app: App, options: ExportOptions): ExportResult {
 }
 
 function exportHtml(app: App, options: ExportOptions): ExportResult {
-  const json = toJSON(app.stage);
+  const json = exportStageJSON(app.stage);
   if (options.validate) {
     const validation = validateSceneJSON(json);
     if (!validation.valid) {
