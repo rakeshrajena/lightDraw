@@ -28,6 +28,7 @@
       <a href="#theme">Theme</a>
       <a href="#scene-json">Scene JSON</a>
       <div class="help-nav-group" role="presentation">Modules</div>
+      <a href="#component-lab">Component lab</a>
       <a href="#ui">UI</a>
       <a href="#dashboard">Dashboard</a>
       <a href="#automotive">Automotive</a>
@@ -115,6 +116,27 @@ app.applyTheme({ primary: 'pink', fontSize: '16px' });</pre>
         <div class="help-actions">
           <a class="stage-btn" href="%BASE_URL%index.html#ui">Try UI demo</a>
           <a class="stage-btn stage-btn--ghost" href="doc.html?src=docs/ai-integration-guide.md">AI + JSON guide</a>
+        </div>
+      </section>
+
+      <section class="help-section" id="component-lab">
+        <h2>Component lab</h2>
+        <p>
+          Pick a <strong>family</strong> and <strong>component</strong>, see definition + where to use,
+          then live-render only that component. Edit <strong>JSON</strong> or <strong>API</strong> below for an instant update.
+        </p>
+        <div class="help-live help-live--lab">
+          <iframe
+            id="help-component-lab-frame"
+            src="examples/demo-component-lab.html?embed=1"
+            title="Component lab — select, preview, edit JSON"
+            loading="lazy"
+          ></iframe>
+        </div>
+        <div class="help-actions">
+          <a class="stage-btn" href="%BASE_URL%examples/demo-component-lab.html" target="_blank" rel="noopener">Open full lab</a>
+          <a class="stage-btn stage-btn--ghost" href="doc.html?src=docs/ui-components-schema.md">UI schema</a>
+          <a class="stage-btn stage-btn--ghost" href="doc.html?src=docs/diagram-module-schema.md">Diagram schema</a>
         </div>
       </section>
 

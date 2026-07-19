@@ -261,9 +261,16 @@ function drawMessage(app: App, g: Group): void {
 }
 
 function drawError(app: App, g: Group): void {
-  // BPMN error — lightning bolt in circle
+  // Error — X in circle (clear “fault”, not a thunderbolt)
   addCircle(app, g, MID, MID, 14, fill(), 1.9);
-  addPoly(app, g, [28, 12, 18, 24, 24, 24, 20, 36, 30, 22, 24, 22], 1.5, stroke());
+  addLine(app, g, 17, 17, 14, 14, 2.4);
+  addLine(app, g, 31, 17, -14, 14, 2.4);
+}
+
+function drawException(app: App, g: Group): void {
+  // Exception — lightning in hexagon (distinct from error X)
+  addPoly(app, g, [MID, 8, 38, 16, 38, 32, MID, 40, 10, 32, 10, 16], 1.8, fill());
+  addPoly(app, g, [28, 14, 18, 24, 24, 24, 20, 34, 30, 24, 24, 24], 1.4, stroke());
 }
 
 function drawWarning(app: App, g: Group): void {
@@ -335,6 +342,15 @@ function drawPipelineFlow(app: App, g: Group): void {
   addBox(app, g, 30, 18, 12, 12, 6);
   addLine(app, g, 18, MID, -2, 0, 1.5);
   addLine(app, g, 30, MID, -2, 0, 1.5);
+}
+
+function drawFlowPath(app: App, g: Group): void {
+  // Flow — open path with bends (distinct from pipeline capsules)
+  addLine(app, g, 8, 16, 12, 0, 2);
+  addLine(app, g, 20, 16, 0, 16, 2);
+  addLine(app, g, 20, 32, 12, 0, 2);
+  addPoly(app, g, [40, 32, 32, 26, 32, 38], 0, stroke());
+  addCircle(app, g, 8, 16, 3, stroke(), 0);
 }
 
 function drawValueStream(app: App, g: Group): void {
@@ -411,12 +427,6 @@ function drawBuild(app: App, g: Group): void {
 function drawCompile(app: App, g: Group): void {
   addBox(app, g, 8, 12, 32, 24, 4);
   addText(app, g, '</>', 14, MID + 4, 11);
-}
-
-function drawException(app: App, g: Group): void {
-  // Distinct from error: lightning in hexagon
-  addPoly(app, g, [MID, 8, 38, 16, 38, 32, MID, 40, 10, 32, 10, 16], 1.8, fill());
-  addPoly(app, g, [28, 14, 18, 24, 24, 24, 20, 34, 30, 24, 24, 24], 1.4, stroke());
 }
 
 function drawInventory(app: App, g: Group): void {
@@ -905,6 +915,674 @@ function drawAgv(app: App, g: Group): void {
   addLine(app, g, 14, 24, 6, 0, 1.3);
 }
 
+
+function drawActivity(app: App, g: Group): void {
+  // Activity — rounded task with play marker
+  addBox(app, g, 7, 12, 34, 24, 8);
+  addPoly(app, g, [18, 18, 18, 30, 30, 24], 1.5, stroke());
+}
+
+function drawOperation(app: App, g: Group): void {
+  // Operation — gear inside process box
+  addBox(app, g, 7, 12, 34, 24, 5);
+  addCircle(app, g, MID, MID, 6, null, 1.6);
+  addLine(app, g, MID, MID - 9, 0, 3, 1.8);
+  addLine(app, g, MID, MID + 6, 0, 3, 1.8);
+  addLine(app, g, MID - 9, MID, 3, 0, 1.8);
+  addLine(app, g, MID + 6, MID, 3, 0, 1.8);
+}
+
+function drawTaskBox(app: App, g: Group): void {
+  // Generic task — checkbox marker
+  addBox(app, g, 7, 12, 34, 24, 5);
+  addBox(app, g, 12, 18, 10, 10, 1);
+  addPoly(app, g, [14, 23, 16, 26, 21, 19], 1.6);
+}
+
+function drawWorkflow(app: App, g: Group): void {
+  // Workflow — linked mini-steps with branch
+  addBox(app, g, 6, 18, 10, 10, 3);
+  addBox(app, g, 19, 10, 10, 10, 3);
+  addBox(app, g, 19, 28, 10, 10, 3);
+  addBox(app, g, 32, 18, 10, 10, 3);
+  addLine(app, g, 16, 23, 3, 0, 1.4);
+  addLine(app, g, 24, 20, 0, 8, 1.4);
+  addLine(app, g, 29, 23, 3, 0, 1.4);
+}
+
+function drawBusinessProcess(app: App, g: Group): void {
+  // Business process — briefcase
+  addBox(app, g, 10, 18, 28, 18, 3);
+  addBox(app, g, 18, 12, 12, 8, 2);
+  addLine(app, g, 10, 26, 28, 0, 1.4);
+  addLine(app, g, MID, 22, 0, 8, 1.5);
+}
+
+function drawManufacturingProcess(app: App, g: Group): void {
+  // Manufacturing process — machine + flow arrow
+  addBox(app, g, 8, 14, 18, 20, 3);
+  addCircle(app, g, 17, 24, 5, null, 1.5);
+  addLine(app, g, 17, 19, 0, 10, 1.3);
+  addLine(app, g, 12, 24, 10, 0, 1.3);
+  addLine(app, g, 28, MID, 8, 0, 2);
+  addPoly(app, g, [40, MID, 34, MID - 5, 34, MID + 5], 0, stroke());
+}
+
+function drawEngineeringProcess(app: App, g: Group): void {
+  // Engineering process — blueprint / set-square
+  addBox(app, g, 8, 10, 32, 28, 3);
+  addPoly(app, g, [12, 34, 12, 16, 30, 34], 1.6);
+  addLine(app, g, 12, 34, 18, 0, 1.5);
+  addLine(app, g, 28, 14, 8, 0, 1.3);
+  addLine(app, g, 28, 18, 8, 0, 1.3);
+}
+
+function drawSoftwareProcess(app: App, g: Group): void {
+  // Software process — terminal / code window
+  addBox(app, g, 8, 10, 32, 28, 4);
+  addLine(app, g, 8, 18, 32, 0, 1.5);
+  addCircle(app, g, 13, 14, 1.6, stroke(), 0);
+  addCircle(app, g, 18, 14, 1.6, stroke(), 0);
+  addText(app, g, '</>', 16, 32, 10);
+}
+
+function drawWait(app: App, g: Group): void {
+  // Wait — pause bars in circle (distinct from timer clock)
+  addCircle(app, g, MID, MID, 14, fill(), 1.9);
+  addLine(app, g, 19, 16, 0, 16, 2.6);
+  addLine(app, g, 29, 16, 0, 16, 2.6);
+}
+
+function drawLinkChain(app: App, g: Group): void {
+  // Link — chain links
+  addEllipse(app, g, 18, MID, 8, 6, null, 1.8);
+  addEllipse(app, g, 30, MID, 8, 6, null, 1.8);
+}
+
+function drawDependency(app: App, g: Group): void {
+  // Dependency — dashed arrow
+  addLine(app, g, 8, MID, 6, 0, 2);
+  addLine(app, g, 18, MID, 6, 0, 2);
+  addLine(app, g, 28, MID, 4, 0, 2);
+  addPoly(app, g, [40, MID, 32, MID - 6, 32, MID + 6], 0, stroke());
+}
+
+function drawAnnotation(app: App, g: Group): void {
+  // BPMN text annotation — open bracket
+  addLine(app, g, 14, 10, 0, 28, 2);
+  addLine(app, g, 14, 10, 8, 0, 2);
+  addLine(app, g, 14, 38, 8, 0, 2);
+  addLine(app, g, 26, 18, 12, 0, 1.3);
+  addLine(app, g, 26, 24, 12, 0, 1.3);
+  addLine(app, g, 26, 30, 8, 0, 1.3);
+}
+
+function drawBuffer(app: App, g: Group): void {
+  // Buffer — tank / accumulator (not queue stack)
+  addBox(app, g, 14, 10, 20, 28, 2);
+  addLine(app, g, 14, 20, 20, 0, 1.3);
+  addLine(app, g, 14, 28, 20, 0, 1.3);
+  addLine(app, g, MID, 8, 0, -4, 1.5);
+  addLine(app, g, MID, 38, 0, 4, 1.5);
+}
+
+function drawFork(app: App, g: Group): void {
+  // Fork — one-to-many branch (not parallel +)
+  addLine(app, g, 8, MID, 14, 0, 2);
+  addLine(app, g, 22, MID, 10, -12, 2);
+  addLine(app, g, 22, MID, 10, 12, 2);
+  addPoly(app, g, [40, 12, 32, 8, 32, 16], 0, stroke());
+  addPoly(app, g, [40, 36, 32, 32, 32, 40], 0, stroke());
+}
+
+function drawJoin(app: App, g: Group): void {
+  // Join — many-to-one converge
+  addLine(app, g, 8, 12, 14, 12, 2);
+  addLine(app, g, 8, 36, 14, -12, 2);
+  addLine(app, g, 22, MID, 12, 0, 2);
+  addPoly(app, g, [40, MID, 32, MID - 6, 32, MID + 6], 0, stroke());
+}
+
+function drawSplit(app: App, g: Group): void {
+  // Split — vertical divider into two paths
+  addBox(app, g, 8, 12, 14, 24, 3);
+  addLine(app, g, 22, MID, 6, 0, 2);
+  addBox(app, g, 28, 10, 12, 12, 3);
+  addBox(app, g, 28, 26, 12, 12, 3);
+}
+
+function drawModule(app: App, g: Group): void {
+  // Module — puzzle / interlocking block
+  addBox(app, g, 10, 14, 20, 20, 2);
+  addBox(app, g, 26, 18, 10, 12, 2);
+  addLine(app, g, 16, 14, 0, -4, 2);
+  addLine(app, g, 10, 24, -4, 0, 2);
+}
+
+function drawFile(app: App, g: Group): void {
+  // File — single page (no dog-ear lines like report)
+  addPoly(app, g, [12, 8, 30, 8, 36, 14, 36, 40, 12, 40], 1.7);
+  addLine(app, g, 30, 8, 0, 6, 1.5);
+  addLine(app, g, 30, 14, 6, 0, 1.5);
+}
+
+function drawDataObject(app: App, g: Group): void {
+  // BPMN data object — page with top fold + bars
+  addPoly(app, g, [12, 8, 28, 8, 36, 16, 36, 40, 12, 40], 1.7);
+  addLine(app, g, 28, 8, 0, 8, 1.5);
+  addLine(app, g, 28, 16, 8, 0, 1.5);
+  addLine(app, g, 16, 22, 14, 0, 1.3);
+  addLine(app, g, 16, 28, 14, 0, 1.3);
+}
+
+function drawReport(app: App, g: Group): void {
+  // Report — document with chart bars
+  addPoly(app, g, [12, 8, 30, 8, 36, 14, 36, 40, 12, 40], 1.7);
+  addLine(app, g, 30, 8, 0, 6, 1.4);
+  addLine(app, g, 30, 14, 6, 0, 1.4);
+  addLine(app, g, 16, 34, 0, -8, 2);
+  addLine(app, g, 22, 34, 0, -14, 2);
+  addLine(app, g, 28, 34, 0, -6, 2);
+}
+
+function drawLog(app: App, g: Group): void {
+  // Log — lined list document
+  addBox(app, g, 12, 8, 24, 32, 2);
+  addLine(app, g, 16, 16, 16, 0, 1.3);
+  addLine(app, g, 16, 22, 16, 0, 1.3);
+  addLine(app, g, 16, 28, 12, 0, 1.3);
+  addLine(app, g, 16, 34, 14, 0, 1.3);
+}
+
+function drawWebhook(app: App, g: Group): void {
+  // Webhook — hook / curved arrow into API box
+  addBox(app, g, 18, 16, 22, 16, 3);
+  addText(app, g, '{}', 24, 28, 9);
+  addCircle(app, g, 14, 14, 5, null, 1.6);
+  addLine(app, g, 14, 19, 0, 10, 1.6);
+  addLine(app, g, 14, 29, 6, 0, 1.6);
+}
+
+function drawEmail(app: App, g: Group): void {
+  // Email — envelope only (message event stays circle+envelope)
+  addBox(app, g, 8, 14, 32, 20, 3);
+  addPoly(app, g, [8, 14, MID, 26, 40, 14], 1.6);
+  addLine(app, g, 8, 34, 10, -8, 1.3);
+  addLine(app, g, 40, 34, -10, -8, 1.3);
+}
+
+function drawNotification(app: App, g: Group): void {
+  // Notification — bell
+  addPoly(app, g, [MID, 10, 34, 18, 34, 28, 14, 28, 14, 18], 1.7);
+  addLine(app, g, 14, 28, 20, 0, 1.7);
+  addCircle(app, g, MID, 32, 3, null, 1.5);
+  addLine(app, g, MID, 8, 0, 2, 1.5);
+}
+
+function drawMicroservice(app: App, g: Group): void {
+  // Microservice — hex with inner service mark
+  addPoly(app, g, [MID, 8, 38, 16, 38, 32, MID, 40, 10, 32, 10, 16], 1.8, fill());
+  addCircle(app, g, MID, MID, 5, null, 1.5);
+  addLine(app, g, MID, 15, 0, 4, 1.3);
+  addLine(app, g, 17, MID, 4, 0, 1.3);
+}
+
+function drawBranch(app: App, g: Group): void {
+  // Git branch — fork from trunk
+  addCircle(app, g, 16, 14, 4, null, 1.6);
+  addCircle(app, g, 16, 34, 4, null, 1.6);
+  addCircle(app, g, 34, 24, 4, null, 1.6);
+  addLine(app, g, 16, 18, 0, 12, 1.6);
+  addLine(app, g, 16, 24, 14, 0, 1.6);
+}
+
+function drawMergeRequest(app: App, g: Group): void {
+  // MR / PR — branch merging back
+  addCircle(app, g, 14, 14, 3.5, null, 1.5);
+  addCircle(app, g, 14, 34, 3.5, null, 1.5);
+  addCircle(app, g, 34, 14, 3.5, null, 1.5);
+  addLine(app, g, 14, 18, 0, 12, 1.5);
+  addLine(app, g, 14, 14, 16, 0, 1.5);
+  addPoly(app, g, [34, 34, 28, 28, 34, 28, 28, 34], 1.4);
+  addLine(app, g, 30, 30, -12, 0, 1.5);
+}
+
+function drawPrototype(app: App, g: Group): void {
+  // Prototype — dashed outline box
+  addLine(app, g, 10, 12, 10, 0, 1.5);
+  addLine(app, g, 24, 12, 10, 0, 1.5);
+  addLine(app, g, 10, 36, 10, 0, 1.5);
+  addLine(app, g, 24, 36, 10, 0, 1.5);
+  addLine(app, g, 8, 14, 0, 8, 1.5);
+  addLine(app, g, 8, 26, 0, 8, 1.5);
+  addLine(app, g, 40, 14, 0, 8, 1.5);
+  addLine(app, g, 40, 26, 0, 8, 1.5);
+  addText(app, g, 'P', MID - 3, MID + 4, 12);
+}
+
+function drawSimulation(app: App, g: Group): void {
+  // Simulation — play + waveform
+  addBox(app, g, 8, 12, 32, 24, 4);
+  addPoly(app, g, [14, 18, 14, 30, 24, 24], 1.4, stroke());
+  addLine(app, g, 28, 20, 4, -4, 1.5);
+  addLine(app, g, 32, 16, 4, 8, 1.5);
+  addLine(app, g, 36, 24, 2, -4, 1.5);
+}
+
+function drawKpi(app: App, g: Group): void {
+  // KPI — target / bullseye with value mark
+  addCircle(app, g, MID, MID, 14, fill(), 1.7);
+  addCircle(app, g, MID, MID, 8, null, 1.5);
+  addCircle(app, g, MID, MID, 3, stroke(), 0);
+}
+
+function drawMetric(app: App, g: Group): void {
+  // Metric — sparkline
+  addBox(app, g, 8, 12, 32, 24, 3);
+  addPoly(app, g, [12, 28, 18, 20, 24, 24, 30, 14, 36, 18], 1.7);
+}
+
+function drawAnalytics(app: App, g: Group): void {
+  // Analytics — magnifier over bars
+  addLine(app, g, 12, 34, 0, -12, 2);
+  addLine(app, g, 18, 34, 0, -18, 2);
+  addLine(app, g, 24, 34, 0, -8, 2);
+  addCircle(app, g, 32, 18, 7, null, 1.6);
+  addLine(app, g, 37, 23, 6, 6, 2);
+}
+
+function drawSecretVault(app: App, g: Group): void {
+  // Vault — lock
+  addBox(app, g, 14, 20, 20, 16, 3);
+  addCircle(app, g, MID, 16, 8, null, 1.7);
+  addCircle(app, g, MID, 16, 4, fill(), 1.2);
+  addCircle(app, g, MID, 28, 2, stroke(), 0);
+}
+
+function drawFirewall(app: App, g: Group): void {
+  // Firewall — brick wall
+  addBox(app, g, 8, 12, 32, 24, 2);
+  addLine(app, g, 8, 20, 32, 0, 1.4);
+  addLine(app, g, 8, 28, 32, 0, 1.4);
+  addLine(app, g, 18, 12, 0, 8, 1.4);
+  addLine(app, g, 28, 12, 0, 8, 1.4);
+  addLine(app, g, 13, 20, 0, 8, 1.4);
+  addLine(app, g, 24, 20, 0, 8, 1.4);
+  addLine(app, g, 18, 28, 0, 8, 1.4);
+  addLine(app, g, 28, 28, 0, 8, 1.4);
+}
+
+function drawEncryption(app: App, g: Group): void {
+  // Encryption — key
+  addCircle(app, g, 16, MID, 8, null, 1.7);
+  addCircle(app, g, 16, MID, 3, fill(), 1.2);
+  addLine(app, g, 24, MID, 14, 0, 2.2);
+  addLine(app, g, 34, MID, 0, 6, 2);
+  addLine(app, g, 30, MID, 0, 4, 2);
+}
+
+function drawAuthorization(app: App, g: Group): void {
+  // Authorization — shield with keyhole
+  addPoly(app, g, [MID, 8, 38, 14, 38, 28, MID, 40, 10, 28, 10, 14], 1.8);
+  addCircle(app, g, MID, 22, 3.5, null, 1.5);
+  addLine(app, g, MID, 25, 0, 6, 1.8);
+}
+
+function drawReview(app: App, g: Group): void {
+  // Review — eye
+  addEllipse(app, g, MID, MID, 16, 10, fill(), 1.7);
+  addCircle(app, g, MID, MID, 5, null, 1.6);
+  addCircle(app, g, MID, MID, 2, stroke(), 0);
+}
+
+function drawInspection(app: App, g: Group): void {
+  // Inspection — magnifier + check
+  addCircle(app, g, 20, 20, 10, null, 1.7);
+  addLine(app, g, 27, 27, 10, 10, 2.2);
+  addPoly(app, g, [15, 20, 18, 24, 26, 14], 1.6);
+}
+
+function drawApproval(app: App, g: Group): void {
+  // Approval — stamp / seal check
+  addCircle(app, g, MID, MID, 14, fill(), 1.8);
+  addCircle(app, g, MID, MID, 10, null, 1.3);
+  addPoly(app, g, [16, 24, 22, 30, 34, 16], 2.2);
+}
+
+function drawValidation(app: App, g: Group): void {
+  // Validation — clipboard with check
+  addBox(app, g, 12, 12, 24, 28, 2);
+  addBox(app, g, 18, 8, 12, 6, 1);
+  addPoly(app, g, [18, 26, 22, 30, 32, 18], 1.8);
+}
+
+function drawHandover(app: App, g: Group): void {
+  // Handover — two hands / exchange
+  addPoly(app, g, [10, 28, 10, 20, 18, 18, 20, 26], 1.5);
+  addPoly(app, g, [38, 20, 38, 28, 30, 30, 28, 22], 1.5);
+  addLine(app, g, 20, MID, 8, 0, 1.8);
+}
+
+function drawMilestone(app: App, g: Group): void {
+  // Milestone — diamond flag / milestone diamond
+  addPoly(app, g, [MID, 10, 36, MID, MID, 38, 12, MID], 1.8, fill());
+  addCircle(app, g, MID, MID, 3, stroke(), 0);
+}
+
+function drawPhase(app: App, g: Group): void {
+  // Phase — chevron stage
+  addPoly(app, g, [6, 14, 28, 14, 38, MID, 28, 34, 6, 34, 14, MID], 1.7, fill());
+}
+
+function drawSprint(app: App, g: Group): void {
+  // Sprint — looped arrow around board
+  addBox(app, g, 12, 14, 24, 20, 3);
+  addLine(app, g, 16, 20, 0, 8, 1.3);
+  addLine(app, g, 24, 20, 0, 8, 1.3);
+  addLine(app, g, 32, 20, 0, 8, 1.3);
+  addPoly(app, g, [38, 12, 42, 16, 34, 16], 0, stroke());
+}
+
+function drawGoal(app: App, g: Group): void {
+  // Goal — target
+  addCircle(app, g, MID, MID, 14, fill(), 1.7);
+  addCircle(app, g, MID, MID, 9, null, 1.4);
+  addCircle(app, g, MID, MID, 4, stroke(), 0);
+}
+
+function drawObjective(app: App, g: Group): void {
+  // Objective — flag on target base
+  addLine(app, g, 14, 10, 0, 28, 2);
+  addPoly(app, g, [14, 12, 34, 18, 14, 24], 1.5, fill());
+  addCircle(app, g, 14, 38, 4, null, 1.4);
+}
+
+function drawCadModel(app: App, g: Group): void {
+  // CAD — isometric cube
+  addPoly(app, g, [MID, 10, 38, 18, 38, 34, MID, 42, 10, 34, 10, 18], 1.6);
+  addLine(app, g, MID, 10, 0, 16, 1.4);
+  addLine(app, g, 10, 18, 28, 0, 1.4);
+  addLine(app, g, 10, 18, 14, 8, 1.4);
+}
+
+function drawSchematicDoc(app: App, g: Group): void {
+  // Schematic doc — page with circuit mark
+  addPoly(app, g, [12, 8, 30, 8, 36, 14, 36, 40, 12, 40], 1.7);
+  addLine(app, g, 30, 8, 0, 6, 1.4);
+  addLine(app, g, 30, 14, 6, 0, 1.4);
+  addLine(app, g, 16, 24, 8, 0, 1.5);
+  addCircle(app, g, 28, 24, 4, null, 1.4);
+  addLine(app, g, 32, 24, 4, 0, 1.5);
+}
+
+function drawBlockDiagram(app: App, g: Group): void {
+  addBox(app, g, 8, 16, 12, 16, 2);
+  addBox(app, g, 28, 16, 12, 16, 2);
+  addLine(app, g, 20, MID, 8, 0, 1.6);
+}
+
+function drawBom(app: App, g: Group): void {
+  // BOM — parts list
+  addBox(app, g, 10, 8, 28, 32, 2);
+  addText(app, g, 'BOM', 16, 20, 8);
+  addLine(app, g, 14, 26, 20, 0, 1.3);
+  addLine(app, g, 14, 32, 16, 0, 1.3);
+}
+
+function drawScanner(app: App, g: Group): void {
+  addBox(app, g, 10, 18, 28, 14, 3);
+  addLine(app, g, 14, 16, 20, 0, 1.5);
+  addLine(app, g, 18, 12, 0, 4, 1.5);
+  addLine(app, g, MID, 25, 14, 0, 2);
+}
+
+function drawEventBus(app: App, g: Group): void {
+  // Event bus — horizontal bus with taps
+  addLine(app, g, 8, MID, 32, 0, 2.4);
+  addLine(app, g, 14, MID, 0, -10, 1.6);
+  addLine(app, g, 24, MID, 0, 10, 1.6);
+  addLine(app, g, 34, MID, 0, -8, 1.6);
+  addCircle(app, g, 14, 14, 2.5, stroke(), 0);
+  addCircle(app, g, 24, 34, 2.5, stroke(), 0);
+  addCircle(app, g, 34, 16, 2.5, stroke(), 0);
+}
+
+function drawBroker(app: App, g: Group): void {
+  // Broker — hub with spokes
+  addCircle(app, g, MID, MID, 6, fill(), 1.6);
+  addLine(app, g, MID, 10, 0, 8, 1.5);
+  addLine(app, g, MID, 30, 0, 8, 1.5);
+  addLine(app, g, 10, MID, 8, 0, 1.5);
+  addLine(app, g, 30, MID, 8, 0, 1.5);
+  addCircle(app, g, MID, 8, 2.5, null, 1.3);
+  addCircle(app, g, MID, 40, 2.5, null, 1.3);
+  addCircle(app, g, 8, MID, 2.5, null, 1.3);
+  addCircle(app, g, 40, MID, 2.5, null, 1.3);
+}
+
+function drawMessageQueue(app: App, g: Group): void {
+  // Message queue — stacked envelopes
+  addBox(app, g, 10, 10, 28, 10, 2);
+  addPoly(app, g, [10, 10, MID, 16, 38, 10], 1.3);
+  addBox(app, g, 10, 20, 28, 10, 2);
+  addPoly(app, g, [10, 20, MID, 26, 38, 20], 1.3);
+  addBox(app, g, 10, 30, 28, 10, 2);
+  addPoly(app, g, [10, 30, MID, 36, 38, 30], 1.3);
+}
+
+function drawDataset(app: App, g: Group): void {
+  // Dataset — stacked cylinders
+  addEllipse(app, g, MID, 12, 12, 4, fill(), 1.5);
+  addLine(app, g, 12, 12, 0, 8, 1.5);
+  addLine(app, g, 36, 12, 0, 8, 1.5);
+  addEllipse(app, g, MID, 20, 12, 4, fill(), 1.5);
+  addLine(app, g, 12, 20, 0, 8, 1.5);
+  addLine(app, g, 36, 20, 0, 8, 1.5);
+  addEllipse(app, g, MID, 28, 12, 4, fill(), 1.5);
+  addLine(app, g, 12, 28, 0, 8, 1.5);
+  addLine(app, g, 36, 28, 0, 8, 1.5);
+  addEllipse(app, g, MID, 36, 12, 4, fill(), 1.5);
+}
+
+function drawLibrary(app: App, g: Group): void {
+  // Library — books
+  addBox(app, g, 10, 12, 8, 26, 1);
+  addBox(app, g, 20, 10, 8, 28, 1);
+  addBox(app, g, 30, 14, 8, 24, 1);
+  addLine(app, g, 12, 20, 4, 0, 1.2);
+  addLine(app, g, 22, 18, 4, 0, 1.2);
+}
+
+function drawPackage(app: App, g: Group): void {
+  // Package — npm-style box with ribbon
+  addBox(app, g, 10, 14, 28, 24, 2);
+  addLine(app, g, MID, 14, 0, 24, 1.5);
+  addLine(app, g, 10, 26, 28, 0, 1.5);
+  addPoly(app, g, [10, 14, MID, 8, 38, 14], 1.5);
+}
+
+function drawArtifact(app: App, g: Group): void {
+  // Artifact — sealed package with tag
+  addBox(app, g, 10, 16, 24, 20, 2);
+  addLine(app, g, 10, 16, 24, 20, 1.3);
+  addLine(app, g, 34, 16, -24, 20, 1.3);
+  addPoly(app, g, [34, 14, 42, 18, 34, 22], 1.4, fill());
+}
+
+function drawRelease(app: App, g: Group): void {
+  // Release — rocket / ship arrow
+  addPoly(app, g, [MID, 8, 32, 28, 24, 28, 24, 36, 20, 36, 20, 28, 16, 28], 1.6, fill());
+  addLine(app, g, 18, 32, -4, 6, 1.5);
+  addLine(app, g, 30, 32, 4, 6, 1.5);
+}
+
+function drawMonitoring(app: App, g: Group): void {
+  // Monitoring — screen with pulse
+  addBox(app, g, 8, 10, 32, 22, 3);
+  addLine(app, g, MID, 32, 0, 4, 1.5);
+  addLine(app, g, 16, 36, 16, 0, 1.5);
+  addPoly(app, g, [12, 24, 18, 16, 22, 22, 28, 14, 36, 20], 1.6);
+}
+
+function drawTimeline(app: App, g: Group): void {
+  addLine(app, g, 8, MID, 32, 0, 2);
+  addCircle(app, g, 12, MID, 3, stroke(), 0);
+  addCircle(app, g, 24, MID, 3, stroke(), 0);
+  addCircle(app, g, 36, MID, 3, stroke(), 0);
+  addLine(app, g, 12, MID, 0, -8, 1.4);
+  addLine(app, g, 24, MID, 0, 8, 1.4);
+}
+
+function drawIssue(app: App, g: Group): void {
+  // Issue — ticket / bug note
+  addBox(app, g, 10, 12, 28, 24, 3);
+  addLine(app, g, 10, 20, 28, 0, 1.3);
+  addCircle(app, g, 16, 28, 2.5, stroke(), 0);
+  addText(app, g, '!', MID + 2, 18, 10);
+}
+
+function drawRisk(app: App, g: Group): void {
+  // Risk — warning triangle with R
+  addPoly(app, g, [MID, 8, 42, 40, 6, 40], 1.8, fill());
+  addText(app, g, 'R', MID - 4, 34, 11);
+}
+
+function drawUnitTest(app: App, g: Group): void {
+  addBox(app, g, 10, 12, 28, 24, 3);
+  addText(app, g, 'UT', 16, MID + 4, 11);
+}
+
+function drawIntegrationTest(app: App, g: Group): void {
+  addBox(app, g, 10, 12, 28, 24, 3);
+  addText(app, g, 'IT', 17, MID + 4, 11);
+}
+
+function drawFunctionalTest(app: App, g: Group): void {
+  addBox(app, g, 10, 12, 28, 24, 3);
+  addText(app, g, 'FT', 16, MID + 4, 11);
+}
+
+function drawAcceptanceTest(app: App, g: Group): void {
+  addBox(app, g, 10, 12, 28, 24, 3);
+  addText(app, g, 'AT', 16, MID + 4, 11);
+}
+
+function drawReliabilityTest(app: App, g: Group): void {
+  addBox(app, g, 10, 12, 28, 24, 3);
+  addText(app, g, 'RT', 16, MID + 4, 11);
+}
+
+function drawQualityControl(app: App, g: Group): void {
+  addCircle(app, g, MID, MID, 14, fill(), 1.7);
+  addText(app, g, 'QC', MID - 8, MID + 4, 11);
+}
+
+function drawQualityAssurance(app: App, g: Group): void {
+  addCircle(app, g, MID, MID, 14, fill(), 1.7);
+  addText(app, g, 'QA', MID - 8, MID + 4, 11);
+}
+
+function drawTestBench(app: App, g: Group): void {
+  addBox(app, g, 8, 20, 32, 14, 2);
+  addBox(app, g, 14, 10, 20, 12, 2);
+  addCircle(app, g, 20, 16, 2, stroke(), 0);
+  addCircle(app, g, 28, 16, 2, stroke(), 0);
+  addLine(app, g, 12, 34, 0, 4, 1.5);
+  addLine(app, g, 36, 34, 0, 4, 1.5);
+}
+
+function drawCalibration(app: App, g: Group): void {
+  // Calibration — dial
+  addCircle(app, g, MID, MID, 14, fill(), 1.7);
+  addLine(app, g, MID, MID, 8, -8, 2);
+  addCircle(app, g, MID, MID, 2, stroke(), 0);
+  addLine(app, g, 14, 34, 4, 4, 1.3);
+  addLine(app, g, 34, 34, -4, 4, 1.3);
+}
+
+function drawRepair(app: App, g: Group): void {
+  // Repair — hammer / tool
+  addLine(app, g, 16, 12, 16, 16, 2.4);
+  addBox(app, g, 12, 10, 16, 8, 2);
+  addLine(app, g, 28, 18, 8, 14, 2.4);
+}
+
+function drawCustomer(app: App, g: Group): void {
+  drawPerson(app, g);
+  addCircle(app, g, 34, 14, 6, fill(), 1.4);
+  addText(app, g, 'C', 31, 17, 8);
+}
+
+function drawEngineer(app: App, g: Group): void {
+  drawPerson(app, g);
+  addCircle(app, g, 34, 14, 6, fill(), 1.4);
+  addText(app, g, 'E', 31, 17, 8);
+}
+
+function drawManager(app: App, g: Group): void {
+  drawPerson(app, g);
+  addCircle(app, g, 34, 14, 6, fill(), 1.4);
+  addText(app, g, 'M', 30, 17, 8);
+}
+
+function drawOperator(app: App, g: Group): void {
+  drawPerson(app, g);
+  addCircle(app, g, 34, 14, 6, fill(), 1.4);
+  addText(app, g, 'O', 30, 17, 8);
+}
+
+function drawTechnician(app: App, g: Group): void {
+  drawPerson(app, g);
+  addCircle(app, g, 34, 14, 6, fill(), 1.4);
+  addText(app, g, 'T', 31, 17, 8);
+}
+
+function drawVendor(app: App, g: Group): void {
+  drawPerson(app, g);
+  addCircle(app, g, 34, 14, 6, fill(), 1.4);
+  addText(app, g, 'V', 31, 17, 8);
+}
+
+function drawPool(app: App, g: Group): void {
+  // BPMN pool — outer frame with header
+  addBox(app, g, 6, 8, 36, 32, 2);
+  addLine(app, g, 14, 8, 0, 32, 1.5);
+  addLine(app, g, 6, 8, 8, 0, 1.2);
+}
+
+function drawDecisionPoint(app: App, g: Group): void {
+  drawDiamond(app, g);
+  addCircle(app, g, MID, MID, 3, stroke(), 0);
+}
+
+function drawCheckpoint(app: App, g: Group): void {
+  addCircle(app, g, MID, 16, 8, fill(), 1.7);
+  addPoly(app, g, [MID, 40, 18, 24, 30, 24], 1.6, fill());
+  addPoly(app, g, [MID - 4, 16, MID - 1, 19, MID + 5, 12], 1.6);
+}
+
+function drawSynchronization(app: App, g: Group): void {
+  // Synchronization — barrier / double bar
+  addLine(app, g, 8, 14, 0, 20, 2.4);
+  addLine(app, g, 14, 14, 0, 20, 2.4);
+  addLine(app, g, 8, MID, 12, 0, 1.5);
+  addLine(app, g, 26, MID, 14, 0, 1.5);
+  addPoly(app, g, [40, MID, 32, MID - 6, 32, MID + 6], 0, stroke());
+}
+
+function drawSource(app: App, g: Group): void {
+  // Source — circle feeding chevron
+  addCircle(app, g, 14, MID, 8, fill(), 1.6);
+  addPoly(app, g, [24, 14, 40, MID, 24, 34], 1.6, fill());
+}
+
+function drawDestination(app: App, g: Group): void {
+  // Destination — chevron into target
+  addPoly(app, g, [8, 14, 24, MID, 8, 34], 1.6, fill());
+  addCircle(app, g, 34, MID, 8, fill(), 1.6);
+  addCircle(app, g, 34, MID, 3, stroke(), 0);
+}
+
 type Family =
   | 'capsuleStart'
   | 'capsuleEnd'
@@ -1005,7 +1683,93 @@ type Family =
   | 'backup'
   | 'archiveStorage'
   | 'customerDelivery'
-  | 'agv';
+  | 'agv'
+  | 'activity'
+  | 'operation'
+  | 'taskBox'
+  | 'workflow'
+  | 'businessProcess'
+  | 'manufacturingProcess'
+  | 'engineeringProcess'
+  | 'softwareProcess'
+  | 'wait'
+  | 'linkChain'
+  | 'dependency'
+  | 'annotation'
+  | 'buffer'
+  | 'fork'
+  | 'join'
+  | 'split'
+  | 'module'
+  | 'file'
+  | 'dataObject'
+  | 'report'
+  | 'log'
+  | 'webhook'
+  | 'email'
+  | 'notification'
+  | 'microservice'
+  | 'branch'
+  | 'mergeRequest'
+  | 'prototype'
+  | 'simulation'
+  | 'kpi'
+  | 'metric'
+  | 'analytics'
+  | 'secretVault'
+  | 'firewall'
+  | 'encryption'
+  | 'authorization'
+  | 'review'
+  | 'inspection'
+  | 'approval'
+  | 'validation'
+  | 'handover'
+  | 'milestone'
+  | 'phase'
+  | 'sprint'
+  | 'goal'
+  | 'objective'
+  | 'cadModel'
+  | 'schematicDoc'
+  | 'blockDiagram'
+  | 'bom'
+  | 'scanner'
+  | 'eventBus'
+  | 'broker'
+  | 'messageQueue'
+  | 'dataset'
+  | 'library'
+  | 'package'
+  | 'artifact'
+  | 'release'
+  | 'monitoring'
+  | 'timeline'
+  | 'issue'
+  | 'risk'
+  | 'unitTest'
+  | 'integrationTest'
+  | 'functionalTest'
+  | 'acceptanceTest'
+  | 'reliabilityTest'
+  | 'qualityControl'
+  | 'qualityAssurance'
+  | 'testBench'
+  | 'calibration'
+  | 'repair'
+  | 'customer'
+  | 'engineer'
+  | 'manager'
+  | 'operator'
+  | 'technician'
+  | 'vendor'
+  | 'pool'
+  | 'decisionPoint'
+  | 'checkpoint'
+  | 'synchronization'
+  | 'source'
+  | 'destination'
+  | 'flowPath';
 
 /* ── Catalog metadata ───────────────────────────────────────────────────── */
 
@@ -1292,9 +2056,9 @@ const FAMILY: Record<string, Family> = {
   end: 'capsuleEnd',
   process: 'process',
   subprocess: 'subprocess',
-  activity: 'process',
-  operation: 'process',
-  task: 'process',
+  activity: 'activity',
+  operation: 'operation',
+  task: 'taskBox',
   serviceTask: 'serviceTask',
   userTask: 'userTask',
   manualTask: 'manualTask',
@@ -1314,65 +2078,65 @@ const FAMILY: Record<string, Family> = {
   trigger: 'trigger',
   input: 'chevronIn',
   output: 'chevronOut',
-  source: 'chevronIn',
-  destination: 'chevronOut',
+  source: 'source',
+  destination: 'destination',
   connector: 'arrow',
   arrow: 'arrow',
-  flow: 'pipelineFlow',
+  flow: 'flowPath',
   pipeline: 'pipelineFlow',
   queue: 'stack',
-  buffer: 'stack',
+  buffer: 'buffer',
   merge: 'gatewayMerge',
-  fork: 'gatewayPlus',
-  join: 'gatewayMerge',
-  split: 'gatewayPlus',
+  fork: 'fork',
+  join: 'join',
+  split: 'split',
   loop: 'loop',
   retry: 'retry',
   delay: 'timer',
-  wait: 'timer',
-  synchronization: 'gatewayMerge',
-  dependency: 'arrow',
+  wait: 'wait',
+  synchronization: 'synchronization',
+  dependency: 'dependency',
   reference: 'document',
-  link: 'arrow',
-  annotation: 'comment',
+  link: 'linkChain',
+  annotation: 'annotation',
   comment: 'comment',
   document: 'document',
   folder: 'folder',
-  file: 'document',
+  file: 'file',
   database: 'cylinder',
   dataStore: 'cylinder',
-  dataObject: 'document',
-  dataset: 'cylinder',
-  report: 'document',
+  dataObject: 'dataObject',
+  dataset: 'dataset',
+  report: 'report',
   dashboard: 'chart',
-  log: 'document',
-  metric: 'chart',
-  kpi: 'chart',
-  analytics: 'chart',
+  log: 'log',
+  metric: 'metric',
+  kpi: 'kpi',
+  analytics: 'analytics',
   alert: 'warning',
-  notification: 'message',
-  email: 'message',
+  notification: 'notification',
+  email: 'email',
   phone: 'phone',
   chat: 'chat',
   api: 'api',
-  webhook: 'api',
-  eventBus: 'stack',
-  messageQueue: 'stack',
-  broker: 'stack',
+  webhook: 'webhook',
+  eventBus: 'eventBus',
+  messageQueue: 'messageQueue',
+  broker: 'broker',
   service: 'hexService',
-  microservice: 'hexService',
-  module: 'process',
-  package: 'crate',
-  library: 'folder',
+  microservice: 'microservice',
+  module: 'module',
+  package: 'package',
+  library: 'library',
   repository: 'git',
-  branch: 'git',
-  mergeRequest: 'git',
-  pullRequest: 'git',
+  branch: 'branch',
+  mergeRequest: 'mergeRequest',
+  pullRequest: 'mergeRequest',
   build: 'build',
   compile: 'compile',
-  artifact: 'crate',
+  artifact: 'artifact',
   deploy: 'deploy',
-  release: 'flag',
+  release: 'release',
   rollback: 'rollback',
   environment: 'env',
   development: 'env',
@@ -1380,44 +2144,44 @@ const FAMILY: Record<string, Family> = {
   qa: 'env',
   staging: 'env',
   production: 'env',
-  monitoring: 'chart',
+  monitoring: 'monitoring',
   authentication: 'shield',
-  authorization: 'shield',
-  encryption: 'shield',
-  firewall: 'shield',
+  authorization: 'authorization',
+  encryption: 'encryption',
+  firewall: 'firewall',
   security: 'shield',
-  secretVault: 'shield',
+  secretVault: 'secretVault',
   user: 'person',
-  customer: 'person',
-  client: 'person',
-  operator: 'person',
-  engineer: 'person',
-  technician: 'person',
-  manager: 'person',
+  customer: 'customer',
+  client: 'customer',
+  operator: 'operator',
+  engineer: 'engineer',
+  technician: 'technician',
+  manager: 'manager',
   team: 'people',
   department: 'people',
-  vendor: 'person',
-  supplier: 'person',
+  vendor: 'vendor',
+  supplier: 'vendor',
   stakeholder: 'person',
-  approval: 'check',
-  review: 'check',
-  validation: 'check',
-  verification: 'check',
-  inspection: 'check',
+  approval: 'approval',
+  review: 'review',
+  validation: 'validation',
+  verification: 'validation',
+  inspection: 'inspection',
   audit: 'document',
   signOff: 'check',
   requirement: 'document',
   specification: 'document',
   standard: 'document',
   policy: 'document',
-  goal: 'flag',
-  objective: 'flag',
+  goal: 'goal',
+  objective: 'objective',
   scope: 'document',
   charter: 'document',
-  milestone: 'flag',
-  phase: 'flag',
-  sprint: 'flag',
-  timeline: 'chart',
+  milestone: 'milestone',
+  phase: 'phase',
+  sprint: 'sprint',
+  timeline: 'timeline',
   calendar: 'calendar',
   schedule: 'calendar',
   project: 'folder',
@@ -1428,8 +2192,8 @@ const FAMILY: Record<string, Family> = {
   expense: 'coin',
   invoice: 'document',
   payment: 'coin',
-  risk: 'warning',
-  issue: 'warning',
+  risk: 'risk',
+  issue: 'issue',
   blocker: 'error',
   changeRequest: 'change',
   changeOrder: 'change',
@@ -1464,24 +2228,24 @@ const FAMILY: Record<string, Family> = {
   agv: 'agv',
   crane: 'crane',
   maintenance: 'wrench',
-  repair: 'wrench',
-  calibration: 'wrench',
+  repair: 'repair',
+  calibration: 'calibration',
   measurement: 'sensor',
-  qualityControl: 'check',
-  qualityAssurance: 'check',
-  testBench: 'machine',
-  functionalTest: 'check',
-  integrationTest: 'check',
-  unitTest: 'check',
+  qualityControl: 'qualityControl',
+  qualityAssurance: 'qualityAssurance',
+  testBench: 'testBench',
+  functionalTest: 'functionalTest',
+  integrationTest: 'integrationTest',
+  unitTest: 'unitTest',
   performanceTest: 'chart',
-  reliabilityTest: 'check',
-  acceptanceTest: 'check',
-  prototype: 'process',
-  simulation: 'process',
-  cadModel: 'document',
-  schematic: 'document',
-  blockDiagram: 'document',
-  bom: 'document',
+  reliabilityTest: 'reliabilityTest',
+  acceptanceTest: 'acceptanceTest',
+  prototype: 'prototype',
+  simulation: 'simulation',
+  cadModel: 'cadModel',
+  schematic: 'schematicDoc',
+  blockDiagram: 'blockDiagram',
+  bom: 'bom',
   plc: 'system',
   hmi: 'system',
   scada: 'system',
@@ -1491,7 +2255,7 @@ const FAMILY: Record<string, Family> = {
   hrms: 'system',
   sensor: 'sensor',
   camera: 'camera',
-  scanner: 'sensor',
+  scanner: 'scanner',
   barcodeReader: 'barcode',
   rfidReader: 'rfid',
   iotDevice: 'iot',
@@ -1506,20 +2270,20 @@ const FAMILY: Record<string, Family> = {
   archive: 'folder',
   aiAgent: 'ai',
   automation: 'ai',
-  workflow: 'process',
-  businessProcess: 'process',
-  manufacturingProcess: 'process',
-  engineeringProcess: 'process',
-  softwareProcess: 'process',
+  workflow: 'workflow',
+  businessProcess: 'businessProcess',
+  manufacturingProcess: 'manufacturingProcess',
+  engineeringProcess: 'engineeringProcess',
+  softwareProcess: 'softwareProcess',
   valueStream: 'valueStream',
   controlPoint: 'pin',
-  checkpoint: 'pin',
-  decisionPoint: 'diamond',
+  checkpoint: 'checkpoint',
+  decisionPoint: 'decisionPoint',
   escalation: 'escalation',
   compliance: 'shield',
   certification: 'check',
   customerDelivery: 'customerDelivery',
-  handover: 'arrow',
+  handover: 'handover',
   closure: 'capsuleEnd',
   success: 'check',
   failure: 'error',
@@ -1531,7 +2295,7 @@ const FAMILY: Record<string, Family> = {
   group: 'lane',
   swimlane: 'lane',
   lane: 'lane',
-  pool: 'lane',
+  pool: 'pool',
   region: 'lane',
   zone: 'lane',
   externalSystem: 'globe',
@@ -1803,6 +2567,9 @@ export function drawPipelineGlyph(app: App, g: Group, kind: string): void {
     case 'pipelineFlow':
       drawPipelineFlow(app, g);
       break;
+    case 'flowPath':
+      drawFlowPath(app, g);
+      break;
     case 'valueStream':
       drawValueStream(app, g);
       break;
@@ -2015,6 +2782,261 @@ export function drawPipelineGlyph(app: App, g: Group, kind: string): void {
       break;
     case 'agv':
       drawAgv(app, g);
+      break;
+    case 'activity':
+      drawActivity(app, g);
+      break;
+    case 'operation':
+      drawOperation(app, g);
+      break;
+    case 'taskBox':
+      drawTaskBox(app, g);
+      break;
+    case 'workflow':
+      drawWorkflow(app, g);
+      break;
+    case 'businessProcess':
+      drawBusinessProcess(app, g);
+      break;
+    case 'manufacturingProcess':
+      drawManufacturingProcess(app, g);
+      break;
+    case 'engineeringProcess':
+      drawEngineeringProcess(app, g);
+      break;
+    case 'softwareProcess':
+      drawSoftwareProcess(app, g);
+      break;
+    case 'wait':
+      drawWait(app, g);
+      break;
+    case 'linkChain':
+      drawLinkChain(app, g);
+      break;
+    case 'dependency':
+      drawDependency(app, g);
+      break;
+    case 'annotation':
+      drawAnnotation(app, g);
+      break;
+    case 'buffer':
+      drawBuffer(app, g);
+      break;
+    case 'fork':
+      drawFork(app, g);
+      break;
+    case 'join':
+      drawJoin(app, g);
+      break;
+    case 'split':
+      drawSplit(app, g);
+      break;
+    case 'module':
+      drawModule(app, g);
+      break;
+    case 'file':
+      drawFile(app, g);
+      break;
+    case 'dataObject':
+      drawDataObject(app, g);
+      break;
+    case 'report':
+      drawReport(app, g);
+      break;
+    case 'log':
+      drawLog(app, g);
+      break;
+    case 'webhook':
+      drawWebhook(app, g);
+      break;
+    case 'email':
+      drawEmail(app, g);
+      break;
+    case 'notification':
+      drawNotification(app, g);
+      break;
+    case 'microservice':
+      drawMicroservice(app, g);
+      break;
+    case 'branch':
+      drawBranch(app, g);
+      break;
+    case 'mergeRequest':
+      drawMergeRequest(app, g);
+      break;
+    case 'prototype':
+      drawPrototype(app, g);
+      break;
+    case 'simulation':
+      drawSimulation(app, g);
+      break;
+    case 'kpi':
+      drawKpi(app, g);
+      break;
+    case 'metric':
+      drawMetric(app, g);
+      break;
+    case 'analytics':
+      drawAnalytics(app, g);
+      break;
+    case 'secretVault':
+      drawSecretVault(app, g);
+      break;
+    case 'firewall':
+      drawFirewall(app, g);
+      break;
+    case 'encryption':
+      drawEncryption(app, g);
+      break;
+    case 'authorization':
+      drawAuthorization(app, g);
+      break;
+    case 'review':
+      drawReview(app, g);
+      break;
+    case 'inspection':
+      drawInspection(app, g);
+      break;
+    case 'approval':
+      drawApproval(app, g);
+      break;
+    case 'validation':
+      drawValidation(app, g);
+      break;
+    case 'handover':
+      drawHandover(app, g);
+      break;
+    case 'milestone':
+      drawMilestone(app, g);
+      break;
+    case 'phase':
+      drawPhase(app, g);
+      break;
+    case 'sprint':
+      drawSprint(app, g);
+      break;
+    case 'goal':
+      drawGoal(app, g);
+      break;
+    case 'objective':
+      drawObjective(app, g);
+      break;
+    case 'cadModel':
+      drawCadModel(app, g);
+      break;
+    case 'schematicDoc':
+      drawSchematicDoc(app, g);
+      break;
+    case 'blockDiagram':
+      drawBlockDiagram(app, g);
+      break;
+    case 'bom':
+      drawBom(app, g);
+      break;
+    case 'scanner':
+      drawScanner(app, g);
+      break;
+    case 'eventBus':
+      drawEventBus(app, g);
+      break;
+    case 'broker':
+      drawBroker(app, g);
+      break;
+    case 'messageQueue':
+      drawMessageQueue(app, g);
+      break;
+    case 'dataset':
+      drawDataset(app, g);
+      break;
+    case 'library':
+      drawLibrary(app, g);
+      break;
+    case 'package':
+      drawPackage(app, g);
+      break;
+    case 'artifact':
+      drawArtifact(app, g);
+      break;
+    case 'release':
+      drawRelease(app, g);
+      break;
+    case 'monitoring':
+      drawMonitoring(app, g);
+      break;
+    case 'timeline':
+      drawTimeline(app, g);
+      break;
+    case 'issue':
+      drawIssue(app, g);
+      break;
+    case 'risk':
+      drawRisk(app, g);
+      break;
+    case 'unitTest':
+      drawUnitTest(app, g);
+      break;
+    case 'integrationTest':
+      drawIntegrationTest(app, g);
+      break;
+    case 'functionalTest':
+      drawFunctionalTest(app, g);
+      break;
+    case 'acceptanceTest':
+      drawAcceptanceTest(app, g);
+      break;
+    case 'reliabilityTest':
+      drawReliabilityTest(app, g);
+      break;
+    case 'qualityControl':
+      drawQualityControl(app, g);
+      break;
+    case 'qualityAssurance':
+      drawQualityAssurance(app, g);
+      break;
+    case 'testBench':
+      drawTestBench(app, g);
+      break;
+    case 'calibration':
+      drawCalibration(app, g);
+      break;
+    case 'repair':
+      drawRepair(app, g);
+      break;
+    case 'customer':
+      drawCustomer(app, g);
+      break;
+    case 'engineer':
+      drawEngineer(app, g);
+      break;
+    case 'manager':
+      drawManager(app, g);
+      break;
+    case 'operator':
+      drawOperator(app, g);
+      break;
+    case 'technician':
+      drawTechnician(app, g);
+      break;
+    case 'vendor':
+      drawVendor(app, g);
+      break;
+    case 'pool':
+      drawPool(app, g);
+      break;
+    case 'decisionPoint':
+      drawDecisionPoint(app, g);
+      break;
+    case 'checkpoint':
+      drawCheckpoint(app, g);
+      break;
+    case 'synchronization':
+      drawSynchronization(app, g);
+      break;
+    case 'source':
+      drawSource(app, g);
+      break;
+    case 'destination':
+      drawDestination(app, g);
       break;
     default:
       drawProcess(app, g);

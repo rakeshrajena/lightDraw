@@ -100,11 +100,15 @@ import { fitDiagramToBounds, diagramToJSON } from './helpers';
 import { installDiagramEditor, uninstallDiagramEditor } from './editor';
 import { routeConnector } from './router';
 import { listNetworkIconKinds, resolveNetworkIconKind } from './networkIcons';
-import { listSchematicSymbols, resolveSchematicSymbolKind } from './schematicIcons';
-import { listPipelineSymbols, resolvePipelineSymbolKind } from './pipelineIcons';
+import { listSchematicSymbols, resolveSchematicSymbolKind, listSchematicSymbolCategories } from './schematicIcons';
+import { listPipelineSymbols, resolvePipelineSymbolKind, listPipelineSymbolCategories } from './pipelineIcons';
+import { createPipelineSymbol } from './pipelineSymbols';
+import { createSymbol } from './symbols';
+import { createNetworkNode } from './primitives';
 import { createDiagramFromJSON } from './registryCore';
 
 export { createDiagramFromJSON } from './registryCore';
+export { createNetworkNode } from './primitives';
 
 /** Diagram module namespace for plugin install */
 export const Diagram = {
@@ -120,6 +124,12 @@ export const Diagram = {
   canNetwork: createCanNetwork,
   pipeline: createPipeline,
   pipelineCatalog: createPipelineSymbolCatalog,
+  /** Single pipeline / process symbol tile. */
+  pipelineSymbol: createPipelineSymbol,
+  /** Single IEC-style electronic schematic symbol. */
+  schematicSymbol: createSymbol,
+  /** Single network topology device node. */
+  networkNode: createNetworkNode,
   layout: layoutDiagram,
   route: routeConnector,
   forceLayout: forceDirectedLayout,
@@ -131,8 +141,10 @@ export const Diagram = {
   listNetworkIcons: listNetworkIconKinds,
   resolveNetworkIcon: resolveNetworkIconKind,
   listSchematicSymbols,
+  listSchematicCategories: listSchematicSymbolCategories,
   resolveSchematicSymbol: resolveSchematicSymbolKind,
   listPipelineSymbols,
+  listPipelineCategories: listPipelineSymbolCategories,
   resolvePipelineSymbol: resolvePipelineSymbolKind,
   /** Serialize a diagram root to `{ type, props }` JSON. */
   toJSON: diagramToJSON,
