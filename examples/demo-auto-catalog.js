@@ -58,9 +58,33 @@ window.ldAutoProps = function ldAutoProps(type, w, h) {
   const height = Math.max(56, Math.floor(h));
   const base = { x: 0, y: 0, width, height };
 
-  if (type === 'instrumentCluster') {
+  if (type === 'tpms' || type === 'tirePressureMonitoring') {
+    const aspect = 1.65;
+    let tw = width;
+    let th = Math.max(72, Math.round(tw / aspect));
+    if (th > height) {
+      th = Math.max(72, height);
+      tw = Math.min(width, Math.round(th * aspect));
+    }
     return {
       ...base,
+      width: tw,
+      height: th,
+      pressures: [32, 31, 33, 30],
+    };
+  }
+  if (type === 'instrumentCluster') {
+    const aspect = 920 / 420;
+    let cw = width;
+    let ch = Math.round(cw / aspect);
+    if (ch > height) {
+      ch = height;
+      cw = Math.round(ch * aspect);
+    }
+    return {
+      ...base,
+      width: Math.max(280, cw),
+      height: Math.max(140, ch),
       theme: 'classic',
       display: 'analog',
       speed: 72,
@@ -70,7 +94,7 @@ window.ldAutoProps = function ldAutoProps(type, w, h) {
       batteryVoltage: 12.4,
       tpms: [32, 31, 33, 30],
       gear: 'D',
-      incomingCall: width >= 520 && height >= 220,
+      incomingCall: cw >= 520 && ch >= 240,
       caller: 'Alex Morgan',
       subtitle: 'Mobile',
       callStatus: 'incoming',

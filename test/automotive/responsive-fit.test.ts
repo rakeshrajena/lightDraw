@@ -179,7 +179,31 @@ describe('automotive responsive auto-fit', () => {
       }
       expect(hits, `call ${w}x${h}`).toEqual([]);
       expect(slots.some((s) => s.type === 'callScreen'), `call slot ${w}x${h}`).toBe(true);
+      const tpms = slots.find((s) => s.type === 'tpms');
+      if (tpms) {
+        expect(tpms.height, `tpms height ${w}x${h}`).toBeGreaterThanOrEqual(52);
+      }
     }
+  });
+
+  it('resolveClusterLayout keeps dial slots square and letterboxes extreme landscape', () => {
+    for (const [w, h] of [
+      [920, 420],
+      [1600, 280],
+      [800, 400],
+    ] as const) {
+      const slots = resolveClusterLayout(w, h);
+      const speed = slots.find((s) => s.type === 'speedometer')!;
+      const tach = slots.find((s) => s.type === 'tachometer')!;
+      expect(speed.width).toBe(speed.height);
+      expect(tach.width).toBe(tach.height);
+      const tpms = slots.find((s) => s.type === 'tpms');
+      if (tpms) expect(tpms.height).toBeGreaterThanOrEqual(32);
+    }
+    const wide = resolveClusterLayout(1600, 280);
+    const speed = wide.find((s) => s.type === 'speedometer')!;
+    // Letterboxed: left dial should sit inset from the far left edge
+    expect(speed.x).toBeGreaterThan(40);
   });
 
   it('instrumentCluster shows call overlay when incomingCall is set', () => {

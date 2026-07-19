@@ -1,6 +1,5 @@
 import { Group, Layer } from './shapes/Group';
 import './registry/initCore';
-import { pointInMask } from './renderers/clipUtils';
 import { EventEmitter } from './core/EventEmitter';
 import { Camera } from './camera/Camera';
 import { EventManager } from './events/EventManager';
@@ -25,7 +24,7 @@ import {
   ImageNode,
   Sprite,
 } from './shapes/index';
-import { detectBestRenderer, getPixelRatio, resolveContainer, requestFrame, cancelFrame, matrixPool } from './utils';
+import { detectBestRenderer, getPixelRatio, resolveContainer, requestFrame, cancelFrame } from './utils';
 import { fromJSON, toJSON } from './io/json';
 import { exportScene, exportApp } from './io/export';
 import { formatJsonParseError } from './io/schema';
@@ -53,6 +52,7 @@ import {
   extractSceneTheme,
   composeThemePack,
 } from './theme/themePack';
+import { hitTestNode, hitTestSpatial } from './app/hitTest';
 
 export class App extends EventEmitter {
   readonly camera: Camera;
@@ -335,57 +335,11 @@ export class App extends EventEmitter {
   hitTest(worldX: number, worldY: number): HitTestResult | null {
     if (this.perf.spatialIndex && this.nodeCount >= this.perf.spatialIndexThreshold) {
       this.spatialIndex.ensureFresh(this.stage);
-      const hit = this.hitTestSpatial(worldX, worldY);
+      const hit = hitTestSpatial(this.spatialIndex, worldX, worldY);
       return hit ? { node: hit, x: worldX, y: worldY } : null;
     }
-    const hit = this.hitTestNode(this.stage, worldX, worldY);
+    const hit = hitTestNode(this.stage, worldX, worldY);
     return hit ? { node: hit, x: worldX, y: worldY } : null;
-  }
-
-  private hitTestSpatial(worldX: number, worldY: number): Node | null {
-    const candidates = this.spatialIndex.queryPoint(worldX, worldY);
-    for (const child of candidates) {
-      if (!child.visible || !child.listening) continue;
-      const wm = child.getWorldMatrix();
-      const inv = matrixPool.acquire();
-      if (!wm.invertInto(inv)) {
-        matrixPool.release(inv);
-        continue;
-      }
-      const local = inv.transformPoint(worldX, worldY);
-      matrixPool.release(inv);
-      if (!pointInMask(child.mask, local.x, local.y)) continue;
-      if (child.containsPoint(local.x, local.y)) return child;
-    }
-    return null;
-  }
-
-  private hitTestNode(group: Group, worldX: number, worldY: number): Node | null {
-    const children = [...group.children].reverse();
-    for (const child of children) {
-      if (!child.visible || !child.listening) continue;
-
-      if ('children' in child) {
-        const nested = this.hitTestNode(child as Group, worldX, worldY);
-        if (nested) return nested;
-      }
-
-      const wm = child.getWorldMatrix();
-      const inv = matrixPool.acquire();
-      if (!wm.invertInto(inv)) {
-        matrixPool.release(inv);
-        continue;
-      }
-      const local = inv.transformPoint(worldX, worldY);
-      matrixPool.release(inv);
-
-      if (!pointInMask(child.mask, local.x, local.y)) continue;
-
-      if (child.containsPoint(local.x, local.y)) {
-        return child;
-      }
-    }
-    return null;
   }
 
   resize(width?: number, height?: number): void {

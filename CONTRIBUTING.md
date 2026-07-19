@@ -41,12 +41,20 @@ Do **not** commit generated `website/public/examples/`, `website/public/docs/`, 
 | UI components | `src/components` | Buttons, forms, … |
 | Dashboard / charts | `src/dashboard` (+ `charts/*/register.ts`) | Prefer chart folder pattern |
 | Diagram | `src/diagram` | Flowcharts, catalogs, editor |
-| Pipeline symbols | `src/diagram/pipeline/` (+ `drawers/`) · façade `pipelineIcons.ts` | See [docs/diagram-pipeline-structure.md](docs/diagram-pipeline-structure.md) |
-| Schematic symbols | `src/diagram/schematic/` (+ `drawers/`) · façade `schematicIcons.ts` | Same doc |
-| Network icons | `src/diagram/network/` (+ `drawers/`) · façade `networkIcons.ts` | Same doc |
+| Pipeline / schematic / network | `src/diagram/{pipeline,schematic,network}/` | See [docs/diagram-pipeline-structure.md](docs/diagram-pipeline-structure.md) |
+| UI components | `src/components/definitions/` · façade `definitions.ts` | See [docs/repo-modularity.md](docs/repo-modularity.md) |
+| HTML native sync | `src/renderers/htmlComponents/` · façade `htmlComponents.ts` | Same doc |
+| Diagram node primitives | `src/diagram/primitives/` · façade `primitives.ts` | Same doc |
+| Automotive widgets | `src/automotive/widgets/{custom,panels}/` · façades `custom.ts` / `panels.ts` | Same doc |
+| Dashboard widgets | `src/dashboard/definitions/` · façade `definitions.ts` | Same doc (charts already under `charts/`) |
+| Diagram builders | `src/diagram/definitions/` · façade `definitions.ts` | Same doc (editor under `editor/`) |
+| IO validation | `src/io/schema/` · façade `schema.ts` | Same doc |
+| App hit-test | `src/app/hitTest.ts` · used by `App.ts` | Same doc |
 | Plugins | `src/modules/*` | Wire domain into `LightDraw.*` |
 
 **Catalog symbols — add/remove:** follow the checklists in [docs/diagram-pipeline-structure.md](docs/diagram-pipeline-structure.md) (pipeline / schematic / network). Run `npx vitest run test/diagram/` after changes.
+
+**UI components — add/remove:** edit the matching file under `src/components/definitions/` (`controls`, `overlays`, `navigation`, `dataViews`). Update `test/components/structure.test.ts` if the id list changes.
 
 ## JSON / theme validation
 

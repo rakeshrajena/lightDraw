@@ -35,6 +35,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added structure/integrity tests (catalog ↔ familyMap/drawers/aliases; every glyph draws)
 - Fixed dead `devops → cicd` alias by adding canonical `cicd` catalog kind + family mapping
 
+### Changed — Repo modularity Phase R1 (UI components)
+
+- Split `components/definitions.ts` into `components/definitions/` (`controls`, `overlays`, `navigation`, `dataViews`, `shared`)
+- Thin façade keeps `import './definitions'` registration path
+- Docs: [repo-modularity.md](./docs/repo-modularity.md); structure test: `test/components/structure.test.ts`
+
+### Changed — Repo modularity Phase R2 (HTML native sync)
+
+- Split `renderers/htmlComponents.ts` into `renderers/htmlComponents/` (mirrors UI domains)
+- `htmlComponents.ts` remains the public façade for `HTMLRenderer`
+- Structure test: `test/renderers/htmlComponents-structure.test.ts`
+
+### Changed — Repo modularity Phase R3 (diagram primitives)
+
+- Split `diagram/primitives.ts` into `diagram/primitives/` (`measure`, `labeledBox`, flowchart/class/network/org/pipeline/state/can/edge)
+- Thin façade keeps `from './primitives'` imports stable
+- Structure test: `test/diagram/primitives-structure.test.ts`
+
+### Changed — Repo modularity Phase R4 (automotive widgets)
+
+- Split `widgets/custom.ts` → `widgets/custom/` (gauges, indicators, infotainment, diagnostics, cluster)
+- Split `widgets/panels.ts` → `widgets/panels/` (climate, navigation, media, alerts, camera, ambient)
+- Thin façades keep `automotive/definitions.ts` side-effect imports stable
+- Structure test: `test/automotive/structure.test.ts`
+
+### Changed — Repo modularity Phase R5 (dashboard definitions)
+
+- Split `dashboard/definitions.ts` → `dashboard/definitions/` (gauges, indicators, calendar, clock, chartPanel)
+- Thin façade keeps `import './definitions'` + helper/CHART_TYPES re-exports
+- Structure test: `test/dashboard/structure.test.ts`
+
+### Changed — Repo modularity Phase R6 (diagram definitions)
+
+- Split `diagram/definitions.ts` → `diagram/definitions/` (flowchart, state, class, mindmap, network, org, schematic, CAN, pipeline, force, fromProps)
+- Editor was already modular under `diagram/editor/`
+- Structure test: `test/diagram/definitions-structure.test.ts`
+
+### Changed — Repo modularity Phase R7 (App + IO schema)
+
+- Split `io/schema.ts` → `io/schema/` (types, jsonLocate, theme/scene validation, parse/format)
+- Extracted App hit-testing into `src/app/hitTest.ts`
+- Structure test: `test/io/schema-structure.test.ts`
+
 - **~300** process / facility / transport symbols across 26 categories
 - Governance glyphs clarified: validation, verification, inspection, signOff, certification, version; improved machine
 - New categories: facilities, transport, nature, devices (factory, vehicles, wifi, solar, temple, …)
