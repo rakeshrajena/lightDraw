@@ -163,4 +163,25 @@ describe('Widgets apply colorStops live', () => {
     app.destroy();
     el.remove();
   });
+
+  it('battery scale multiplies geometry only — does not set Node.scale (no double-scale overflow)', () => {
+    const el = createTestContainer();
+    const app = createTestApp(el, { renderer: 'canvas' });
+    const battery = createDashboardFromJSON(
+      'battery',
+      { value: 78, scale: 1.6, x: 0, y: 0 },
+      app
+    )! as Group;
+    app.add(battery);
+
+    expect(battery.scaleX).toBe(1);
+    expect(battery.scaleY).toBe(1);
+    const bounds = battery.getBounds();
+    // body 40*1.6 + tip ≈ 70; must stay near that, not ~112 from double scale
+    expect(bounds.width).toBeGreaterThan(60);
+    expect(bounds.width).toBeLessThan(85);
+
+    app.destroy();
+    el.remove();
+  });
 });
