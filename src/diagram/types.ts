@@ -61,6 +61,8 @@ export interface PipelineStage {
   id: string;
   label: string;
   status?: 'pending' | 'active' | 'done' | 'error';
+  /** Optional catalog symbol kind (e.g. `deploy`, `database`, `exclusiveGateway`). */
+  type?: string;
 }
 
 export interface CanNetworkData {
@@ -70,7 +72,8 @@ export interface CanNetworkData {
 
 export interface SchematicComponent {
   id: string;
-  type: 'resistor' | 'capacitor' | 'ground' | 'battery' | 'switch' | 'led' | 'wire';
+  /** Any catalog kind or alias (resistor, nmos, opAmp, …). */
+  type: string;
   x: number;
   y: number;
   label?: string;

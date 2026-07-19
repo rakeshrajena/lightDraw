@@ -22,8 +22,10 @@ Interactive gallery: [`examples/demo-diagram.html`](../examples/demo-diagram.htm
 | networkTopology | `Diagram.network(app, data)` | `data.nodes`, `data.edges` (rich `type` icons) |
 | orgChart | `Diagram.orgChart(app, root)` | Tree of `{ name, role?, image?, department?, collapsed?, children? }` |
 | electricalSchematic | `Diagram.schematic(app, components)` | `components[]` |
+| schematicSymbolCatalog | `Diagram.schematicCatalog(app, opts)` | `category?`, `columns?` |
 | canNetwork | `Diagram.canNetwork(app, data)` | `data.ecus`, `data.busLabel` |
-| processPipeline | `Diagram.pipeline(app, stages)` | `stages[]` with `status` |
+| processPipeline | `Diagram.pipeline(app, stages)` | `stages[]` with `status`, optional `type` (catalog symbol) |
+| pipelineSymbolCatalog | `Diagram.pipelineCatalog(app, opts)` | `category?`, `columns?` |
 
 ## Interactive editor
 
@@ -185,15 +187,74 @@ Styles: `straight`, `orthogonal`, `smart` (avoids node bounding boxes).
 
 ## Electrical symbols
 
-| Symbol | type value |
-|--------|------------|
-| Resistor | `resistor` |
-| Capacitor | `capacitor` |
-| Ground | `ground` |
-| Battery | `battery` |
-| Switch | `switch` |
-| LED | `led` |
-| Wire | `wire` |
+Use `Diagram.schematic(app, components)` for wired circuits, or `Diagram.schematicCatalog(app, { category?, columns? })` for a full grid.
+
+Discover kinds with `Diagram.listSchematicSymbols()` / `Diagram.resolveSchematicSymbol(name)`.
+
+Legacy types (`resistor`, `capacitor`, `ground`, `battery`, `switch`, `led`, `wire`) still work. Prefer catalog ids such as `spst`, `nmos`, `opAmp`.
+
+| Category | Examples (type values) |
+|----------|------------------------|
+| Power | `battery`, `cell`, `dcSupply`, `acSupply`, `ground`, `earthGround`, `chassisGround`, `powerFlag`, `voltageSource`, `currentSource`, `fuse`, `circuitBreaker` |
+| Passive | `resistor`, `potentiometer`, `thermistorNtc`, `capacitor`, `electrolyticCap`, `inductor`, `transformer`, `crystal`, … |
+| Diodes | `diode`, `schottky`, `zener`, `tvs`, `led`, `photodiode`, `bridgeRectifier`, … |
+| Transistors | `npn`, `pnp`, `nmos`, `pmos`, `njfet`, `pjfet`, `igbt`, `darlington`, … |
+| Thyristors | `scr`, `triac`, `diac`, `gto`, `thyristor` |
+| Logic | `notGate`, `andGate`, `nandGate`, `orGate`, `xorGate`, `schmittTrigger`, … |
+| Analog ICs | `opAmp`, `ldo`, `buck`, `boost`, `dac`, `adc`, `pll`, … |
+| Digital ICs | `mcu`, `fpga`, `eeprom`, `flash`, `mux`, `flipFlop`, … |
+| Sensors | `tempSensor`, `hallSensor`, `accelerometer`, `pirSensor`, `microphone`, … |
+| Actuators | `relay`, `dcMotor`, `stepperMotor`, `servoMotor`, `buzzer`, `lcd`, … |
+| Switches | `spst`, `spdt`, `dpdt`, `pushButtonNo`, `eStop`, … |
+| Connectors | `header`, `usbConnector`, `rj45`, `barrelJack`, `sma`, … |
+| Comms | `uart`, `spi`, `i2c`, `canBus`, `wifi`, `lora`, `gps`, … |
+| Protection / test / misc | `esdProtection`, `polyfuse`, `testPoint`, `voltmeter`, `junction`, `noConnect`, … |
+
+JSON:
+
+```json
+{
+  "type": "electricalSchematic",
+  "props": {
+    "components": [
+      { "id": "u1", "type": "opAmp", "x": 40, "y": 40, "label": "U1" },
+      { "id": "r1", "type": "resistor", "x": 140, "y": 40, "label": "R1" }
+    ]
+  }
+}
+```
+
+Catalog JSON type: `schematicSymbolCatalog` with optional `category` and `columns`.
+
+## Pipeline / process symbols
+
+Use `Diagram.pipeline(app, stages)` for status pipelines. Each stage may set `type` to a catalog kind (glyph replaces the WAIT/RUN badge):
+
+```javascript
+LightDraw.Diagram.pipeline(app, [
+  { id: 'a', label: 'Build', status: 'done', type: 'build' },
+  { id: 'b', label: 'Deploy', status: 'active', type: 'deploy' },
+  { id: 'c', label: 'Monitor', status: 'pending', type: 'monitoring' },
+]);
+```
+
+Browse all ~250 kinds with `Diagram.pipelineCatalog(app, { category?, columns? })`.
+
+Discover with `Diagram.listPipelineSymbols()` / `Diagram.resolvePipelineSymbol(name)`.
+
+| Category | Examples |
+|----------|----------|
+| Flow | `start`, `end`, `process`, `task`, `workflow`, `pipeline` |
+| Gateway | `decision`, `exclusiveGateway`, `parallelGateway`, `fork`, `join` |
+| Event | `timer`, `message`, `error`, `trigger` |
+| Data | `database`, `document`, `dataset`, `dashboard` |
+| CI/CD | `build`, `deploy`, `release`, `rollback`, `production` |
+| Manufacturing | `robot`, `conveyor`, `cncMachine`, `productionLine` |
+| Logistics | `warehouse`, `truck`, `agv`, `forklift` |
+| Industrial | `plc`, `hmi`, `scada`, `sensor`, `iotDevice` |
+| Cloud | `cloud`, `server`, `kubernetesCluster`, `appContainer` |
+
+Catalog JSON type: `pipelineSymbolCatalog` with optional `category` and `columns`.
 
 ## Performance targets
 

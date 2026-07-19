@@ -182,6 +182,7 @@ export const DIAGRAM_TYPES = [
   'networkTopology',
   'orgChart',
   'electricalSchematic',
+  'schematicSymbolCatalog',
   'canNetwork',
   'processPipeline',
 ] as const;

@@ -15,6 +15,7 @@ import {
   networkStyleForKind,
   resolveNetworkIconKind,
 } from './networkIcons';
+import { drawPipelineStageGlyph } from './pipelineSymbols';
 
 let measureCtx: CanvasRenderingContext2D | null = null;
 
@@ -885,11 +886,12 @@ export function createOrgNode(
   return { node, indicator };
 }
 
-/** Pipeline stage with left status stripe. */
+/** Pipeline stage with left status stripe (optional catalog glyph via `symbolType`). */
 export function createPipelineStage(
   app: App,
   label: string,
-  status: 'pending' | 'active' | 'done' | 'error' | string
+  status: 'pending' | 'active' | 'done' | 'error' | string,
+  symbolType?: string
 ): Group {
   const colors: Record<string, { fill: string; stroke: string }> = {
     pending: { fill: getActiveDiagram().pipelinePendingFill, stroke: getActiveDiagram().pipelinePending },
@@ -925,37 +927,47 @@ export function createPipelineStage(
     sheen: false,
   });
   addLeftStripe(app, node, height, c.stroke, 4);
-  const badgeW = 34;
-  node.add(
-    app.roundedRect({
-      x: getActiveDiagram().spacing.sm,
-      y: height / 2 - 9,
-      width: badgeW,
-      height: 18,
-      cornerRadius: getActiveDiagram().radii.sm,
-      fill: c.stroke,
-      stroke: null,
-      opacity: status === 'pending' ? 0.35 : 0.9,
-      listening: false,
-    })
-  );
-  node.add(
-    app.text({
-      text: statusLabels[status] ?? 'WAIT',
-      x: getActiveDiagram().spacing.sm + 5,
-      y: height / 2 - 7,
-      fontSize: getActiveDiagram().fontSize.xs,
-      fontWeight: '700',
-      letterSpacing: 0.04,
-      fontFamily: getActiveDiagram().fontFamily,
-      fill: status === 'pending' ? getActiveDiagram().nodeTextMuted : '#fff',
-      listening: false,
-    })
-  );
+
+  const hasGlyph = Boolean(symbolType?.trim());
+  let contentX = getActiveDiagram().spacing.sm + 4;
+  if (hasGlyph) {
+    drawPipelineStageGlyph(app, node, symbolType!, contentX, height / 2 - 11, 22);
+    contentX += 26;
+  } else {
+    const badgeW = 34;
+    node.add(
+      app.roundedRect({
+        x: contentX,
+        y: height / 2 - 9,
+        width: badgeW,
+        height: 18,
+        cornerRadius: getActiveDiagram().radii.sm,
+        fill: c.stroke,
+        stroke: null,
+        opacity: status === 'pending' ? 0.35 : 0.9,
+        listening: false,
+      })
+    );
+    node.add(
+      app.text({
+        text: statusLabels[status] ?? 'WAIT',
+        x: contentX + 5,
+        y: height / 2 - 7,
+        fontSize: getActiveDiagram().fontSize.xs,
+        fontWeight: '700',
+        letterSpacing: 0.04,
+        fontFamily: getActiveDiagram().fontFamily,
+        fill: status === 'pending' ? getActiveDiagram().nodeTextMuted : '#fff',
+        listening: false,
+      })
+    );
+    contentX += badgeW + 6;
+  }
+
   node.add(
     app.text({
       text: label,
-      x: getActiveDiagram().spacing.sm + badgeW + 6,
+      x: contentX,
       y: height / 2 - 7,
       fontSize: getActiveDiagram().fontSize.base,
       fontWeight: '600',
@@ -964,6 +976,9 @@ export function createPipelineStage(
       listening: false,
     })
   );
+  if (hasGlyph) {
+    node.metadata.pipelineSymbolKind = symbolType;
+  }
   return node;
 }
 

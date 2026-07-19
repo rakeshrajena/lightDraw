@@ -7,8 +7,10 @@ export {
   createNetworkIconCatalog,
   createOrgChart,
   createSchematic,
+  createSchematicSymbolCatalog,
   createCanNetwork,
   createPipeline,
+  createPipelineSymbolCatalog,
   toggleOrgCollapse,
   applyForceLayout,
   wireOrgCollapseControls,
@@ -23,6 +25,25 @@ export {
   getNetworkIconMeta,
 } from './networkIcons';
 export type { NetworkIconKind, NetworkIconCategory, NetworkIconMeta } from './networkIcons';
+
+export {
+  resolveSchematicSymbolKind,
+  listSchematicSymbols,
+  listSchematicSymbolCategories,
+  drawSchematicGlyph,
+  getSchematicSymbolMeta,
+} from './schematicIcons';
+export type { SchematicSymbolCategory, SchematicSymbolMeta } from './schematicIcons';
+
+export {
+  resolvePipelineSymbolKind,
+  listPipelineSymbols,
+  listPipelineSymbolCategories,
+  drawPipelineGlyph,
+  getPipelineSymbolMeta,
+} from './pipelineIcons';
+export type { PipelineSymbolCategory, PipelineSymbolMeta } from './pipelineIcons';
+export { createPipelineSymbol } from './pipelineSymbols';
 
 export {
   forceDirectedLayout,
@@ -66,8 +87,10 @@ import {
   createNetworkIconCatalog,
   createOrgChart,
   createSchematic,
+  createSchematicSymbolCatalog,
   createCanNetwork,
   createPipeline,
+  createPipelineSymbolCatalog,
   toggleOrgCollapse,
   wireOrgCollapseControls,
   createDiagramFromProps,
@@ -77,6 +100,8 @@ import { fitDiagramToBounds, diagramToJSON } from './helpers';
 import { installDiagramEditor, uninstallDiagramEditor } from './editor';
 import { routeConnector } from './router';
 import { listNetworkIconKinds, resolveNetworkIconKind } from './networkIcons';
+import { listSchematicSymbols, resolveSchematicSymbolKind } from './schematicIcons';
+import { listPipelineSymbols, resolvePipelineSymbolKind } from './pipelineIcons';
 import { createDiagramFromJSON } from './registryCore';
 
 export { createDiagramFromJSON } from './registryCore';
@@ -91,8 +116,10 @@ export const Diagram = {
   networkCatalog: createNetworkIconCatalog,
   orgChart: createOrgChart,
   schematic: createSchematic,
+  schematicCatalog: createSchematicSymbolCatalog,
   canNetwork: createCanNetwork,
   pipeline: createPipeline,
+  pipelineCatalog: createPipelineSymbolCatalog,
   layout: layoutDiagram,
   route: routeConnector,
   forceLayout: forceDirectedLayout,
@@ -103,6 +130,10 @@ export const Diagram = {
   uninstallEditor: uninstallDiagramEditor,
   listNetworkIcons: listNetworkIconKinds,
   resolveNetworkIcon: resolveNetworkIconKind,
+  listSchematicSymbols,
+  resolveSchematicSymbol: resolveSchematicSymbolKind,
+  listPipelineSymbols,
+  resolvePipelineSymbol: resolvePipelineSymbolKind,
   /** Serialize a diagram root to `{ type, props }` JSON. */
   toJSON: diagramToJSON,
   /** Build a diagram from type + props JSON. */

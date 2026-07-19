@@ -36,8 +36,11 @@ import {
 } from './layouts';
 import { collectObstacles } from './router';
 import { connectNodes, wireMindMapConnectors, wireOrgChartConnectors } from './connectors';
-import { buildSchematic } from './symbols';
+import { buildSchematic, createSymbol } from './symbols';
+import { createPipelineSymbol } from './pipelineSymbols';
 import { listNetworkIconKinds } from './networkIcons';
+import { listPipelineSymbols, type PipelineSymbolCategory } from './pipelineIcons';
+import { listSchematicSymbols, type SchematicSymbolCategory } from './schematicIcons';
 import type {
   CanNetworkData,
   ClassDiagramData,
@@ -602,6 +605,34 @@ export function createSchematic(
   return group;
 }
 
+/** Grid catalog of IEC electronic schematic symbols (optional category filter). */
+export function createSchematicSymbolCatalog(
+  app: App,
+  options: NodeOptions & { category?: SchematicSymbolCategory | string; columns?: number } = {}
+): Group {
+  const category = options.category as SchematicSymbolCategory | undefined;
+  const kinds = listSchematicSymbols(category);
+  const columns = Math.max(4, options.columns ?? 8);
+  const group = createDiagramGroup(
+    app,
+    'schematicSymbolCatalog',
+    { ...options, category },
+    { name: 'schematicCatalog' }
+  );
+  const gapX = 120;
+  const gapY = 102;
+  const startX = 16;
+  const startY = 12;
+  kinds.forEach((meta, i) => {
+    const col = i % columns;
+    const row = Math.floor(i / columns);
+    const node = createSymbol(app, meta.kind, startX + col * gapX, startY + row * gapY, meta.label);
+    node.metadata = { ...node.metadata, diagramId: meta.kind };
+    group.add(node);
+  });
+  return group;
+}
+
 /** Create CAN network diagram */
 export function createCanNetwork(
   app: App,
@@ -735,8 +766,13 @@ export function createPipeline(
 
   const stageNodes: Node[] = [];
   for (const stage of stages) {
-    const node = createPipelineStage(app, stage.label, stage.status ?? 'pending');
-    node.metadata = { ...node.metadata, diagramId: stage.id, pipelineStatus: stage.status };
+    const node = createPipelineStage(app, stage.label, stage.status ?? 'pending', stage.type);
+    node.metadata = {
+      ...node.metadata,
+      diagramId: stage.id,
+      pipelineStatus: stage.status,
+      ...(stage.type ? { pipelineSymbolKind: stage.type } : {}),
+    };
     group.add(node);
     stageNodes.push(node);
   }
@@ -759,6 +795,34 @@ export function createPipeline(
   }
   group.add(edgeLayer);
 
+  return group;
+}
+
+/** Grid catalog of pipeline / process / manufacturing symbols. */
+export function createPipelineSymbolCatalog(
+  app: App,
+  options: NodeOptions & { category?: PipelineSymbolCategory | string; columns?: number } = {}
+): Group {
+  const category = options.category as PipelineSymbolCategory | undefined;
+  const kinds = listPipelineSymbols(category);
+  const columns = Math.max(4, options.columns ?? 8);
+  const group = createDiagramGroup(
+    app,
+    'pipelineSymbolCatalog',
+    { ...options, category },
+    { name: 'pipelineCatalog' }
+  );
+  const gapX = 120;
+  const gapY = 102;
+  const startX = 16;
+  const startY = 12;
+  kinds.forEach((meta, i) => {
+    const col = i % columns;
+    const row = Math.floor(i / columns);
+    const node = createPipelineSymbol(app, meta.kind, startX + col * gapX, startY + row * gapY, meta.label);
+    node.metadata = { ...node.metadata, diagramId: meta.kind };
+    group.add(node);
+  });
   return group;
 }
 
@@ -803,10 +867,14 @@ export function createDiagramFromProps(
       return createOrgChart(app, props.root as OrgChartNode, props);
     case 'electricalSchematic':
       return createSchematic(app, (props.components as SchematicComponent[]) ?? [], props);
+    case 'schematicSymbolCatalog':
+      return createSchematicSymbolCatalog(app, props);
     case 'canNetwork':
       return createCanNetwork(app, props.data as CanNetworkData, props);
     case 'processPipeline':
       return createPipeline(app, (props.stages as PipelineStage[]) ?? [], props);
+    case 'pipelineSymbolCatalog':
+      return createPipelineSymbolCatalog(app, props);
     default:
       return null;
   }

@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — Pipeline / process symbol catalog
+
+- **250** process, engineering, and manufacturing symbols across 22 categories (flow, gateway, CI/CD, plant floor, cloud, people, …)
+- `Diagram.pipelineCatalog(app, { category?, columns? })` grid viewer
+- `Diagram.listPipelineSymbols()` / `resolvePipelineSymbol()` with aliases (`db` → `database`, `k8s` → `kubernetesCluster`, …)
+- Pipeline stages accept optional `type` for an inline catalog glyph
+- Demo: **Pipeline Catalog** tab; sample pipeline uses build/deploy symbols
+- Glyph polish vs BPMN / VSM / industrial conventions: start/end circles, XOR/AND/OR gateways, task markers top-left, distinct manufacturing/logistics/cloud icons (CNC, AGV, k8s, backup, waste, …)
+- Size gates: diagram ≤ 53 KB gzip, full ≤ 149 KB gzip
+
+### Added — Electronic schematic catalog
+
+- Full IEC-style **electronic symbol library** (150+ kinds): power, passives, diodes, transistors, thyristors, logic, analog/digital ICs, sensors, actuators, switches, connectors, comms, protection, test, mechanical, misc
+- `Diagram.schematicCatalog(app, { category?, columns? })` grid viewer
+- `Diagram.listSchematicSymbols()` / `resolveSchematicSymbol()` with aliases (`switch` → `spst`, `op_amp` → `opAmp`, …)
+- Demo: **Electronics Catalog** tab; schematic sample circuit uses fuse + SPST + LED chain
+- Size gates raised for diagram / full bundles after catalog
+
 ## [1.1.0] - 2026-07-19
 
 ### Added — Diagram studio (interactive editor)
