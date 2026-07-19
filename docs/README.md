@@ -7,7 +7,7 @@
   <a href="https://github.com/rakeshrajena/lightDraw"><img src="https://img.shields.io/github/v/release/rakeshrajena/lightDraw?label=GitHub" alt="GitHub release" /></a>
 </p>
 
-**Version:** 1.0.0 · **Install:** `npm install lightdraw` · **Live:** [Playground](https://rakeshrajena.github.io/lightDraw/) · [Help](https://rakeshrajena.github.io/lightDraw/help.html)
+**Version:** 1.1.0 · **Install:** `npm install lightdraw@1.1.0` · **Live:** [Playground](https://rakeshrajena.github.io/lightDraw/) · [Help](https://rakeshrajena.github.io/lightDraw/help.html) · [Diagram](https://rakeshrajena.github.io/lightDraw/#diagram)
 
 ## Guides
 
@@ -27,6 +27,7 @@
 | [Export Pipeline](./export-pipeline.md) | PNG, SVG, PDF, `validateSceneJSON` / `validateThemePack` |
 | [Versioning](./VERSIONING.md) | Semantic versioning policy |
 | [Release workflow](./RELEASE.md) | GitHub Release + npm publish steps |
+| [v1.1.0 notes](./v1.1-release-notes.md) | Diagram studio, playground, migration from 1.0 |
 | [v1.0.0 notes](./v1-release-notes.md) | Migration from v0.1 |
 
 ## Module schemas
@@ -36,7 +37,7 @@
 | [UI Components](./ui-components-schema.md) | Button, slider, dialog, … |
 | [Dashboard](./dashboard-widgets-schema.md) | Charts, gauges, thermometer |
 | [Automotive](./automotive-widgets-schema.md) | Cluster, TPMS, CAN |
-| [Diagram](./diagram-module-schema.md) | Flowchart, state machine, network |
+| [Diagram](./diagram-module-schema.md) | Flowchart, network icons, org chart, editor (resize / bends / collapse) |
 
 ## API reference
 
@@ -83,7 +84,7 @@ Interactive HTML demos live in [`../examples/`](../examples/) (source of truth; 
 | `demo-ui-catalog.html` | Storybook-style variant gallery |
 | `demo-dashboard.html` | Live charts & gauges |
 | `demo-automotive.html` | Instrument cluster + catalog |
-| `demo-diagram.html` | Flowchart, state machine, network |
+| `demo-diagram.html` | Interactive diagrams — resize, wire bends, org collapse, live JSON |
 | `demo-export.html` | Download all export formats |
 | `demo-a11y.html` | Keyboard & ARIA |
 | `demo-theme.html` | Theme lab (presets, Scene/Theme/API editors, dark default) |

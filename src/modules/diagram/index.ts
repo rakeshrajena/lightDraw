@@ -7,7 +7,7 @@ import '../../diagram/definitions';
 
 export const diagramPlugin: Plugin = {
   name: 'lightdraw-diagram',
-  version: '1.0.0',
+  version: '1.1.0',
   install(LD: LightDrawStatic) {
     registerJSONResolver((type, props, app) => createDiagramFromJSON(type, props, app));
     (LD as LightDrawStatic & { registerDiagram: typeof registerDiagram }).registerDiagram =

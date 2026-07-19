@@ -18,7 +18,7 @@ v1.0.0 is the first **production** release of LightDraw.js — a zero-dependency
 | **UI** | 17 interactive components (button, slider, dialog, tabs, …) |
 | **Dashboard** | Charts, gauges, speedometer, thermometer, compass, live data |
 | **Automotive** | Instrument cluster, TPMS, CAN viewer, drive simulation |
-| **Diagram** | Flowchart, state machine, mind map, network, force layout, smart routing |
+| **Diagram** | Flowchart, state machine, mind map, network icons, org chart, editor (resize / bends / collapse) |
 | **Export** | PNG, JPEG, SVG, PDF, HTML, JSON via `app.export()` |
 | **UI polish** | Design tokens, 8 theme presets, `lightdraw.min.css`, legacy ES5 UI |
 | **Docs** | Guides (theme, responsive, legacy UI), TypeDoc API, playground, visual regression |
@@ -102,11 +102,17 @@ Original aspirational targets (8 KB core / 25 KB full) are documented in `IMPLEM
 
 - [Documentation](./README.md)
 - [Getting Started](./getting-started.md)
+- [Diagram module](./diagram-module-schema.md)
 - [UI theme guide](./ui-theme-guide.md)
 - [Responsive layout](./responsive-guide.md)
 - [Legacy UI & CSS](./legacy-ui-guide.md)
 - [Versioning policy](./VERSIONING.md)
 - [Release workflow](./RELEASE.md)
+- [Changelog (unreleased)](../CHANGELOG.md)
+
+## Since v1.0.0
+
+See **[v1.1.0 release notes](./v1.1-release-notes.md)** for diagram studio, playground, and npm/CDN install details.
 
 ---
 

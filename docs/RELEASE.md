@@ -18,13 +18,14 @@ npm run build
 npm test
 ```
 
-Update `CHANGELOG.md` — move `[Unreleased]` entries under `[1.0.0] - YYYY-MM-DD`.
+Update `CHANGELOG.md` — move `[Unreleased]` entries under `[X.Y.Z] - YYYY-MM-DD`.
+Write / refresh `docs/vX.Y-release-notes.md` and point `.github/workflows/release.yml` `body_path` at it.
 
 ### 2. GitHub Release
 
 ```bash
-git tag v1.0.0
-git push origin v1.0.0
+git tag v1.1.0
+git push origin v1.1.0
 ```
 
 The `.github/workflows/release.yml` workflow will:

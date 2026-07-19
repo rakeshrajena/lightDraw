@@ -11,6 +11,8 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/lightdraw"><img src="https://img.shields.io/npm/v/lightdraw.svg" alt="npm version" /></a>
+  <a href="https://www.npmjs.com/package/lightdraw"><img src="https://img.shields.io/npm/dm/lightdraw.svg" alt="npm downloads / month" /></a>
+  <a href="https://www.npmjs.com/package/lightdraw"><img src="https://img.shields.io/npm/dt/lightdraw.svg" alt="npm total downloads" /></a>
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" />
   <img src="https://img.shields.io/badge/deps-zero-success" alt="Zero dependencies" />
   <img src="https://img.shields.io/badge/renderers-Canvas%20%7C%20SVG%20%7C%20HTML-64748b" alt="Renderers" />
@@ -19,17 +21,15 @@
 <p align="center">
   <a href="https://github.com/rakeshrajena/lightDraw">GitHub</a>
   ·
-  <a href="https://rakeshrajena.github.io/lightDraw/">Live demo</a>
+  <a href="https://rakeshrajena.github.io/lightDraw/">Live playground</a>
+  ·
+  <a href="https://rakeshrajena.github.io/lightDraw/#diagram">Diagram demo</a>
+  ·
+  <a href="https://www.npmjs.com/package/lightdraw">npm</a>
   ·
   <a href="https://github.com/rakeshrajena/lightDraw#install">Install</a>
   ·
-  <a href="https://github.com/rakeshrajena/lightDraw#use-cases">Use cases</a>
-  ·
-  <a href="https://github.com/rakeshrajena/lightDraw#benchmarks">Benchmarks</a>
-  ·
-  <a href="https://github.com/rakeshrajena/lightDraw#ai--llm-integration">AI / JSON</a>
-  ·
-  <a href="https://www.npmjs.com/package/lightdraw">npm</a>
+  <a href="https://github.com/rakeshrajena/lightDraw/blob/main/docs/v1.1-release-notes.md">v1.1 notes</a>
 </p>
 
 ---
@@ -146,31 +146,39 @@ app.setUiTheme({ preset: 'dark' });
 
 ---
 
-### 4. Network / architecture diagram (JSON)
+### 4. Interactive diagrams (JSON + editor)
 
-**Problem:** Draw topology with routed connectors, not manual SVG.
+**Problem:** Draw topology and org charts with routed connectors — then let users rearrange them.
 
 ```javascript
-app.loadJSON({
-  type: 'networkTopology',
-  props: {
-    data: {
-      nodes: [
-        { id: 'gw', label: 'Gateway', type: 'router', x: 400, y: 40 },
-        { id: 'api', label: 'API', type: 'server', x: 200, y: 160 },
-        { id: 'db', label: 'Database', type: 'server', x: 400, y: 160 },
-      ],
-      edges: [
-        { from: 'gw', to: 'api' },
-        { from: 'gw', to: 'db' },
-      ],
-    },
-  },
+const net = LightDraw.Diagram.network(app, {
+  nodes: [
+    { id: 'gw', label: 'Gateway', type: 'router', x: 400, y: 40 },
+    { id: 'api', label: 'API', type: 'server', x: 200, y: 160 },
+    { id: 'db', label: 'Database', type: 'sql_database', x: 400, y: 160 },
+  ],
+  edges: [
+    { from: 'gw', to: 'api' },
+    { from: 'gw', to: 'db' },
+  ],
 });
+app.add(net);
+LightDraw.Diagram.fitToBounds(net, 800, 480, 24);
+LightDraw.Diagram.installEditor(app, net, { mode: 'arrange', allowResize: true });
 ```
 
-**Where:** Docs, runbooks, incident response boards, LLM-generated architecture views.  
-**Demo:** [demo-diagram.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-diagram.html)
+**Also included**
+
+| Feature | Behavior |
+|---------|----------|
+| Wire bends | Double-click a wire → drag bend handles |
+| 8-handle resize | Edges + corners, grow/shrink |
+| Org collapse | `−N` / `+N` on cards (N = total people under that node) |
+| Branch colors | Unique colors for any number of top-level teams |
+| JSON dock | Demo shows full `{ type, props }` via `Diagram.toJSON` |
+
+**Where:** Docs, runbooks, incident boards, LLM-generated architecture / org views.  
+**Demo:** [demo-diagram.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-diagram.html) · **Schema:** [diagram-module-schema.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/diagram-module-schema.md)
 
 ---
 
@@ -222,7 +230,7 @@ const app = LightDraw.createApp('#app', { renderer: 'html' });
 | `lightdraw/core` | Shapes + canvas only (~39 KB gzip) |
 | `lightdraw/dashboard` | Charts & gauges |
 | `lightdraw/automotive` | Cluster & vehicle widgets |
-| `lightdraw/diagram` | Flowchart, network, UML |
+| `lightdraw/diagram` | Flowchart, network, org chart, interactive editor |
 | `lightdraw/legacy` | ES5 UMD for WebView |
 
 TypeScript types included. See [getting started](https://github.com/rakeshrajena/lightDraw/blob/main/docs/getting-started.md).
@@ -267,7 +275,7 @@ At 1 000 nodes, **render stays under 0.5 ms** — headroom for 60 FPS on mid-ran
 | `lightdraw` (full) | 101 KB | All modules, CDN one-liner |
 | `lightdraw/dashboard` | 32 KB | Charts + gauges only |
 | `lightdraw/automotive` | 29 KB | Cluster + 160 widgets |
-| `lightdraw/diagram` | 15 KB | 9 diagram types |
+| `lightdraw/diagram` | 15 KB | 9 diagram types + editor (resize, bends, org collapse) |
 | `lightdraw/ui` + CSS | 11 KB + CSS | Form controls, HTML renderer |
 
 ---
@@ -285,9 +293,27 @@ Honest positioning — pick the right tool for the job.
 | **ES5 / old WebView** | ✅ `*.legacy.js` | ❌ needs build | ❌ | Varies |
 | **AI agent friendly** | ✅ schema docs | ❌ outputs JSX | ❌ | ❌ |
 | **Open source (MIT)** | ✅ | ✅ | ✅ | ❌ often paid |
-| **Best fit** | Embedded HMI, AI JSON UI, all-in-one 2D | React shops, simple charts | Custom data viz | Enterprise diagram editor |
+| **Best fit** | Embedded HMI, AI JSON UI, interactive diagrams | React shops, simple charts | Custom data viz | Heavy enterprise diagram product |
 
 **LightDraw is not a replacement for React** — it is a **graphics engine** you embed inside any page or framework.
+
+---
+
+## What's new in v1.1.0
+
+Full notes: [docs/v1.1-release-notes.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/v1.1-release-notes.md) · [CHANGELOG](./CHANGELOG.md)
+
+- Interactive diagram editor: drag, **8-handle resize**, **wire bend points**
+- Professional **network device icons** and **org chart** minimize with descendant counts
+- **Unique branch colors** for any number of org teams
+- Live playground JSON shows real `{ type, props }` diagram state
+- Theme lab + Day/Night website hub with validated Scene / API docks
+
+**Try it live:** [Playground](https://rakeshrajena.github.io/lightDraw/) · [Diagram](https://rakeshrajena.github.io/lightDraw/#diagram) · [Help](https://rakeshrajena.github.io/lightDraw/help.html)
+
+```bash
+npm install lightdraw@1.1.0
+```
 
 ---
 
@@ -306,7 +332,7 @@ Honest positioning — pick the right tool for the job.
 <p align="center">
   <img src="https://raw.githubusercontent.com/rakeshrajena/lightDraw/main/docs/images/diagram.png" alt="Diagrams" width="100%" />
 </p>
-<p align="center"><em>Diagrams — flowchart, state machine, network topology</em></p>
+<p align="center"><em>Diagrams — flowchart, network icons, org chart with branch colors & collapse</em></p>
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/rakeshrajena/lightDraw/main/docs/images/ui-components.png" alt="UI components" width="100%" />
@@ -355,19 +381,21 @@ Full guide: [ai-integration-guide.md](https://github.com/rakeshrajena/lightDraw/
 | Demo | Link |
 |------|------|
 | **Live playground** | [rakeshrajena.github.io/lightDraw](https://rakeshrajena.github.io/lightDraw/) |
+| **Diagram studio** | [rakeshrajena.github.io/lightDraw/#diagram](https://rakeshrajena.github.io/lightDraw/#diagram) |
 | **Help center** | [rakeshrajena.github.io/lightDraw/help.html](https://rakeshrajena.github.io/lightDraw/help.html) |
+| **npm package** | [npmjs.com/package/lightdraw](https://www.npmjs.com/package/lightdraw) |
 | Local dev | `npm run build && npm run prepare:website && npm run dev:website` → http://localhost:5173 |
-| Theme lab (Scene / Theme / API) | [demo-theme.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-theme.html) |
-| Dashboard + 82 charts | [demo-dashboard.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-dashboard.html) |
+| Theme lab (Scene / API) | [demo-theme.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-theme.html) |
+| Dashboard + charts | [demo-dashboard.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-dashboard.html) |
 | UI + themes | [demo-ui.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-ui.html) |
-| UI variant catalog (AI) | [demo-ui-catalog.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-ui-catalog.html) |
-| Diagrams | [demo-diagram.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-diagram.html) |
+| UI variant catalog | [demo-ui-catalog.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-ui-catalog.html) |
+| Diagrams (full page) | [demo-diagram.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-diagram.html) |
 | Automotive cluster | [demo-automotive.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-automotive.html) |
 | Export PNG/PDF/SVG | [demo-export.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-export.html) |
 | Accessibility | [demo-a11y.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-a11y.html) |
 | Conditional colors | [demo-color-stops.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-color-stops.html) |
 
-Playground notes: **Night** site chrome by default; each demo mounts a live **Scene JSON · Theme JSON · API** dock with validation messages (line/column + expected values).
+Playground notes: **Night** site chrome by default; demos mount a live **JSON · API** dock. GitHub Pages updates on every merge to `main`.
 
 ---
 
@@ -380,6 +408,7 @@ Playground notes: **Night** site chrome by default; each demo mounts a live **Sc
 | AI integration | [ai-integration-guide.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/ai-integration-guide.md) |
 | UI themes | [ui-theme-guide.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/ui-theme-guide.md) |
 | Theme architecture | [theme-architecture.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/theme-architecture.md) |
+| v1.1 release notes | [v1.1-release-notes.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/v1.1-release-notes.md) |
 | v1.0 release notes | [v1-release-notes.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/v1-release-notes.md) |
 | All docs | [docs/README.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/README.md) |
 

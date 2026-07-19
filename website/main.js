@@ -41,7 +41,7 @@ const DEMOS = [
   {
     id: 'diagram',
     title: 'Diagram',
-    blurb: 'Flowcharts, networks, UML — config-driven rebuild.',
+    blurb: 'Flowcharts, networks, org charts — drag, resize, bends, live JSON.',
     src: 'examples/demo-diagram.html?embed=1',
     full: 'examples/demo-diagram.html',
   },

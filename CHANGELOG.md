@@ -7,18 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-07-19
+
+### Added — Diagram studio (interactive editor)
+
+- **Wire bend points** — double-click a connector to add bends; drag handles to reshape (library + demo)
+- **8-handle resize** — edge + corner anchors; grow/shrink from any side (`allowResize`, arrange mode included)
+- **Network icon catalog** — Visio/Cisco-style device glyphs via `Diagram.network` / `listNetworkIcons` / `resolveNetworkIcon`
+- **Org chart branch minimize** — click `−N` / `+N` (total descendants); relayout + rewire; selection chrome cleared when hidden
+- **Org branch grouping colors** — unique seeded colors for N top-level teams (no palette wrap); sub-branches inherit
+- **Diagram JSON round-trip in demo** — live dock shows full `{ type, props }` via `Diagram.toJSON` / `fromJSON`
+- **Vite public HTML serve** — example pages no longer SPA-fallback into nested playground chrome after `prepare:website`
+
+### API
+
+- `LightDraw.Diagram.installEditor` / `uninstallEditor` — arrange/edit modes (drag, resize, bends, collapse)
+- `LightDraw.Diagram.toJSON` / `fromJSON` / `fromProps` — serialize and rebuild diagram roots
+- `LightDraw.Diagram.fitToBounds`, `toggleCollapse`, `wireOrgCollapse`, `listNetworkIcons`, `resolveNetworkIcon`
+
 ### Added — Live playground & theme lab
 
 - Website hub (`website/`) with Day/Night chrome (defaults to **Night**), help center (`help.html`), and single-stage demo rail
-- Shared `examples/demo-live-playground.js` — Scene JSON · Theme JSON · editable API with Live auto-apply
+- Shared `examples/demo-live-playground.js` — Scene JSON · editable API with Live auto-apply
 - `examples/demo-theme.html` — theme lab with presets, typography targets, automotive bar, live editors
-- JSON validation with locations and expected values: `parseAndValidateSceneJSON`, `validateThemePack`, `formatJsonParseError`, catalog in `src/io/sceneCatalog.ts`
-- Button / radio layout fixes; embed flex layout so control bars no longer steal canvas height
+- JSON validation with locations and expected values: `parseAndValidateSceneJSON`, `validateThemePack`, `formatJsonParseError`
+- GitHub Pages deploy of the playground on every `main` push
 
-### Docs
+### Docs & demos
 
-- End-to-end updates: `docs/README.md`, `getting-started.md`, AI / export validation guides, CONTRIBUTING website workflow
-- `.gitignore` excludes generated `website/public/{examples,docs,lightdraw*}`, TypeDoc `docs/api/`, internal plan files, audit scratch HTML
+- `docs/diagram-module-schema.md` — editor, org collapse/colors, network icons, JSON helpers
+- `docs/v1.1-release-notes.md` — migration and feature highlights
+- `examples/demo-diagram.html` — interactive gallery + live JSON/API dock
+- README — npm badges, playground links, feature examples for v1.1.0
+
+### Changed
+
+- Size gates raised for diagram / full bundles after network icon catalog + editor (see `scripts/size-gate.mjs`)
+
+### Historical notes (UI polish detail from v1.0.0)
+
+The Phase UI-0 … UI-10 entries below document the v1.0.0 beautification program and remain for reference.
 
 ### Added (Phase UI-10 — Documentation & release)
 
@@ -41,7 +69,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `src/diagram/chrome.ts` — shared card chrome (sheen, accent bar, caption pills)
 - Professional primitives per diagram type (flowchart, state machine, network, CAN, etc.)
-- `demo-diagram.html` — view-only showcase with grouped sidebar and info panel
+- `demo-diagram.html` — interactive gallery with grouped sidebar and info panel (later: editor + live JSON)
 
 ### Added (Phase UI-7 — Automotive module polish)
 
