@@ -24,8 +24,8 @@ const TARGETS = {
   'lightdraw.ui.min.js': 17 * 1024,
   'lightdraw.dashboard.min.js': 42 * 1024,
   'lightdraw.automotive.min.js': 32 * 1024,
-  'lightdraw.diagram.min.js': 56 * 1024,
-  'lightdraw.min.js': 152 * 1024,
+  'lightdraw.diagram.min.js': 59 * 1024,
+  'lightdraw.min.js': 155 * 1024,
 };
 
 const LEGACY_BUNDLES = [

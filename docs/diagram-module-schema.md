@@ -238,7 +238,7 @@ LightDraw.Diagram.pipeline(app, [
 ]);
 ```
 
-Browse all ~250 kinds with `Diagram.pipelineCatalog(app, { category?, columns? })`.
+Browse all ~300 kinds with `Diagram.pipelineCatalog(app, { category?, columns? })`.
 
 Discover with `Diagram.listPipelineSymbols()` / `Diagram.resolvePipelineSymbol(name)`.
 
@@ -249,10 +249,15 @@ Discover with `Diagram.listPipelineSymbols()` / `Diagram.resolvePipelineSymbol(n
 | Event | `timer`, `message`, `error`, `trigger` |
 | Data | `database`, `document`, `dataset`, `dashboard` |
 | CI/CD | `build`, `deploy`, `release`, `rollback`, `production` |
-| Manufacturing | `robot`, `conveyor`, `cncMachine`, `productionLine` |
+| Manufacturing | `machine`, `robot`, `conveyor`, `cncMachine`, `factory` |
+| Facilities | `building`, `home`, `school`, `stadium`, `shop`, `temple`, `parking` |
+| Transport | `car`, `bus`, `flight`, `ship`, `bike`, `cycle`, `road` |
+| Nature | `earth`, `sun`, `star`, `forest`, `solarPanel`, `map` |
+| Devices | `laptop`, `gps`, `wifi`, `phoneTower`, `bluetooth`, `light` |
 | Logistics | `warehouse`, `truck`, `agv`, `forklift` |
 | Industrial | `plc`, `hmi`, `scada`, `sensor`, `iotDevice` |
 | Cloud | `cloud`, `server`, `kubernetesCluster`, `appContainer` |
+| Governance | `validation`, `verification`, `inspection`, `signOff`, `certification`, `version` |
 
 Catalog JSON type: `pipelineSymbolCatalog` with optional `category` and `columns`.
 

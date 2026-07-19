@@ -28,7 +28,11 @@ export type PipelineSymbolCategory =
   | 'cloud'
   | 'ai'
   | 'status'
-  | 'layout';
+  | 'layout'
+  | 'facilities'
+  | 'transport'
+  | 'nature'
+  | 'devices';
 
 export interface PipelineSymbolMeta {
   kind: string;
@@ -531,11 +535,17 @@ function drawChange(app: App, g: Group): void {
 }
 
 function drawMachine(app: App, g: Group): void {
-  addBox(app, g, 8, 16, 32, 20, 3);
-  addBox(app, g, 14, 10, 8, 6, 2);
-  addCircle(app, g, 30, 26, 5.5, null, 1.6);
-  addLine(app, g, 30, 20.5, 0, 11, 1.4);
-  addLine(app, g, 24.5, 26, 11, 0, 1.4);
+  // Industrial machine — base, hopper, dual gears
+  addBox(app, g, 8, 22, 32, 14, 2);
+  addBox(app, g, 12, 12, 10, 12, 2);
+  addCircle(app, g, 30, 18, 6, null, 1.5);
+  addCircle(app, g, 30, 18, 2.5, stroke(), 0);
+  addLine(app, g, 30, 12, 0, 3, 1.3);
+  addLine(app, g, 30, 21, 0, 3, 1.3);
+  addLine(app, g, 24, 18, 3, 0, 1.3);
+  addLine(app, g, 33, 18, 3, 0, 1.3);
+  addCircle(app, g, 14, 36, 3, null, 1.3);
+  addCircle(app, g, 34, 36, 3, null, 1.3);
 }
 
 function drawRobot(app: App, g: Group): void {
@@ -1236,10 +1246,13 @@ function drawReview(app: App, g: Group): void {
 }
 
 function drawInspection(app: App, g: Group): void {
-  // Inspection — magnifier + check
-  addCircle(app, g, 20, 20, 10, null, 1.7);
-  addLine(app, g, 27, 27, 10, 10, 2.2);
-  addPoly(app, g, [15, 20, 18, 24, 26, 14], 1.6);
+  // Inspection — magnifier over checklist
+  addBox(app, g, 8, 12, 14, 22, 2);
+  addLine(app, g, 11, 18, 8, 0, 1.2);
+  addLine(app, g, 11, 24, 8, 0, 1.2);
+  addLine(app, g, 11, 30, 6, 0, 1.2);
+  addCircle(app, g, 32, 20, 9, null, 1.7);
+  addLine(app, g, 38, 26, 6, 6, 2.2);
 }
 
 function drawApproval(app: App, g: Group): void {
@@ -1250,10 +1263,55 @@ function drawApproval(app: App, g: Group): void {
 }
 
 function drawValidation(app: App, g: Group): void {
-  // Validation — clipboard with check
+  // Validation — clipboard with check (rules pass)
   addBox(app, g, 12, 12, 24, 28, 2);
   addBox(app, g, 18, 8, 12, 6, 1);
-  addPoly(app, g, [18, 26, 22, 30, 32, 18], 1.8);
+  addLine(app, g, 16, 20, 14, 0, 1.2);
+  addLine(app, g, 16, 26, 14, 0, 1.2);
+  addPoly(app, g, [18, 32, 22, 36, 32, 24], 1.8);
+}
+
+function drawVerification(app: App, g: Group): void {
+  // Verification — shield with check (confirmed authentic)
+  addPoly(app, g, [MID, 8, 38, 14, 38, 28, MID, 40, 10, 28, 10, 14], 1.8, fill());
+  addPoly(app, g, [17, 24, 22, 30, 33, 16], 2.1);
+}
+
+function drawSignOff(app: App, g: Group): void {
+  // Sign-off — document + ink signature
+  addBox(app, g, 10, 8, 28, 32, 2);
+  addLine(app, g, 14, 16, 18, 0, 1.3);
+  addLine(app, g, 14, 22, 14, 0, 1.3);
+  addLine(app, g, 14, 32, 4, -4, 1.8);
+  addLine(app, g, 18, 28, 6, 4, 1.8);
+  addLine(app, g, 24, 32, 8, -6, 1.8);
+  addLine(app, g, 14, 36, 20, 0, 1.2);
+}
+
+function drawCertification(app: App, g: Group): void {
+  // Certification — award badge / seal with ribbon
+  addCircle(app, g, MID, 18, 10, fill(), 1.7);
+  addCircle(app, g, MID, 18, 5, null, 1.3);
+  addPoly(app, g, [18, 26, 14, 40, 20, 34], 1.5, fill());
+  addPoly(app, g, [30, 26, 34, 40, 28, 34], 1.5, fill());
+  addPoly(app, g, [MID - 3, 16, MID, 22, MID + 5, 12], 1.5);
+}
+
+function drawVersion(app: App, g: Group): void {
+  // Version — tag with vN
+  addPoly(app, g, [8, 18, 28, 10, 40, MID, 28, 38, 8, 30], 1.6, fill());
+  addCircle(app, g, 16, MID, 2.5, null, 1.3);
+  addText(app, g, 'v2', 22, MID + 3, 9);
+}
+
+function drawCompliance(app: App, g: Group): void {
+  // Compliance — clipboard + scale/balance mark (distinct from verification shield)
+  addBox(app, g, 14, 14, 20, 26, 2);
+  addBox(app, g, 18, 10, 12, 6, 1);
+  addLine(app, g, MID, 20, 0, 10, 1.6);
+  addLine(app, g, 18, 30, 12, 0, 1.6);
+  addPoly(app, g, [18, 30, 14, 36, 22, 36], 1.3);
+  addPoly(app, g, [30, 30, 26, 36, 34, 36], 1.3);
 }
 
 function drawHandover(app: App, g: Group): void {
@@ -1769,7 +1827,422 @@ type Family =
   | 'synchronization'
   | 'source'
   | 'destination'
-  | 'flowPath';
+  | 'flowPath'
+  | 'verification'
+  | 'signOff'
+  | 'certification'
+  | 'version'
+  | 'factory'
+  | 'building'
+  | 'home'
+  | 'laptop'
+  | 'gps'
+  | 'earth'
+  | 'starMark'
+  | 'sun'
+  | 'window'
+  | 'solarPanel'
+  | 'plant'
+  | 'forest'
+  | 'hillStation'
+  | 'map'
+  | 'umbrella'
+  | 'car'
+  | 'van'
+  | 'bike'
+  | 'cycle'
+  | 'rickshaw'
+  | 'autoVehicle'
+  | 'bus'
+  | 'flight'
+  | 'helicopter'
+  | 'ship'
+  | 'boat'
+  | 'road'
+  | 'staircase'
+  | 'lift'
+  | 'park'
+  | 'parking'
+  | 'school'
+  | 'stadium'
+  | 'shop'
+  | 'market'
+  | 'dollar'
+  | 'euro'
+  | 'rupee'
+  | 'envelope'
+  | 'virus'
+  | 'bug'
+  | 'insect'
+  | 'bluetooth'
+  | 'phoneTower'
+  | 'wifi'
+  | 'light'
+  | 'temple'
+  | 'compliance'
+
+
+/* ── Facilities / transport / nature / devices ──────────────────────────── */
+
+function drawFactory(app: App, g: Group): void {
+  addBox(app, g, 8, 22, 32, 16, 2);
+  addBox(app, g, 12, 12, 8, 12, 1);
+  addBox(app, g, 24, 16, 6, 8, 1);
+  addLine(app, g, 14, 12, 0, -6, 2);
+  addLine(app, g, 18, 12, 0, -4, 2);
+  addLine(app, g, 14, 6, 4, 0, 1.5);
+  addLine(app, g, 18, 8, 3, 0, 1.5);
+  addLine(app, g, 14, 28, 6, 0, 1.2);
+  addLine(app, g, 28, 28, 6, 0, 1.2);
+}
+
+function drawBuilding(app: App, g: Group): void {
+  addBox(app, g, 12, 8, 24, 32, 2);
+  for (const y of [14, 22, 30]) {
+    addLine(app, g, 16, y, 4, 0, 1.3);
+    addLine(app, g, 28, y, 4, 0, 1.3);
+  }
+  addBox(app, g, 20, 32, 8, 8, 1);
+}
+
+function drawHome(app: App, g: Group): void {
+  addPoly(app, g, [8, 22, MID, 8, 40, 22], 1.7);
+  addBox(app, g, 12, 22, 24, 16, 2);
+  addBox(app, g, 20, 28, 8, 10, 1);
+}
+
+function drawLaptop(app: App, g: Group): void {
+  addBox(app, g, 10, 12, 28, 18, 2);
+  addLine(app, g, 8, 32, 32, 0, 2.2);
+  addLine(app, g, 14, 20, 20, 0, 1.2);
+}
+
+function drawGps(app: App, g: Group): void {
+  addCircle(app, g, MID, 18, 8, fill(), 1.7);
+  addPoly(app, g, [MID, 40, 18, 24, 30, 24], 1.6, fill());
+  addCircle(app, g, MID, 18, 3, stroke(), 0);
+  addLine(app, g, 34, 12, 6, -4, 1.3);
+  addLine(app, g, 34, 16, 8, 0, 1.3);
+}
+
+function drawEarth(app: App, g: Group): void {
+  addCircle(app, g, MID, MID, 14, fill(), 1.8);
+  addEllipse(app, g, MID, MID, 7, 14, null, 1.4);
+  addLine(app, g, 10, MID, 28, 0, 1.4);
+  addLine(app, g, 12, 16, 24, 0, 1.2);
+  addLine(app, g, 12, 32, 24, 0, 1.2);
+}
+
+function drawStarMark(app: App, g: Group): void {
+  addPoly(app, g, [MID, 8, 28, 18, 40, 18, 30, 28, 34, 40, MID, 32, 14, 40, 18, 28, 8, 18, 20, 18], 1.5, fill());
+}
+
+function drawSun(app: App, g: Group): void {
+  addCircle(app, g, MID, MID, 8, fill(), 1.7);
+  for (const [dx, dy] of [[0, -14], [0, 14], [-14, 0], [14, 0], [-10, -10], [10, -10], [-10, 10], [10, 10]]) {
+    addLine(app, g, MID + dx * 0.55, MID + dy * 0.55, dx * 0.35, dy * 0.35, 1.5);
+  }
+}
+
+function drawWindow(app: App, g: Group): void {
+  addBox(app, g, 10, 10, 28, 28, 2);
+  addLine(app, g, MID, 10, 0, 28, 1.5);
+  addLine(app, g, 10, MID, 28, 0, 1.5);
+}
+
+function drawSolarPanel(app: App, g: Group): void {
+  addPoly(app, g, [8, 30, 18, 12, 40, 12, 30, 30], 1.6, fill());
+  addLine(app, g, 13, 21, 22, 0, 1.2);
+  addLine(app, g, 16, 27, 18, 0, 1.2);
+  addLine(app, g, 20, 12, -5, 18, 1.2);
+  addLine(app, g, 28, 12, -5, 18, 1.2);
+  addLine(app, g, 20, 34, 0, 4, 1.5);
+  addLine(app, g, 14, 38, 12, 0, 1.5);
+}
+
+function drawPlant(app: App, g: Group): void {
+  addLine(app, g, MID, 38, 0, -16, 2);
+  addPoly(app, g, [MID, 22, 14, 14, MID, 18], 1.4, fill());
+  addPoly(app, g, [MID, 20, 34, 10, MID, 16], 1.4, fill());
+  addBox(app, g, 16, 34, 16, 6, 2);
+}
+
+function drawForest(app: App, g: Group): void {
+  addPoly(app, g, [12, 32, 12, 18, 4, 18, 12, 8, 20, 18, 12, 18], 1.4, fill());
+  addPoly(app, g, [28, 36, 28, 16, 18, 16, 28, 6, 38, 16, 28, 16], 1.4, fill());
+  addLine(app, g, 8, 38, 32, 0, 1.5);
+}
+
+function drawHillStation(app: App, g: Group): void {
+  addPoly(app, g, [6, 36, 16, 16, 24, 28, 32, 12, 42, 36], 1.6);
+  addBox(app, g, 18, 26, 10, 10, 1);
+  addPoly(app, g, [18, 26, 23, 20, 28, 26], 1.4);
+}
+
+function drawMap(app: App, g: Group): void {
+  addPoly(app, g, [8, 12, 18, 10, 30, 14, 40, 10, 40, 36, 30, 40, 18, 36, 8, 40], 1.6, fill());
+  addLine(app, g, 18, 10, 0, 26, 1.3);
+  addLine(app, g, 30, 14, 0, 26, 1.3);
+  addCircle(app, g, 24, 22, 2.5, stroke(), 0);
+}
+
+function drawUmbrella(app: App, g: Group): void {
+  addPoly(app, g, [8, 22, MID, 10, 40, 22], 1.6, fill());
+  addLine(app, g, MID, 22, 0, 14, 2);
+  addLine(app, g, MID, 36, 6, 2, 1.6);
+}
+
+function drawCar(app: App, g: Group): void {
+  addBox(app, g, 6, 22, 36, 10, 3);
+  addPoly(app, g, [14, 22, 18, 12, 30, 12, 34, 22], 1.5);
+  addCircle(app, g, 14, 34, 4, null, 1.4);
+  addCircle(app, g, 34, 34, 4, null, 1.4);
+}
+
+function drawVan(app: App, g: Group): void {
+  addBox(app, g, 6, 14, 28, 18, 2);
+  addBox(app, g, 34, 20, 8, 12, 2);
+  addCircle(app, g, 14, 36, 4, null, 1.4);
+  addCircle(app, g, 34, 36, 4, null, 1.4);
+}
+
+function drawBike(app: App, g: Group): void {
+  // Motorcycle
+  addCircle(app, g, 14, 32, 6, null, 1.5);
+  addCircle(app, g, 36, 32, 6, null, 1.5);
+  addLine(app, g, 14, 32, 14, -8, 1.6);
+  addLine(app, g, 28, 24, 8, 8, 1.6);
+  addLine(app, g, 20, 20, 10, 0, 1.6);
+  addLine(app, g, 30, 20, 0, -6, 1.5);
+}
+
+function drawCycle(app: App, g: Group): void {
+  // Bicycle
+  addCircle(app, g, 12, 32, 7, null, 1.5);
+  addCircle(app, g, 36, 32, 7, null, 1.5);
+  addLine(app, g, 12, 32, 12, -10, 1.5);
+  addLine(app, g, 24, 22, 12, 10, 1.5);
+  addLine(app, g, 18, 18, 12, 0, 1.5);
+  addLine(app, g, 24, 22, 0, -8, 1.5);
+}
+
+function drawRickshaw(app: App, g: Group): void {
+  addCircle(app, g, 12, 34, 5, null, 1.4);
+  addCircle(app, g, 28, 34, 5, null, 1.4);
+  addCircle(app, g, 38, 34, 4, null, 1.4);
+  addBox(app, g, 18, 16, 16, 14, 2);
+  addLine(app, g, 12, 34, 8, -10, 1.5);
+  addLine(app, g, 18, 22, -6, 0, 1.4);
+}
+
+function drawAutoVehicle(app: App, g: Group): void {
+  // Auto-rickshaw / three-wheeler
+  addPoly(app, g, [10, 30, 16, 14, 34, 14, 38, 30], 1.5);
+  addCircle(app, g, 14, 34, 4.5, null, 1.4);
+  addCircle(app, g, 34, 34, 4.5, null, 1.4);
+  addLine(app, g, 22, 14, 0, -6, 1.5);
+}
+
+function drawBus(app: App, g: Group): void {
+  addBox(app, g, 6, 12, 36, 20, 3);
+  addLine(app, g, 6, 20, 36, 0, 1.3);
+  addLine(app, g, 16, 12, 0, 8, 1.2);
+  addLine(app, g, 26, 12, 0, 8, 1.2);
+  addCircle(app, g, 14, 36, 4, null, 1.4);
+  addCircle(app, g, 34, 36, 4, null, 1.4);
+}
+
+function drawFlight(app: App, g: Group): void {
+  addLine(app, g, 10, MID, 28, 0, 2.2);
+  addPoly(app, g, [24, MID, 12, 14, 16, MID, 12, 34], 1.5, fill());
+  addPoly(app, g, [36, MID, 42, 18, 42, 30], 1.4, fill());
+  addLine(app, g, 14, MID, -4, 6, 1.5);
+}
+
+function drawHelicopter(app: App, g: Group): void {
+  addEllipse(app, g, 22, 24, 12, 7, fill(), 1.5);
+  addLine(app, g, 8, 16, 28, 0, 1.6);
+  addLine(app, g, 34, 24, 8, -6, 1.5);
+  addLine(app, g, 14, 30, 0, 6, 1.4);
+  addLine(app, g, 28, 30, 0, 6, 1.4);
+  addLine(app, g, 12, 36, 18, 0, 1.4);
+}
+
+function drawShip(app: App, g: Group): void {
+  addPoly(app, g, [8, 28, 14, 18, 34, 18, 40, 28], 1.6, fill());
+  addBox(app, g, 18, 10, 12, 10, 2);
+  addLine(app, g, 8, 32, 32, 0, 1.5);
+  addLine(app, g, 12, 36, 24, 0, 1.3);
+}
+
+function drawBoat(app: App, g: Group): void {
+  addPoly(app, g, [10, 28, 16, 20, 36, 20, 40, 28], 1.6, fill());
+  addLine(app, g, 24, 20, 0, -10, 1.6);
+  addPoly(app, g, [24, 10, 34, 18, 24, 18], 1.4, fill());
+}
+
+function drawRoad(app: App, g: Group): void {
+  addPoly(app, g, [10, 8, 38, 8, 42, 40, 6, 40], 1.6);
+  addLine(app, g, MID, 12, 0, 6, 2);
+  addLine(app, g, MID, 22, 0, 6, 2);
+  addLine(app, g, MID, 32, 0, 4, 2);
+}
+
+function drawStaircase(app: App, g: Group): void {
+  addLine(app, g, 10, 36, 8, 0, 2);
+  addLine(app, g, 18, 36, 0, -8, 2);
+  addLine(app, g, 18, 28, 8, 0, 2);
+  addLine(app, g, 26, 28, 0, -8, 2);
+  addLine(app, g, 26, 20, 8, 0, 2);
+  addLine(app, g, 34, 20, 0, -8, 2);
+  addLine(app, g, 34, 12, 6, 0, 2);
+}
+
+function drawLift(app: App, g: Group): void {
+  addBox(app, g, 12, 8, 24, 32, 2);
+  addLine(app, g, MID, 8, 0, 32, 1.4);
+  addPoly(app, g, [18, 18, 24, 12, 30, 18], 1.5);
+  addPoly(app, g, [18, 30, 24, 36, 30, 30], 1.5);
+}
+
+function drawPark(app: App, g: Group): void {
+  addPoly(app, g, [MID, 8, 34, 28, 14, 28], 1.5, fill());
+  addLine(app, g, MID, 28, 0, 8, 1.6);
+  addLine(app, g, 10, 38, 28, 0, 1.5);
+  addCircle(app, g, 36, 14, 4, null, 1.3);
+}
+
+function drawParking(app: App, g: Group): void {
+  addBox(app, g, 10, 8, 28, 32, 3);
+  // Drawn "P" (more reliable than text at glyph scale)
+  addLine(app, g, 18, 14, 0, 20, 2.4);
+  addLine(app, g, 18, 14, 10, 0, 2.4);
+  addLine(app, g, 28, 14, 0, 8, 2.4);
+  addLine(app, g, 18, 22, 10, 0, 2.4);
+}
+
+function drawSchool(app: App, g: Group): void {
+  addBox(app, g, 8, 18, 32, 20, 2);
+  addPoly(app, g, [8, 18, MID, 8, 40, 18], 1.6);
+  addBox(app, g, 20, 28, 8, 10, 1);
+  addLine(app, g, MID, 8, 0, -4, 1.5);
+}
+
+function drawStadium(app: App, g: Group): void {
+  addEllipse(app, g, MID, MID, 16, 10, fill(), 1.6);
+  addEllipse(app, g, MID, MID, 10, 6, null, 1.3);
+  addLine(app, g, 12, 18, 4, -6, 1.3);
+  addLine(app, g, 36, 18, -4, -6, 1.3);
+}
+
+function drawShop(app: App, g: Group): void {
+  addBox(app, g, 10, 18, 28, 20, 2);
+  addPoly(app, g, [8, 18, 14, 10, 34, 10, 40, 18], 1.6);
+  addBox(app, g, 20, 26, 8, 12, 1);
+}
+
+function drawMarket(app: App, g: Group): void {
+  addBox(app, g, 8, 20, 12, 16, 2);
+  addBox(app, g, 18, 16, 12, 20, 2);
+  addBox(app, g, 28, 22, 12, 14, 2);
+  addLine(app, g, 8, 20, 4, -6, 1.3);
+  addLine(app, g, 18, 16, 4, -6, 1.3);
+  addLine(app, g, 28, 22, 4, -6, 1.3);
+}
+
+function drawDollar(app: App, g: Group): void {
+  addCircle(app, g, MID, MID, 14, fill(), 1.8);
+  addText(app, g, '$', MID - 4, MID + 5, 16);
+}
+
+function drawEuro(app: App, g: Group): void {
+  addCircle(app, g, MID, MID, 14, fill(), 1.8);
+  addText(app, g, '€', MID - 5, MID + 5, 15);
+}
+
+function drawRupee(app: App, g: Group): void {
+  addCircle(app, g, MID, MID, 14, fill(), 1.8);
+  addText(app, g, '₹', MID - 5, MID + 5, 15);
+}
+
+function drawEnvelope(app: App, g: Group): void {
+  addBox(app, g, 8, 14, 32, 20, 3);
+  addPoly(app, g, [8, 14, MID, 26, 40, 14], 1.6);
+}
+
+function drawVirus(app: App, g: Group): void {
+  addCircle(app, g, MID, MID, 8, fill(), 1.6);
+  const spikes: Array<[number, number]> = [[0, -14], [10, -10], [14, 0], [10, 10], [0, 14], [-10, 10], [-14, 0], [-10, -10]];
+  for (const [dx, dy] of spikes) {
+    addLine(app, g, MID + dx * 0.5, MID + dy * 0.5, dx * 0.4, dy * 0.4, 1.5);
+    addCircle(app, g, MID + dx, MID + dy, 2, stroke(), 0);
+  }
+}
+
+function drawBug(app: App, g: Group): void {
+  // Software bug
+  addEllipse(app, g, MID, MID, 8, 10, fill(), 1.5);
+  addLine(app, g, 16, 16, -6, -6, 1.4);
+  addLine(app, g, 32, 16, 6, -6, 1.4);
+  addLine(app, g, 16, 24, -8, 0, 1.4);
+  addLine(app, g, 32, 24, 8, 0, 1.4);
+  addLine(app, g, 16, 32, -6, 6, 1.4);
+  addLine(app, g, 32, 32, 6, 6, 1.4);
+  addLine(app, g, MID, 14, 0, -6, 1.4);
+}
+
+function drawInsect(app: App, g: Group): void {
+  addEllipse(app, g, MID, 28, 7, 9, fill(), 1.5);
+  addCircle(app, g, MID, 16, 5, fill(), 1.5);
+  addLine(app, g, 18, 14, -6, -6, 1.3);
+  addLine(app, g, 30, 14, 6, -6, 1.3);
+  addLine(app, g, 18, 30, -8, 4, 1.3);
+  addLine(app, g, 30, 30, 8, 4, 1.3);
+}
+
+function drawBluetooth(app: App, g: Group): void {
+  addLine(app, g, MID, 8, 0, 32, 2);
+  addPoly(app, g, [MID, 8, 34, 16, MID, 24], 1.6);
+  addPoly(app, g, [MID, 24, 34, 32, MID, 40], 1.6);
+  addLine(app, g, MID, 24, -10, -8, 1.6);
+  addLine(app, g, MID, 24, -10, 8, 1.6);
+}
+
+function drawPhoneTower(app: App, g: Group): void {
+  addLine(app, g, MID, 40, -10, -28, 1.6);
+  addLine(app, g, MID, 40, 10, -28, 1.6);
+  addLine(app, g, 16, 24, 16, 0, 1.4);
+  addLine(app, g, 18, 16, 12, 0, 1.4);
+  addLine(app, g, MID, 12, 0, -4, 1.5);
+  addLine(app, g, 34, 10, 6, -4, 1.3);
+  addLine(app, g, 34, 14, 8, 0, 1.3);
+  addLine(app, g, 34, 18, 6, 4, 1.3);
+}
+
+function drawWifi(app: App, g: Group): void {
+  addCircle(app, g, MID, 34, 2.5, stroke(), 0);
+  addPoly(app, g, [16, 28, MID, 34, 32, 28], 1.4);
+  addPoly(app, g, [12, 22, MID, 30, 36, 22], 1.4);
+  addPoly(app, g, [8, 16, MID, 26, 40, 16], 1.4);
+}
+
+function drawLight(app: App, g: Group): void {
+  addCircle(app, g, MID, 18, 10, fill(), 1.6);
+  addBox(app, g, 20, 28, 8, 6, 1);
+  addLine(app, g, 18, 36, 12, 0, 1.5);
+  addLine(app, g, MID, 8, 0, -4, 1.3);
+  addLine(app, g, 14, 12, -4, -4, 1.3);
+  addLine(app, g, 34, 12, 4, -4, 1.3);
+}
+
+function drawTemple(app: App, g: Group): void {
+  addBox(app, g, 10, 24, 28, 14, 2);
+  addPoly(app, g, [8, 24, MID, 8, 40, 24], 1.6);
+  addLine(app, g, MID, 8, 0, -4, 1.5);
+  addBox(app, g, 20, 28, 8, 10, 1);
+  addLine(app, g, 14, 20, 4, 0, 1.2);
+  addLine(app, g, 30, 20, 4, 0, 1.2);
+}
 
 /* ── Catalog metadata ───────────────────────────────────────────────────── */
 
@@ -2048,6 +2521,58 @@ const CATALOG: Row[] = [
   ['pool', 'Pool', 'layout'],
   ['region', 'Region', 'layout'],
   ['zone', 'Zone', 'layout'],
+  // facilities
+  ['factory', 'Factory', 'facilities'],
+  ['building', 'Building', 'facilities'],
+  ['home', 'Home', 'facilities'],
+  ['school', 'School', 'facilities'],
+  ['stadium', 'Stadium', 'facilities'],
+  ['shop', 'Shop', 'facilities'],
+  ['market', 'Market', 'facilities'],
+  ['park', 'Park', 'facilities'],
+  ['parking', 'Parking', 'facilities'],
+  ['temple', 'Temple', 'facilities'],
+  ['staircase', 'Staircase', 'facilities'],
+  ['lift', 'Lift', 'facilities'],
+  ['window', 'Window', 'facilities'],
+  // transport
+  ['car', 'Car', 'transport'],
+  ['van', 'Van', 'transport'],
+  ['bike', 'Bike', 'transport'],
+  ['cycle', 'Cycle', 'transport'],
+  ['rickshaw', 'Rickshaw', 'transport'],
+  ['autoVehicle', 'Auto Vehicle', 'transport'],
+  ['bus', 'Bus', 'transport'],
+  ['ship', 'Ship', 'transport'],
+  ['boat', 'Boat', 'transport'],
+  ['flight', 'Flight', 'transport'],
+  ['helicopter', 'Helicopter', 'transport'],
+  ['road', 'Road', 'transport'],
+  // nature
+  ['earth', 'Earth', 'nature'],
+  ['star', 'Star', 'nature'],
+  ['sun', 'Sun', 'nature'],
+  ['plant', 'Plant', 'nature'],
+  ['forest', 'Forest', 'nature'],
+  ['hillStation', 'Hill Station', 'nature'],
+  ['solarPanel', 'Solar Panel', 'nature'],
+  ['map', 'Map', 'nature'],
+  // devices
+  ['laptop', 'Laptop', 'devices'],
+  ['gps', 'GPS', 'devices'],
+  ['phoneTower', 'Phone Tower', 'devices'],
+  ['wifi', 'Wi‑Fi', 'devices'],
+  ['light', 'Light', 'devices'],
+  ['bluetooth', 'Bluetooth', 'devices'],
+  ['umbrella', 'Umbrella', 'devices'],
+  // money / bio (project & security)
+  ['dollar', 'Dollar', 'project'],
+  ['euro', 'Euro', 'project'],
+  ['rupee', 'Rupee', 'project'],
+  ['envelope', 'Envelope', 'notify'],
+  ['virus', 'Virus', 'security'],
+  ['bug', 'Bug', 'security'],
+  ['insect', 'Insect', 'security'],
 ];
 
 /** kind → drawer family */
@@ -2166,10 +2691,10 @@ const FAMILY: Record<string, Family> = {
   approval: 'approval',
   review: 'review',
   validation: 'validation',
-  verification: 'validation',
+  verification: 'verification',
   inspection: 'inspection',
   audit: 'document',
-  signOff: 'check',
+  signOff: 'signOff',
   requirement: 'document',
   specification: 'document',
   standard: 'document',
@@ -2197,7 +2722,7 @@ const FAMILY: Record<string, Family> = {
   blocker: 'error',
   changeRequest: 'change',
   changeOrder: 'change',
-  version: 'tag',
+  version: 'version',
   revision: 'tag',
   configuration: 'wrench',
   asset: 'crate',
@@ -2280,8 +2805,8 @@ const FAMILY: Record<string, Family> = {
   checkpoint: 'checkpoint',
   decisionPoint: 'decisionPoint',
   escalation: 'escalation',
-  compliance: 'shield',
-  certification: 'check',
+  compliance: 'compliance',
+  certification: 'certification',
   customerDelivery: 'customerDelivery',
   handover: 'handover',
   closure: 'capsuleEnd',
@@ -2302,7 +2827,55 @@ const FAMILY: Record<string, Family> = {
   thirdPartyService: 'globe',
   internet: 'globe',
   archiveStorage: 'archiveStorage',
+  factory: 'factory',
+  building: 'building',
+  home: 'home',
+  school: 'school',
+  stadium: 'stadium',
+  shop: 'shop',
+  market: 'market',
+  park: 'park',
+  parking: 'parking',
+  temple: 'temple',
+  staircase: 'staircase',
+  lift: 'lift',
+  window: 'window',
+  car: 'car',
+  van: 'van',
+  bike: 'bike',
+  cycle: 'cycle',
+  rickshaw: 'rickshaw',
+  autoVehicle: 'autoVehicle',
+  bus: 'bus',
+  ship: 'ship',
+  boat: 'boat',
+  flight: 'flight',
+  helicopter: 'helicopter',
+  road: 'road',
+  earth: 'earth',
+  star: 'starMark',
+  sun: 'sun',
+  plant: 'plant',
+  forest: 'forest',
+  hillStation: 'hillStation',
+  solarPanel: 'solarPanel',
+  map: 'map',
+  laptop: 'laptop',
+  gps: 'gps',
+  phoneTower: 'phoneTower',
+  wifi: 'wifi',
+  light: 'light',
+  bluetooth: 'bluetooth',
+  umbrella: 'umbrella',
+  dollar: 'dollar',
+  euro: 'euro',
+  rupee: 'rupee',
+  envelope: 'envelope',
+  virus: 'virus',
+  bug: 'bug',
+  insect: 'insect',
 };
+
 
 const ENV_MARK: Record<string, string> = {
   environment: 'ENV',
@@ -2456,6 +3029,37 @@ const ALIASES: Record<string, string> = {
   ext: 'externalSystem',
   www: 'internet',
   web: 'internet',
+  factory_plant: 'factory',
+  production_factory: 'factory',
+  warehouse_building: 'warehouse',
+  bike_cycle: 'cycle',
+  bicycle: 'cycle',
+  motorcycle: 'bike',
+  auto_rickshaw: 'autoVehicle',
+  autorickshaw: 'autoVehicle',
+  rickshaw_auto: 'autoVehicle',
+  aeroplane: 'flight',
+  airplane: 'flight',
+  plane: 'flight',
+  wifi_signal: 'wifi',
+  wi_fi: 'wifi',
+  cell_tower: 'phoneTower',
+  mobile_tower: 'phoneTower',
+  solar: 'solarPanel',
+  hills: 'hillStation',
+  hill: 'hillStation',
+  rupees: 'rupee',
+  inr: 'rupee',
+  usd: 'dollar',
+  eur: 'euro',
+  envelope_mail: 'envelope',
+  malware: 'virus',
+  software_bug: 'bug',
+  elevator: 'lift',
+  stairs: 'staircase',
+  parking_lot: 'parking',
+  house: 'home',
+  office_building: 'building',
 };
 
 const KIND_SET = new Set(CATALOG.map((r) => r[0]));
@@ -3037,6 +3641,162 @@ export function drawPipelineGlyph(app: App, g: Group, kind: string): void {
       break;
     case 'destination':
       drawDestination(app, g);
+      break;
+    case 'verification':
+      drawVerification(app, g);
+      break;
+    case 'signOff':
+      drawSignOff(app, g);
+      break;
+    case 'certification':
+      drawCertification(app, g);
+      break;
+    case 'version':
+      drawVersion(app, g);
+      break;
+    case 'factory':
+      drawFactory(app, g);
+      break;
+    case 'building':
+      drawBuilding(app, g);
+      break;
+    case 'home':
+      drawHome(app, g);
+      break;
+    case 'laptop':
+      drawLaptop(app, g);
+      break;
+    case 'gps':
+      drawGps(app, g);
+      break;
+    case 'earth':
+      drawEarth(app, g);
+      break;
+    case 'starMark':
+      drawStarMark(app, g);
+      break;
+    case 'sun':
+      drawSun(app, g);
+      break;
+    case 'window':
+      drawWindow(app, g);
+      break;
+    case 'solarPanel':
+      drawSolarPanel(app, g);
+      break;
+    case 'plant':
+      drawPlant(app, g);
+      break;
+    case 'forest':
+      drawForest(app, g);
+      break;
+    case 'hillStation':
+      drawHillStation(app, g);
+      break;
+    case 'map':
+      drawMap(app, g);
+      break;
+    case 'umbrella':
+      drawUmbrella(app, g);
+      break;
+    case 'car':
+      drawCar(app, g);
+      break;
+    case 'van':
+      drawVan(app, g);
+      break;
+    case 'bike':
+      drawBike(app, g);
+      break;
+    case 'cycle':
+      drawCycle(app, g);
+      break;
+    case 'rickshaw':
+      drawRickshaw(app, g);
+      break;
+    case 'autoVehicle':
+      drawAutoVehicle(app, g);
+      break;
+    case 'bus':
+      drawBus(app, g);
+      break;
+    case 'flight':
+      drawFlight(app, g);
+      break;
+    case 'helicopter':
+      drawHelicopter(app, g);
+      break;
+    case 'ship':
+      drawShip(app, g);
+      break;
+    case 'boat':
+      drawBoat(app, g);
+      break;
+    case 'road':
+      drawRoad(app, g);
+      break;
+    case 'staircase':
+      drawStaircase(app, g);
+      break;
+    case 'lift':
+      drawLift(app, g);
+      break;
+    case 'park':
+      drawPark(app, g);
+      break;
+    case 'parking':
+      drawParking(app, g);
+      break;
+    case 'school':
+      drawSchool(app, g);
+      break;
+    case 'stadium':
+      drawStadium(app, g);
+      break;
+    case 'shop':
+      drawShop(app, g);
+      break;
+    case 'market':
+      drawMarket(app, g);
+      break;
+    case 'dollar':
+      drawDollar(app, g);
+      break;
+    case 'euro':
+      drawEuro(app, g);
+      break;
+    case 'rupee':
+      drawRupee(app, g);
+      break;
+    case 'envelope':
+      drawEnvelope(app, g);
+      break;
+    case 'virus':
+      drawVirus(app, g);
+      break;
+    case 'bug':
+      drawBug(app, g);
+      break;
+    case 'insect':
+      drawInsect(app, g);
+      break;
+    case 'bluetooth':
+      drawBluetooth(app, g);
+      break;
+    case 'phoneTower':
+      drawPhoneTower(app, g);
+      break;
+    case 'wifi':
+      drawWifi(app, g);
+      break;
+    case 'light':
+      drawLight(app, g);
+      break;
+    case 'temple':
+      drawTemple(app, g);
+      break;
+    case 'compliance':
+      drawCompliance(app, g);
       break;
     default:
       drawProcess(app, g);

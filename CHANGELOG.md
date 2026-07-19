@@ -10,14 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Help **Component lab**: pick family → component, live single-component preview, editable JSON / API
 - `Diagram.pipelineSymbol` / `schematicSymbol` / `networkNode` for single-symbol rendering
 
-- **250** process, engineering, and manufacturing symbols across 22 categories (flow, gateway, CI/CD, plant floor, cloud, people, …)
-- `Diagram.pipelineCatalog(app, { category?, columns? })` grid viewer
-- `Diagram.listPipelineSymbols()` / `resolvePipelineSymbol()` with aliases (`db` → `database`, `k8s` → `kubernetesCluster`, …)
-- Pipeline stages accept optional `type` for an inline catalog glyph
-- Demo: **Pipeline Catalog** tab; sample pipeline uses build/deploy symbols
-- Glyph polish vs BPMN / VSM / industrial conventions: start/end circles, XOR/AND/OR gateways, task markers top-left, distinct manufacturing/logistics/cloud icons (CNC, AGV, k8s, backup, waste, …)
-- Distinct glyphs for workflow / business / manufacturing / engineering / software processes and many former lookalike aliases
-- Size gates: diagram ≤ 56 KB gzip, full ≤ 152 KB gzip
+- **~300** process / facility / transport symbols across 26 categories
+- Governance glyphs clarified: validation, verification, inspection, signOff, certification, version; improved machine
+- New categories: facilities, transport, nature, devices (factory, vehicles, wifi, solar, temple, …)
+- Size gates: diagram ≤ 59 KB gzip, full ≤ 155 KB gzip
 
 ### Added — Electronic schematic catalog
 

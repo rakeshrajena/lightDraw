@@ -63,6 +63,14 @@ function categoryAccent(category: PipelineSymbolCategory): string {
       return d.schematicLedStroke;
     case 'layout':
       return '#64748b';
+    case 'facilities':
+      return '#f97316';
+    case 'transport':
+      return '#0ea5e9';
+    case 'nature':
+      return '#22c55e';
+    case 'devices':
+      return '#8b5cf6';
     default:
       return d.edgeMuted;
   }
