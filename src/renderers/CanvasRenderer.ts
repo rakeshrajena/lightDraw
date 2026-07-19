@@ -310,15 +310,10 @@ export class CanvasRenderer extends Renderer {
     }
 
     if (node.mask) {
-      ctx.save();
       beginShapeClip(ctx, node.mask);
     }
 
     node.draw(this);
-
-    if (node.mask) {
-      ctx.restore();
-    }
 
     if ('children' in node) {
       this.drawGroup(node as Group);

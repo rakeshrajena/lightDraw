@@ -3,23 +3,26 @@ import { getActiveDashboard } from '../../theme';
 
 /**
  * Parse series for drawing.
- * Does **not** inject theme colors by default. Draw sites must use
- * `series.color ?? getActiveDashboard()…`.
- * Pass `keepColors: true` only when the user originally supplied series colors.
+ * Multi-series charts get theme palette colors when `series[].color` is omitted
+ * (`applyThemeColors`, default true for 2+ series). User-supplied colors are kept
+ * when `keepColors` is true.
  */
 export function parseSeries(
   props: Record<string, unknown>,
   fallback: number[] = [10, 30, 20, 50, 40, 60],
   options: { applyThemeColors?: boolean; keepColors?: boolean } = {}
 ): ChartSeries[] {
-  const applyTheme = options.applyThemeColors === true;
   const keepColors = options.keepColors === true;
   const raw = props.series as ChartSeries[] | undefined;
+  const multi = Boolean(raw && raw.length > 1);
+  const applyTheme =
+    options.applyThemeColors === true || (options.applyThemeColors !== false && multi);
   const chartStops = Array.isArray(props.colorStops)
     ? (props.colorStops as ChartSeries['colorStops'])
     : Array.isArray(props.thresholds)
       ? (props.thresholds as ChartSeries['colorStops'])
       : undefined;
+  const palette = getActiveDashboard().series;
 
   if (raw?.length) {
     return raw.map((s, i) => ({
@@ -28,7 +31,7 @@ export function parseSeries(
       type: s.type,
       color:
         (keepColors && s.color) ||
-        (applyTheme ? getActiveDashboard().series[i % getActiveDashboard().series.length] : undefined) ||
+        (applyTheme ? palette[i % palette.length] : undefined) ||
         undefined,
       colorStops: s.colorStops ?? chartStops,
       yAxis: s.yAxis,

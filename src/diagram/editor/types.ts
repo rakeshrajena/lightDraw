@@ -34,6 +34,12 @@ export interface DiagramEditorOptions {
    * Default: true
    */
   allowResize?: boolean;
+  /**
+   * Show a rotate handle above the selection. Drag to spin; hold Shift for free angle
+   * (default snaps to 15°). Also persisted as `rotation` on diagram JSON nodes.
+   * Default: true
+   */
+  allowRotate?: boolean;
   /** Allow connect tool / edge rewiring / delete (default: true unless mode is arrange) */
   allowConnect?: boolean;
   /**

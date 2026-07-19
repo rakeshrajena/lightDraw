@@ -5,17 +5,17 @@ window.LD_AUTO_WIDGET_CATALOG = [
   'automaticEmergencyBraking', 'averageFuelEconomy', 'awdFourWdStatus', 'batteryLevel', 'batteryVoltage',
   'blindSpotMonitoring', 'bluetoothStatus', 'brakeFluidStatus', 'brakePressure', 'brakeWearStatus', 'cabinTemperature',
   'calendar', 'callScreen', 'cameraFeedWidget', 'canBusSignalMonitor', 'canViewer', 'chargingHistory', 'chargingPower',
-  'chargingStationFinder', 'chargingStatus', 'chargingTimer', 'climateControl', 'compass', 'compassHeading', 'contacts',
+  'chargingStationFinder', 'chargingStatus', 'chargingTimer', 'checkEngine', 'checkEngineLamp', 'climateControl', 'compass', 'compassHeading', 'contacts',
   'coolantTemperature', 'cruiseControl', 'cruiseControlStatus', 'customWidgetPanel', 'dateDisplay', 'diagnosticTroubleCodes',
   'differentialLock', 'digitalClock', 'digitalInstrumentCluster', 'doorOpenStatus', 'driveModeIndicator', 'driveRecorder',
-  'driverProfile', 'electronicStabilityControl', 'energyConsumption', 'engineLoad', 'engineTemp', 'engineTemperature',
+  'driverProfile', 'electronicStabilityControl', 'energyConsumption', 'engineLoad', 'engineStatus', 'engineTemp', 'engineTemperature',
   'equalizer', 'eta', 'evRemainingRange', 'fanSpeed', 'favoriteDestinations', 'findMyVehicle', 'fogLightStatus',
   'forwardCollisionWarning', 'fuelEconomy', 'fuelGauge', 'gForceMeter', 'gearIndicator', 'gearPositionIndicator',
   'gpsNavigationMap', 'hazardLights', 'headlightStatus', 'headlights', 'highBeamStatus', 'hoodOpenStatus', 'horsepowerMeter',
   'hvacStatus', 'instantFuelEconomy', 'instrumentCluster', 'laneDepartureWarning', 'laneKeepAssist', 'lapTimer',
-  'maintenanceSchedule', 'mediaPlayer', 'messages', 'microphoneStatus', 'mobileNetworkSignal', 'musicControls',
+  'lowBeamStatus', 'maintenanceSchedule', 'mediaPlayer', 'messages', 'microphoneStatus', 'milStatus', 'mobileNetworkSignal', 'musicControls',
   'navigationSearch', 'notificationCenter', 'nowPlaying', 'odometer', 'oilPressure', 'oilTemperature', 'outsideTemperature',
-  'parkingAssist', 'parkingBrake', 'parkingBrakeStatus', 'parkingSensorDisplay', 'performanceTimer', 'phoneStatus',
+  'parkingAssist', 'parkingBrake', 'parkingBrakeStatus', 'parkingLightStatus', 'parkingSensorDisplay', 'pedestrianDetection', 'performanceTimer', 'phoneStatus',
   'pitchRollIndicator', 'podcastPlayer', 'powerMeter', 'quickSettingsPanel', 'fmRadio', 'rainSensor', 'rearViewCamera',
   'regenerativeBrakingMeter', 'remainingFuelRange', 'remoteClimateControl', 'remoteHornLights', 'remoteLockUnlock',
   'remoteStart', 'routeGuidance', 'seatBeltStatus', 'seatHeating', 'seatVentilation', 'sensorDashboard', 'serviceReminder',
@@ -45,7 +45,8 @@ const BAR_TYPES = new Set([
 ]);
 
 const BOOL_TYPES = new Set([
-  'parkingBrake', 'parkingBrakeStatus', 'headlights', 'headlightStatus', 'highBeamStatus', 'fogLightStatus', 'hazardLights',
+  'parkingBrake', 'parkingBrakeStatus', 'headlights', 'headlightStatus', 'lowBeamStatus', 'parkingLightStatus',
+  'highBeamStatus', 'fogLightStatus', 'hazardLights', 'checkEngineLamp', 'milStatus', 'checkEngine', 'engineStatus',
   'absStatus', 'electronicStabilityControl', 'tractionControl', 'airbagStatus', 'seatBeltStatus', 'doorOpenStatus',
   'hoodOpenStatus', 'trunkTailgateStatus', 'windowStatus', 'wiperStatus', 'rainSensor', 'autoHoldStatus', 'awdFourWdStatus',
   'differentialLock', 'trailerMode', 'towAssist', 'laneKeepAssist', 'laneDepartureWarning', 'blindSpotMonitoring',
@@ -58,9 +59,33 @@ window.ldAutoProps = function ldAutoProps(type, w, h) {
   const height = Math.max(56, Math.floor(h));
   const base = { x: 0, y: 0, width, height };
 
-  if (type === 'instrumentCluster') {
+  if (type === 'tpms' || type === 'tirePressureMonitoring') {
+    const aspect = 1.65;
+    let tw = width;
+    let th = Math.max(72, Math.round(tw / aspect));
+    if (th > height) {
+      th = Math.max(72, height);
+      tw = Math.min(width, Math.round(th * aspect));
+    }
     return {
       ...base,
+      width: tw,
+      height: th,
+      pressures: [32, 31, 33, 30],
+    };
+  }
+  if (type === 'instrumentCluster') {
+    const aspect = 920 / 420;
+    let cw = width;
+    let ch = Math.round(cw / aspect);
+    if (ch > height) {
+      ch = height;
+      cw = Math.round(ch * aspect);
+    }
+    return {
+      ...base,
+      width: Math.max(280, cw),
+      height: Math.max(140, ch),
       theme: 'classic',
       display: 'analog',
       speed: 72,
@@ -70,7 +95,7 @@ window.ldAutoProps = function ldAutoProps(type, w, h) {
       batteryVoltage: 12.4,
       tpms: [32, 31, 33, 30],
       gear: 'D',
-      incomingCall: width >= 520 && height >= 220,
+      incomingCall: cw >= 520 && ch >= 240,
       caller: 'Alex Morgan',
       subtitle: 'Mobile',
       callStatus: 'incoming',
@@ -112,7 +137,11 @@ window.ldAutoProps = function ldAutoProps(type, w, h) {
     return { ...base, speed: 65, active: true };
   }
   if (type === 'adasStatus') return { ...base, status: 'active' };
+  if (type === 'pedestrianDetection') return { ...base, status: 'detecting' };
   if (type === 'warningLamp') return { ...base, label: 'ABS', active: true };
+  if (type === 'checkEngineLamp' || type === 'milStatus' || type === 'checkEngine' || type === 'engineStatus') {
+    return { ...base, active: true };
+  }
   if (type === 'batteryVoltage') return { ...base, value: 12.4 };
   if (type === 'calendar') {
     const now = new Date();

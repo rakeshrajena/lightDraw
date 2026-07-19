@@ -4,6 +4,8 @@ export interface DiagramNode {
   type?: string;
   x?: number;
   y?: number;
+  /** Rotation in degrees (clockwise; Node transform). */
+  rotation?: number;
   /** Network / UML / schematic subtype */
   subtype?: string;
   attributes?: string[];
@@ -25,7 +27,14 @@ export interface DiagramData {
 }
 
 export interface StateMachineData {
-  states: Array<{ id: string; label: string; type?: 'initial' | 'final' | 'normal'; x?: number; y?: number }>;
+  states: Array<{
+    id: string;
+    label: string;
+    type?: 'initial' | 'final' | 'normal';
+    x?: number;
+    y?: number;
+    rotation?: number;
+  }>;
   transitions: Array<{ from: string; to: string; label?: string }>;
 }
 
@@ -37,6 +46,7 @@ export interface ClassDiagramData {
     methods?: string[];
     x?: number;
     y?: number;
+    rotation?: number;
   }>;
   relations: Array<{
     from: string;
@@ -61,6 +71,11 @@ export interface PipelineStage {
   id: string;
   label: string;
   status?: 'pending' | 'active' | 'done' | 'error';
+  /** Optional catalog symbol kind (e.g. `deploy`, `database`, `exclusiveGateway`). */
+  type?: string;
+  x?: number;
+  y?: number;
+  rotation?: number;
 }
 
 export interface CanNetworkData {
@@ -70,7 +85,8 @@ export interface CanNetworkData {
 
 export interface SchematicComponent {
   id: string;
-  type: 'resistor' | 'capacitor' | 'ground' | 'battery' | 'switch' | 'led' | 'wire';
+  /** Any catalog kind or alias (resistor, nmos, opAmp, …). */
+  type: string;
   x: number;
   y: number;
   label?: string;

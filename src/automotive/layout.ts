@@ -156,7 +156,16 @@ export interface ClusterLayoutOptions {
 }
 
 /** Proportional instrument-cluster layout — all child widgets scale to cluster bounds. */
-export function resolveClusterLayout(w: number, h: number, options: ClusterLayoutOptions = {}): ClusterSlot[] {
+export function resolveClusterLayout(rawW: number, rawH: number, options: ClusterLayoutOptions = {}): ClusterSlot[] {
+  // Extreme landscape letterboxes into a cockpit aspect so dials stay round and readable.
+  const maxAspect = 2.45;
+  let w = rawW;
+  let offsetX = 0;
+  if (rawH > 0 && rawW / rawH > maxAspect) {
+    w = Math.round(rawH * maxAspect);
+    offsetX = Math.round((rawW - w) / 2);
+  }
+  const h = rawH;
   const tiny = w < 140 || h < 90;
   const compact = h < 200;
   const margin = Math.max(tiny ? 4 : 6, Math.min(w, h) * (tiny ? 0.014 : 0.018));
@@ -187,10 +196,10 @@ export function resolveClusterLayout(w: number, h: number, options: ClusterLayou
   const fuelH = Math.max(compact ? 22 : 26, bottomBand * 0.86);
   const batW = Math.max(44, w * 0.1);
   const batH = Math.max(16, bottomBand * 0.55);
-  const tpmsW = Math.max(compact ? 64 : 68, w * 0.17);
+  const tpmsW = Math.max(compact ? 72 : 88, w * 0.18);
   let tpmsH = compact
-    ? Math.max(22, Math.min(28, h * 0.14))
-    : Math.max(36, Math.min(h * 0.18, topSpace * 0.26));
+    ? Math.max(40, Math.min(56, h * 0.22))
+    : Math.max(56, Math.min(h * 0.2, topSpace * 0.28));
   let lampSize = Math.max(compact ? 14 : 18, Math.min(bottomBand * 0.75, w * 0.036));
   let cruiseW = Math.max(36, w * 0.085);
   let cruiseH = Math.max(compact ? 13 : 16, bottomBand * 0.48);
@@ -206,7 +215,7 @@ export function resolveClusterLayout(w: number, h: number, options: ClusterLayou
     const scale = centerAvail / centerNeed;
     gearH = Math.max(18, gearH * scale);
     turnH = Math.max(10, turnH * scale);
-    tpmsH = Math.max(18, tpmsH * scale);
+    tpmsH = Math.max(compact ? 32 : 40, tpmsH * scale);
     centerNeed = gearH + turnH + tpmsH + centerGap * 2;
   }
   const centerSlack = Math.max(0, centerAvail - centerNeed);
@@ -279,12 +288,20 @@ export function resolveClusterLayout(w: number, h: number, options: ClusterLayou
         height: turnH,
       }
     );
-    if (h >= 340) {
-      const tpmsStripH = Math.max(22, Math.min(30, tpmsH));
-      const tpmsY2 = callY + callH + 6;
-      if (tpmsY2 + tpmsStripH <= bottomY - 4) {
-        centerSlots.push({ type: 'tpms', x: cx - tpmsW / 2, y: tpmsY2, width: tpmsW, height: tpmsStripH });
-      }
+    // Call overlay owns the center — only show TPMS when there is a readable band
+    // below the call (never the old 22–30px strip that looked vertically crushed).
+    const tpmsMinReadable = 52;
+    const tpmsY2 = callY + callH + 8;
+    const tpmsSpace = bottomY - 4 - tpmsY2;
+    if (tpmsSpace >= tpmsMinReadable) {
+      const tpmsStripH = Math.min(tpmsH, Math.max(tpmsMinReadable, Math.min(tpmsSpace, h * 0.16)));
+      centerSlots.push({
+        type: 'tpms',
+        x: cx - tpmsW / 2,
+        y: tpmsY2,
+        width: Math.min(tpmsW, callBandW * 0.85),
+        height: tpmsStripH,
+      });
     }
   } else {
     centerSlots.push(
@@ -308,7 +325,7 @@ export function resolveClusterLayout(w: number, h: number, options: ClusterLayou
 
   return slots.map((slot) => ({
     ...slot,
-    x: Math.max(margin, Math.min(slot.x, w - margin - slot.width)),
+    x: offsetX + Math.max(margin, Math.min(slot.x, w - margin - slot.width)),
     y: Math.max(margin, Math.min(slot.y, h - margin - slot.height)),
   }));
 }

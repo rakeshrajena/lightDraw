@@ -13,7 +13,7 @@
     <header class="demo-header">
       <span class="demo-badge">Diagram Module</span>
       <h1>Diagram Gallery</h1>
-      <p>Drag nodes to move. Select a node and drag edge/corner handles to resize. Double-click a wire to add bend points. Zoom with + / −.</p>
+      <p>Drag nodes to move. Select a node to resize or rotate. Double-click wires for bends. Use <strong>Flow</strong> to animate wires and highlight active steps.</p>
     </header>
     <main class="demo-main">
       <div class="demo-layout-split">
@@ -41,16 +41,45 @@
             <div class="demo-diagram-info__title" id="diagram-info-title">Flowchart</div>
             <p class="demo-diagram-info__desc" id="diagram-info-desc">Decision branches, terminals, and routed connectors for workflows and runbooks.</p>
           </div>
+          <div class="demo-diagram-group" id="diagram-flow-controls" aria-label="Flow animation">
+            <h2>Flow</h2>
+            <label class="demo-flow-row">
+              <span>On</span>
+              <input type="checkbox" id="flow-enabled" checked>
+            </label>
+            <label class="demo-flow-row">
+              <span>Mode</span>
+              <select id="flow-mode">
+                <option value="both" selected>Dash + packet</option>
+                <option value="dash">Dashes only</option>
+                <option value="packet">Packets only</option>
+              </select>
+            </label>
+            <label class="demo-flow-row">
+              <span>Play</span>
+              <select id="flow-playback">
+                <option value="loop" selected>Loop</option>
+                <option value="once">Once</option>
+              </select>
+            </label>
+            <label class="demo-flow-row">
+              <span>Speed</span>
+              <input type="range" id="flow-speed" min="0.25" max="3" step="0.25" value="1">
+              <span id="flow-speed-label">1×</span>
+            </label>
+          </div>
         </aside>
         <div class="demo-canvas-wrap demo-canvas-diagram" id="diagram-canvas-wrap">
           <div class="demo-canvas-toolbar" id="diagram-zoom-bar" aria-label="Canvas zoom">
+            <button type="button" class="demo-zoom-btn demo-flow-btn" id="flow-play-pause" title="Play / Pause flow" aria-label="Play or pause flow" hidden>⏸</button>
+            <button type="button" class="demo-zoom-btn demo-flow-btn" id="flow-replay" title="Replay flow" aria-label="Replay flow" hidden>↻</button>
             <button type="button" class="demo-zoom-btn" id="zoom-out" title="Zoom out" aria-label="Zoom out">−</button>
             <span class="demo-zoom-label" id="zoom-label">100%</span>
             <button type="button" class="demo-zoom-btn" id="zoom-in" title="Zoom in" aria-label="Zoom in">+</button>
             <button type="button" class="demo-zoom-btn demo-zoom-fit" id="zoom-fit" title="Fit to view" aria-label="Fit to view">Fit</button>
           </div>
           <div id="app"></div>
-          <p class="demo-canvas-hint">Drag to move. Select a node → resize handles. Org chart: click − / + to minimize a branch. Double-click a wire for bends.</p>
+          <p class="demo-canvas-hint">Drag to move. Select a node → resize + rotate (wires auto-route; Shift = free angle). Double-click a wire for bends. Org: − / + to collapse.</p>
         </div>
       </div>
     </main>
@@ -76,7 +105,7 @@
       pipeline: {
         category: 'Process',
         title: 'Pipeline',
-        desc: 'Stage status badges and sequential flow for CI/CD and data pipelines.',
+        desc: 'Stage status badges with optional process symbols for CI/CD, manufacturing, and workflows.',
       },
       network: {
         category: 'Systems',
@@ -91,7 +120,7 @@
       schematic: {
         category: 'Systems',
         title: 'Schematic',
-        desc: 'Battery, switch, resistor, LED, and ground symbols with auto-wiring.',
+        desc: 'IEC electronic symbols with auto-wiring — battery → fuse → switch → load → ground.',
       },
       mindMap: {
         category: 'Structure',
@@ -182,13 +211,133 @@
       networkTopology: 'network',
       canNetwork: 'can',
       electricalSchematic: 'schematic',
+      schematicSymbolCatalog: 'schematicCatalog',
+      pipelineSymbolCatalog: 'pipelineCatalog',
       mindMap: 'mindMap',
       classDiagram: 'uml',
       orgChart: 'org',
     };
 
+    function defaultFlowPath(sampleKey) {
+      if (sampleKey === 'flowchart') {
+        return {
+          paths: [
+            ['start', 'check', 'process', 'end'],
+            ['start', 'check', 'end'],
+          ],
+          pathGapMs: 500,
+        };
+      }
+      if (sampleKey === 'stateMachine') {
+        return {
+          paths: [
+            ['init', 'idle', 'load', 'run', 'done'],
+            ['init', 'idle', 'load', 'err', 'load', 'run', 'done'],
+          ],
+          pathGapMs: 500,
+        };
+      }
+      if (sampleKey === 'pipeline') {
+        return {
+          path: ['ingest', 'validate', 'transform', 'build', 'deploy'],
+        };
+      }
+      return {};
+    }
+
     function diagramOpts(extra = {}) {
-      return { width: canvasW, height: canvasH, ...extra };
+      const flow = {
+        enabled: document.getElementById('flow-enabled')?.checked !== false,
+        speed: Number(document.getElementById('flow-speed')?.value ?? 1),
+        mode: document.getElementById('flow-mode')?.value || 'both',
+        playback: document.getElementById('flow-playback')?.value || 'loop',
+        paused: false,
+        highlight: 'pulse',
+        ...defaultFlowPath(currentDiagram),
+      };
+      return { width: canvasW, height: canvasH, flow, ...extra };
+    }
+
+    function readFlowUi() {
+      return {
+        enabled: document.getElementById('flow-enabled').checked,
+        speed: Number(document.getElementById('flow-speed').value),
+        mode: document.getElementById('flow-mode').value,
+        playback: document.getElementById('flow-playback').value,
+        highlight: 'pulse',
+        paused: false,
+        ...defaultFlowPath(currentDiagram),
+      };
+    }
+
+    function syncFlowToolbar() {
+      const playBtn = document.getElementById('flow-play-pause');
+      const replayBtn = document.getElementById('flow-replay');
+      const on = document.getElementById('flow-enabled').checked;
+      playBtn.hidden = !on;
+      replayBtn.hidden = !on;
+      if (!on || !currentGroup) {
+        playBtn.textContent = '▶';
+        return;
+      }
+      const playing = LightDraw.Diagram.isFlowPlaying
+        ? LightDraw.Diagram.isFlowPlaying(currentGroup)
+        : false;
+      playBtn.textContent = playing ? '⏸' : '▶';
+      playBtn.title = playing ? 'Pause flow' : 'Play flow';
+    }
+
+    function applyFlowFromUi(overrides) {
+      if (!currentGroup || !LightDraw.Diagram.applyFlow) return;
+      const opts = { ...readFlowUi(), ...(overrides || {}) };
+      if (!opts.path && !opts.paths && !opts.pathEdges && !opts.pathsEdges) {
+        if (currentDiagram === 'flowchart') opts.activeNodes = ['process'];
+        else if (currentDiagram === 'stateMachine') opts.activeNodes = ['run'];
+      }
+      LightDraw.Diagram.applyFlow(app, currentGroup, opts);
+      syncFlowToolbar();
+    }
+
+    function wireFlowControls() {
+      const enabled = document.getElementById('flow-enabled');
+      const mode = document.getElementById('flow-mode');
+      const playback = document.getElementById('flow-playback');
+      const speed = document.getElementById('flow-speed');
+      const speedLabel = document.getElementById('flow-speed-label');
+      const playBtn = document.getElementById('flow-play-pause');
+      const replayBtn = document.getElementById('flow-replay');
+      const syncLabel = () => {
+        speedLabel.textContent = Number(speed.value) + '×';
+      };
+      syncLabel();
+      const onChange = () => {
+        syncLabel();
+        applyFlowFromUi();
+      };
+      enabled.addEventListener('change', onChange);
+      mode.addEventListener('change', onChange);
+      playback.addEventListener('change', onChange);
+      speed.addEventListener('input', onChange);
+      playBtn.addEventListener('click', () => {
+        if (!currentGroup || !LightDraw.Diagram.toggleFlowPause) return;
+        if (!enabled.checked) {
+          enabled.checked = true;
+          applyFlowFromUi({ paused: false });
+          return;
+        }
+        LightDraw.Diagram.toggleFlowPause(app, currentGroup);
+        syncFlowToolbar();
+      });
+      replayBtn.addEventListener('click', () => {
+        if (!currentGroup || !LightDraw.Diagram.replayFlow) return;
+        enabled.checked = true;
+        LightDraw.Diagram.replayFlow(app, currentGroup);
+        syncFlowToolbar();
+      });
+      // Keep play icon in sync when once-mode finishes
+      setInterval(() => {
+        if (currentGroup && enabled.checked) syncFlowToolbar();
+      }, 400);
     }
 
     function getDiagramScene() {
@@ -212,6 +361,13 @@
     }
 
     function mountDiagramGroup(group, sampleKey) {
+      if (currentGroup && LightDraw.Diagram.stopFlow) {
+        try {
+          LightDraw.Diagram.stopFlow(currentGroup);
+        } catch (_) {
+          /* ignore */
+        }
+      }
       if (currentEditor) {
         currentEditor.destroy();
         currentEditor = null;
@@ -225,6 +381,7 @@
       app.add(currentGroup);
       fitCurrentDiagram();
       installArrangeEditor();
+      applyFlowFromUi();
       app.render();
       if (window.LivePlayground) LivePlayground.syncScene(true);
     }
@@ -265,6 +422,7 @@
           edges: [
             { from: 'start', to: 'check' },
             { from: 'check', to: 'process', label: 'yes' },
+            { from: 'check', to: 'end', label: 'no' },
             { from: 'process', to: 'end' },
           ],
         }, diagramOpts()),
@@ -337,11 +495,11 @@
         LightDraw.Diagram.pipeline(
           app,
           [
-            { id: 'ingest', label: 'Ingest', status: 'done' },
-            { id: 'validate', label: 'Validate', status: 'done' },
-            { id: 'transform', label: 'Transform', status: 'active' },
-            { id: 'load', label: 'Load', status: 'pending' },
-            { id: 'notify', label: 'Notify', status: 'pending' },
+            { id: 'ingest', label: 'Ingest', status: 'done', type: 'input' },
+            { id: 'validate', label: 'Validate', status: 'done', type: 'validation' },
+            { id: 'transform', label: 'Transform', status: 'active', type: 'process' },
+            { id: 'build', label: 'Build', status: 'pending', type: 'build' },
+            { id: 'deploy', label: 'Deploy', status: 'pending', type: 'deploy' },
           ],
           diagramOpts()
         ),
@@ -388,11 +546,12 @@
         }, diagramOpts()),
       schematic: () =>
         LightDraw.Diagram.schematic(app, [
-          { id: 'b1', type: 'battery', x: 60, y: 200, label: '9V' },
-          { id: 'sw1', type: 'switch', x: 160, y: 200 },
-          { id: 'r1', type: 'resistor', x: 260, y: 200, label: '220Ω' },
-          { id: 'd1', type: 'led', x: 360, y: 200, label: 'LED' },
-          { id: 'g1', type: 'ground', x: 460, y: 200 },
+          { id: 'b1', type: 'battery', x: 40, y: 180, label: '9V' },
+          { id: 'f1', type: 'fuse', x: 130, y: 180, label: 'F1' },
+          { id: 'sw1', type: 'spst', x: 220, y: 180, label: 'S1' },
+          { id: 'r1', type: 'resistor', x: 310, y: 180, label: '220Ω' },
+          { id: 'd1', type: 'led', x: 400, y: 180, label: 'LED' },
+          { id: 'g1', type: 'ground', x: 490, y: 180 },
         ], diagramOpts()),
       org: () =>
         LightDraw.Diagram.orgChart(app, {
@@ -532,6 +691,7 @@
     window.addEventListener('resize', scheduleResize);
 
     const boot = () => {
+      wireFlowControls();
       // Mount dock first so layout height is final before first diagram paint
       LivePlayground.mount({
         app: () => app,

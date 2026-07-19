@@ -9,9 +9,9 @@ Load widgets via `app.loadJSON({ type: '<widget>', props: { ... } })`.
 | uiTheme | string \| object | Optional Phase 6 override — UI preset name (`violet`) or token patch. Wins over app `setUiTheme`. |
 | theme | string \| object | Alias for `uiTheme` when value is a UI preset or object (not automotive) |
 
-## Chart catalog (82 types)
+## Chart catalog (85 types)
 
-All chart types ship in `lightdraw.dashboard`. Open `examples/demo-dashboard.html` and switch to **Chart catalog (82)**.
+All chart types ship in `lightdraw.dashboard` (`CHART_TYPES`). Open `examples/demo-dashboard.html` and switch to **Chart catalog**.
 
 ### Cartesian charts (shared props)
 
@@ -20,7 +20,7 @@ All chart types ship in `lightdraw.dashboard`. Open `examples/demo-dashboard.htm
 | width | number | 300 | Chart width |
 | height | number | 150 | Chart height |
 | data | number[] | sample | Single-series values |
-| series | ChartSeries[] | — | Multi-series (`name`, `data`, `type`, `color`, `colorStops`) |
+| series | ChartSeries[] | — | Multi-series (`name`, `data`, `type`, `color?`). Omitting `color` assigns unique theme palette colors per series. |
 | categories | string[] | auto | X-axis labels |
 | minY / maxY | number | auto | Y-axis bounds |
 | tickCount | number | 5 | Y-axis ticks |
@@ -28,6 +28,8 @@ All chart types ship in `lightdraw.dashboard`. Open `examples/demo-dashboard.htm
 | interactive | boolean | true | Hover tooltip + select |
 | orientation | `vertical` \| `horizontal` | vertical | Bar orientation |
 | colorStops | `{ upTo?: number; color: string }[]` | — | Per-bar colors by value (alias: `thresholds`) |
+
+Multi-series `lineChart` / `areaChart` draw distinct colored lines with multi-value hover tooltips. Multi-series `barChart` / `columnChart` / `horizontalBarChart` draw **grouped** (side-by-side) bars with category hover listing each series. Use `stackedColumnChart` / `stackedBarChart` for stacked segments.
 
 **Cartesian types:** `lineChart`, `areaChart`, `barChart`, `columnChart` (alias), `horizontalBarChart`, `stackedColumnChart`, `stackedBarChart`, `stackedAreaChart`, `stepChart`, `splineChart`, `errorBarChart`, `lollipopChart`, `dotPlot`, `stripPlot`, `sparklineChart`, `rangeChart`, `rangeAreaChart`, `bandChart`, `ribbonChart`, `combinationChart`, `mixedChart`, `waterfallChart`, `paretoChart`, `runChart`, `controlChart`, `populationPyramidChart`, `bumpChart`, `horizonChart`
 
@@ -54,6 +56,33 @@ Types: `candlestickChart`, `kLineChart`, `ohlcChart`, `heikinAshiChart`, `renkoC
 ### 3D & specialty
 
 `surfaceChart3d`, `wireframeChart3d`, `meshChart3d` (`zGrid`), `vectorFieldChart`, `pictogramChart`, `wordCloudChart`
+
+## Data table
+
+Dashboard type **`dataTable`** (not counted in the 85 chart ids). UI module `table` shares the same search/stripe props.
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| columns | string[] | `['Name','Value']` | Header labels |
+| rows | string[][] | sample | Cell values |
+| striped | boolean | `true` | Odd/even row coloring |
+| showSearch | boolean | `false` | Show keyword search box |
+| search / searchQuery | string | `''` | Filter rows (any cell match) |
+| sortable | boolean | `false` | Clickable column headers |
+| width / height | number | auto | Widget size |
+
+```js
+{
+  type: 'dataTable',
+  props: {
+    columns: ['Region', 'Sales', 'Status'],
+    rows: [['North', '120', 'Active'], ['South', '86', 'Pending']],
+    showSearch: true,
+    striped: true,
+    width: 360,
+  },
+}
+```
 
 ## Gauge widgets
 
@@ -146,4 +175,4 @@ installChartResizeObserver(chartNode, containerEl, { minWidth: 120, minHeight: 8
 
 - 8 widgets dashboard: render ≤ 16 ms (canvas)
 - Line chart 1000 points: render ≤ 32 ms
-- Full chart gallery smoke: all 82 types render without error
+- Full chart gallery smoke: all 85 types render without error

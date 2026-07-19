@@ -25,7 +25,7 @@ import { animate, AnimationEngine } from '../animation/Animation';
 import { Timeline, parallel } from '../animation/Timeline';
 import { easings, getEasing, registerEasing } from '../animation/Easing';
 import { Layout } from '../layout/index';
-import { fromJSON, toJSON, registerJSONType } from '../io/json';
+import { fromJSON, toJSON, registerJSONType, compactSceneJSON } from '../io/json';
 import {
   exportScene,
   exportApp,
@@ -90,6 +90,7 @@ export const LightDraw: LightDrawStatic & {
   Layout: typeof Layout;
   fromJSON: typeof fromJSON;
   toJSON: typeof toJSON;
+  compactSceneJSON: typeof compactSceneJSON;
   registerJSONType: typeof registerJSONType;
   exportScene: typeof exportScene;
   exportApp: typeof exportApp;
@@ -145,6 +146,7 @@ export const LightDraw: LightDrawStatic & {
   Layout,
   fromJSON,
   toJSON,
+  compactSceneJSON,
   registerJSONType,
   exportScene,
   exportApp,
@@ -199,6 +201,7 @@ export {
   Layout,
   fromJSON,
   toJSON,
+  compactSceneJSON,
   registerJSONType,
   exportScene,
   exportApp,

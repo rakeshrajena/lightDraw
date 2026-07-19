@@ -293,6 +293,12 @@ export class HTMLRenderer extends Renderer {
       if (this.syncNativeComponent(node, parent, componentType)) return;
     }
 
+    const widgetType = node.metadata?.widgetType as string | undefined;
+    if (widgetType === 'dataTable') {
+      syncNativeTable(node, parent, this.nativeCtx());
+      return;
+    }
+
     if (this.isVectorShape(node)) {
       this.syncVectorShape(node, parent);
       return;

@@ -54,6 +54,7 @@ import {
   ObjectPool,
   detectBestRenderer,
   EventEmitter,
+  compactSceneJSON,
 } from './core/index';
 
 import { svgPlugin, SVGRenderer } from './modules/svg';
@@ -174,6 +175,7 @@ export {
   Diagram,
   fromJSON,
   toJSON,
+  compactSceneJSON,
   registerJSONType,
   exportScene,
   exportApp,

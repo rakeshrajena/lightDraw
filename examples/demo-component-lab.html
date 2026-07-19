@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LightDraw — Component Lab</title>
+  <script src="demo-embed.js"></script>
+  <link rel="stylesheet" href="demo-common.css">
+  <link rel="stylesheet" href="../dist/lightdraw.min.css">
+</head>
+<body>
+  <div class="demo-shell">
+    <header class="demo-header">
+      <span class="demo-badge">Component Lab</span>
+      <h1>Pick a component · live preview · edit JSON / API</h1>
+      <p>Select a family and component. Only that component renders. Edit JSON or API code below for a live update.</p>
+    </header>
+    <main class="demo-main lab-main">
+      <div class="lab-layout">
+        <aside class="lab-picker" aria-label="Component picker">
+          <label class="lab-field">
+            <span>Family</span>
+            <select id="lab-family"></select>
+          </label>
+          <label class="lab-field">
+            <span>Category</span>
+            <select id="lab-category"></select>
+          </label>
+          <label class="lab-field">
+            <span>Search</span>
+            <input id="lab-search" type="search" placeholder="Filter components…" autocomplete="off">
+          </label>
+          <label class="lab-field lab-field--list">
+            <span>Component</span>
+            <div class="lab-component-scroller">
+              <select id="lab-component" size="12" aria-label="Component"></select>
+            </div>
+          </label>
+        </aside>
+
+        <div class="lab-stage">
+          <article class="lab-docs" id="lab-docs" aria-live="polite">
+            <div class="lab-docs__eyebrow" id="lab-eyebrow">Family</div>
+            <h2 id="lab-title">Component</h2>
+            <p id="lab-definition">Definition</p>
+            <p class="lab-docs__use"><strong>Where to use:</strong> <span id="lab-where">—</span></p>
+            <p class="lab-docs__api"><strong>API:</strong> <code id="lab-api">—</code></p>
+          </article>
+          <div class="demo-canvas-wrap lab-canvas-wrap" id="lab-canvas-wrap">
+            <div id="app"></div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+  <script src="../dist/lightdraw.min.js"></script>
+  <script src="demo-live-playground.js"></script>
+  <script>
+    const SAMPLE_SERIES = [12, 18, 15, 22, 28, 24, 30, 26];
+    const SAMPLE_MULTI = [
+      { name: 'North', data: [12, 18, 15, 22, 28, 24] },
+      { name: 'South', data: [8, 14, 20, 16, 22, 30] },
+    ];
+    const SAMPLE_XY = [
+      { x: 1, y: 12 },
+      { x: 2, y: 18 },
+      { x: 3, y: 15 },
+      { x: 4, y: 22 },
+      { x: 5, y: 28 },
+    ];
+
+    /** @type {Record<string, { label: string, blurb: string, use: string }>} */
+    const FAMILY_META = {
+      ui: {
+        label: 'UI',
+        blurb: 'Forms, surfaces, and overlays for product UIs.',
+        use: 'App chrome, settings panels, dialogs, and forms via scene JSON.',
+      },
+      dashboard: {
+        label: 'Dashboard',
+        blurb: 'Gauges, meters, 85 charts, and dataTable.',
+        use: 'Ops dashboards, analytics boards, and live telemetry panels.',
+      },
+      automotive: {
+        label: 'Automotive',
+        blurb: 'Cluster, lighting telltales, ADAS, and climate widgets.',
+        use: 'Vehicle HMI demos, digital clusters, and IVI mockups.',
+      },
+      diagram: {
+        label: 'Diagram types',
+        blurb: 'Full diagram scenes (flowchart, network, org, …).',
+        use: 'Architecture maps, workflows, and structured diagrams.',
+      },
+      pipeline: {
+        label: 'Pipeline symbols',
+        blurb: 'BPMN-oriented process / manufacturing glyphs.',
+        use: 'CI/CD pipelines, value streams, plant-floor process maps.',
+      },
+      schematic: {
+        label: 'Schematic symbols',
+        blurb: 'IEC-style electronic component glyphs.',
+        use: 'Circuit diagrams, PCB concepts, and electronics docs.',
+      },
+      network: {
+        label: 'Network icons',
+        blurb: 'Cisco / Visio–style topology device glyphs.',
+        use: 'Network topology, cloud infra, and security architecture.',
+      },
+      shapes: {
+        label: 'Shapes',
+        blurb: 'Core drawing primitives.',
+        use: 'Custom drawings, annotations, and low-level scenes.',
+      },
+    };
+
+    /** Curated UI defaults + docs */
+    const UI_ITEMS = [
+      { id: 'button', label: 'Button', definition: 'Clickable action control with variants.', where: 'Toolbars, forms, dialogs.', props: { label: 'Save', variant: 'primary', x: 24, y: 24 } },
+      { id: 'label', label: 'Label', definition: 'Static text for section titles and captions.', where: 'Form labels and section headers.', props: { text: 'Section title', x: 24, y: 24 } },
+      { id: 'input', label: 'Text input', definition: 'Single-line text field with optional label/error.', where: 'Forms and filters.', props: { label: 'Email', placeholder: 'you@example.com', x: 24, y: 16, width: 240 } },
+      { id: 'textarea', label: 'Textarea', definition: 'Multi-line text entry.', where: 'Notes, comments, descriptions.', props: { label: 'Notes', rows: 4, x: 24, y: 16, width: 260 } },
+      { id: 'checkbox', label: 'Checkbox', definition: 'Boolean option control.', where: 'Settings and multi-select lists.', props: { label: 'Remember me', checked: true, x: 24, y: 24 } },
+      { id: 'toggle', label: 'Toggle', definition: 'On/off switch.', where: 'Feature flags and preferences.', props: { label: 'Enabled', value: true, x: 24, y: 24 } },
+      { id: 'radio', label: 'Radio', definition: 'Single choice within a group.', where: 'Option sets and wizards.', props: { label: 'Option A', selected: true, group: 'lab', x: 24, y: 24 } },
+      { id: 'slider', label: 'Slider', definition: 'Numeric range picker.', where: 'Volume, opacity, thresholds.', props: { value: 60, width: 240, x: 24, y: 28 } },
+      { id: 'progressBar', label: 'Progress bar', definition: 'Determinate progress indicator.', where: 'Uploads, jobs, loading states.', props: { value: 72, width: 240, x: 24, y: 32 } },
+      { id: 'card', label: 'Card', definition: 'Surface container with optional title.', where: 'Dashboard tiles and content blocks.', props: { title: 'Metrics', subtitle: 'Live', elevated: true, width: 260, height: 100, x: 16, y: 16 } },
+      { id: 'tabs', label: 'Tabs', definition: 'Horizontal tab strip.', where: 'Multi-panel views.', props: { tabs: ['Overview', 'Logs', 'Settings'], activeIndex: 0, width: 280, x: 16, y: 24 } },
+      { id: 'accordion', label: 'Accordion', definition: 'Expandable section list.', where: 'FAQs and nested settings.', props: { sections: [{ title: 'Details', content: 'Expanded panel' }], width: 280, x: 16, y: 16 } },
+      { id: 'toolbar', label: 'Toolbar', definition: 'Action strip with separators.', where: 'Editors and list screens.', props: { items: ['New', 'Save', '|', 'Export'], width: 280, x: 16, y: 20 } },
+      { id: 'statusBar', label: 'Status bar', definition: 'Footer status segments.', where: 'IDE-style footers.', props: { segments: ['Ready', 'Line 42', 'UTF-8'], primaryIndex: 0, width: 280, x: 16, y: 20 } },
+      { id: 'table', label: 'Table', definition: 'Tabular data grid with optional search.', where: 'Records and admin lists.', props: { columns: ['Name', 'Status'], rows: [['Alpha', 'OK'], ['Beta', 'Warn'], ['Gamma', 'OK']], showSearch: true, width: 280, x: 16, y: 12 } },
+      { id: 'tree', label: 'Tree', definition: 'Hierarchical node list.', where: 'File trees and org pickers.', props: { nodes: [{ label: 'src', children: [{ label: 'App.ts' }, { label: 'theme.ts' }] }], width: 260, height: 140, x: 16, y: 12 } },
+      { id: 'menu', label: 'Menu', definition: 'Context / dropdown menu.', where: 'Right-click menus and overflow actions.', props: { items: ['Edit', 'Copy', 'Delete'], itemVariants: ['', '', 'danger'], open: true, width: 160, x: 24, y: 20 } },
+      { id: 'tooltip', label: 'Tooltip', definition: 'Hover / focus hint.', where: 'Icon buttons and truncated labels.', props: { text: 'Export as CSV', visible: true, placement: 'top', x: 24, y: 40 } },
+      { id: 'toast', label: 'Toast', definition: 'Transient notification.', where: 'Save confirmations and errors.', props: { message: 'Saved successfully', variant: 'success', x: 24, y: 24 } },
+      { id: 'dialog', label: 'Dialog', definition: 'Modal dialog surface.', where: 'Confirmations and focused forms.', props: { title: 'Confirm', open: true, width: 240, height: 130, x: 40, y: 20 } },
+    ];
+
+    const DASHBOARD_DOCS = {
+      gauge: { definition: 'Circular value gauge.', where: 'KPIs and health scores.' },
+      meter: { definition: 'Linear meter bar.', where: 'Utilization and fill levels.' },
+      speedometer: { definition: 'Needle speedometer.', where: 'Rate / velocity KPIs.' },
+      thermometer: { definition: 'Temperature-style meter.', where: 'Thermal and “heat” metaphors.' },
+      battery: { definition: 'Battery charge indicator.', where: 'Power / capacity status.' },
+      knob: { definition: 'Rotary control display.', where: 'Interactive setpoint UIs.' },
+      clock: { definition: 'Analog / digital clock widget.', where: 'Ops walls and status boards.' },
+      compass: { definition: 'Directional compass.', where: 'Heading and orientation.' },
+      calendar: { definition: 'Month calendar widget.', where: 'Schedules and date context.' },
+      signalStrength: { definition: 'Signal bars.', where: 'Connectivity status.' },
+      legend: { definition: 'Chart legend block.', where: 'Alongside multi-series charts.' },
+      chartPanel: { definition: 'Framed chart with title.', where: 'Dashboard tiles with chrome.' },
+      dataTable: { definition: 'Striped data table with optional search.', where: 'Ops boards and record lists.' },
+      lineChart: { definition: 'Cartesian line chart (multi-series supported).', where: 'Trends over time.' },
+      barChart: { definition: 'Vertical bar chart (grouped multi-series).', where: 'Category comparisons.' },
+      areaChart: { definition: 'Filled area chart.', where: 'Cumulative trends.' },
+      pieChart: { definition: 'Pie chart.', where: 'Part-to-whole shares.' },
+      doughnutChart: { definition: 'Doughnut chart.', where: 'Share breakdowns with center label.' },
+    };
+
+    const CHART_SERIES_TYPES = new Set([
+      'lineChart', 'areaChart', 'barChart', 'columnChart', 'horizontalBarChart', 'stackedColumnChart',
+      'stackedBarChart', 'stackedAreaChart', 'stepChart', 'splineChart', 'sparklineChart', 'lollipopChart',
+      'waterfallChart', 'paretoChart', 'runChart', 'controlChart', 'ribbonChart', 'bandChart', 'rangeChart',
+      'rangeAreaChart', 'horizonChart', 'bumpChart',
+    ]);
+    const CHART_XY_TYPES = new Set(['scatterChart', 'bubbleChart', 'errorBarChart', 'dotPlot', 'stripPlot']);
+    const CHART_PIE_TYPES = new Set(['pieChart', 'doughnutChart', 'polarAreaChart', 'funnelChart', 'pyramidChart', 'coneChart']);
+
+    function defaultDashboardProps(type) {
+      if (type === 'gauge') return { value: 72, size: 120, x: 40, y: 24 };
+      if (type === 'meter') return { value: 68, width: 260, x: 24, y: 40 };
+      if (type === 'speedometer') return { value: 95, size: 160, x: 40, y: 16 };
+      if (type === 'thermometer') return { value: 62, height: 160, x: 80, y: 16 };
+      if (type === 'battery') return { value: 78, width: 160, x: 60, y: 40 };
+      if (type === 'knob') return { value: 40, size: 120, x: 60, y: 24 };
+      if (type === 'clock') return { size: 140, x: 50, y: 20 };
+      if (type === 'compass') return { heading: 45, size: 140, x: 50, y: 20 };
+      if (type === 'calendar') return { width: 260, height: 200, x: 20, y: 12 };
+      if (type === 'signalStrength') return { value: 3, max: 4, x: 40, y: 40 };
+      if (type === 'legend') return { items: ['Alpha', 'Beta', 'Gamma'], x: 24, y: 24 };
+      if (type === 'chartPanel') {
+        return { chartType: 'lineChart', title: 'Latency', width: 320, height: 180, series: SAMPLE_MULTI, x: 16, y: 12 };
+      }
+      if (type === 'dataTable') {
+        return {
+          width: 320,
+          height: 200,
+          x: 16,
+          y: 12,
+          columns: ['Region', 'Sales', 'Status'],
+          rows: [
+            ['North', '120', 'Active'],
+            ['South', '86', 'Pending'],
+            ['East', '104', 'Active'],
+            ['West', '73', 'Inactive'],
+          ],
+          showSearch: true,
+          striped: true,
+        };
+      }
+      if (type === 'lineChart' || type === 'barChart' || type === 'columnChart' || type === 'horizontalBarChart') {
+        return { width: 320, height: 180, series: SAMPLE_MULTI, x: 16, y: 16 };
+      }
+      if (CHART_SERIES_TYPES.has(type)) return { width: 320, height: 180, data: SAMPLE_SERIES, x: 16, y: 16 };
+      if (CHART_XY_TYPES.has(type)) return { width: 320, height: 180, data: SAMPLE_XY, x: 16, y: 16 };
+      if (CHART_PIE_TYPES.has(type)) {
+        return { width: 220, height: 180, data: [{ label: 'A', value: 40 }, { label: 'B', value: 35 }, { label: 'C', value: 25 }], x: 40, y: 16 };
+      }
+      if (type === 'heatmap' || type === 'calendarHeatmap' || type === 'waffleChart') {
+        return { width: 280, height: 180, data: [3, 1, 4, 2, 5, 0, 3, 4, 2, 1, 5, 3], x: 24, y: 16 };
+      }
+      if (type === 'radarChart' || type === 'spiderChart') {
+        return { width: 240, height: 200, data: [4, 3, 5, 2, 4], labels: ['A', 'B', 'C', 'D', 'E'], x: 40, y: 12 };
+      }
+      return { width: 300, height: 180, data: SAMPLE_SERIES, x: 20, y: 16 };
+    }
+
+    const AUTOMOTIVE_ITEMS = [
+      { id: 'instrumentCluster', label: 'Instrument cluster', definition: 'Full cluster with speed / RPM / fuel.', where: 'Digital cockpit demos.', props: { theme: 'sport', width: 720, height: 330, speed: 95, rpm: 3200, fuel: 68, x: 8, y: 12 } },
+      { id: 'speedometer', label: 'Speedometer', definition: 'Standalone vehicle speed dial.', where: 'Cluster compositions.', props: { value: 95, size: 160, x: 40, y: 20 } },
+      { id: 'tachometer', label: 'Tachometer', definition: 'Engine RPM dial.', where: 'Cluster compositions.', props: { value: 3200, diameter: 160, x: 40, y: 20 } },
+      { id: 'fuelGauge', label: 'Fuel gauge', definition: 'Fuel level indicator.', where: 'Cluster footers.', props: { value: 68, width: 180, x: 40, y: 40 } },
+      { id: 'gearIndicator', label: 'Gear indicator', definition: 'Current gear display.', where: 'Cluster center stack.', props: { gear: 'D', x: 80, y: 40 } },
+      { id: 'turnIndicators', label: 'Turn indicators', definition: 'Left / right blinker arrows.', where: 'Cluster center stack.', props: { left: true, right: false, width: 72, height: 28, x: 40, y: 40 } },
+      { id: 'headlights', label: 'Headlights', definition: 'Headlamp tell-tale.', where: 'Lighting status rows.', props: { active: true, width: 44, height: 44, x: 40, y: 40 } },
+      { id: 'lowBeamStatus', label: 'Low beam', definition: 'Low-beam headlamp lamp.', where: 'Lighting status rows.', props: { active: true, width: 44, height: 44, x: 40, y: 40 } },
+      { id: 'parkingLightStatus', label: 'Parking light', definition: 'Parking / position lamp.', where: 'Lighting status rows.', props: { active: true, width: 44, height: 44, x: 40, y: 40 } },
+      { id: 'highBeamStatus', label: 'High beam', definition: 'High-beam tell-tale.', where: 'Lighting status rows.', props: { active: true, width: 44, height: 44, x: 40, y: 40 } },
+      { id: 'checkEngineLamp', label: 'Check engine (MIL)', definition: 'Amber malfunction indicator lamp.', where: 'Engine / OBD status rows.', props: { active: true, width: 44, height: 44, x: 40, y: 40 } },
+      { id: 'parkingBrake', label: 'Parking brake', definition: 'Park-brake tell-tale.', where: 'Cluster warning rows.', props: { active: true, width: 44, height: 44, x: 40, y: 40 } },
+      { id: 'awdFourWdStatus', label: 'AWD / 4WD', definition: 'All-wheel / four-wheel drive lamp.', where: 'Drivetrain status.', props: { active: true, width: 44, height: 44, x: 40, y: 40 } },
+      { id: 'warningLamp', label: 'Warning lamp', definition: 'Generic labeled tell-tale.', where: 'Cluster warning rows.', props: { label: 'ABS', active: true, x: 40, y: 40 } },
+      { id: 'pedestrianDetection', label: 'Pedestrian detection', definition: 'ADAS pedestrian status badge.', where: 'ADAS status strips.', props: { status: 'detecting', width: 140, height: 40, x: 40, y: 40 } },
+      { id: 'adasStatus', label: 'ADAS status', definition: 'Driver-assist system badge.', where: 'ADAS status strips.', props: { status: 'active', width: 120, height: 32, x: 40, y: 40 } },
+      { id: 'digitalClock', label: 'Digital clock', definition: 'Cluster time readout.', where: 'IVI header / cluster.', props: { text: '14:32', width: 100, height: 48, x: 40, y: 40, display: 'digital', theme: 'digital' } },
+      { id: 'outsideTemperature', label: 'Outside temperature', definition: 'Ambient weather temp.', where: 'Climate / weather strip.', props: { value: 18, width: 100, height: 48, x: 40, y: 40 } },
+      { id: 'cabinTemperature', label: 'Cabin temperature', definition: 'Interior cabin temp.', where: 'Climate strip.', props: { value: 22, width: 100, height: 48, x: 40, y: 40 } },
+      { id: 'weatherWidget', label: 'Weather', definition: 'Weather summary panel.', where: 'IVI climate / home.', props: { title: 'Weather', rows: ['Clear', '18°C'], width: 160, height: 80, x: 40, y: 30 } },
+      { id: 'hvacStatus', label: 'AC / HVAC', definition: 'Climate system status panel.', where: 'IVI climate.', props: { title: 'AC', rows: ['Auto', '22°C'], width: 160, height: 80, x: 40, y: 30 } },
+    ];
+
+    const DIAGRAM_ITEMS = [
+      {
+        id: 'flowchart',
+        label: 'Flowchart',
+        definition: 'Process nodes with routed connectors.',
+        where: 'Workflows, runbooks, decision trees.',
+        scene: {
+          type: 'flowchart',
+          props: {
+            width: 420,
+            height: 260,
+            x: 12,
+            y: 12,
+            data: {
+              nodes: [
+                { id: 'a', kind: 'start', label: 'Start' },
+                { id: 'b', kind: 'process', label: 'Work' },
+                { id: 'c', kind: 'end', label: 'Done' },
+              ],
+              edges: [{ from: 'a', to: 'b' }, { from: 'b', to: 'c' }],
+            },
+          },
+        },
+      },
+      {
+        id: 'stateMachine',
+        label: 'State machine',
+        definition: 'States and labeled transitions.',
+        where: 'Protocol / UI state design.',
+        scene: {
+          type: 'stateMachine',
+          props: {
+            width: 420,
+            height: 240,
+            x: 12,
+            y: 12,
+            data: {
+              nodes: [
+                { id: 'i', kind: 'initial', label: '' },
+                { id: 'a', kind: 'state', label: 'Idle' },
+                { id: 'b', kind: 'state', label: 'Run' },
+                { id: 'f', kind: 'final', label: '' },
+              ],
+              edges: [
+                { from: 'i', to: 'a' },
+                { from: 'a', to: 'b', label: 'go' },
+                { from: 'b', to: 'f', label: 'done' },
+              ],
+            },
+          },
+        },
+      },
+      {
+        id: 'processPipeline',
+        label: 'Pipeline',
+        definition: 'Ordered stages with status badges / symbols.',
+        where: 'CI/CD and manufacturing flows.',
+        scene: {
+          type: 'processPipeline',
+          props: {
+            width: 480,
+            height: 140,
+            x: 12,
+            y: 40,
+            data: {
+              stages: [
+                { id: '1', label: 'Build', type: 'build', status: 'done' },
+                { id: '2', label: 'Test', type: 'validation', status: 'running' },
+                { id: '3', label: 'Deploy', type: 'deploy', status: 'waiting' },
+              ],
+            },
+          },
+        },
+      },
+      {
+        id: 'networkTopology',
+        label: 'Network topology',
+        definition: 'Device icons with links.',
+        where: 'Infra and security maps.',
+        scene: {
+          type: 'networkTopology',
+          props: {
+            width: 420,
+            height: 240,
+            x: 12,
+            y: 12,
+            data: {
+              nodes: [
+                { id: 'inet', label: 'Internet', type: 'internet', x: 40, y: 80 },
+                { id: 'fw', label: 'Firewall', type: 'firewall', x: 180, y: 80 },
+                { id: 'srv', label: 'Server', type: 'server', x: 320, y: 80 },
+              ],
+              edges: [{ from: 'inet', to: 'fw' }, { from: 'fw', to: 'srv' }],
+            },
+          },
+        },
+      },
+      {
+        id: 'mindMap',
+        label: 'Mind map',
+        definition: 'Central topic with left/right branches.',
+        where: 'Brainstorming and product outlines.',
+        scene: {
+          type: 'mindMap',
+          props: {
+            width: 420,
+            height: 240,
+            x: 12,
+            y: 12,
+            data: {
+              root: { id: 'r', label: 'Idea' },
+              children: [
+                { id: 'a', label: 'Research', side: 'left' },
+                { id: 'b', label: 'Build', side: 'right' },
+              ],
+            },
+          },
+        },
+      },
+      {
+        id: 'orgChart',
+        label: 'Org chart',
+        definition: 'Hierarchy cards with optional collapse.',
+        where: 'Teams and reporting lines.',
+        scene: {
+          type: 'orgChart',
+          props: {
+            width: 420,
+            height: 260,
+            x: 12,
+            y: 12,
+            data: {
+              root: { id: 'ceo', label: 'CEO', title: 'Chief' },
+              children: [
+                { id: 'eng', label: 'Eng', title: 'VP' },
+                { id: 'ops', label: 'Ops', title: 'VP' },
+              ],
+            },
+          },
+        },
+      },
+    ];
+
+    const SHAPE_ITEMS = [
+      { id: 'rect', label: 'Rect', definition: 'Axis-aligned rectangle.', where: 'Backgrounds and hit areas.', props: { x: 40, y: 40, width: 160, height: 90, fill: '#1e293b', stroke: '#38bdf8', strokeWidth: 2 } },
+      { id: 'roundedRect', label: 'Rounded rect', definition: 'Rectangle with corner radius.', where: 'Cards and chips.', props: { x: 40, y: 40, width: 160, height: 90, cornerRadius: 12, fill: '#1e293b', stroke: '#38bdf8', strokeWidth: 2 } },
+      { id: 'circle', label: 'Circle', definition: 'Circle by top-left + radius.', where: 'Markers and avatars.', props: { x: 80, y: 50, radius: 48, fill: '#0ea5e9', stroke: '#e2e8f0', strokeWidth: 2 } },
+      { id: 'ellipse', label: 'Ellipse', definition: 'Elliptical shape.', where: 'Soft highlights.', props: { x: 60, y: 50, radiusX: 80, radiusY: 45, fill: '#334155', stroke: '#94a3b8', strokeWidth: 2 } },
+      { id: 'line', label: 'Line', definition: 'Straight segment.', where: 'Guides and connectors.', props: { x: 40, y: 60, x2: 260, y2: 140, stroke: '#38bdf8', strokeWidth: 3 } },
+      { id: 'polygon', label: 'Polygon', definition: 'Closed polygon from points.', where: 'Custom markers.', props: { points: [120, 30, 200, 80, 170, 160, 70, 160, 40, 80], fill: '#1e293b', stroke: '#a78bfa', strokeWidth: 2 } },
+      { id: 'star', label: 'Star', definition: 'Regular star polygon.', where: 'Ratings and accents.', props: { x: 120, y: 40, numPoints: 5, innerRadius: 24, outerRadius: 56, fill: '#fbbf24', stroke: '#f59e0b', strokeWidth: 2 } },
+      { id: 'text', label: 'Text', definition: 'Text node.', where: 'Labels and annotations.', props: { text: 'Hello LightDraw', x: 40, y: 70, fontSize: 22, fill: '#e2e8f0' } },
+    ];
+
+    const wrap = document.getElementById('lab-canvas-wrap');
+    let app = null;
+    let lastAuthorScene = { type: 'group', children: [] };
+    let currentEntry = null;
+    let itemsByFamily = {};
+
+    function measure() {
+      const w = Math.max(320, Math.floor((wrap.clientWidth || 640) - 8));
+      const h = Math.max(240, Math.floor((wrap.clientHeight || 320) - 8));
+      return { width: w, height: h };
+    }
+
+    function ensureApp() {
+      const { width, height } = measure();
+      if (!app) {
+        app = LightDraw.createApp('#app', {
+          width,
+          height,
+          background: '#0d1322',
+          renderer: 'canvas',
+          uiTheme: { preset: 'dark' },
+        });
+        return app;
+      }
+      if (typeof app.resize === 'function') app.resize(width, height);
+      else {
+        app.width = width;
+        app.height = height;
+      }
+      return app;
+    }
+
+    function humanize(id) {
+      return String(id)
+        .replace(/([a-z])([A-Z])/g, '$1 $2')
+        .replace(/[_-]+/g, ' ')
+        .replace(/\b\w/g, (c) => c.toUpperCase());
+    }
+
+    function buildCatalog() {
+      // Prefer runtime catalog when exposed; otherwise a solid built-in list.
+      const dashboardTypes = [
+        'gauge', 'meter', 'speedometer', 'thermometer', 'battery', 'knob', 'clock', 'compass',
+        'calendar', 'signalStrength', 'legend', 'chartPanel', 'dataTable',
+        'lineChart', 'areaChart', 'barChart', 'columnChart', 'horizontalBarChart', 'stackedColumnChart',
+        'stackedBarChart', 'stackedAreaChart', 'stepChart', 'splineChart', 'sparklineChart',
+        'pieChart', 'doughnutChart', 'polarAreaChart', 'radarChart', 'spiderChart',
+        'scatterChart', 'bubbleChart', 'heatmap', 'histogram', 'boxPlot', 'violinPlot',
+        'treemap', 'sunburstChart', 'sankeyChart', 'ganttChart', 'timeline', 'funnelChart',
+        'waterfallChart', 'paretoChart', 'bulletChart', 'waffleChart', 'calendarHeatmap',
+      ];
+
+      itemsByFamily = {
+        ui: UI_ITEMS.map((it) => ({
+          family: 'ui',
+          category: 'all',
+          id: it.id,
+          label: it.label,
+          definition: it.definition,
+          where: it.where,
+          api: `app.loadJSON({ type: '${it.id}', props: { … } })`,
+          kind: 'json',
+          scene: { type: 'group', theme: { preset: 'dark' }, children: [{ type: it.id, props: it.props }] },
+          snippet: jsonSnippet({ type: it.id, props: it.props }),
+        })),
+        dashboard: [...new Set(dashboardTypes)].sort().map((id) => {
+          const docs = DASHBOARD_DOCS[id] || {
+            definition: humanize(id) + ' dashboard widget.',
+            where: 'Analytics and monitoring boards.',
+          };
+          const props = defaultDashboardProps(id);
+          return {
+            family: 'dashboard',
+            category: /Chart|Plot|heatmap|treemap|sankey|gantt|histogram|radar|pie|doughnut/i.test(id) ? 'charts' : 'widgets',
+            id,
+            label: humanize(id),
+            definition: docs.definition,
+            where: docs.where,
+            api: `app.loadJSON({ type: '${id}', props: { … } })`,
+            kind: 'json',
+            scene: { type: 'group', theme: { preset: 'dark' }, children: [{ type: id, props }] },
+            snippet: jsonSnippet({ type: id, props }),
+          };
+        }),
+        automotive: AUTOMOTIVE_ITEMS.map((it) => ({
+          family: 'automotive',
+          category: 'all',
+          id: it.id,
+          label: it.label,
+          definition: it.definition,
+          where: it.where,
+          api: `app.loadJSON({ type: '${it.id}', props: { … } })`,
+          kind: 'json',
+          scene: { type: 'group', theme: { automotive: 'sport' }, children: [{ type: it.id, props: it.props }] },
+          snippet: jsonSnippet({ type: it.id, props: it.props }),
+        })),
+        diagram: DIAGRAM_ITEMS.map((it) => ({
+          family: 'diagram',
+          category: 'all',
+          id: it.id,
+          label: it.label,
+          definition: it.definition,
+          where: it.where,
+          api: `LightDraw.Diagram.fromJSON('${it.id}', props, app)`,
+          kind: 'diagram',
+          scene: it.scene,
+          snippet:
+            `// Editable API — Run or Ctrl/Cmd+Enter\n` +
+            `const scene = ${JSON.stringify(it.scene, null, 2)};\n` +
+            `app.clear();\n` +
+            `const node = LightDraw.Diagram.fromJSON(scene.type, scene.props, app);\n` +
+            `if (node) app.add(node);\n`,
+        })),
+        shapes: SHAPE_ITEMS.map((it) => ({
+          family: 'shapes',
+          category: 'all',
+          id: it.id,
+          label: it.label,
+          definition: it.definition,
+          where: it.where,
+          api: `app.loadJSON({ type: '${it.id}', props: { … } })`,
+          kind: 'json',
+          scene: { type: 'group', children: [{ type: it.id, props: it.props }] },
+          snippet: jsonSnippet({ type: it.id, props: it.props }),
+        })),
+        pipeline: [],
+        schematic: [],
+        network: [],
+      };
+
+      const D = LightDraw.Diagram || {};
+      if (typeof D.listPipelineSymbols === 'function') {
+        itemsByFamily.pipeline = D.listPipelineSymbols().map((meta) => ({
+          family: 'pipeline',
+          category: meta.category,
+          id: meta.kind,
+          label: meta.label,
+          definition: `Pipeline / process symbol “${meta.label}” (${meta.category}).`,
+          where: 'Process maps, CI/CD stages, manufacturing value streams.',
+          api: `LightDraw.Diagram.pipelineSymbol(app, '${meta.kind}', x, y, label)`,
+          kind: 'pipelineSymbol',
+          scene: {
+            lab: 'pipelineSymbol',
+            type: meta.kind,
+            label: meta.label,
+            x: 80,
+            y: 60,
+          },
+          snippet:
+            `// Editable API — Run or Ctrl/Cmd+Enter\n` +
+            `app.clear();\n` +
+            `const node = LightDraw.Diagram.pipelineSymbol(app, '${meta.kind}', 80, 60, '${meta.label.replace(/'/g, "\\'")}');\n` +
+            `app.add(node);\n`,
+        }));
+      }
+      if (typeof D.listSchematicSymbols === 'function') {
+        itemsByFamily.schematic = D.listSchematicSymbols().map((meta) => ({
+          family: 'schematic',
+          category: meta.category,
+          id: meta.kind,
+          label: meta.label,
+          definition: `Electronic schematic symbol “${meta.label}” (${meta.category}).`,
+          where: 'Circuit diagrams and electronics documentation.',
+          api: `LightDraw.Diagram.schematicSymbol(app, '${meta.kind}', x, y, label)`,
+          kind: 'schematicSymbol',
+          scene: {
+            lab: 'schematicSymbol',
+            type: meta.kind,
+            label: meta.label,
+            x: 80,
+            y: 60,
+          },
+          snippet:
+            `// Editable API — Run or Ctrl/Cmd+Enter\n` +
+            `app.clear();\n` +
+            `const node = LightDraw.Diagram.schematicSymbol(app, '${meta.kind}', 80, 60, '${meta.label.replace(/'/g, "\\'")}');\n` +
+            `app.add(node);\n`,
+        }));
+      }
+      if (typeof D.listNetworkIcons === 'function') {
+        itemsByFamily.network = D.listNetworkIcons().map((meta) => ({
+          family: 'network',
+          category: meta.category,
+          id: meta.kind,
+          label: meta.label,
+          definition: `Network topology icon “${meta.label}” (${meta.category}).`,
+          where: 'Network / cloud / security architecture diagrams.',
+          api: `LightDraw.Diagram.networkNode(app, '${meta.label}', '${meta.kind}')`,
+          kind: 'networkNode',
+          scene: {
+            lab: 'networkNode',
+            type: meta.kind,
+            label: meta.label,
+            x: 100,
+            y: 70,
+          },
+          snippet:
+            `// Editable API — Run or Ctrl/Cmd+Enter\n` +
+            `app.clear();\n` +
+            `const node = LightDraw.Diagram.networkNode(app, '${meta.label.replace(/'/g, "\\'")}', '${meta.kind}');\n` +
+            `node.x = 100; node.y = 70;\n` +
+            `app.add(node);\n`,
+        }));
+      }
+    }
+
+    function jsonSnippet(node) {
+      return (
+        `// Editable API — Run or Ctrl/Cmd+Enter\n` +
+        `app.clear();\n` +
+        `app.loadJSON({\n` +
+        `  type: 'group',\n` +
+        `  theme: { preset: 'dark' },\n` +
+        `  children: [\n` +
+        `    ${JSON.stringify(node, null, 2).split('\n').join('\n    ')}\n` +
+        `  ],\n` +
+        `});\n`
+      );
+    }
+
+    function applyLabScene(scene) {
+      const a = ensureApp();
+      a.clear();
+      if (!scene || typeof scene !== 'object') throw new Error('Invalid scene JSON');
+
+      if (scene.lab === 'pipelineSymbol') {
+        const node = LightDraw.Diagram.pipelineSymbol(a, scene.type, scene.x || 80, scene.y || 60, scene.label);
+        a.add(node);
+        return;
+      }
+      if (scene.lab === 'schematicSymbol') {
+        const node = LightDraw.Diagram.schematicSymbol(a, scene.type, scene.x || 80, scene.y || 60, scene.label);
+        a.add(node);
+        return;
+      }
+      if (scene.lab === 'networkNode') {
+        const node = LightDraw.Diagram.networkNode(a, scene.label || scene.type, scene.type);
+        node.x = scene.x || 100;
+        node.y = scene.y || 70;
+        a.add(node);
+        return;
+      }
+      if (scene.type && scene.props && !scene.children) {
+        // Diagram root JSON { type, props }
+        const node = LightDraw.Diagram.fromJSON(scene.type, scene.props || {}, a);
+        if (!node) throw new Error('Unknown diagram type: ' + scene.type);
+        a.add(node);
+        return;
+      }
+      a.loadJSON(scene);
+    }
+
+    function fillSelect(sel, options, selected) {
+      sel.innerHTML = '';
+      options.forEach((opt) => {
+        const o = document.createElement('option');
+        o.value = opt.value;
+        o.textContent = opt.label;
+        if (opt.value === selected) o.selected = true;
+        sel.appendChild(o);
+      });
+    }
+
+    function currentFamily() {
+      return document.getElementById('lab-family').value;
+    }
+
+    function filteredItems() {
+      const family = currentFamily();
+      const cat = document.getElementById('lab-category').value;
+      const q = (document.getElementById('lab-search').value || '').trim().toLowerCase();
+      let items = itemsByFamily[family] || [];
+      if (cat && cat !== 'all') items = items.filter((it) => it.category === cat);
+      if (q) {
+        items = items.filter(
+          (it) =>
+            it.id.toLowerCase().includes(q) ||
+            it.label.toLowerCase().includes(q) ||
+            (it.definition || '').toLowerCase().includes(q)
+        );
+      }
+      return items;
+    }
+
+    function refreshCategories() {
+      const family = currentFamily();
+      const items = itemsByFamily[family] || [];
+      const cats = ['all', ...new Set(items.map((it) => it.category).filter(Boolean))];
+      const catSel = document.getElementById('lab-category');
+      const prev = catSel.value || 'all';
+      fillSelect(
+        catSel,
+        cats.map((c) => ({ value: c, label: c === 'all' ? 'All categories' : humanize(c) })),
+        cats.includes(prev) ? prev : 'all'
+      );
+      catSel.disabled = cats.length <= 1;
+    }
+
+    function refreshComponents(keepId) {
+      const items = filteredItems();
+      const sel = document.getElementById('lab-component');
+      const want = keepId && items.some((it) => it.id === keepId) ? keepId : items[0] && items[0].id;
+      fillSelect(
+        sel,
+        items.map((it) => ({ value: it.id, label: it.label + '  ·  ' + it.id })),
+        want
+      );
+      if (want) selectComponent(want);
+      else updateDocs(null);
+    }
+
+    function findEntry(id) {
+      const items = filteredItems();
+      return items.find((it) => it.id === id) || (itemsByFamily[currentFamily()] || []).find((it) => it.id === id);
+    }
+
+    function updateDocs(entry) {
+      const fam = FAMILY_META[currentFamily()] || { label: currentFamily(), blurb: '', use: '' };
+      document.getElementById('lab-eyebrow').textContent = fam.label + (entry && entry.category && entry.category !== 'all' ? ' · ' + humanize(entry.category) : '');
+      document.getElementById('lab-title').textContent = entry ? entry.label : 'Select a component';
+      document.getElementById('lab-definition').textContent = entry
+        ? entry.definition
+        : fam.blurb;
+      document.getElementById('lab-where').textContent = entry ? entry.where : fam.use;
+      document.getElementById('lab-api').textContent = entry ? entry.api : '—';
+    }
+
+    function selectComponent(id) {
+      const entry = findEntry(id);
+      currentEntry = entry || null;
+      updateDocs(entry);
+      if (!entry) return;
+      lastAuthorScene = entry.scene;
+      try {
+        applyLabScene(entry.scene);
+        if (window.LivePlayground) {
+          LivePlayground.syncScene(true);
+          if (typeof LivePlayground.setSnippet === 'function') {
+            LivePlayground.setSnippet(entry.snippet);
+          } else {
+            const el = document.getElementById('pg-editor-snippet');
+            if (el) el.value = entry.snippet;
+          }
+        }
+      } catch (err) {
+        console.error(err);
+        const status = document.getElementById('pg-code-status');
+        if (status) {
+          status.textContent = 'Render: ' + (err && err.message ? err.message : err);
+          status.dataset.tone = 'err';
+        }
+      }
+    }
+
+    function bootPicker() {
+      fillSelect(
+        document.getElementById('lab-family'),
+        Object.keys(FAMILY_META).map((k) => ({ value: k, label: FAMILY_META[k].label })),
+        'ui'
+      );
+      refreshCategories();
+      refreshComponents('button');
+
+      document.getElementById('lab-family').addEventListener('change', () => {
+        document.getElementById('lab-search').value = '';
+        refreshCategories();
+        refreshComponents();
+      });
+      document.getElementById('lab-category').addEventListener('change', () => refreshComponents());
+      document.getElementById('lab-search').addEventListener('input', () => refreshComponents(document.getElementById('lab-component').value));
+      document.getElementById('lab-component').addEventListener('change', (e) => selectComponent(e.target.value));
+    }
+
+    function boot() {
+      buildCatalog();
+      ensureApp();
+      bootPicker();
+      LivePlayground.mount({
+        app: () => app,
+        panes: ['scene', 'snippet'],
+        getScene: () => lastAuthorScene,
+        applyScene(parsed) {
+          applyLabScene(parsed);
+          lastAuthorScene = parsed;
+        },
+        getSnippet(scene) {
+          if (currentEntry && currentEntry.snippet) return currentEntry.snippet;
+          return (
+            `// Editable API\n` +
+            `app.clear();\n` +
+            `app.loadJSON(${JSON.stringify(scene || { type: 'group', children: [] }, null, 2)});\n`
+          );
+        },
+        applySnippet(code) {
+          const runner = new Function('LightDraw', 'app', 'applyLabScene', '"use strict";\n' + code);
+          runner(LightDraw, ensureApp(), applyLabScene);
+        },
+      });
+    }
+
+    if (document.readyState === 'complete') boot();
+    else window.addEventListener('load', boot, { once: true });
+
+    window.addEventListener('resize', () => {
+      clearTimeout(window._labResize);
+      window._labResize = setTimeout(() => {
+        ensureApp();
+        if (lastAuthorScene) {
+          try {
+            applyLabScene(lastAuthorScene);
+          } catch (_) {
+            /* ignore */
+          }
+        }
+      }, 150);
+    });
+  </script>
+</body>
+</html>

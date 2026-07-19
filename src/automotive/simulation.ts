@@ -13,10 +13,14 @@ export interface DriveState {
   tpms?: number[];
   parkingBrake?: boolean;
   headlights?: boolean;
+  lowBeam?: boolean;
+  parkingLight?: boolean;
+  checkEngine?: boolean;
   cruiseSpeed?: number;
   gear?: string;
   turnLeft?: boolean;
   turnRight?: boolean;
+  pedestrian?: string;
   incomingCall?: boolean;
   caller?: string;
   callStatus?: string;
@@ -33,6 +37,10 @@ const VALUE_KEY: Record<string, string> = {
   batteryVoltage: 'batteryVoltage',
   cruiseControl: 'cruiseSpeed',
   gearIndicator: 'gear',
+  checkEngineLamp: 'checkEngine',
+  lowBeamStatus: 'lowBeam',
+  parkingLightStatus: 'parkingLight',
+  pedestrianDetection: 'pedestrian',
 };
 
 type RefreshFn = (v: number) => void;
@@ -147,6 +155,10 @@ export function sampleDriveFrames(count = 60): DriveState[] {
       tpms: [32, 31, 33, 32].map((p, j) => (i > 40 && j === 2 ? 22 : p)),
       parkingBrake: i < 5,
       headlights: i > 10,
+      lowBeam: i > 10 && i < 55,
+      parkingLight: i > 5 && i < 18,
+      checkEngine: i > 85,
+      pedestrian: i > 50 && i < 70 ? 'warning' : i > 40 && i < 75 ? 'detecting' : 'clear',
       cruiseSpeed: i > 20 && i < 50 ? 65 : 0,
       gear: i < 5 ? 'P' : 'D',
       turnLeft: i % 30 < 5,

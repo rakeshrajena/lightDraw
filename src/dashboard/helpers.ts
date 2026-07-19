@@ -48,8 +48,16 @@ export function createWidgetGroup(
 ): Group {
   const w = num(props, 'width', 0) || num(props, 'size', 0);
   const h = num(props, 'height', 0) || num(props, 'size', 0);
+  const merged = { ...props, ...extra };
+  // `scale` is Node's uniform transform. Dashboard widgets (e.g. battery) often pass
+  // `scale` as a geometry multiplier — applying it here would double-scale and overflow.
+  // Use scaleX/scaleY when a transform is intentional.
+  const groupOpts: Record<string, unknown> = { ...merged };
+  if (!('scaleX' in groupOpts) && !('scaleY' in groupOpts)) {
+    delete groupOpts.scale;
+  }
   const group = app.group({
-    ...(props as Record<string, unknown>),
+    ...groupOpts,
     listening: true,
     ...(w > 0 && h > 0 ? { clip: true } : {}),
     metadata: {
@@ -58,7 +66,6 @@ export function createWidgetGroup(
       ...(w > 0 ? { chartWidth: w } : {}),
       ...(h > 0 ? { chartHeight: h } : {}),
     },
-    ...extra,
   }) as Group;
   bindApp(group, app);
   setState(group, { ...props });

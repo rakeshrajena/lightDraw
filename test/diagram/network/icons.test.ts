@@ -1,3 +1,7 @@
+/**
+ * Network icon catalog — public API coverage.
+ * @see docs/diagram-pipeline-structure.md
+ */
 import { describe, it, expect, afterEach } from 'vitest';
 import {
   resolveNetworkIconKind,
@@ -6,10 +10,10 @@ import {
   drawNetworkIcon,
   networkStyleForKind,
   __networkAliasCount,
-} from '../src/diagram/networkIcons';
-import { createNetworkNode } from '../src/diagram/primitives';
-import { createNetworkIconCatalog, createNetworkDiagram } from '../src/diagram/definitions';
-import { createTestApp, createTestContainer } from './helpers';
+} from '../../../src/diagram/networkIcons';
+import { createNetworkNode } from '../../../src/diagram/primitives';
+import { createNetworkIconCatalog, createNetworkDiagram } from '../../../src/diagram/definitions';
+import { createTestApp, createTestContainer } from '../../helpers';
 
 describe('Network icon catalog', () => {
   afterEach(() => {

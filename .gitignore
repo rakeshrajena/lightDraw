@@ -37,6 +37,13 @@ UI_POLISH_PLAN.md
 IMPLEMENTATION_PLAN.md
 PROJECT_STATUS.md
 
+# Accidental shell leftovers / local server pids
+*.pid
+/lightdraw@*
+# Empty files sometimes created by mistyped `npm` / `node` redirects
+/node
+/npm
+
 # Blog capture tooling (local-only fixtures)
 blog/
 scripts/blog-fixtures/

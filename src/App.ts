@@ -1,6 +1,5 @@
 import { Group, Layer } from './shapes/Group';
 import './registry/initCore';
-import { pointInMask } from './renderers/clipUtils';
 import { EventEmitter } from './core/EventEmitter';
 import { Camera } from './camera/Camera';
 import { EventManager } from './events/EventManager';
@@ -25,8 +24,8 @@ import {
   ImageNode,
   Sprite,
 } from './shapes/index';
-import { detectBestRenderer, getPixelRatio, resolveContainer, requestFrame, cancelFrame, matrixPool } from './utils';
-import { fromJSON, toJSON } from './io/json';
+import { detectBestRenderer, getPixelRatio, resolveContainer, requestFrame, cancelFrame } from './utils';
+import { fromJSON, exportStageJSON, isHoistableRootGroup } from './io/json';
 import { exportScene, exportApp } from './io/export';
 import { formatJsonParseError } from './io/schema';
 import type { ExportFormat, ExportOptions, ExportResult } from './io/exportTypes';
@@ -53,6 +52,7 @@ import {
   extractSceneTheme,
   composeThemePack,
 } from './theme/themePack';
+import { hitTestNode, hitTestSpatial } from './app/hitTest';
 
 export class App extends EventEmitter {
   readonly camera: Camera;
@@ -335,57 +335,11 @@ export class App extends EventEmitter {
   hitTest(worldX: number, worldY: number): HitTestResult | null {
     if (this.perf.spatialIndex && this.nodeCount >= this.perf.spatialIndexThreshold) {
       this.spatialIndex.ensureFresh(this.stage);
-      const hit = this.hitTestSpatial(worldX, worldY);
+      const hit = hitTestSpatial(this.spatialIndex, worldX, worldY);
       return hit ? { node: hit, x: worldX, y: worldY } : null;
     }
-    const hit = this.hitTestNode(this.stage, worldX, worldY);
+    const hit = hitTestNode(this.stage, worldX, worldY);
     return hit ? { node: hit, x: worldX, y: worldY } : null;
-  }
-
-  private hitTestSpatial(worldX: number, worldY: number): Node | null {
-    const candidates = this.spatialIndex.queryPoint(worldX, worldY);
-    for (const child of candidates) {
-      if (!child.visible || !child.listening) continue;
-      const wm = child.getWorldMatrix();
-      const inv = matrixPool.acquire();
-      if (!wm.invertInto(inv)) {
-        matrixPool.release(inv);
-        continue;
-      }
-      const local = inv.transformPoint(worldX, worldY);
-      matrixPool.release(inv);
-      if (!pointInMask(child.mask, local.x, local.y)) continue;
-      if (child.containsPoint(local.x, local.y)) return child;
-    }
-    return null;
-  }
-
-  private hitTestNode(group: Group, worldX: number, worldY: number): Node | null {
-    const children = [...group.children].reverse();
-    for (const child of children) {
-      if (!child.visible || !child.listening) continue;
-
-      if ('children' in child) {
-        const nested = this.hitTestNode(child as Group, worldX, worldY);
-        if (nested) return nested;
-      }
-
-      const wm = child.getWorldMatrix();
-      const inv = matrixPool.acquire();
-      if (!wm.invertInto(inv)) {
-        matrixPool.release(inv);
-        continue;
-      }
-      const local = inv.transformPoint(worldX, worldY);
-      matrixPool.release(inv);
-
-      if (!pointInMask(child.mask, local.x, local.y)) continue;
-
-      if (child.containsPoint(local.x, local.y)) {
-        return child;
-      }
-    }
-    return null;
   }
 
   resize(width?: number, height?: number): void {
@@ -530,6 +484,19 @@ export class App extends EventEmitter {
     }
     const node = fromJSON(scene as unknown as SceneJSON, this);
     this.stage.clear();
+    // Hoist plain root groups so export → load → export does not nest an extra group
+    if (isHoistableRootGroup(node) && node.children.length > 0) {
+      for (const child of [...node.children]) {
+        node.remove(child);
+        this.stage.add(child);
+      }
+      this.nodeCount = countNodes(this.stage);
+      this.spatialIndex.clear();
+      this.renderer.forceFullRedraw();
+      this.requestRender();
+      return this.stage.children.length === 1 ? this.stage.children[0]! : this.stage;
+    }
+
     this.stage.add(node);
     this.nodeCount = countNodes(this.stage);
     this.spatialIndex.clear();
@@ -539,8 +506,8 @@ export class App extends EventEmitter {
   }
 
   /** Export scene. Pass `{ includeTheme: true }` to embed the current theme pack. */
-  exportJSON(options?: { includeTheme?: boolean }): SceneJSON {
-    const scene = toJSON(this.stage) as SceneJSON;
+  exportJSON(options?: { includeTheme?: boolean; compact?: boolean }): SceneJSON {
+    const scene = exportStageJSON(this.stage, { compact: options?.compact });
     if (options?.includeTheme) {
       const theme = this.getTheme();
       if (Object.keys(theme).length > 0) {

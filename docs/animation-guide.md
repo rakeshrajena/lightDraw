@@ -123,3 +123,18 @@ await parallel([
 - Stop animations when nodes are destroyed (`animation.stop()`).
 - Prefer `timeline.stagger` over hundreds of individual `setTimeout` calls.
 - See [Performance Guide](./performance-guide.md) for frame budgets.
+
+## Diagram wire flow
+
+For **flowchart / network / pipeline** connectors (marching dashes, traveling packets, multi-path runs, play/pause), use the diagram API — not raw `dashOffset` alone:
+
+```javascript
+LightDraw.Diagram.applyFlow(app, chart, {
+  mode: 'both',
+  playback: 'loop',
+  paths: [['a', 'b', 'c'], ['a', 'd', 'c']],
+  pathGapMs: 500,
+});
+```
+
+Full guide: [Diagram wire-flow animation](./diagram-flow.md).

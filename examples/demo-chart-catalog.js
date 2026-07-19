@@ -1,15 +1,16 @@
-/** Shared chart catalog for dashboard demos — 82+ registered chart types. */
+/** Shared chart catalog for dashboard demos — 85 chart types + dataTable. */
 window.LD_CHART_CATALOG = [
   'lineChart', 'areaChart', 'barChart', 'columnChart', 'horizontalBarChart', 'stackedColumnChart', 'stackedBarChart', 'stackedAreaChart',
   'stepChart', 'splineChart', 'errorBarChart', 'lollipopChart', 'dotPlot', 'stripPlot', 'sparklineChart', 'rangeChart', 'rangeAreaChart',
   'bandChart', 'ribbonChart', 'combinationChart', 'mixedChart', 'waterfallChart', 'paretoChart', 'runChart', 'controlChart',
-  'populationPyramidChart', 'bumpChart', 'horizonChart', 'pieChart', 'doughnutChart', 'radarChart', 'polarAreaChart', 'bulletChart',
-  'funnelChart', 'pyramidChart', 'coneChart', 'histogram', 'boxPlot', 'violinPlot', 'densityPlot', 'heatmap', 'hexbinChart',
-  'contourChart', 'qqPlot', 'beeswarmChart', 'ridgelinePlot', 'parallelCoordinatesPlot', 'mosaicChart', 'marimekkoChart', 'waffleChart',
-  'calendarHeatmap', 'stemLeafPlot', 'scatterChart', 'bubbleChart', 'candlestickChart', 'ohlcChart', 'heikinAshiChart', 'renkoChart',
+  'populationPyramidChart', 'bumpChart', 'horizonChart', 'pieChart', 'doughnutChart', 'radarChart', 'spiderChart', 'polarAreaChart', 'bulletChart',
+  'funnelChart', 'pyramidChart', 'coneChart', 'histogram', 'boxPlot', 'boxAndWhiskerChart', 'violinPlot', 'densityPlot', 'heatmap', 'hexbinChart',
+  'contourChart', 'qqPlot', 'beeswarmChart', 'ridgelinePlot', 'parallelCoordinatesPlot', 'mosaicChart', 'marimekkoChart', 'mekkoChart', 'waffleChart',
+  'calendarHeatmap', 'stemLeafPlot', 'scatterChart', 'bubbleChart', 'candlestickChart', 'kLineChart', 'ohlcChart', 'heikinAshiChart', 'renkoChart',
   'kagiChart', 'pointAndFigureChart', 'volumeChart', 'candlestickVolumeChart', 'highLowChart', 'volumeProfileChart', 'treemap',
   'sunburstChart', 'treeChart', 'dendrogramChart', 'sankeyChart', 'chordChart', 'alluvialChart', 'streamgraph', 'networkChart',
   'timeline', 'ganttChart', 'surfaceChart3d', 'wireframeChart3d', 'meshChart3d', 'vectorFieldChart', 'pictogramChart', 'wordCloudChart',
+  'dataTable',
 ];
 
 const SAMPLE_OHLC = [
@@ -198,8 +199,25 @@ window.ldChartProps = function ldChartProps(type, w, h) {
   }
   if (type === 'combinationChart' || type === 'mixedChart' || type === 'ribbonChart' ||
       type === 'stackedAreaChart' || type === 'stackedBarChart' || type === 'stackedColumnChart' ||
-      type === 'horizonChart') {
+      type === 'horizonChart' || type === 'lineChart' || type === 'barChart' || type === 'columnChart' ||
+      type === 'horizontalBarChart') {
     return { ...base, series: SAMPLE_SERIES };
+  }
+  if (type === 'dataTable') {
+    return {
+      ...base,
+      width: Math.max(280, width),
+      height: Math.max(160, height),
+      columns: ['Region', 'Sales', 'Status'],
+      rows: [
+        ['North', '120', 'Active'],
+        ['South', '86', 'Pending'],
+        ['East', '104', 'Active'],
+        ['West', '73', 'Inactive'],
+      ],
+      showSearch: true,
+      striped: true,
+    };
   }
   if (type.includes('Chart3d') || type === 'meshChart3d') {
     return {

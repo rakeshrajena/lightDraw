@@ -28,6 +28,7 @@
       <a href="#theme">Theme</a>
       <a href="#scene-json">Scene JSON</a>
       <div class="help-nav-group" role="presentation">Modules</div>
+      <a href="#component-lab">Component lab</a>
       <a href="#ui">UI</a>
       <a href="#dashboard">Dashboard</a>
       <a href="#automotive">Automotive</a>
@@ -36,6 +37,8 @@
       <div class="help-nav-group" role="presentation">More</div>
       <a href="%BASE_URL%index.html#theme">Live playground</a>
       <a href="doc.html?src=docs/getting-started.md">Full guides</a>
+      <a href="doc.html?src=docs/architecture.md">Architecture</a>
+      <a href="doc.html?src=docs/api-overview.md">API overview</a>
       <a href="docs/api/index.html">API reference</a>
     </aside>
 
@@ -118,17 +121,42 @@ app.applyTheme({ primary: 'pink', fontSize: '16px' });</pre>
         </div>
       </section>
 
+      <section class="help-section" id="component-lab">
+        <h2>Component lab</h2>
+        <p>
+          Pick a <strong>family</strong> and <strong>component</strong>, see definition + where to use,
+          then live-render only that component. Edit <strong>JSON</strong> or <strong>API</strong> below for an instant update.
+          Families include UI (searchable tables), Dashboard (multi-series charts, <code>dataTable</code>), and Automotive telltales.
+        </p>
+        <div class="help-live help-live--lab">
+          <iframe
+            id="help-component-lab-frame"
+            src="examples/demo-component-lab.html?embed=1"
+            title="Component lab — select, preview, edit JSON"
+            loading="lazy"
+          ></iframe>
+        </div>
+        <div class="help-actions">
+          <a class="stage-btn" href="%BASE_URL%examples/demo-component-lab.html" target="_blank" rel="noopener">Open full lab</a>
+          <a class="stage-btn stage-btn--ghost" href="doc.html?src=docs/ui-components-schema.md">UI schema</a>
+          <a class="stage-btn stage-btn--ghost" href="doc.html?src=docs/dashboard-widgets-schema.md">Dashboard schema</a>
+          <a class="stage-btn stage-btn--ghost" href="doc.html?src=docs/automotive-widgets-schema.md">Automotive schema</a>
+        </div>
+      </section>
+
       <section class="help-section" id="ui">
         <h2>UI components</h2>
-        <p>Buttons, forms, tables, dialogs — themed through the same pack.</p>
+        <p>Buttons, forms, searchable striped tables, dialogs — themed through the same pack.</p>
         <div class="help-example">
           <pre class="help-code">app.loadJSON({
   type: 'group',
   theme: { preset: 'dark', primary: '#0ea5e9' },
   children: [
     { type: 'button', props: { label: 'Save', variant: 'primary', x: 16, y: 16 } },
-    { type: 'textInput', props: { label: 'Name', value: '', x: 16, y: 64, width: 200 } },
-    { type: 'checkbox', props: { label: 'Remember me', checked: true, x: 16, y: 120 } },
+    { type: 'table', props: {
+      columns: ['Name', 'Status'], rows: [['Alpha', 'OK'], ['Beta', 'Warn']],
+      showSearch: true, width: 260, x: 16, y: 64,
+    }},
   ],
 });</pre>
           <div class="help-live help-live--tall">
@@ -143,14 +171,21 @@ app.applyTheme({ primary: 'pink', fontSize: '16px' });</pre>
 
       <section class="help-section" id="dashboard">
         <h2>Dashboard &amp; charts</h2>
-        <p>Gauges, meters, and 80+ chart types with live value helpers.</p>
+        <p>Gauges, meters, <strong>85 chart types</strong> (multi-series lines/bars with auto colors), and searchable <code>dataTable</code>.</p>
         <div class="help-example">
           <pre class="help-code">app.loadJSON({
   type: 'group',
   children: [
     { type: 'gauge', props: { value: 72, diameter: 120, x: 24, y: 24 } },
     { type: 'lineChart', props: { width: 280, height: 140, x: 180, y: 24,
-      data: [12, 18, 15, 22, 28, 24] } },
+      series: [
+        { name: 'North', data: [12, 18, 15, 22, 28, 24] },
+        { name: 'South', data: [8, 14, 20, 16, 22, 30] },
+      ]}},
+    { type: 'dataTable', props: {
+      columns: ['Region', 'Sales'], rows: [['North', '120'], ['South', '86']],
+      showSearch: true, width: 280, x: 24, y: 190,
+    }},
   ],
 });
 
@@ -168,7 +203,10 @@ LightDraw.animateLiveValue(gaugeNode, 'value', 82, 400);</pre>
 
       <section class="help-section" id="automotive">
         <h2>Automotive cluster</h2>
-        <p>Instrument clusters stay on classic / sport / digital palettes; app fontSize still scales labels.</p>
+        <p>
+          Instrument clusters (classic / sport / digital), individual telltales
+          (MIL, beams, pedestrian), and an <strong>Individual dash</strong> demo tab.
+        </p>
         <div class="help-example">
           <pre class="help-code">app.loadJSON({
   type: 'group',
@@ -178,6 +216,7 @@ LightDraw.animateLiveValue(gaugeNode, 'value', 82, 400);</pre>
       theme: 'sport', width: 880, height: 360,
       speed: 95, rpm: 3200, fuel: 68,
     }},
+    // Or compose individuals: checkEngineLamp, lowBeamStatus, pedestrianDetection, …
   ],
 });</pre>
           <div class="help-live help-live--tall">
@@ -192,7 +231,11 @@ LightDraw.animateLiveValue(gaugeNode, 'value', 82, 400);</pre>
 
       <section class="help-section" id="diagram">
         <h2>Diagrams</h2>
-        <p>Pick a diagram type — no scrolling a type list. Flowcharts, networks, UML, and more.</p>
+        <p>
+          Pick a diagram type — flowcharts, networks, UML, and more.
+          In the studio: drag, resize, <strong>rotate</strong>, bend wires, and run
+          <strong>wire flow</strong> (dashes / packets along a path; ▶⏸ on the canvas when Flow is on).
+        </p>
         <div class="help-example">
           <pre class="help-code">app.loadJSON({
   type: 'group',
@@ -233,6 +276,7 @@ LightDraw.animateLiveValue(gaugeNode, 'value', 82, 400);</pre>
         <div class="help-actions">
           <a class="stage-btn" href="%BASE_URL%index.html#diagram">Diagram playground</a>
           <a class="stage-btn stage-btn--ghost" href="doc.html?src=docs/diagram-module-schema.md">Diagram schema</a>
+          <a class="stage-btn stage-btn--ghost" href="doc.html?src=docs/diagram-flow.md">Wire flow guide</a>
         </div>
       </section>
 

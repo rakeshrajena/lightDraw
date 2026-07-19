@@ -12,7 +12,7 @@ import { clearInstalledPlugins } from '../src/plugins/index';
 import { CanvasRenderer } from '../src/renderers/CanvasRenderer';
 import { createTestContainer } from './helpers';
 
-const CORE_MAX_GZIP = 40 * 1024; // theme system baseline (~38.7 KB measured); aspirational target is 8 KB
+const CORE_MAX_GZIP = 43 * 1024; // aligned with scripts/size-gate.mjs (theme + schema baseline)
 
 function registerCanvasRenderer(): void {
   registerRenderer('canvas', () => new CanvasRenderer());
@@ -81,7 +81,7 @@ describe('Phase 5 — Modular Bundle Architecture', () => {
     expect(content).not.toMatch(/registerComponent\(['"]button/);
   });
 
-  it('core bundle gzip size is within documented baseline (≤ 26 KB)', () => {
+  it('core bundle gzip size is within documented baseline (≤ 43 KB)', () => {
     const path = 'dist/lightdraw.core.min.js';
     expect(existsSync(path)).toBe(true);
     const gzip = gzipSync(readFileSync(path));

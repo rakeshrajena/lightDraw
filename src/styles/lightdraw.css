@@ -1291,6 +1291,33 @@
   background: var(--ld-surface-muted);
 }
 
+.lightdraw-table-wrap--no-stripe tbody tr:nth-child(even),
+.lightdraw-table-row--no-stripe {
+  background: transparent;
+}
+
+.lightdraw-table-search-wrap {
+  padding: 8px 8px 4px;
+}
+
+.lightdraw-table-search {
+  box-sizing: border-box;
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid var(--ld-border, #334155);
+  background: var(--ld-surface, #0f172a);
+  color: var(--ld-text, #e2e8f0);
+  font: inherit;
+  font-size: 13px;
+}
+
+.lightdraw-table-search:focus {
+  outline: 2px solid color-mix(in srgb, var(--ld-primary, #3b82f6) 55%, transparent);
+  outline-offset: 1px;
+}
+
 .lightdraw-table tbody tr:last-child td {
   border-bottom: none;
 }

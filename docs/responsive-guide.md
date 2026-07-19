@@ -138,4 +138,4 @@ Prefer numeric `width` / `height` on root `group` children and use `fullWidth` o
 
 - [UI theme guide](./ui-theme-guide.md) — tokens including `bpSm` / `bpMd` / `bpLg`
 - [UI components schema](./ui-components-schema.md) — per-component size and `fullWidth`
-- [Legacy UI guide](./legacy-ui-guide.md) — flex fallbacks and old WebView targets
+- [Legacy browser & UI guide](./legacy-browser-guide.md) — flex fallbacks and old WebView targets

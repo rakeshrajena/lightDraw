@@ -2,7 +2,7 @@
 
 Load diagrams via `app.loadJSON({ type: '<diagram>', props: { ... } })` or `LightDraw.Diagram.*` helpers.
 
-Interactive gallery: [`examples/demo-diagram.html`](../examples/demo-diagram.html) (drag, resize, wire bends, org collapse, live JSON dock).
+Interactive gallery: [`examples/demo-diagram.html`](../examples/demo-diagram.html) (drag, resize, **rotate**, wire bends, org collapse, live JSON dock).
 
 ## Common props
 
@@ -10,6 +10,35 @@ Interactive gallery: [`examples/demo-diagram.html`](../examples/demo-diagram.htm
 |------|------|-------------|
 | uiTheme | string \| object | Optional UI preset or tokens. Wins over app `setUiTheme`. |
 | width / height | number | Canvas hints used by layout and `fitToBounds`. |
+
+## Node transforms (all editable symbols)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `x` / `y` | number | Top-left position in diagram space |
+| `rotation` | number | Degrees (clockwise). Applied on load; updated by the editor rotate handle |
+| scale | via editor | Live `scaleX` / `scaleY` after resize (also in `diagramState.editorPositions`) |
+
+**Wires on rotate:** connected edges drop temporary bend points and **smart-route** again to facing ports on the rotated card. You can double-click a wire afterward to add bends / reshape.
+
+Example:
+
+```json
+{
+  "type": "flowchart",
+  "props": {
+    "data": {
+      "nodes": [
+        { "id": "a", "label": "Start", "type": "start", "x": 40, "y": 40, "rotation": 15 },
+        { "id": "b", "label": "Work", "x": 220, "y": 40 }
+      ],
+      "edges": [{ "from": "a", "to": "b" }]
+    }
+  }
+}
+```
+
+Schematic components already supported `rotation`; flowchart, network, pipeline, state machine, and class diagrams now do as well.
 
 ## Diagram types
 
@@ -21,9 +50,11 @@ Interactive gallery: [`examples/demo-diagram.html`](../examples/demo-diagram.htm
 | mindMap | `Diagram.mindMap(app, center, branches)` | `center`, `branches[]` |
 | networkTopology | `Diagram.network(app, data)` | `data.nodes`, `data.edges` (rich `type` icons) |
 | orgChart | `Diagram.orgChart(app, root)` | Tree of `{ name, role?, image?, department?, collapsed?, children? }` |
-| electricalSchematic | `Diagram.schematic(app, components)` | `components[]` |
+| electricalSchematic | `Diagram.schematic(app, components)` | `components[]` (optional `rotation`) |
+| schematicSymbolCatalog | `Diagram.schematicCatalog(app, opts)` | `category?`, `columns?` |
 | canNetwork | `Diagram.canNetwork(app, data)` | `data.ecus`, `data.busLabel` |
-| processPipeline | `Diagram.pipeline(app, stages)` | `stages[]` with `status` |
+| processPipeline | `Diagram.pipeline(app, stages)` | `stages[]` with `status`, optional `type`, `rotation` |
+| pipelineSymbolCatalog | `Diagram.pipelineCatalog(app, opts)` | `category?`, `columns?` |
 
 ## Interactive editor
 
@@ -35,10 +66,11 @@ LightDraw.Diagram.fitToBounds(org, 900, 520, 24);
 const editor = LightDraw.Diagram.installEditor(app, org, {
   mode: 'arrange', // or 'edit'
   allowResize: true,
+  allowRotate: true, // rotate handle above selection (15° snap; Shift = free)
   allowBendPoints: true,
   gridSize: 8,
   onChange(state) {
-    // diagramState after drag / resize / rewire
+    // diagramState after drag / resize / rotate / rewire
   },
 });
 
@@ -46,13 +78,70 @@ const editor = LightDraw.Diagram.installEditor(app, org, {
 LightDraw.Diagram.uninstallEditor(org);
 ```
 
+**Rotate:** select a symbol → drag the circular handle above the selection. Snaps to **15°** by default; hold **Shift** for free angles. Spins around the symbol center.
+
 | Capability | How |
 |------------|-----|
 | Drag nodes | Arrange/edit mode |
-| Resize | 8 handles (edges + corners); outward/inward |
-| Wire bends | Double-click a wire → drag bend handles |
+| Resize | 8 handles on the selection bounds (edges + corners) |
+| Rotate | Handle above selection; `allowRotate` (default `true`) |
+| Selection chrome | Dashed AABB + rotated card outline + ports on real mid-sides |
+| Wires on rotate | Linked edges drop temporary bends and **smart-route** to facing ports |
+| Wire bends | Double-click a wire → drag bend handles (after auto-route, anytime) |
 | Org collapse | Click `−N` / `+N` on a card (N = total descendants) |
-| Selection chrome | Cleared automatically when a branch is minimized |
+| Selection after collapse | Chrome cleared when a branch is minimized |
+
+JSON `rotation` is persisted on flowchart / network / pipeline / state / class / schematic nodes via `diagramState` (and `editorPositions`).
+
+## Wire flow animation
+
+Animate connectors to show direction of travel, with optional node highlight:
+
+```javascript
+LightDraw.Diagram.applyFlow(app, chart, {
+  enabled: true,
+  speed: 1,              // 1 = default, higher = faster
+  paused: false,
+  playback: 'loop',      // or 'once'
+  mode: 'both',          // 'dash' | 'packet' | 'both'
+  highlight: 'pulse',    // 'pulse' | 'breathe' | 'flash' | 'none'
+  // Ordered node path (single run):
+  // path: ['start', 'check', 'process', 'end'],
+  // Multiple runs in index order (run 0, then run 1, …):
+  paths: [
+    ['start', 'check', 'process', 'end'],
+    ['start', 'check', 'end'],
+  ],
+  pathGapMs: 500, // pause between runs
+  // Or explicit hops / multi hop-lists:
+  // pathEdges: [{ from: 'start', to: 'check' }],
+  // pathsEdges: [[{ from: 'a', to: 'b' }], [{ from: 'a', to: 'c' }]],
+});
+
+LightDraw.Diagram.pauseFlow(app, chart);
+LightDraw.Diagram.resumeFlow(app, chart);
+LightDraw.Diagram.toggleFlowPause(app, chart);
+LightDraw.Diagram.replayFlow(app, chart); // restart (esp. after once)
+LightDraw.Diagram.stopFlow(chart);
+```
+
+| Option | Effect |
+|--------|--------|
+| `playback: 'loop'` | Continuous (default); after last path run, restart at run 0 |
+| `playback: 'once'` | Play all path runs in order, then auto-pauses |
+| `path` | Single node-id sequence (or `string[][]` shorthand for `paths`) |
+| `paths` | Multiple runs — index order, one after another |
+| `pathGapMs` | Delay between runs (default 450) |
+| `pathEdges` / `pathsEdges` | Same idea with `{ from, to }` hops |
+| `mode: 'dash'` | Marching dashes on path edges |
+| `mode: 'packet'` | Dot travels hops; flashes target on arrival |
+| `highlight: 'pulse'` | Soft ring on active hop endpoints |
+| `paused` / canvas ▶⏸ | Pause without clearing options |
+
+Persist under builder options / JSON: `{ flow: { enabled, playback, paths, … } }`.
+Editor re-route keeps `diagramState.flow` and restarts when not paused.
+
+**Full guide:** [diagram-flow.md](./diagram-flow.md)
 
 ## Network icons
 
@@ -185,15 +274,79 @@ Styles: `straight`, `orthogonal`, `smart` (avoids node bounding boxes).
 
 ## Electrical symbols
 
-| Symbol | type value |
-|--------|------------|
-| Resistor | `resistor` |
-| Capacitor | `capacitor` |
-| Ground | `ground` |
-| Battery | `battery` |
-| Switch | `switch` |
-| LED | `led` |
-| Wire | `wire` |
+Use `Diagram.schematic(app, components)` for wired circuits, or `Diagram.schematicCatalog(app, { category?, columns? })` for a full grid.
+
+Discover kinds with `Diagram.listSchematicSymbols()` / `Diagram.resolveSchematicSymbol(name)`.
+
+Legacy types (`resistor`, `capacitor`, `ground`, `battery`, `switch`, `led`, `wire`) still work. Prefer catalog ids such as `spst`, `nmos`, `opAmp`.
+
+| Category | Examples (type values) |
+|----------|------------------------|
+| Power | `battery`, `cell`, `dcSupply`, `acSupply`, `ground`, `earthGround`, `chassisGround`, `powerFlag`, `voltageSource`, `currentSource`, `fuse`, `circuitBreaker` |
+| Passive | `resistor`, `potentiometer`, `thermistorNtc`, `capacitor`, `electrolyticCap`, `inductor`, `transformer`, `crystal`, … |
+| Diodes | `diode`, `schottky`, `zener`, `tvs`, `led`, `photodiode`, `bridgeRectifier`, … |
+| Transistors | `npn`, `pnp`, `nmos`, `pmos`, `njfet`, `pjfet`, `igbt`, `darlington`, … |
+| Thyristors | `scr`, `triac`, `diac`, `gto`, `thyristor` |
+| Logic | `notGate`, `andGate`, `nandGate`, `orGate`, `xorGate`, `schmittTrigger`, … |
+| Analog ICs | `opAmp`, `ldo`, `buck`, `boost`, `dac`, `adc`, `pll`, … |
+| Digital ICs | `mcu`, `fpga`, `eeprom`, `flash`, `mux`, `flipFlop`, … |
+| Sensors | `tempSensor`, `hallSensor`, `accelerometer`, `pirSensor`, `microphone`, … |
+| Actuators | `relay`, `dcMotor`, `stepperMotor`, `servoMotor`, `buzzer`, `lcd`, … |
+| Switches | `spst`, `spdt`, `dpdt`, `pushButtonNo`, `eStop`, … |
+| Connectors | `header`, `usbConnector`, `rj45`, `barrelJack`, `sma`, … |
+| Comms | `uart`, `spi`, `i2c`, `canBus`, `wifi`, `lora`, `gps`, … |
+| Protection / test / misc | `esdProtection`, `polyfuse`, `testPoint`, `voltmeter`, `junction`, `noConnect`, … |
+
+JSON:
+
+```json
+{
+  "type": "electricalSchematic",
+  "props": {
+    "components": [
+      { "id": "u1", "type": "opAmp", "x": 40, "y": 40, "label": "U1" },
+      { "id": "r1", "type": "resistor", "x": 140, "y": 40, "label": "R1" }
+    ]
+  }
+}
+```
+
+Catalog JSON type: `schematicSymbolCatalog` with optional `category` and `columns`.
+
+## Pipeline / process symbols
+
+Use `Diagram.pipeline(app, stages)` for status pipelines. Each stage may set `type` to a catalog kind (glyph replaces the WAIT/RUN badge):
+
+```javascript
+LightDraw.Diagram.pipeline(app, [
+  { id: 'a', label: 'Build', status: 'done', type: 'build' },
+  { id: 'b', label: 'Deploy', status: 'active', type: 'deploy' },
+  { id: 'c', label: 'Monitor', status: 'pending', type: 'monitoring' },
+]);
+```
+
+Browse all ~300 kinds with `Diagram.pipelineCatalog(app, { category?, columns? })`.
+
+Discover with `Diagram.listPipelineSymbols()` / `Diagram.resolvePipelineSymbol(name)`.
+
+| Category | Examples |
+|----------|----------|
+| Flow | `start`, `end`, `process`, `task`, `workflow`, `pipeline` |
+| Gateway | `decision`, `exclusiveGateway`, `parallelGateway`, `fork`, `join` |
+| Event | `timer`, `message`, `error`, `trigger` |
+| Data | `database`, `document`, `dataset`, `dashboard` |
+| CI/CD | `build`, `deploy`, `release`, `rollback`, `production` |
+| Manufacturing | `machine`, `robot`, `conveyor`, `cncMachine`, `factory` |
+| Facilities | `building`, `home`, `school`, `stadium`, `shop`, `temple`, `parking` |
+| Transport | `car`, `bus`, `flight`, `ship`, `bike`, `cycle`, `road` |
+| Nature | `earth`, `sun`, `star`, `forest`, `solarPanel`, `map` |
+| Devices | `laptop`, `gps`, `wifi`, `phoneTower`, `bluetooth`, `light` |
+| Logistics | `warehouse`, `truck`, `agv`, `forklift` |
+| Industrial | `plc`, `hmi`, `scada`, `sensor`, `iotDevice` |
+| Cloud | `cloud`, `server`, `kubernetesCluster`, `appContainer` |
+| Governance | `validation`, `verification`, `inspection`, `signOff`, `certification`, `version` |
+
+Catalog JSON type: `pipelineSymbolCatalog` with optional `category` and `columns`.
 
 ## Performance targets
 

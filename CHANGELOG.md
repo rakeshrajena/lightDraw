@@ -7,6 +7,137 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — Dashboard multi-series + dataTable
+
+- Multi-series charts: omit `series[].color` → unique theme palette colors per series
+- Grouped (side-by-side) multi-series `barChart` / `columnChart` / `horizontalBarChart` with category hover listing each series
+- Multi-line / multi-area hover tooltips already list all series; palette colors now apply when colors are omitted
+- Dashboard **`dataTable`**: striped rows (default), optional `showSearch` + `search` / `searchQuery` keyword filter
+- UI **`table`**: same `striped` / `showSearch` / `search` props
+
+Docs: [dashboard-widgets-schema.md](./docs/dashboard-widgets-schema.md) · [ui-components-schema.md](./docs/ui-components-schema.md)
+
+### Added — Automotive P0 telltales + Individual dash
+
+- Lamps: `checkEngineLamp` (aliases `milStatus` / `checkEngine` / `engineStatus`), `lowBeamStatus`, `parkingLightStatus`
+- Badge: `pedestrianDetection` (`clear` / `detecting` / `warning`)
+- Drive feed keys: `checkEngine`, `lowBeam`, `parkingLight`, `pedestrian`
+- Demo **Individual dash** tab — compose from individuals (not only `instrumentCluster`)
+- Help Component lab Automotive family includes the new telltales
+
+Docs: [automotive-widgets-schema.md](./docs/automotive-widgets-schema.md) · [automotive-examples.md](./docs/automotive-examples.md)
+
+### Added — Scene JSON export fidelity
+
+- `toJSON` / `app.exportJSON()` keep module widgets as opaque `{ type, props }` leaves (no visual-tree expansion)
+- Opt-in `exportJSON({ compact: true })` / `toJSON(node, { compact: true })` omits identity defaults
+- Docs: [json-format.md](./docs/json-format.md)
+
+### Added — Diagram wire flow
+
+- `Diagram.applyFlow` / `stopFlow` / `refreshFlow` — marching dashes, traveling packets, node pulse/flash
+- `playback: 'loop' | 'once'`, `pauseFlow` / `resumeFlow` / `toggleFlowPause` / `replayFlow`
+- Definable path: `path: ['a','b','c']`, multi-run `paths: [['a','b'],['a','c']]` (index order + `pathGapMs`), or `pathEdges` / `pathsEdges`
+- Builder option / `diagramState.flow`; canvas ▶ / ⏸ / ↻ when flow is on (diagram demo)
+- Flow restarts after editor wire re-route
+
+Docs: [diagram-flow.md](./docs/diagram-flow.md) · [diagram-module-schema.md](./docs/diagram-module-schema.md)
+
+### Added — Diagram rotate
+
+- Editor **rotate handle** on selected symbols (`allowRotate`, default on): 15° snap, **Shift** = free angle; spins around card center
+- JSON `rotation` (degrees) on flowchart / network / pipeline / state machine / class diagram nodes (schematic already had it)
+- On rotate: connected wires clear temporary bends and **smart-route** to facing ports; manual bends still work afterward
+- Selection chrome follows rotation (AABB + rotated outline + mid-side ports)
+
+Docs: [diagram-module-schema.md](./docs/diagram-module-schema.md)
+
+### Added — Component lab (Help)
+
+- Help **Component lab**: pick family → component, live single-component preview, editable JSON / API
+- `Diagram.pipelineSymbol` / `schematicSymbol` / `networkNode` for single-symbol rendering
+
+### Changed — Pipeline module structure (Phase 1)
+
+- Split pipeline catalog data into `src/diagram/pipeline/` (`types`, `catalog`, `familyMap`, `aliases`, `resolve`)
+- `pipelineIcons.ts` now owns drawers + dispatch only; public API unchanged
+- Docs: [diagram-pipeline-structure.md](./docs/diagram-pipeline-structure.md) — how to add/remove symbols
+
+### Changed — Pipeline drawers (Phase 2)
+
+- Split glyph drawers into `src/diagram/pipeline/drawers/` by domain (`flow`, `data`, `manufacturing`, …)
+- Replaced giant switch with `PIPELINE_DRAWERS` family→fn map in `drawers/registry.ts`
+- `pipelineIcons.ts` is a ~20-line public façade
+
+### Changed — Schematic + network modules (Phase 3)
+
+- Split `schematicIcons.ts` into `src/diagram/schematic/` (catalog / aliases / resolve + domain drawers)
+- Split `networkIcons.ts` into `src/diagram/network/` (types / aliases / kindMeta / resolve + drawers)
+- Public façades remain thin re-exports; APIs unchanged
+- Docs: [diagram-pipeline-structure.md](./docs/diagram-pipeline-structure.md) covers all three families
+
+### Changed — Diagram catalog tests (Phase 4)
+
+- Moved catalog tests to `test/diagram/{pipeline,schematic,network}/`
+- Added structure/integrity tests (catalog ↔ familyMap/drawers/aliases; every glyph draws)
+- Fixed dead `devops → cicd` alias by adding canonical `cicd` catalog kind + family mapping
+
+### Changed — Repo modularity Phase R1 (UI components)
+
+- Split `components/definitions.ts` into `components/definitions/` (`controls`, `overlays`, `navigation`, `dataViews`, `shared`)
+- Thin façade keeps `import './definitions'` registration path
+- Docs: [repo-modularity.md](./docs/repo-modularity.md); structure test: `test/components/structure.test.ts`
+
+### Changed — Repo modularity Phase R2 (HTML native sync)
+
+- Split `renderers/htmlComponents.ts` into `renderers/htmlComponents/` (mirrors UI domains)
+- `htmlComponents.ts` remains the public façade for `HTMLRenderer`
+- Structure test: `test/renderers/htmlComponents-structure.test.ts`
+
+### Changed — Repo modularity Phase R3 (diagram primitives)
+
+- Split `diagram/primitives.ts` into `diagram/primitives/` (`measure`, `labeledBox`, flowchart/class/network/org/pipeline/state/can/edge)
+- Thin façade keeps `from './primitives'` imports stable
+- Structure test: `test/diagram/primitives-structure.test.ts`
+
+### Changed — Repo modularity Phase R4 (automotive widgets)
+
+- Split `widgets/custom.ts` → `widgets/custom/` (gauges, indicators, infotainment, diagnostics, cluster)
+- Split `widgets/panels.ts` → `widgets/panels/` (climate, navigation, media, alerts, camera, ambient)
+- Thin façades keep `automotive/definitions.ts` side-effect imports stable
+- Structure test: `test/automotive/structure.test.ts`
+
+### Changed — Repo modularity Phase R5 (dashboard definitions)
+
+- Split `dashboard/definitions.ts` → `dashboard/definitions/` (gauges, indicators, calendar, clock, chartPanel)
+- Thin façade keeps `import './definitions'` + helper/CHART_TYPES re-exports
+- Structure test: `test/dashboard/structure.test.ts`
+
+### Changed — Repo modularity Phase R6 (diagram definitions)
+
+- Split `diagram/definitions.ts` → `diagram/definitions/` (flowchart, state, class, mindmap, network, org, schematic, CAN, pipeline, force, fromProps)
+- Editor was already modular under `diagram/editor/`
+- Structure test: `test/diagram/definitions-structure.test.ts`
+
+### Changed — Repo modularity Phase R7 (App + IO schema)
+
+- Split `io/schema.ts` → `io/schema/` (types, jsonLocate, theme/scene validation, parse/format)
+- Extracted App hit-testing into `src/app/hitTest.ts`
+- Structure test: `test/io/schema-structure.test.ts`
+
+- **~300** process / facility / transport symbols across 26 categories
+- Governance glyphs clarified: validation, verification, inspection, signOff, certification, version; improved machine
+- New categories: facilities, transport, nature, devices (factory, vehicles, wifi, solar, temple, …)
+- Size gates: diagram ≤ 59 KB gzip, full ≤ 155 KB gzip
+
+### Added — Electronic schematic catalog
+
+- Full IEC-style **electronic symbol library** (150+ kinds): power, passives, diodes, transistors, thyristors, logic, analog/digital ICs, sensors, actuators, switches, connectors, comms, protection, test, mechanical, misc
+- `Diagram.schematicCatalog(app, { category?, columns? })` grid viewer
+- `Diagram.listSchematicSymbols()` / `resolveSchematicSymbol()` with aliases (`switch` → `spst`, `op_amp` → `opAmp`, …)
+- Demo: **Electronics Catalog** tab; schematic sample circuit uses fuse + SPST + LED chain
+- Size gates raised for diagram / full bundles after catalog
+
 ## [1.1.0] - 2026-07-19
 
 ### Added — Diagram studio (interactive editor)

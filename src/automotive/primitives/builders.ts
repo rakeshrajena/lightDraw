@@ -351,7 +351,8 @@ export function buildLampWidget(
   type: string,
   autoPart: string,
   props: Record<string, unknown>,
-  symbol: string
+  symbol: string,
+  options?: { onFill?: string; onStroke?: string; onText?: string; onShadow?: string }
 ): Node {
   const active = bool(props, 'active', false);
   const theme = themeFromProps(props);
@@ -362,15 +363,19 @@ export function buildLampWidget(
   const fontSize = fluidFont(symbol.length > 3 ? 7 : 10, bounds, 6, 12);
   const center = centerInBounds(bounds, radius * 2, radius * 2);
   const symW = radius * 2;
+  const onFill = options?.onFill ?? theme.lampOn;
+  const onStroke = options?.onStroke ?? '#fde047';
+  const onText = options?.onText ?? '#111';
+  const onShadow = options?.onShadow ?? 'rgba(251,191,36,0.5)';
 
   const lamp = app.circle({
     radius,
     x: center.x,
     y: center.y,
-    fill: active ? theme.lampOn : theme.lampOff,
-    stroke: active ? '#fde047' : '#555',
+    fill: active ? onFill : theme.lampOff,
+    stroke: active ? onStroke : '#555',
     strokeWidth: 1,
-    shadow: active ? { color: 'rgba(251,191,36,0.5)', blur: 8, offsetX: 0, offsetY: 0 } : undefined,
+    shadow: active ? { color: onShadow, blur: 8, offsetX: 0, offsetY: 0 } : undefined,
     listening: false,
   });
   const sym = app.text({
@@ -378,7 +383,7 @@ export function buildLampWidget(
     x: center.x + fitTextX(symbol, fontSize, symW),
     y: center.y + radius,
     fontSize,
-    fill: active ? '#111' : '#666',
+    fill: active ? onText : '#666',
     textAlign: 'left',
     textBaseline: 'middle',
     listening: false,
@@ -386,9 +391,12 @@ export function buildLampWidget(
   group.add(lamp, sym);
   setParts(group, { lamp, sym });
   setBoolRefresh(group, (on) => {
-    (lamp as { fill: string; stroke: string }).fill = on ? theme.lampOn : theme.lampOff;
-    (lamp as { stroke: string }).stroke = on ? '#fde047' : '#555';
-    (sym as TextNode).fill = on ? '#111' : '#666';
+    (lamp as { fill: string; stroke: string }).fill = on ? onFill : theme.lampOff;
+    (lamp as { stroke: string }).stroke = on ? onStroke : '#555';
+    (sym as TextNode).fill = on ? onText : '#666';
+    (lamp as { shadow: unknown }).shadow = on
+      ? { color: onShadow, blur: 8, offsetX: 0, offsetY: 0 }
+      : null;
   });
   setState(group, { active, width: bounds.width, height: bounds.height });
   return group;
@@ -418,6 +426,10 @@ export function buildBadgeWidget(
     error: theme.warning,
     connected: theme.ok,
     disconnected: '#333',
+    clear: '#333',
+    detecting: theme.accent,
+    warning: theme.warning,
+    alert: theme.warning,
   };
   const key = status.toLowerCase();
   const titleSize = fluidFont(9, bounds, 7, 10);

@@ -2,6 +2,7 @@ import type { App } from '../../App';
 import type { Node } from '../../Node';
 import type { Group } from '../../shapes/Group';
 import { wirePointerDrag } from '../../components/interaction';
+import { getCardSideAnchor, getDiagramCardSize, getNodeBoxInParent, nodeLocalToParent } from '../coords';
 import { connectNodes } from '../connectors';
 import { collectObstacles } from '../router';
 import { getActiveDiagram } from '../theme';
@@ -9,12 +10,21 @@ import { nearestPointOnPolyline } from '../pathUtils';
 import { collectEditableNodes, collectEdgesFromLayer, findEdgeLayer, findNodeByDiagramId, nodeDiagramId, resolveEditableGroup } from './collect';
 import { attachEdgeHitTarget, edgeAnchorPoint } from './edgeWiring';
 import { showLabelEditor } from './labelEdit';
-import { rerouteDiagramEdges, syncEdgesToState, syncPositionsToState } from './reroute';
+import { rerouteDiagramEdges, syncEdgesToState, syncPositionsToState, clearEdgeWaypointsForNode } from './reroute';
 import { applyAnchoredResize, RESIZE_HANDLES, type ResizeHandleId } from './resize';
+import {
+  normalizeDegrees,
+  pointerAngleDegrees,
+  rotatedCardCenter,
+  setRotationAroundCenter,
+  snapDegrees,
+} from './rotate';
 import type { DiagramEditorHandle, DiagramEditorOptions, DiagramEditorTool } from './types';
 
 const HANDLE = 9;
 const BEND_R = 6;
+const ROTATE_STEM = 22;
+const ROTATE_R = 6;
 
 /** True if this node and every ancestor is visible. */
 function isEffectivelyVisible(node: Node): boolean {
@@ -29,6 +39,7 @@ function isEffectivelyVisible(node: Node): boolean {
 function resolveEditorFlags(options: DiagramEditorOptions): {
   allowLabelEdit: boolean;
   allowResize: boolean;
+  allowRotate: boolean;
   allowConnect: boolean;
   allowBendPoints: boolean;
 } {
@@ -37,6 +48,7 @@ function resolveEditorFlags(options: DiagramEditorOptions): {
     allowLabelEdit: options.allowLabelEdit ?? !arrange,
     // Resize from edges/corners is available in arrange mode too
     allowResize: options.allowResize ?? true,
+    allowRotate: options.allowRotate ?? true,
     allowConnect: options.allowConnect ?? !arrange,
     allowBendPoints: options.allowBendPoints ?? true,
   };
@@ -379,32 +391,16 @@ export class DiagramEditor implements DiagramEditorHandle {
       return;
     }
 
-    const pos = (() => {
-      let x = 0;
-      let y = 0;
-      let cur: Node | null = node;
-      while (cur && cur !== this.root) {
-        x += cur.x;
-        y += cur.y;
-        cur = cur.parent;
-      }
-      return { x, y };
-    })();
-    const cardW = (node.metadata?.orgCardWidth ?? node.metadata?.diagramCardWidth) as
-      | number
-      | undefined;
-    const cardH = (node.metadata?.orgCardHeight ?? node.metadata?.diagramCardHeight) as
-      | number
-      | undefined;
-    const bw = cardW ?? 40;
-    const bh = cardH ?? 32;
-    const sx = this.root.scaleX || 1;
-    const sy = this.root.scaleY || 1;
-    const wx = this.root.x + pos.x * sx;
-    const wy = this.root.y + pos.y * sy;
-    const w = bw * node.scaleX * sx;
-    const h = bh * node.scaleY * sy;
+    // Rotation-aware bounds in diagram-local space, then to stage
+    const localBox = getNodeBoxInParent(node, this.root);
+    const tl = this.rootLocalToStage(localBox.x, localBox.y);
+    const br = this.rootLocalToStage(localBox.x + localBox.width, localBox.y + localBox.height);
+    const wx = Math.min(tl.x, br.x);
+    const wy = Math.min(tl.y, br.y);
+    const w = Math.abs(br.x - tl.x);
+    const h = Math.abs(br.y - tl.y);
 
+    // Tight AABB around the rotated card
     this.overlay.add(
       this.app.rect({
         x: wx - 3,
@@ -419,18 +415,38 @@ export class DiagramEditor implements DiagramEditorHandle {
       })
     );
 
-    // Connection ports (mid-side) — wires attach here and stretch when dragging
-    const ports = [
-      { px: wx + w / 2, py: wy },
-      { px: wx + w, py: wy + h / 2 },
-      { px: wx + w / 2, py: wy + h },
-      { px: wx, py: wy + h / 2 },
-    ];
-    for (const p of ports) {
+    // Rotated card outline (follows the symbol, not just the AABB)
+    const card = getDiagramCardSize(node);
+    if (card) {
+      const corners = [
+        nodeLocalToParent(node, this.root, 0, 0),
+        nodeLocalToParent(node, this.root, card.width, 0),
+        nodeLocalToParent(node, this.root, card.width, card.height),
+        nodeLocalToParent(node, this.root, 0, card.height),
+      ].map((p) => this.rootLocalToStage(p.x, p.y));
+      const pts: number[] = [];
+      for (const c of corners) pts.push(c.x, c.y);
+      pts.push(corners[0].x, corners[0].y);
+      this.overlay.add(
+        this.app.polyline({
+          points: pts,
+          fill: null,
+          stroke: getActiveDiagram().mindBranch.stroke,
+          strokeWidth: 1.25,
+          opacity: 0.85,
+          listening: false,
+        })
+      );
+    }
+
+    // Connection ports on the real (rotated) mid-sides
+    for (const side of ['top', 'right', 'bottom', 'left'] as const) {
+      const p = getCardSideAnchor(node, this.root, side);
+      const s = this.rootLocalToStage(p.x, p.y);
       this.overlay.add(
         this.app.circle({
-          x: p.px - 3.5,
-          y: p.py - 3.5,
+          x: s.x - 3.5,
+          y: s.y - 3.5,
           radius: 3.5,
           fill: getActiveDiagram().edge,
           stroke: '#fff',
@@ -442,6 +458,9 @@ export class DiagramEditor implements DiagramEditorHandle {
 
     if (this.flags.allowResize && this.tool === 'select') {
       this.addResizeHandles(node, wx, wy, w, h);
+    }
+    if (this.flags.allowRotate && this.tool === 'select') {
+      this.addRotateHandle(node, wx, wy, w, h);
     }
     if (this.flags.allowConnect && this.tool === 'connect' && this.options.showPorts) {
       this.addPorts(node, wx, wy, w, h);
@@ -787,18 +806,84 @@ export class DiagramEditor implements DiagramEditorHandle {
     }
   }
 
-  private addPorts(node: Group, x: number, y: number, w: number, h: number): void {
-    const ports = [
-      { px: x + w / 2, py: y },
-      { px: x + w, py: y + h / 2 },
-      { px: x + w / 2, py: y + h },
-      { px: x, py: y + h / 2 },
-    ];
-      const fromId = nodeDiagramId(node);
-    for (const p of ports) {
+  private addRotateHandle(node: Group, x: number, y: number, w: number, h: number): void {
+    const cardW =
+      ((node.metadata?.orgCardWidth ?? node.metadata?.diagramCardWidth) as number | undefined) ??
+      (node.metadata.editorBaseW as number) ??
+      w;
+    const cardH =
+      ((node.metadata?.orgCardHeight ?? node.metadata?.diagramCardHeight) as number | undefined) ??
+      (node.metadata.editorBaseH as number) ??
+      h;
+    const scaledW = Math.max(1, cardW * node.scaleX);
+    const scaledH = Math.max(1, cardH * node.scaleY);
+
+    const stemTop = y - ROTATE_STEM;
+    const midX = x + w / 2;
+    this.overlay.add(
+      this.app.line({
+        x: midX,
+        y: y,
+        x2: 0,
+        y2: -ROTATE_STEM,
+        stroke: getActiveDiagram().mindBranch.stroke,
+        strokeWidth: 1.25,
+        listening: false,
+      })
+    );
+
+    const handle = this.app.circle({
+      x: midX - ROTATE_R,
+      y: stemTop - ROTATE_R,
+      radius: ROTATE_R,
+      fill: '#fff',
+      stroke: getActiveDiagram().mindBranch.stroke,
+      strokeWidth: 1.5,
+      listening: true,
+    });
+    handle.metadata.diagramEditorOverlay = true;
+    handle.metadata.rotateHandle = true;
+    this.overlay.add(handle);
+
+    wirePointerDrag(
+      handle,
+      (worldX, worldY, _event, pointer) => {
+        const local = this.stageToRootLocal(worldX, worldY);
+        const center = rotatedCardCenter(node.x, node.y, scaledW, scaledH, node.rotation);
+        // Handle sits above the box → angle from center to handle at rest is -90°
+        let deg = pointerAngleDegrees(center.x, center.y, local.x, local.y) + 90;
+        const free = !!(pointer && (pointer.shiftKey || pointer.metaKey));
+        if (!free) deg = snapDegrees(deg, 15);
+        else deg = normalizeDegrees(deg);
+        setRotationAroundCenter(node, deg, scaledW, scaledH);
+        const id = nodeDiagramId(node);
+        if (id) clearEdgeWaypointsForNode(this.root, id);
+        rerouteDiagramEdges(this.app, this.root);
+        this.refreshOverlay();
+        this.app.requestRender();
+      },
+      () => {
+        const id = nodeDiagramId(node);
+        if (id) clearEdgeWaypointsForNode(this.root, id);
+        syncPositionsToState(this.root);
+        rerouteDiagramEdges(this.app, this.root);
+        syncEdgesToState(this.root);
+        this.wireEdges();
+        this.refreshOverlay();
+        this.emitChange();
+        this.app.requestRender();
+      }
+    );
+  }
+
+  private addPorts(node: Group, _x: number, _y: number, _w: number, _h: number): void {
+    const fromId = nodeDiagramId(node);
+    for (const side of ['top', 'right', 'bottom', 'left'] as const) {
+      const p = getCardSideAnchor(node, this.root, side);
+      const s = this.rootLocalToStage(p.x, p.y);
       const port = this.app.circle({
-        x: p.px,
-        y: p.py,
+        x: s.x,
+        y: s.y,
         radius: 5,
         fill: getActiveDiagram().edge,
         stroke: '#fff',
@@ -808,14 +893,14 @@ export class DiagramEditor implements DiagramEditorHandle {
       port.metadata.diagramEditorOverlay = true;
       this.overlay.add(port);
 
-      let lastX = p.px;
-      let lastY = p.py;
+      let lastX = s.x;
+      let lastY = s.y;
       wirePointerDrag(
         port,
         (wx, wy) => {
           lastX = wx;
           lastY = wy;
-          this.drawPreviewLine(p.px, p.py, wx, wy);
+          this.drawPreviewLine(s.x, s.y, wx, wy);
         },
         () => {
           this.clearPreview();

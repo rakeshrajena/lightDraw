@@ -325,5 +325,5 @@ Live demo: [`examples/demo-theme.html`](../examples/demo-theme.html) — live pl
 - [Theme architecture](./theme-architecture.md)
 - [UI components schema](./ui-components-schema.md)
 - [Responsive layout guide](./responsive-guide.md)
-- [Legacy UI & CSS guide](./legacy-ui-guide.md)
+- [Legacy browser & UI guide](./legacy-browser-guide.md)
 - [UI_POLISH_PLAN.md](../UI_POLISH_PLAN.md) — phased beautification roadmap

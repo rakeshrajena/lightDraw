@@ -39,3 +39,10 @@ export function uninstallDiagramEditor(root: Group): void {
 
 export { DiagramEditor } from './DiagramEditor';
 export type { DiagramEditorHandle, DiagramEditorOptions, DiagramEditorTool } from './types';
+export {
+  normalizeDegrees,
+  pointerAngleDegrees,
+  rotatedCardCenter,
+  setRotationAroundCenter,
+  snapDegrees,
+} from './rotate';

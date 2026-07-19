@@ -8,7 +8,7 @@ const ROOT = resolve(__dirname, '..');
 const UI10_GUIDES = [
   'docs/ui-theme-guide.md',
   'docs/responsive-guide.md',
-  'docs/legacy-ui-guide.md',
+  'docs/legacy-browser-guide.md',
 ] as const;
 
 describe('Phase UI-10 — Documentation & release', () => {
@@ -29,8 +29,8 @@ describe('Phase UI-10 — Documentation & release', () => {
     expect(md).toContain('fullWidth');
   });
 
-  it('legacy UI guide documents CSS compatibility table', () => {
-    const md = readFileSync(resolve(ROOT, 'docs/legacy-ui-guide.md'), 'utf8');
+  it('legacy browser guide documents CSS compatibility table', () => {
+    const md = readFileSync(resolve(ROOT, 'docs/legacy-browser-guide.md'), 'utf8');
     expect(md).toContain('lightdraw.legacy.js');
     expect(md).toContain('prefers-reduced-motion');
     expect(md).toMatch(/\|.*Chromium/s);
@@ -40,7 +40,7 @@ describe('Phase UI-10 — Documentation & release', () => {
     const index = readFileSync(resolve(ROOT, 'docs/README.md'), 'utf8');
     expect(index).toContain('ui-theme-guide.md');
     expect(index).toContain('responsive-guide.md');
-    expect(index).toContain('legacy-ui-guide.md');
+    expect(index).toContain('legacy-browser-guide.md');
     expect(index).toContain('demo-ui-catalog.html');
   });
 
