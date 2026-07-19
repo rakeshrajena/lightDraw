@@ -97,11 +97,26 @@ npm run prepare:website   # copies dist + examples into website/public (gitignor
 npm run dev:website       # http://localhost:5173
 ```
 
-- **Playground** — theme lab, UI, charts, automotive, diagrams with a live Scene / Theme / API dock  
+- **Playground** — theme lab, UI, charts, automotive, **interactive diagrams** (drag / resize / wire bends / org collapse) with a live Scene / API dock  
 - **Help** — `/help.html` topics with live embeds  
 - Site chrome defaults to **Night**; toggle Day/Night in the rail  
 
-Open full demos from `examples/` (e.g. `demo-theme.html`) or via the hub’s **Open full** button.
+Open full demos from `examples/` (e.g. `demo-diagram.html`, `demo-theme.html`) or via the hub’s **Open full** button.
+
+### Quick diagram editor
+
+```javascript
+const chart = LightDraw.Diagram.orgChart(app, { name: 'CEO', children: [{ name: 'CTO' }] }, {
+  width: 800,
+  height: 480,
+});
+app.add(chart);
+LightDraw.Diagram.fitToBounds(chart, 800, 480, 24);
+LightDraw.Diagram.installEditor(app, chart, { mode: 'arrange', allowResize: true });
+// Double-click wires for bends; click −N / +N on org cards to collapse branches
+```
+
+See [Diagram module schema](./diagram-module-schema.md).
 
 ## Plugins
 

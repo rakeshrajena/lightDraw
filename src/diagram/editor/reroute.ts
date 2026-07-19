@@ -1,8 +1,9 @@
 import type { App } from '../../App';
 import type { Group } from '../../shapes/Group';
-import { connectNodes } from '../connectors';
+import { connectNodes, wireOrgChartConnectors, wireMindMapConnectors } from '../connectors';
 import { getActiveDiagram } from '../theme';
 import { collectObstacles } from '../router';
+import { rewireSchematic } from '../symbols';
 import {
   collectEditableNodes,
   collectEdgesFromLayer,
@@ -14,6 +15,30 @@ import type { EditorEdgeRecord } from './types';
 
 /** Rebuild all connectors in the diagram edge layer from stored edge metadata. */
 export function rerouteDiagramEdges(app: App, root: Group, edges?: EditorEdgeRecord[]): void {
+  const type = root.metadata?.diagramType as string | undefined;
+
+  // Keep Mermaid-style wiring for org / mind maps
+  if (type === 'orgChart') {
+    wireOrgChartConnectors(app, root);
+    root.markDirty();
+    return;
+  }
+  if (type === 'mindMap') {
+    for (const child of [...root.children]) {
+      if (child.metadata?.diagramEdgeLayer) {
+        root.remove(child);
+        child.destroy();
+      }
+    }
+    wireMindMapConnectors(app, root);
+    root.markDirty();
+    return;
+  }
+  if (type === 'electricalSchematic') {
+    rewireSchematic(app, root);
+    return;
+  }
+
   const edgeLayer = findEdgeLayer(root);
   if (!edgeLayer) return;
 
@@ -26,6 +51,7 @@ export function rerouteDiagramEdges(app: App, root: Group, edges?: EditorEdgeRec
   }
 
   const obstacles = collectObstacles([...nodeMap.values()]);
+  const allNodes = [...nodeMap.values()];
   for (const edge of records) {
     const from = findNodeByDiagramId(root, edge.from) ?? nodeMap.get(edge.from);
     const to = findNodeByDiagramId(root, edge.to) ?? nodeMap.get(edge.to);
@@ -33,6 +59,7 @@ export function rerouteDiagramEdges(app: App, root: Group, edges?: EditorEdgeRec
     edgeLayer.add(
       connectNodes(app, from, to, obstacles, {
         parent: root,
+        obstacleNodes: allNodes,
         stroke: edge.options?.stroke ?? getActiveDiagram().edge,
         glowColor: edge.options?.glowColor ?? getActiveDiagram().edgeGlow,
         strokeWidth: edge.options?.strokeWidth ?? getActiveDiagram().stroke.edge,
@@ -41,6 +68,8 @@ export function rerouteDiagramEdges(app: App, root: Group, edges?: EditorEdgeRec
         arrowEnd: edge.options?.arrowEnd ?? 'filled',
         arrowStart: edge.options?.arrowStart ?? 'none',
         dash: edge.options?.dash,
+        cornerRadius: edge.options?.cornerRadius ?? 16,
+        waypoints: edge.waypoints ?? edge.options?.waypoints,
         edgeId: edge.id,
         fromId: edge.from,
         toId: edge.to,
@@ -101,6 +130,34 @@ export function syncPositionsToState(root: Group): void {
         const p = positions[s.id];
         return p ? { ...s, x: p.x, y: p.y } : s;
       });
+    }
+  }
+
+  if (type === 'electricalSchematic') {
+    const components = state.components as
+      | Array<{ id: string; x?: number; y?: number }>
+      | undefined;
+    if (components) {
+      state.components = components.map((c) => {
+        const p = positions[c.id];
+        return p ? { ...c, x: p.x, y: p.y } : c;
+      });
+    }
+  }
+
+  if (type === 'classDiagram') {
+    const data = state.data as {
+      classes: Array<{ id: string; x?: number; y?: number }>;
+    } | undefined;
+    if (data?.classes) {
+      for (const c of data.classes) {
+        const p = positions[c.id];
+        if (p) {
+          c.x = p.x;
+          c.y = p.y;
+        }
+      }
+      state.data = data;
     }
   }
 

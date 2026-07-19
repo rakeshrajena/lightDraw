@@ -47,6 +47,12 @@ export interface ClassDiagramData {
 
 export interface OrgChartNode {
   name: string;
+  /** Job title shown under the name */
+  role?: string;
+  /** Optional avatar image URL or data URI */
+  image?: string;
+  /** Optional department / team line under the role */
+  department?: string;
   collapsed?: boolean;
   children?: OrgChartNode[];
 }

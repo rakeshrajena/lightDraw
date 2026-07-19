@@ -68,7 +68,7 @@ export const DIAGRAM = {
 
   /** Connector palette */
   edge: '#60a5fa',
-  edgeGlow: 'rgba(96,165,250,0.18)',
+  edgeGlow: 'rgba(96,165,250,0.12)',
   edgeMuted: '#64748b',
   edgeMutedGlow: 'rgba(100,116,139,0.14)',
   edgeLabel: '#e2e8f0',
@@ -112,6 +112,24 @@ export const DIAGRAM = {
   networkClient: { fill: '#3b0764', stroke: '#a855f7', glyph: '#c084fc', edge: '#c084fc' },
   networkDefault: { fill: '#1c2740', stroke: '#64748b', glyph: '#94a3b8', edge: '#94a3b8' },
 
+  /** Category colors for the expanded network icon catalog */
+  networkCategories: {
+    infra: { fill: '#1e3a5f', stroke: '#3b82f6', glyph: '#60a5fa', edge: '#60a5fa' },
+    security: { fill: '#450a0a', stroke: '#ef4444', glyph: '#f87171', edge: '#f87171' },
+    server: { fill: '#14532d', stroke: '#22c55e', glyph: '#4ade80', edge: '#4ade80' },
+    storage: { fill: '#164e63', stroke: '#06b6d4', glyph: '#22d3ee', edge: '#22d3ee' },
+    endpoint: { fill: '#3b0764', stroke: '#a855f7', glyph: '#c084fc', edge: '#c084fc' },
+    cloud: { fill: '#1e1b4b', stroke: '#818cf8', glyph: '#a5b4fc', edge: '#a5b4fc' },
+    data: { fill: '#1c1917', stroke: '#f59e0b', glyph: '#fbbf24', edge: '#fbbf24' },
+    messaging: { fill: '#312e81', stroke: '#6366f1', glyph: '#818cf8', edge: '#818cf8' },
+    monitor: { fill: '#0f172a', stroke: '#38bdf8', glyph: '#7dd3fc', edge: '#7dd3fc' },
+    iot: { fill: '#14532d', stroke: '#84cc16', glyph: '#a3e635', edge: '#a3e635' },
+    auto: { fill: '#422006', stroke: '#f97316', glyph: '#fb923c', edge: '#fb923c' },
+    external: { fill: '#1e293b', stroke: '#94a3b8', glyph: '#cbd5e1', edge: '#cbd5e1' },
+    link: { fill: '#0f172a', stroke: '#64748b', glyph: '#94a3b8', edge: '#94a3b8' },
+    zone: { fill: '#111827', stroke: '#475569', glyph: '#64748b', edge: '#64748b' },
+  },
+
   pipelineDone: '#22c55e',
   pipelineActive: '#3b82f6',
   pipelinePending: '#64748b',
@@ -136,9 +154,31 @@ export const DIAGRAM = {
     { fill: '#1e293b', stroke: '#6366f1', accent: '#818cf8' },
     { fill: '#1a2332', stroke: '#64748b', accent: '#94a3b8' },
   ] as const,
+  /** Branch / sub-branch grouping colors (top-level teams inherit to descendants) */
+  orgBranchPalette: [
+    { fill: '#1e3a5f', stroke: '#3b82f6', accent: '#60a5fa' },
+    { fill: '#1e1b4b', stroke: '#818cf8', accent: '#a5b4fc' },
+    { fill: '#14532d', stroke: '#22c55e', accent: '#4ade80' },
+    { fill: '#3b0764', stroke: '#a855f7', accent: '#c084fc' },
+    { fill: '#422006', stroke: '#f59e0b', accent: '#fbbf24' },
+    { fill: '#164e63', stroke: '#06b6d4', accent: '#22d3ee' },
+  ] as const,
+  /** Minimize control (branch expanded — click to collapse) */
+  orgToggleExpanded: { fill: '#1e293b', stroke: '#64748b', glyph: '#e2e8f0' },
+  /** Maximize control (branch collapsed — click to expand) */
+  orgToggleCollapsed: { fill: '#1e3a5f', stroke: '#3b82f6', glyph: '#93c5fd' },
   orgToggle: '#cbd5e1',
   orgToggleBg: '#243044',
   orgRole: '#94a3b8',
+  /** Connector color for org charts (neutral professional) */
+  orgEdge: '#64748b',
+  orgEdgeWidth: 1.75,
+  orgCardShadow: {
+    color: 'rgba(0,0,0,0.38)',
+    blur: 12,
+    offsetX: 0,
+    offsetY: 4,
+  },
 
   canBus: '#3b82f6',
   canBusGlow: 'rgba(59,130,246,0.25)',

@@ -153,6 +153,85 @@ export function radialLayout(
   }
 }
 
+/**
+ * Mermaid-style mind map: root in center, branches split left/right,
+ * leaves stacked outward from each branch.
+ */
+export function mindMapLayout(group: Group, canvasW: number, canvasH: number): void {
+  const nodes = group.children.filter((c) => !c.metadata?.diagramEdgeLayer);
+  if (nodes.length === 0) return;
+
+  const center = nodes[0] as Group;
+  const branches = nodes.slice(1) as Group[];
+  const cx = canvasW / 2;
+  const cy = canvasH / 2;
+
+  const cW = 140;
+  const cH = 52;
+  center.x = cx - cW / 2;
+  center.y = cy - cH / 2;
+  center.markDirty();
+
+  const gapFromCenter = Math.max(56, Math.min(100, canvasW * 0.1));
+  const branchGapY = 56;
+  const leafGapY = 8;
+  const leafIndent = 36;
+
+  const mid = Math.ceil(branches.length / 2);
+  const left = branches.slice(0, mid);
+  const right = branches.slice(mid);
+
+  const placeColumn = (col: Group[], side: 'left' | 'right'): void => {
+    const totalH = col.reduce((sum, b, i) => {
+      const leaves = b.children.filter((c) => c.metadata?.diagramId);
+      const leafStack =
+        leaves.length > 0 ? leaves.length * 30 + (leaves.length - 1) * leafGapY : 0;
+      const h = Math.max(40, leafStack);
+      return sum + h + (i > 0 ? branchGapY : 0);
+    }, 0);
+
+    let y = cy - totalH / 2;
+    for (const branch of col) {
+      branch.metadata.mindSide = side;
+      const leaves = branch.children.filter((c) => c.metadata?.diagramId);
+      const leafH = 30;
+      const leafW = 96;
+      const leafStackH =
+        leaves.length > 0 ? leaves.length * leafH + (leaves.length - 1) * leafGapY : 0;
+      const branchH = 40;
+      const slotH = Math.max(branchH, leafStackH);
+
+      const bW = 112;
+      if (side === 'right') {
+        branch.x = cx + cW / 2 + gapFromCenter;
+      } else {
+        branch.x = cx - cW / 2 - gapFromCenter - bW;
+      }
+      branch.y = y + (slotH - branchH) / 2;
+      branch.markDirty();
+
+      if (leaves.length > 0) {
+        let ly = (branchH - leafStackH) / 2;
+        leaves.forEach((leaf) => {
+          if (side === 'right') {
+            leaf.x = bW + leafIndent;
+          } else {
+            leaf.x = -(leafW + leafIndent);
+          }
+          leaf.y = ly;
+          leaf.markDirty();
+          ly += leafH + leafGapY;
+        });
+      }
+
+      y += slotH + branchGapY;
+    }
+  };
+
+  placeColumn(left, 'left');
+  placeColumn(right, 'right');
+}
+
 /** Auto-layout diagram nodes in a tree structure */
 export function layoutDiagram(group: Group, levelGap = 80, siblingGap = 40): void {
   treeLayout(group, levelGap, siblingGap);

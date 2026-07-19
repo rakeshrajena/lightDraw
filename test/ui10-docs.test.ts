@@ -51,6 +51,12 @@ describe('Phase UI-10 — Documentation & release', () => {
     expect(changelog).toContain('Phase UI-10');
   });
 
+  it('CHANGELOG and release notes cover v1.1.0', () => {
+    const changelog = readFileSync(resolve(ROOT, 'CHANGELOG.md'), 'utf8');
+    expect(changelog).toContain('## [1.1.0]');
+    expect(existsSync(resolve(ROOT, 'docs/v1.1-release-notes.md'))).toBe(true);
+  });
+
   it('demo-ui-catalog.html uses shared shell and catalog grid', () => {
     const html = readFileSync(resolve(ROOT, 'examples/demo-ui-catalog.html'), 'utf8');
     expect(html).toContain('demo-common.css');

@@ -7,7 +7,7 @@ import {
   applyPositions,
   autoLayoutNodesResponsive,
   createDiagramGroup,
-  createNodeBox,
+  fitDiagramToBounds,
   measureTextWidth,
   normalizeDiagramData,
   readCanvasSize,
@@ -16,21 +16,28 @@ import {
 import {
   createClassNode,
   createFlowchartNode,
+  createLabeledBox,
   createNetworkNode,
   createOrgNode,
   createPipelineStage,
   createStateNode,
   createCanEcuNode,
+  countOrgDescendants,
+  resolveOrgBranchStyle,
+  buildDistinctOrgBranchPalette,
+  hashOrgBranchSeed,
+  updateOrgCollapseButton,
 } from './primitives';
 import {
   forceDirectedLayout,
   layoutDiagram,
+  mindMapLayout,
   pipelineLayout,
-  radialLayout,
 } from './layouts';
 import { collectObstacles } from './router';
 import { connectNodes, wireMindMapConnectors, wireOrgChartConnectors } from './connectors';
 import { buildSchematic } from './symbols';
+import { listNetworkIconKinds } from './networkIcons';
 import type {
   CanNetworkData,
   ClassDiagramData,
@@ -55,13 +62,14 @@ export function createFlowchart(app: App, data: DiagramData, options: NodeOption
     const nodeGroup = createFlowchartNode(app, n.label, n.type ?? 'process');
     nodeGroup.x = n.x ?? 0;
     nodeGroup.y = n.y ?? 0;
-    nodeGroup.metadata = { diagramId: n.id };
+    nodeGroup.metadata = { ...nodeGroup.metadata, diagramId: n.id };
     nodeMap.set(n.id, nodeGroup);
   }
 
   const edgeLayer = app.group({ zIndex: -10, listening: false }) as Group;
   edgeLayer.metadata.diagramEdgeLayer = true;
-  const obstacles = collectObstacles([...nodeMap.values()]);
+  const allNodes = [...nodeMap.values()];
+  const obstacles = collectObstacles(allNodes);
   for (const edge of edges) {
     const fromNode = nodeMap.get(edge.from);
     const toNode = nodeMap.get(edge.to);
@@ -69,10 +77,13 @@ export function createFlowchart(app: App, data: DiagramData, options: NodeOption
     edgeLayer.add(
       connectNodes(app, fromNode, toNode, obstacles, {
         parent: group,
+        obstacleNodes: allNodes,
         stroke: getActiveDiagram().edge,
         glowColor: getActiveDiagram().edgeGlow,
+        glow: false,
         strokeWidth: edgeWidth,
         label: edge.label,
+        cornerRadius: 12,
       })
     );
   }
@@ -108,13 +119,14 @@ export function createStateMachine(
     const nodeGroup = createStateNode(app, s.label, s.type ?? 'normal');
     nodeGroup.x = s.x ?? 0;
     nodeGroup.y = s.y ?? 0;
-    nodeGroup.metadata = { diagramId: s.id };
+    nodeGroup.metadata = { ...nodeGroup.metadata, diagramId: s.id };
     nodeMap.set(s.id, nodeGroup);
   }
 
   const edgeLayer = app.group({ zIndex: -10, listening: false }) as Group;
   edgeLayer.metadata.diagramEdgeLayer = true;
-  const obstacles = collectObstacles([...nodeMap.values()]);
+  const allNodes = [...nodeMap.values()];
+  const obstacles = collectObstacles(allNodes);
   for (const t of data.transitions) {
     const from = nodeMap.get(t.from);
     const to = nodeMap.get(t.to);
@@ -122,10 +134,13 @@ export function createStateMachine(
     edgeLayer.add(
       connectNodes(app, from, to, obstacles, {
         parent: group,
+        obstacleNodes: allNodes,
         stroke: getActiveDiagram().edge,
         glowColor: getActiveDiagram().edgeGlow,
+        glow: false,
         strokeWidth: edgeWidth,
         label: t.label,
+        cornerRadius: 14,
       })
     );
   }
@@ -151,56 +166,61 @@ export function createClassDiagram(
     const nodeGroup = createClassNode(app, cls.name, cls.attributes ?? [], cls.methods ?? []);
     nodeGroup.x = cls.x ?? 0;
     nodeGroup.y = cls.y ?? 0;
-    nodeGroup.metadata = { diagramId: cls.id };
+    nodeGroup.metadata = { ...nodeGroup.metadata, diagramId: cls.id };
     nodeMap.set(cls.id, nodeGroup);
     group.add(nodeGroup);
   }
 
+  const allNodes = [...nodeMap.values()];
   const edgeLayer = app.group({ zIndex: -10, listening: false }) as Group;
   edgeLayer.metadata.diagramEdgeLayer = true;
   for (const rel of data.relations) {
     const from = nodeMap.get(rel.from);
     const to = nodeMap.get(rel.to);
     if (!from || !to) continue;
+    const pairObstacles = collectObstacles(allNodes, [from, to]);
+    const common = {
+      parent: group,
+      obstacleNodes: allNodes,
+      glow: false,
+      cornerRadius: 12,
+    } as const;
     if (rel.type === 'inheritance') {
       edgeLayer.add(
-        connectNodes(app, from, to, [], {
-          parent: group,
+        connectNodes(app, from, to, pairObstacles, {
+          ...common,
           style: 'orthogonal',
           stroke: getActiveDiagram().umlInheritance,
-          glowColor: 'rgba(245,158,11,0.18)',
           arrowEnd: 'hollow',
         })
       );
     } else if (rel.type === 'association') {
       edgeLayer.add(
-        connectNodes(app, from, to, [], {
-          parent: group,
+        connectNodes(app, from, to, pairObstacles, {
+          ...common,
           style: 'orthogonal',
           stroke: getActiveDiagram().umlAssociation,
-          glowColor: getActiveDiagram().edgeGlow,
           arrowEnd: 'open',
         })
       );
     } else if (rel.type === 'composition') {
       edgeLayer.add(
-        connectNodes(app, from, to, [], {
-          parent: group,
+        connectNodes(app, from, to, pairObstacles, {
+          ...common,
           style: 'orthogonal',
           stroke: getActiveDiagram().umlComposition,
-          glowColor: 'rgba(244,114,182,0.16)',
-          arrowEnd: 'filled',
+          arrowStart: 'diamond',
+          arrowEnd: 'none',
         })
       );
     } else {
       edgeLayer.add(
-        connectNodes(app, from, to, [], {
-          parent: group,
+        connectNodes(app, from, to, pairObstacles, {
+          ...common,
           style: 'orthogonal',
           stroke: getActiveDiagram().umlImplements,
-          glowColor: 'rgba(167,139,250,0.16)',
           dash: rel.type === 'implements' ? [6, 4] : undefined,
-          arrowEnd: 'open',
+          arrowEnd: 'hollow',
         })
       );
     }
@@ -210,7 +230,7 @@ export function createClassDiagram(
   return group;
 }
 
-/** Create mind map with radial layout */
+/** Create mind map — Mermaid-style left/right tree with smooth horizontal links */
 export function createMindMap(
   app: App,
   center: string,
@@ -219,47 +239,79 @@ export function createMindMap(
 ): Group {
   const group = createDiagramGroup(app, 'mindMap', { ...options, center, branches }, { name: 'mindMap' });
   const canvas = readCanvasSize(options as Record<string, unknown>);
-  const minDim = Math.min(canvas.width, canvas.height);
 
-  const centerNode = createNodeBox(app, center, 112, 54, {
-    fill: getActiveDiagram().mindCenter.fill,
-    stroke: getActiveDiagram().mindCenter.stroke,
-    cornerRadius: 27,
-    accentColor: getActiveDiagram().mindCenter.accent,
-  });
+  const centerNode = createLabeledBox(
+    app,
+    center,
+    140,
+    52,
+    {
+      fill: getActiveDiagram().mindCenter.fill,
+      stroke: getActiveDiagram().mindCenter.stroke,
+      cornerRadius: 26,
+      strokeWidth: 2,
+      shadow: null,
+      sheen: false,
+    },
+    { fontSize: getActiveDiagram().fontSize.lg, fontWeight: '700' }
+  );
   centerNode.metadata.diagramId = 'center';
+  centerNode.metadata.diagramCardWidth = 140;
+  centerNode.metadata.diagramCardHeight = 52;
   group.add(centerNode);
 
   branches.forEach((branch, bi) => {
     const palette = getActiveDiagram().mindBranchPalette[bi % getActiveDiagram().mindBranchPalette.length];
-    const branchNode = createNodeBox(app, branch.label, 100, 40, {
-      fill: palette.fill,
-      stroke: palette.stroke,
-      accentColor: palette.accent,
-    });
+    const branchNode = createLabeledBox(
+      app,
+      branch.label,
+      112,
+      40,
+      {
+        fill: palette.fill,
+        stroke: palette.stroke,
+        cornerRadius: 20,
+        strokeWidth: 1.75,
+        shadow: null,
+        sheen: false,
+      },
+      { fontSize: getActiveDiagram().fontSize.base, fontWeight: '600' }
+    );
     branchNode.metadata = {
       diagramId: `branch_${bi}`,
       mindBranchColor: palette.stroke,
       mindBranchGlow: palette.glow,
+      diagramCardWidth: 112,
+      diagramCardHeight: 40,
     };
     group.add(branchNode);
 
     if (branch.children) {
       branch.children.forEach((child, ci) => {
-        const childNode = createNodeBox(app, child, 88, 34, {
-          fill: getActiveDiagram().mindLeaf.fill,
-          stroke: palette.stroke,
-          accentColor: palette.accent,
-        });
+        const childNode = createLabeledBox(
+          app,
+          child,
+          96,
+          30,
+          {
+            fill: getActiveDiagram().mindLeaf.fill,
+            stroke: palette.stroke,
+            cornerRadius: 15,
+            strokeWidth: 1.5,
+            shadow: null,
+            sheen: false,
+          },
+          { fontSize: getActiveDiagram().fontSize.sm, fontWeight: '500' }
+        );
         childNode.metadata.diagramId = `branch_${bi}_leaf_${ci}`;
-        childNode.x = -12 + ci * 92;
-        childNode.y = 50;
+        childNode.metadata.diagramCardWidth = 96;
+        childNode.metadata.diagramCardHeight = 30;
         branchNode.add(childNode);
       });
     }
   });
 
-  radialLayout(group, canvas.width / 2, canvas.height / 2, minDim * 0.2, minDim * 0.34);
+  mindMapLayout(group, canvas.width, canvas.height);
   wireMindMapConnectors(app, group);
   return group;
 }
@@ -282,12 +334,13 @@ export function createNetworkDiagram(
     const nodeGroup = createNetworkNode(app, n.label, n.type ?? 'default');
     nodeGroup.x = n.x ?? 0;
     nodeGroup.y = n.y ?? 0;
-    nodeGroup.metadata = { diagramId: n.id };
+    nodeGroup.metadata = { ...nodeGroup.metadata, diagramId: n.id };
     nodeMap.set(n.id, nodeGroup);
     group.add(nodeGroup);
   }
 
-  const obstacles = collectObstacles([...nodeMap.values()]);
+  const allNodes = [...nodeMap.values()];
+  const obstacles = collectObstacles(allNodes);
   const edgeLayer = app.group({ zIndex: -10, listening: false }) as Group;
   edgeLayer.metadata.diagramEdgeLayer = true;
   for (const edge of edges) {
@@ -297,15 +350,56 @@ export function createNetworkDiagram(
     edgeLayer.add(
       connectNodes(app, from, to, obstacles, {
         parent: group,
+        obstacleNodes: allNodes,
         stroke: getActiveDiagram().edge,
         glowColor: getActiveDiagram().edgeGlow,
+        glow: false,
         strokeWidth: edgeWidth,
         label: edge.label,
+        cornerRadius: 12,
       })
     );
   }
   group.add(edgeLayer);
 
+  return group;
+}
+
+/**
+ * Grid catalog of standard network icons (one tile per canonical kind).
+ * Pass `category` to filter (e.g. 'security', 'iot').
+ */
+export function createNetworkIconCatalog(
+  app: App,
+  options: NodeOptions & { category?: string; columns?: number } = {}
+): Group {
+  const category = options.category;
+  const kinds = listNetworkIconKinds().filter((m) => !category || m.category === category);
+  const columns = Math.max(4, options.columns ?? 8);
+  const canvas = readCanvasSize(options as Record<string, unknown>);
+  const group = createDiagramGroup(
+    app,
+    'networkIconCatalog',
+    { ...options, category },
+    { name: 'networkCatalog' }
+  );
+
+  const gapX = 104;
+  const gapY = 100;
+  const startX = 20;
+  const startY = 12;
+  kinds.forEach((meta, i) => {
+    const col = i % columns;
+    const row = Math.floor(i / columns);
+    const node = createNetworkNode(app, meta.label, meta.kind);
+    node.x = startX + col * gapX;
+    node.y = startY + row * gapY;
+    node.metadata = { ...node.metadata, diagramId: meta.kind };
+    group.add(node);
+  });
+
+  // Keep canvas size metadata for fitToBounds
+  void canvas;
   return group;
 }
 
@@ -317,14 +411,24 @@ export function createOrgChart(
 ): Group {
   const group = createDiagramGroup(app, 'orgChart', { ...options, root }, { name: 'orgChart' });
   const canvas = readCanvasSize(options as Record<string, unknown>);
-  buildOrgNode(app, group, root, 0, 0, 0);
-  layoutDiagram(
-    group,
-    Math.max(80, Math.round(canvas.height * 0.16)),
-    Math.max(56, Math.round(canvas.width * 0.11))
-  );
+  const levelGap = Math.max(120, Math.round(canvas.height * 0.22));
+  const siblingGap = Math.max(28, Math.round(canvas.width * 0.04));
+  group.metadata.orgLayout = { levelGap, siblingGap };
+  const rootNode = buildOrgNode(app, group, root, 0, 0, 0);
+  layoutDiagram(rootNode, levelGap, siblingGap);
   wireOrgChartConnectors(app, group);
+  wireOrgCollapseControls(app, group);
   return group;
+}
+
+/** Total nodes under this org data node (all descendants). */
+function countOrgDataDescendants(data: OrgChartNode): number {
+  if (!data.children?.length) return 0;
+  let total = 0;
+  for (const child of data.children) {
+    total += 1 + countOrgDataDescendants(child);
+  }
+  return total;
 }
 
 function buildOrgNode(
@@ -333,24 +437,65 @@ function buildOrgNode(
   data: OrgChartNode,
   x: number,
   y: number,
-  depth: number
+  depth: number,
+  branchIndex: number | null = null,
+  branchPalette: ReturnType<typeof buildDistinctOrgBranchPalette> | null = null
 ): Group {
   const childCount = data.children?.length ?? 0;
+  const descendantCount = countOrgDataDescendants(data);
   const collapsed = data.collapsed ?? false;
-  const { node, indicator } = createOrgNode(app, data.name, undefined, childCount, collapsed, depth);
+  const style = resolveOrgBranchStyle(depth, branchIndex, branchPalette);
+  const { node, indicator } = createOrgNode(app, {
+    name: data.name,
+    role: data.role,
+    image: data.image,
+    department: data.department,
+    // Button uses total subtree size, not just direct children
+    childCount: descendantCount,
+    collapsed,
+    depth,
+    branchStyle: style,
+  });
   node.metadata.diagramId = data.name;
   node.metadata.orgName = data.name;
   node.x = x;
   node.y = y;
-  node.metadata = { ...node.metadata, orgNode: true, collapsed, childCount };
+  node.metadata = {
+    ...node.metadata,
+    orgNode: true,
+    collapsed,
+    childCount,
+    descendantCount,
+    orgBranchIndex: branchIndex,
+    orgChildrenData: data.children ?? [],
+  };
 
   if (indicator) {
     node.metadata.collapseIndicator = indicator;
   }
 
-  if (data.children && data.children.length > 0 && !collapsed) {
-    for (const child of data.children) {
-      buildOrgNode(app, node, child, 0, 0, depth + 1);
+  if (data.children && data.children.length > 0) {
+    // Root: allocate unique colors for every top-level branch (N, no repeats)
+    const palette =
+      depth === 0
+        ? buildDistinctOrgBranchPalette(
+            data.children.length,
+            hashOrgBranchSeed(data.children.map((c) => c.name))
+          )
+        : branchPalette;
+    data.children.forEach((child, i) => {
+      const childBranch = depth === 0 ? i : branchIndex;
+      const childNode = buildOrgNode(app, node, child, 0, 0, depth + 1, childBranch, palette);
+      if (collapsed) childNode.visible = false;
+    });
+  }
+
+  // Prefer live tree count after children are attached (stays accurate if tree mutates)
+  if (descendantCount > 0) {
+    const live = countOrgDescendants(node);
+    node.metadata.descendantCount = live;
+    if (node.metadata.collapseButton) {
+      updateOrgCollapseButton(node, collapsed);
     }
   }
 
@@ -358,25 +503,86 @@ function buildOrgNode(
   return node;
 }
 
-/** Toggle org chart node collapse state */
+function findOrgChartRoot(node: Node): Group | null {
+  let cur: Node | null = node;
+  while (cur) {
+    if (cur.metadata?.diagramType === 'orgChart') return cur as Group;
+    cur = cur.parent;
+  }
+  return null;
+}
+
+/** Wire click handlers on minimize/expand buttons. */
+export function wireOrgCollapseControls(app: App, root: Group): void {
+  const walk = (parent: Group): void => {
+    for (const child of parent.children) {
+      if (!('children' in child)) continue;
+      const g = child as Group;
+      if (g.metadata?.orgNode) {
+        const btn = (g.metadata.collapseButton as Group | undefined)
+          ?? g.children.find((c) => c.metadata?.orgCollapseBtn);
+        if (btn && !btn.metadata?.orgCollapseWired) {
+          const onDown = (e: { stopPropagation: () => void }) => {
+            e.stopPropagation();
+          };
+          const onClick = (e: { stopPropagation: () => void }) => {
+            e.stopPropagation();
+            toggleOrgCollapse(g);
+            app.requestRender();
+          };
+          btn.on('mousedown', onDown as never);
+          btn.on('click', onClick as never);
+          btn.metadata.orgCollapseWired = true;
+          btn.listening = true;
+        }
+        // Keep collapse control above the editor hit target
+        if (btn && btn.parent === g) {
+          g.remove(btn);
+          g.add(btn);
+        }
+      }
+      if (g.children?.length) walk(g);
+    }
+  };
+  walk(root);
+}
+
+/** Toggle org chart branch collapse — hide/show children, relayout, rewire. */
 export function toggleOrgCollapse(node: Node): void {
   if (!node.metadata?.orgNode) return;
+  const group = node as Group;
   const collapsed = !node.metadata.collapsed;
   node.metadata.collapsed = collapsed;
   setDiagramState(node, { collapsed });
 
-  const children = (node as Group).children.filter(
-    (c) => c.metadata?.orgNode && c !== node.metadata.collapseIndicator
-  );
+  const children = group.children.filter((c) => c.metadata?.orgNode);
   for (const child of children) {
     child.visible = !collapsed;
+    child.markDirty();
   }
 
-  const indicator = node.metadata.collapseIndicator as Node | undefined;
-  if (indicator && 'text' in indicator) {
-    (indicator as { text: string }).text = collapsed
-      ? `+${node.metadata.childCount}`
-      : '−';
+  updateOrgCollapseButton(group, collapsed);
+
+  const root = findOrgChartRoot(node);
+  const app = node.getApp();
+  if (root && app) {
+    const layout = (root.metadata?.orgLayout as { levelGap?: number; siblingGap?: number }) ?? {};
+    const levelGap = layout.levelGap ?? 120;
+    const siblingGap = layout.siblingGap ?? 28;
+    for (const orgRoot of root.children.filter((c) => c.metadata?.orgNode)) {
+      layoutDiagram(orgRoot as Group, levelGap, siblingGap);
+    }
+    wireOrgChartConnectors(app, root);
+    wireOrgCollapseControls(app, root);
+    const canvas = readCanvasSize((root.metadata?.diagramState as Record<string, unknown>) ?? {});
+    if (canvas.width > 0 && canvas.height > 0) {
+      fitDiagramToBounds(root, canvas.width, canvas.height, 24);
+    }
+    // Clear dotted selection chrome for nodes now hidden under a minimized branch
+    const editor = root.metadata?.diagramEditor as
+      | { afterStructureChange?: () => void }
+      | undefined;
+    editor?.afterStructureChange?.();
   }
   node.markDirty();
 }
@@ -407,66 +613,88 @@ export function createCanNetwork(
   const strokeCtx = strokeContextForCanvas(canvas.width, canvas.height);
   const nodeStroke = resolveStrokeWidth(getActiveDiagram().stroke.node, strokeCtx);
   const busY = 72;
-  const busWidth = Math.max(
-    280,
-    Math.min(canvas.width - 48, Math.max(440, data.ecus.length * 110))
-  );
+  const ecuW = 96;
+  const margin = 36;
+  const n = Math.max(1, data.ecus.length);
+  // Stretch bus across the canvas so every ECU is fully visible with even gaps
+  const busWidth = Math.max(280, canvas.width - margin * 2);
   const busLabel = data.busLabel ?? 'CAN Bus';
 
+  const busGlow = getActiveDiagram().canBusGlow;
+  const busFill = getActiveDiagram().canBus;
   group.add(
     app.roundedRect({
-      x: 14,
-      y: busY - 5,
-      width: busWidth + 4,
-      height: 10,
-      cornerRadius: 5,
-      fill: getActiveDiagram().canBusGlow,
+      x: margin - 4,
+      y: busY - 11,
+      width: busWidth + 8,
+      height: 22,
+      cornerRadius: 6,
+      fill: busGlow,
       stroke: null,
-      opacity: 0.6,
+      opacity: 0.35,
+      listening: false,
+    })
+  );
+  // CAN-H (upper) / CAN-L (lower) — distinct opacity for dual-line bus
+  group.add(
+    app.line({
+      x: margin,
+      y: busY - 4,
+      x2: busWidth,
+      y2: 0,
+      stroke: busFill,
+      strokeWidth: 2.5,
+      lineCap: 'round',
       listening: false,
     })
   );
   group.add(
-    app.roundedRect({
-      x: 16,
-      y: busY - 3,
-      width: busWidth,
-      height: 6,
-      cornerRadius: 3,
-      fill: getActiveDiagram().canBus,
-      stroke: null,
-      shadow: getActiveDiagram().shadowSoft,
+    app.line({
+      x: margin,
+      y: busY + 4,
+      x2: busWidth,
+      y2: 0,
+      stroke: busFill,
+      strokeWidth: 2.5,
+      lineCap: 'round',
+      opacity: 0.55,
       listening: false,
     })
   );
-  group.add(
-    app.circle({
-      x: 16,
-      y: busY,
-      radius: 5,
-      fill: getActiveDiagram().canTermination,
-      stroke: getActiveDiagram().surface,
-      strokeWidth: 2,
-      listening: false,
-    })
-  );
-  group.add(
-    app.circle({
-      x: 16 + busWidth,
-      y: busY,
-      radius: 5,
-      fill: getActiveDiagram().canTermination,
-      stroke: getActiveDiagram().surface,
-      strokeWidth: 2,
-      listening: false,
-    })
-  );
+  // Termination: twin vertical bars (schematic-style resistors), not status dots
+  const termColor = getActiveDiagram().canTermination;
+  for (const tx of [margin, margin + busWidth]) {
+    group.add(
+      app.line({
+        x: tx,
+        y: busY - 10,
+        x2: 0,
+        y2: 20,
+        stroke: termColor,
+        strokeWidth: 2.5,
+        lineCap: 'round',
+        listening: false,
+      })
+    );
+    group.add(
+      app.line({
+        x: tx + (tx === margin ? 5 : -5),
+        y: busY - 10,
+        x2: 0,
+        y2: 20,
+        stroke: termColor,
+        strokeWidth: 2.5,
+        lineCap: 'round',
+        listening: false,
+      })
+    );
+  }
   const labelW = measureTextWidth(busLabel, getActiveDiagram().fontSize.base, 'bold');
   group.add(
     app.text({
       text: busLabel,
-      x: busWidth / 2 - labelW / 2 + 16,
-      y: busY - 24,
+      x: margin + busWidth / 2 - labelW / 2,
+      y: busY - 30,
       fontSize: getActiveDiagram().fontSize.base,
       fill: getActiveDiagram().edge,
       fontWeight: 'bold',
@@ -475,15 +703,19 @@ export function createCanNetwork(
     })
   );
 
-  const spacing = busWidth / (data.ecus.length + 1);
+  const spacing = busWidth / (n + 1);
   for (let i = 0; i < data.ecus.length; i++) {
     const ecu = data.ecus[i];
     const ecuColor = getActiveDiagram().canEcuPalette[i % getActiveDiagram().canEcuPalette.length];
-    const x = 16 + spacing * (i + 1) - 44;
+    const x = margin + spacing * (i + 1) - ecuW / 2;
     const ecuGroup = createCanEcuNode(app, ecu.label, ecu.address, ecuColor, nodeStroke);
     ecuGroup.x = x;
-    ecuGroup.y = busY + 14;
-    ecuGroup.metadata = { diagramId: ecu.id };
+    // Top of card sits 18px below bus midline → tap of 18 meets CAN-H/L center
+    ecuGroup.y = busY + 18;
+    ecuGroup.metadata = {
+      ...ecuGroup.metadata,
+      diagramId: ecu.id,
+    };
     group.add(ecuGroup);
   }
 
@@ -504,7 +736,7 @@ export function createPipeline(
   const stageNodes: Node[] = [];
   for (const stage of stages) {
     const node = createPipelineStage(app, stage.label, stage.status ?? 'pending');
-    node.metadata = { diagramId: stage.id, pipelineStatus: stage.status };
+    node.metadata = { ...node.metadata, diagramId: stage.id, pipelineStatus: stage.status };
     group.add(node);
     stageNodes.push(node);
   }

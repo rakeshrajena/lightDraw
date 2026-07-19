@@ -163,6 +163,44 @@ export function autoLayoutNodesResponsive(
 }
 
 /** Union bounds of diagram content nodes (excludes connector layers). */
+/**
+ * Axis-aligned content box in the node's own local space.
+ * Avoids Group.getBounds() which returns world coordinates and would
+ * double-count when composed with parent offsets in fitToBounds.
+ */
+function localContentBox(node: Node): { x: number; y: number; width: number; height: number } {
+  const cardW =
+    (node.metadata?.orgCardWidth as number | undefined) ??
+    (node.metadata?.diagramCardWidth as number | undefined);
+  const cardH =
+    (node.metadata?.orgCardHeight as number | undefined) ??
+    (node.metadata?.diagramCardHeight as number | undefined);
+  if (typeof cardW === 'number' && typeof cardH === 'number' && cardW > 0 && cardH > 0) {
+    const tap = typeof node.metadata?.diagramTapPad === 'number' ? node.metadata.diagramTapPad : 0;
+    return { x: 0, y: -tap, width: cardW, height: cardH + tap };
+  }
+
+  const group = node as Group;
+  if (Array.isArray(group.children) && group.children.length > 0) {
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const child of group.children) {
+      if (child.visible === false) continue;
+      const lb = localContentBox(child);
+      minX = Math.min(minX, child.x + lb.x);
+      minY = Math.min(minY, child.y + lb.y);
+      maxX = Math.max(maxX, child.x + lb.x + lb.width);
+      maxY = Math.max(maxY, child.y + lb.y + lb.height);
+    }
+    if (!Number.isFinite(minX)) return { x: 0, y: 0, width: 0, height: 0 };
+    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+  }
+
+  return node.getBounds();
+}
+
 function diagramContentBounds(group: Group): {
   x: number;
   y: number;
@@ -187,8 +225,21 @@ function diagramContentBounds(group: Group): {
   };
   walk(group);
 
-  const sources =
-    nodes.length > 0 ? nodes : group.children.filter((c) => c.zIndex >= 0);
+  const sources: Node[] =
+    nodes.length > 0 ? [...nodes] : group.children.filter((c) => c.zIndex >= 0);
+
+  // Include root-level chrome (CAN bus rails, labels, terminators) so fit does not crop them
+  if (nodes.length > 0) {
+    const seen = new Set(sources);
+    for (const child of group.children) {
+      if (child.metadata?.diagramEdgeLayer) continue;
+      if (seen.has(child)) continue;
+      if (child.metadata?.diagramId || child.metadata?.orgNode) continue;
+      sources.push(child);
+      seen.add(child);
+    }
+  }
+
   if (sources.length === 0) return group.getBounds();
 
   const posInRoot = (node: Node): { x: number; y: number } => {
@@ -208,7 +259,7 @@ function diagramContentBounds(group: Group): {
     maxX = -Infinity,
     maxY = -Infinity;
   for (const child of sources) {
-    const b = child.getBounds();
+    const b = localContentBox(child);
     const p = posInRoot(child);
     minX = Math.min(minX, p.x + b.x);
     minY = Math.min(minY, p.y + b.y);

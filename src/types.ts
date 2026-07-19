@@ -66,7 +66,8 @@ export interface NodeOptions extends Partial<TransformState> {
   dashOffset?: number;
   shadow?: Shadow | null;
   clip?: boolean;
-  mask?: Node | null;
+  /** Clip using another LightDraw node’s shape (not the DOM Node type). */
+  mask?: import('./Node').Node | null;
   metadata?: Record<string, unknown>;
   listening?: boolean;
   draggable?: boolean;

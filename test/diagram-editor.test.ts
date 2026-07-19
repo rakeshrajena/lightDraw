@@ -110,6 +110,101 @@ describe('Diagram editor', () => {
     app.destroy();
   });
 
+  it('arrange mode enables drag without connect tool', () => {
+    const container = createTestContainer(800, 500);
+    const app = createTestApp(container, { renderer: 'canvas', width: 800, height: 500 });
+    const diagram = createFlowchart(
+      app,
+      {
+        nodes: [
+          { id: 'a', label: 'A', x: 40, y: 40 },
+          { id: 'b', label: 'B', x: 200, y: 40 },
+        ],
+        edges: [{ from: 'a', to: 'b' }],
+      },
+      { width: 800, height: 500 }
+    );
+    app.add(diagram);
+    app.render();
+    const editor = installDiagramEditor(app, diagram, { mode: 'arrange' });
+    expect(editor.getTool()).toBe('select');
+    editor.setTool('connect');
+    expect(editor.getTool()).toBe('select');
+    const nodes = collectEditableNodes(diagram);
+    expect(nodes.every((n) => n.draggable)).toBe(true);
+    editor.selectNode('a');
+    app.render();
+    const overlay = app.stage.children.find((c) => c.metadata?.diagramEditorOverlay) as
+      | { children: Array<{ metadata?: Record<string, unknown> }> }
+      | undefined;
+    const resizeHandles =
+      overlay?.children.filter((c) => typeof c.metadata?.resizeHandle === 'string') ?? [];
+    expect(resizeHandles.length).toBe(8);
+    uninstallDiagramEditor(diagram);
+    app.destroy();
+  });
+
+  it('arrange mode hit-tests wires so bend points can be added', () => {
+    const container = createTestContainer(800, 500);
+    const app = createTestApp(container, { renderer: 'canvas', width: 800, height: 500 });
+    const diagram = createFlowchart(
+      app,
+      {
+        nodes: [
+          { id: 'a', label: 'A', x: 40, y: 40 },
+          { id: 'b', label: 'B', x: 280, y: 40 },
+        ],
+        edges: [{ from: 'a', to: 'b' }],
+      },
+      { width: 800, height: 500 }
+    );
+    app.add(diagram);
+    app.render();
+    installDiagramEditor(app, diagram, { mode: 'arrange', allowBendPoints: true });
+    app.render();
+
+    const edgeLayer = findEdgeLayer(diagram)!;
+    expect(edgeLayer.listening).toBe(true);
+
+    const edge = edgeLayer.children.find((c) => c.metadata?.edgeFrom && c.metadata?.edgeTo)!;
+    expect(edge.listening).toBe(true);
+    expect(edge.children.some((c) => c.metadata?.edgeHitPolyline)).toBe(true);
+
+    const pts = (edge.metadata?.edgePoints as number[]) ?? [];
+    expect(pts.length).toBeGreaterThanOrEqual(4);
+    const midX = (pts[0] + pts[pts.length - 2]) / 2;
+    const midY = (pts[1] + pts[pts.length - 1]) / 2;
+    const worldX = diagram.x + midX;
+    const worldY = diagram.y + midY;
+
+    const hit = app.hitTest(worldX, worldY);
+    expect(hit).not.toBeNull();
+    let n = hit!.node as { parent?: typeof hit.node; metadata?: Record<string, unknown> };
+    let foundEdge = false;
+    while (n) {
+      if (n.metadata?.edgeFrom || n.metadata?.edgeHitPolyline) {
+        foundEdge = true;
+        break;
+      }
+      n = n.parent as typeof n;
+    }
+    expect(foundEdge).toBe(true);
+
+    const el = app['renderer'].getElement() as HTMLElement;
+    const screen = app.camera.worldToScreen(worldX, worldY);
+    dispatchPointer(el, 'dblclick', screen.x, screen.y);
+    app.render();
+
+    const rebuilt = findEdgeLayer(diagram)!.children.find(
+      (c) => c.metadata?.edgeFrom === 'a' && c.metadata?.edgeTo === 'b'
+    );
+    const waypoints = (rebuilt?.metadata?.edgeWaypoints as Array<{ x: number; y: number }>) ?? [];
+    expect(waypoints.length).toBeGreaterThanOrEqual(1);
+
+    uninstallDiagramEditor(diagram);
+    app.destroy();
+  });
+
   it('deletes a selected edge', () => {
     const container = createTestContainer(800, 500);
     const app = createTestApp(container, { renderer: 'canvas', width: 800, height: 500 });

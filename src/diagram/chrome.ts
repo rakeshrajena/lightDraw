@@ -100,7 +100,8 @@ export function addCardChrome(app: App, parent: Group, opts: CardChromeOptions):
     })
   );
 
-  if (opts.accentColor) {
+  // Square accent bar clips badly on pill radii — skip for capsules / state pills.
+  if (opts.accentColor && radius < getActiveDiagram().radii.pill) {
     addAccentBar(app, parent, opts.width, opts.accentColor, opts.accentHeight ?? 3);
   }
   if (opts.sheen !== false) {

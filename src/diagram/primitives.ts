@@ -9,6 +9,12 @@ import {
   addTopSheen,
 } from './chrome';
 import { DIAGRAM, getActiveDiagram } from './theme';
+import {
+  drawNetworkIcon,
+  getNetworkIconMeta,
+  networkStyleForKind,
+  resolveNetworkIconKind,
+} from './networkIcons';
 
 let measureCtx: CanvasRenderingContext2D | null = null;
 
@@ -52,6 +58,7 @@ export interface BoxStyle {
   strokeWidth?: number;
   shadow?: typeof DIAGRAM.shadow | typeof DIAGRAM.shadowSoft | null;
   accentColor?: string;
+  sheen?: boolean;
 }
 
 const defaultBoxStyle = (): Required<Pick<BoxStyle, 'strokeWidth' | 'shadow'>> => ({
@@ -70,6 +77,8 @@ export function createLabeledBox(
 ): Group {
   const { strokeWidth, shadow } = defaultBoxStyle();
   const node = app.group();
+  node.metadata.diagramCardWidth = width;
+  node.metadata.diagramCardHeight = height;
   const fontSize = textOpts.fontSize ?? getActiveDiagram().fontSize.base;
   const radius = style.cornerRadius ?? getActiveDiagram().radii.md;
 
@@ -82,6 +91,7 @@ export function createLabeledBox(
     strokeWidth: style.strokeWidth ?? strokeWidth,
     shadow: style.shadow !== null ? (style.shadow ?? shadow) : null,
     accentColor: style.accentColor,
+    sheen: style.sheen,
   });
 
   node.add(
@@ -112,6 +122,8 @@ export function createFlowchartNode(
   const isTerminal = isStart || isEnd;
   const isDecision = type === 'decision';
   const node = app.group();
+  node.metadata.diagramCardWidth = width;
+  node.metadata.diagramCardHeight = height;
 
   const palette = isStart
     ? getActiveDiagram().flowchartStart
@@ -226,36 +238,40 @@ export function createClassNode(
   attributes: string[],
   methods: string[]
 ): Group {
-  const width = 172;
+  const width = 176;
   const lineH = 17;
   const headerH = 32;
   const bodyLines = attributes.length + methods.length;
-  const height = headerH + bodyLines * lineH + (methods.length > 0 && attributes.length > 0 ? 8 : 4);
+  const height = headerH + bodyLines * lineH + (methods.length > 0 && attributes.length > 0 ? 8 : 4) + 6;
   const node = app.group();
+  node.metadata.diagramCardWidth = width;
+  node.metadata.diagramCardHeight = height;
+  const radius = getActiveDiagram().radii.md;
 
   addCardChrome(app, node, {
     width,
     height,
-    cornerRadius: getActiveDiagram().radii.md,
+    cornerRadius: radius,
     fill: getActiveDiagram().classFill,
     stroke: getActiveDiagram().classStroke,
     strokeWidth: getActiveDiagram().stroke.node,
-    shadow: getActiveDiagram().shadowElevated,
+    shadow: getActiveDiagram().shadowSoft,
     accentColor: getActiveDiagram().umlInheritance,
     sheen: false,
   });
+  // Header band inset so square corners sit inside the rounded card stroke
   node.add(
     app.rect({
-      x: 1,
-      y: 1,
-      width: width - 2,
-      height: headerH - 1,
+      x: Math.max(2, radius * 0.35),
+      y: 3,
+      width: width - Math.max(4, radius * 0.7),
+      height: headerH - 4,
       fill: getActiveDiagram().classHeaderBg,
       stroke: null,
       listening: false,
     })
   );
-  addTopSheen(app, node, width, getActiveDiagram().radii.md);
+  addTopSheen(app, node, width, radius);
   node.add(
     app.text({
       text: name,
@@ -327,153 +343,99 @@ export function createClassNode(
   return node;
 }
 
-type NetworkType = 'router' | 'server' | 'switch' | 'client' | 'default';
-
-const NETWORK_STYLES: Record<
-  NetworkType,
-  { fill: string; stroke: string; glyph: string; edge: string }
-> = {
-  router: getActiveDiagram().networkRouter,
-  server: getActiveDiagram().networkServer,
-  switch: getActiveDiagram().networkSwitch,
-  client: getActiveDiagram().networkClient,
-  default: getActiveDiagram().networkDefault,
-};
-
-function addNetworkGlyph(
-  app: App,
-  parent: Group,
-  type: NetworkType,
-  size: number,
-  color: string
-): void {
-  const cx = size / 2;
-  const cy = size / 2;
-  if (type === 'router') {
-    parent.add(
-      app.line({ x: cx, y: 6, x2: 0, y2: -7, stroke: color, strokeWidth: 2, lineCap: 'round', listening: false })
-    );
-    parent.add(
-      app.line({ x: cx - 5, y: 8, x2: 0, y2: -5, stroke: color, strokeWidth: 1.5, lineCap: 'round', listening: false })
-    );
-    parent.add(
-      app.line({ x: cx + 5, y: 8, x2: 0, y2: -5, stroke: color, strokeWidth: 1.5, lineCap: 'round', listening: false })
-    );
-    parent.add(
-      app.circle({ x: cx, y: cy + 2, radius: 10, fill: null, stroke: color, strokeWidth: 1.5, listening: false })
-    );
-  } else if (type === 'server') {
-    for (let i = 0; i < 3; i++) {
-      parent.add(
-        app.roundedRect({
-          x: cx - 13,
-          y: cy - 11 + i * 9,
-          width: 26,
-          height: 7,
-          cornerRadius: 2,
-          fill: null,
-          stroke: color,
-          strokeWidth: 1.2,
-          listening: false,
-        })
-      );
-      parent.add(
-        app.circle({ x: cx + 8, y: cy - 8 + i * 9, radius: 1.5, fill: color, listening: false })
-      );
-    }
-  } else if (type === 'switch') {
-    parent.add(
-      app.roundedRect({
-        x: cx - 14,
-        y: cy - 6,
-        width: 28,
-        height: 12,
-        cornerRadius: 2,
-        fill: null,
-        stroke: color,
-        strokeWidth: 1.5,
-        listening: false,
-      })
-    );
-    for (let i = 0; i < 4; i++) {
-      parent.add(
-        app.circle({ x: cx - 9 + i * 6, y: cy, radius: 2, fill: color, listening: false })
-      );
-    }
-  } else if (type === 'client') {
-    parent.add(
-      app.roundedRect({
-        x: cx - 12,
-        y: cy - 10,
-        width: 24,
-        height: 16,
-        cornerRadius: 2,
-        fill: null,
-        stroke: color,
-        strokeWidth: 1.5,
-        listening: false,
-      })
-    );
-    parent.add(
-      app.line({
-        x: cx - 6,
-        y: cy + 6,
-        x2: 12,
-        y2: 0,
-        stroke: color,
-        strokeWidth: 1.5,
-        lineCap: 'round',
-        listening: false,
-      })
-    );
-  } else {
-    parent.add(
-      app.circle({ x: cx, y: cy, radius: 12, fill: null, stroke: color, strokeWidth: 1.5, listening: false })
-    );
-  }
-}
-
 /** Network topology node with type icon and caption below. */
 export function createNetworkNode(app: App, label: string, type: string): Group {
-  const netType = (type in NETWORK_STYLES ? type : 'default') as NetworkType;
-  const style = NETWORK_STYLES[netType];
-  const size = netType === 'router' ? 52 : 44;
+  const kind = resolveNetworkIconKind(type);
+  const meta = getNetworkIconMeta(kind);
+  const style = networkStyleForKind(kind);
+  const isContainer = Boolean(meta.container);
+  const size = isContainer ? 60 : 52;
   const node = app.group();
+  const captionGap = getActiveDiagram().spacing.xs + 2;
+  const cardH = size + getActiveDiagram().fontSize.sm + captionGap + 8;
+  node.metadata.diagramCardWidth = size;
+  node.metadata.diagramCardHeight = cardH;
+  node.metadata.networkIconKind = kind;
+  node.metadata.networkIconCategory = meta.category;
+
+  const squareKinds = new Set([
+    'server',
+    'hypervisor',
+    'k8sNode',
+    'vm',
+    'storage',
+    'nas',
+    'san',
+    'container',
+    'plc',
+    'ecu',
+    'modem',
+  ]);
+  const corner = isContainer
+    ? getActiveDiagram().radii.lg
+    : squareKinds.has(kind)
+      ? getActiveDiagram().radii.md + 2
+      : size / 2;
 
   addCardChrome(app, node, {
     width: size,
     height: size,
-    cornerRadius: netType === 'server' ? getActiveDiagram().radii.sm : size / 2,
+    cornerRadius: corner,
     fill: style.fill,
     stroke: style.stroke,
     strokeWidth: getActiveDiagram().stroke.nodeEmphasis,
     shadow: getActiveDiagram().shadowElevated,
-    sheen: netType === 'server',
+    sheen: true,
+    ...(isContainer ? {} : { accentColor: style.stroke, accentHeight: 2 }),
   });
-  node.add(
-    app.circle({
-      x: size / 2,
-      y: size / 2,
-      radius: size / 2 - 5,
-      fill: null,
-      stroke: style.stroke,
-      strokeWidth: 1,
-      opacity: 0.35,
-      listening: false,
-    })
-  );
-  addNetworkGlyph(app, node, netType, size, style.glyph);
 
-  const labelW = Math.max(size, measureTextWidth(label, getActiveDiagram().fontSize.sm) + 16);
-  const labelX = centerTextX(label, labelW, getActiveDiagram().fontSize.sm);
-  const tw = measureTextWidth(label, getActiveDiagram().fontSize.sm);
-  addCaptionPill(app, node, tw, labelX, size + getActiveDiagram().spacing.xs - 2, style.stroke);
+  if (isContainer) {
+    node.add(
+      app.roundedRect({
+        x: 4,
+        y: 4,
+        width: size - 8,
+        height: size - 8,
+        cornerRadius: getActiveDiagram().radii.sm,
+        fill: null,
+        stroke: style.glyph,
+        strokeWidth: 1.15,
+        dash: [4, 3],
+        opacity: 0.65,
+        listening: false,
+      })
+    );
+  } else {
+    // Inner ring for depth (professional tile)
+    node.add(
+      app.roundedRect({
+        x: 3,
+        y: 3,
+        width: size - 6,
+        height: size - 6,
+        cornerRadius: Math.max(corner - 3, 4),
+        fill: null,
+        stroke: style.glyph,
+        strokeWidth: 1,
+        opacity: 0.18,
+        listening: false,
+      })
+    );
+  }
+
+  drawNetworkIcon(app, node, kind, size, style.glyph);
+
+  const fs = getActiveDiagram().fontSize.sm;
+  const labelW = Math.max(size + 12, measureTextWidth(label, fs) + 20);
+  const tw = measureTextWidth(label, fs);
+  const labelX = (size - labelW) / 2 + centerTextX(label, labelW, fs);
+  addCaptionPill(app, node, tw, labelX, size + captionGap - 2, style.stroke);
   node.add(
     app.text({
       text: label,
-      x: centerTextX(label, labelW, getActiveDiagram().fontSize.sm),
-      y: size + getActiveDiagram().spacing.xs,
-      fontSize: getActiveDiagram().fontSize.sm,
+      x: (size - labelW) / 2 + centerTextX(label, labelW, fs),
+      y: size + captionGap,
+      fontSize: fs,
       fontWeight: '600',
       fontFamily: getActiveDiagram().fontFamily,
       fill: getActiveDiagram().nodeText,
@@ -483,94 +445,442 @@ export function createNetworkNode(app: App, label: string, type: string): Group 
   return node;
 }
 
-/** Org-chart card with optional collapse control and tier-based accent. */
+/** Org chart card options */
+export interface OrgNodeOptions {
+  name: string;
+  role?: string;
+  /** Avatar image URL or data URI (optional) */
+  image?: string;
+  department?: string;
+  childCount?: number;
+  collapsed?: boolean;
+  depth?: number;
+  /** Branch grouping color (inherited by sub-branches) */
+  branchStyle?: { fill: string; stroke: string; accent: string };
+}
+
+export type OrgBranchStyle = { fill: string; stroke: string; accent: string };
+
+/** FNV-1a style seed from branch names (stable across rebuilds). */
+export function hashOrgBranchSeed(names: string[]): number {
+  let h = 2166136261;
+  for (const name of names) {
+    for (let i = 0; i < name.length; i++) {
+      h ^= name.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    h ^= 124;
+    h = Math.imul(h, 16777619);
+  }
+  return (h ^ (names.length * 2654435761)) >>> 0;
+}
+
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0 || 1;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function hslToHex(h: number, sPct: number, lPct: number): string {
+  const s = Math.max(0, Math.min(100, sPct)) / 100;
+  const l = Math.max(0, Math.min(100, lPct)) / 100;
+  const hue = ((h % 360) + 360) % 360;
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((hue / 60) % 2) - 1));
+  const m = l - c / 2;
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  if (hue < 60) [r, g, b] = [c, x, 0];
+  else if (hue < 120) [r, g, b] = [x, c, 0];
+  else if (hue < 180) [r, g, b] = [0, c, x];
+  else if (hue < 240) [r, g, b] = [0, x, c];
+  else if (hue < 300) [r, g, b] = [x, 0, c];
+  else [r, g, b] = [c, 0, x];
+  const to = (v: number) =>
+    Math.round((v + m) * 255)
+      .toString(16)
+      .padStart(2, '0');
+  return `#${to(r)}${to(g)}${to(b)}`;
+}
+
+/**
+ * Build N unique branch colors (no repeats).
+ * Hues are spaced on the wheel then shuffled with a seeded RNG so assignment
+ * feels random but stays stable for the same seed / rebuild.
+ */
+export function buildDistinctOrgBranchPalette(
+  count: number,
+  seed = 1
+): OrgBranchStyle[] {
+  const n = Math.max(0, Math.floor(count));
+  if (n <= 0) return [];
+
+  const base = getActiveDiagram().orgBranchPalette as readonly OrgBranchStyle[];
+  // Prefer curated theme swatches first (still unique), then generate more
+  if (n <= base.length) {
+    const rand = mulberry32(seed);
+    const idxs = Array.from({ length: base.length }, (_, i) => i);
+    for (let i = idxs.length - 1; i > 0; i--) {
+      const j = Math.floor(rand() * (i + 1));
+      [idxs[i], idxs[j]] = [idxs[j], idxs[i]];
+    }
+    return idxs.slice(0, n).map((i) => ({ ...base[i] }));
+  }
+
+  const rand = mulberry32(seed);
+  const GOLDEN = 137.508;
+  const start = rand() * 360;
+  const hues = Array.from({ length: n }, (_, i) => (start + i * GOLDEN) % 360);
+  for (let i = hues.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [hues[i], hues[j]] = [hues[j], hues[i]];
+  }
+
+  return hues.map((h, i) => {
+    // Slight sat/light jitter so neighboring hues still read distinct on dark cards
+    const satJitter = 4 * (i % 3);
+    const lightJitter = 2 * (i % 2);
+    return {
+      fill: hslToHex(h, 42 + satJitter, 13 + lightJitter),
+      stroke: hslToHex(h, 68 + satJitter, 52 + lightJitter),
+      accent: hslToHex(h, 74 + satJitter, 66 + lightJitter),
+    };
+  });
+}
+
+/** Resolve executive vs branch/sub-branch grouping colors. */
+export function resolveOrgBranchStyle(
+  depth: number,
+  branchIndex: number | null | undefined,
+  branchPalette?: readonly OrgBranchStyle[] | null
+): OrgBranchStyle {
+  const d = getActiveDiagram();
+  if (depth <= 0 || branchIndex == null || branchIndex < 0) {
+    return { ...d.orgTier[0] };
+  }
+  const palette =
+    branchPalette && branchPalette.length > 0
+      ? branchPalette
+      : (d.orgBranchPalette as readonly OrgBranchStyle[]);
+  // Palette is built per chart with unique entries — never modulo-cycle
+  const base = palette[Math.min(branchIndex, palette.length - 1)] ?? palette[0];
+  if (depth === 1) return { ...base };
+  return {
+    fill: d.orgTier[Math.min(depth, d.orgTier.length - 1)]?.fill ?? base.fill,
+    stroke: base.stroke,
+    accent: base.accent,
+  };
+}
+
+/** Count every org node under `node` (all descendants, not just direct children). */
+export function countOrgDescendants(node: Group): number {
+  let total = 0;
+  for (const child of node.children) {
+    if (!child.metadata?.orgNode) continue;
+    total += 1 + countOrgDescendants(child as Group);
+  }
+  return total;
+}
+
+/** Draw professional minimize (−) / maximize (+) control; shows total subtree size. */
+export function drawOrgCollapseGlyph(
+  app: App,
+  btn: Group,
+  collapsed: boolean,
+  count: number
+): void {
+  const style = collapsed
+    ? getActiveDiagram().orgToggleCollapsed
+    : getActiveDiagram().orgToggleExpanded;
+
+  for (const child of [...btn.children]) {
+    btn.remove(child);
+    child.destroy();
+  }
+
+  const n = Math.max(0, Math.floor(count));
+  const shown = n > 99 ? '99' : String(n);
+  const label = collapsed ? `+${shown}` : `−${shown}`;
+  const height = 20;
+  const width = n > 9 ? 30 : 24;
+  btn.metadata.orgCollapseCount = n;
+
+  btn.add(
+    app.roundedRect({
+      x: 0,
+      y: 0,
+      width,
+      height,
+      cornerRadius: 6,
+      fill: style.fill,
+      stroke: style.stroke,
+      strokeWidth: 1.4,
+      listening: true,
+    })
+  );
+  btn.add(
+    app.roundedRect({
+      x: 1,
+      y: 1,
+      width: width - 2,
+      height: height - 2,
+      cornerRadius: 5,
+      fill: null,
+      stroke: 'rgba(255,255,255,0.12)',
+      strokeWidth: 1,
+      listening: false,
+    })
+  );
+
+  btn.add(
+    app.text({
+      text: label,
+      x: n > 9 ? 3 : 4.5,
+      y: 3.5,
+      fontSize: n > 9 ? 9 : 10,
+      fontWeight: '700',
+      fontFamily: getActiveDiagram().fontFamily,
+      fill: style.glyph,
+      listening: false,
+    })
+  );
+}
+
+/** Refresh minimize/maximize button after toggle (count = total descendants). */
+export function updateOrgCollapseButton(node: Group, collapsed: boolean): void {
+  const btn = node.metadata?.collapseButton as Group | undefined;
+  const app = node.getApp();
+  if (!btn || !app) return;
+  const live = countOrgDescendants(node);
+  const count =
+    live > 0
+      ? live
+      : typeof node.metadata?.descendantCount === 'number'
+        ? (node.metadata.descendantCount as number)
+        : ((node.metadata?.childCount as number) ?? 0);
+  node.metadata.descendantCount = count;
+  // Keep button flush to the card corner as width changes with digit count
+  const cardW = (node.metadata?.orgCardWidth as number) ?? 138;
+  const cardH = (node.metadata?.orgCardHeight as number) ?? 0;
+  const btnW = count > 9 ? 30 : 24;
+  btn.x = cardW - btnW - 6;
+  if (cardH > 0) btn.y = cardH - 26;
+  drawOrgCollapseGlyph(app, btn, collapsed, count);
+}
+
+/** Build a circular SVG avatar data-URI from initials (offline-safe fallback). */
+export function orgInitialsAvatarDataUri(
+  name: string,
+  accent: string,
+  fill = '#1e293b'
+): string {
+  const initials = name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase() ?? '')
+    .join('') || '?';
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">` +
+    `<rect width="128" height="128" fill="${fill}"/>` +
+    `<circle cx="64" cy="64" r="60" fill="${accent}" opacity="0.22"/>` +
+    `<text x="64" y="74" text-anchor="middle" font-family="Segoe UI, Inter, system-ui, sans-serif" ` +
+    `font-size="42" font-weight="700" fill="${accent}">${initials}</text></svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+/** Professional portrait org-chart card with optional photo. */
 export function createOrgNode(
   app: App,
-  name: string,
+  nameOrOpts: string | OrgNodeOptions,
   role?: string,
   childCount = 0,
   collapsed = false,
   depth = 0
-): { node: Group; indicator?: ReturnType<App['text']> } {
-  const tier = getActiveDiagram().orgTier[Math.min(depth, getActiveDiagram().orgTier.length - 1)];
-  const width = 156;
-  const height = role ? 60 : 52;
-  const node = app.group();
+): { node: Group; indicator?: Group } {
+  const opts: OrgNodeOptions =
+    typeof nameOrOpts === 'string'
+      ? { name: nameOrOpts, role, childCount, collapsed, depth }
+      : {
+          childCount: 0,
+          collapsed: false,
+          depth: 0,
+          ...nameOrOpts,
+        };
 
-  addCardChrome(app, node, {
-    width,
-    height,
-    cornerRadius: getActiveDiagram().radii.md,
-    fill: tier.fill,
-    stroke: tier.stroke,
-    strokeWidth: getActiveDiagram().stroke.node,
-    shadow: getActiveDiagram().shadowElevated,
-    accentColor: tier.accent,
-  });
+  const {
+    name,
+    role: title,
+    image,
+    department,
+    childCount: kids = 0,
+    collapsed: isCollapsed = false,
+    depth: level = 0,
+    branchStyle,
+  } = opts;
+
+  const tier =
+    branchStyle ??
+    getActiveDiagram().orgTier[Math.min(level, getActiveDiagram().orgTier.length - 1)];
+  const hasDept = Boolean(department);
+  const width = 138;
+  const photoR = 26;
+  const photoTop = 14;
+  const textStartY = photoTop + photoR * 2 + 10;
+  const height = textStartY + (title ? 18 : 0) + (hasDept ? 14 : 0) + 18;
+  const node = app.group();
+  node.metadata.orgCardWidth = width;
+  node.metadata.orgCardHeight = height;
+  node.metadata.orgBranchStroke = tier.stroke;
+  node.metadata.orgBranchAccent = tier.accent;
+
   node.add(
-    app.line({
-      x: 3,
-      y: 3,
-      x2: 3,
-      y2: height - 3,
-      stroke: tier.accent,
-      strokeWidth: 2,
-      opacity: 0.5,
-      lineCap: 'round',
+    app.roundedRect({
+      width,
+      height,
+      cornerRadius: 10,
+      fill: tier.fill,
+      stroke: tier.stroke,
+      strokeWidth: 1.5,
+      shadow: getActiveDiagram().orgCardShadow,
+      listening: false,
+    })
+  );
+  // Branch accent bar (grouping cue)
+  node.add(
+    app.rect({
+      x: 0,
+      y: 0,
+      width,
+      height: 3,
+      fill: tier.accent,
+      stroke: null,
       listening: false,
     })
   );
   node.add(
+    app.roundedRect({
+      x: 1,
+      y: 1,
+      width: width - 2,
+      height: height - 2,
+      cornerRadius: 9,
+      fill: null,
+      stroke: 'rgba(255,255,255,0.06)',
+      strokeWidth: 1,
+      listening: false,
+    })
+  );
+
+  const photoX = (width - photoR * 2) / 2;
+  const photoSrc = image?.trim() || orgInitialsAvatarDataUri(name, tier.accent, tier.fill);
+
+  const mask = app.circle({ radius: photoR });
+  node.add(
+    app.image({
+      src: photoSrc,
+      x: photoX,
+      y: photoTop,
+      width: photoR * 2,
+      height: photoR * 2,
+      mask,
+      listening: false,
+    })
+  );
+  node.add(
+    app.circle({
+      x: photoX,
+      y: photoTop,
+      radius: photoR,
+      fill: null,
+      stroke: tier.accent,
+      strokeWidth: 2,
+      listening: false,
+    })
+  );
+
+  let ty = textStartY;
+  const nameFs = getActiveDiagram().fontSize.base;
+  node.add(
     app.text({
       text: name,
-      x: getActiveDiagram().spacing.md,
-      y: role ? 10 : 16,
-      fontSize: getActiveDiagram().fontSize.lg,
-      fontWeight: '600',
+      x: centerTextX(name, width, nameFs, '700'),
+      y: ty,
+      fontSize: nameFs,
+      fontWeight: '700',
       fontFamily: getActiveDiagram().fontFamily,
       fill: getActiveDiagram().nodeText,
       listening: false,
     })
   );
-  if (role) {
+  ty += 16;
+
+  if (title) {
+    const roleFs = getActiveDiagram().fontSize.sm;
     node.add(
       app.text({
-        text: role,
-        x: getActiveDiagram().spacing.md,
-        y: 32,
-        fontSize: getActiveDiagram().fontSize.sm,
+        text: title,
+        x: centerTextX(title, width, roleFs, '500'),
+        y: ty,
+        fontSize: roleFs,
+        fontWeight: '500',
         fontFamily: getActiveDiagram().fontFamily,
         fill: getActiveDiagram().orgRole,
         listening: false,
       })
     );
+    ty += 14;
   }
 
-  let indicator;
-  if (childCount > 0) {
+  if (department) {
+    const deptFs = getActiveDiagram().fontSize.xs;
     node.add(
-      app.roundedRect({
-        x: width - 28,
-        y: 12,
-        width: 20,
-        height: 20,
-        cornerRadius: getActiveDiagram().radii.sm,
-        fill: getActiveDiagram().orgToggleBg,
-        stroke: getActiveDiagram().labelPillStroke,
-        strokeWidth: getActiveDiagram().stroke.label,
+      app.text({
+        text: department,
+        x: centerTextX(department, width, deptFs, '500'),
+        y: ty,
+        fontSize: deptFs,
+        fontWeight: '500',
+        fontFamily: getActiveDiagram().fontFamily,
+        fill: getActiveDiagram().nodeTextMuted,
         listening: false,
       })
     );
-    indicator = app.text({
-      text: collapsed ? `+${childCount}` : '−',
-      x: width - 23,
-      y: 15,
-      fontSize: getActiveDiagram().fontSize.base,
-      fontWeight: 'bold',
-      fontFamily: getActiveDiagram().fontFamily,
-      fill: getActiveDiagram().orgToggle,
-    });
-    node.add(indicator);
+  }
+
+  node.add(
+    app.circle({
+      x: width / 2 - 3.5,
+      y: height - 3.5,
+      radius: 3.5,
+      fill: tier.accent,
+      stroke: getActiveDiagram().surface,
+      strokeWidth: 1.25,
+      listening: false,
+    })
+  );
+
+  let indicator;
+  if (kids > 0) {
+    const btnW = kids > 9 ? 30 : 24;
+    const bx = width - btnW - 6;
+    const by = height - 26;
+    const btn = app.group({
+      x: bx,
+      y: by,
+      listening: true,
+      zIndex: 20,
+    }) as Group;
+    btn.metadata.orgCollapseBtn = true;
+    drawOrgCollapseGlyph(app, btn, isCollapsed, kids);
+    node.add(btn);
+    node.metadata.collapseButton = btn;
+    indicator = btn;
   }
   return { node, indicator };
 }
@@ -591,6 +901,8 @@ export function createPipelineStage(
   const width = 118;
   const height = 50;
   const node = app.group();
+  node.metadata.diagramCardWidth = width;
+  node.metadata.diagramCardHeight = height;
   const statusLabels: Record<string, string> = {
     pending: 'WAIT',
     active: 'RUN',
@@ -655,50 +967,60 @@ export function createPipelineStage(
   return node;
 }
 
-/** State machine node: initial, final, or normal. */
+/** State machine node: UML initial (filled circle), final (double ring), or rounded state. */
 export function createStateNode(
   app: App,
   label: string,
   type: 'initial' | 'final' | 'normal' | string
 ): Group {
-  const radius = 32;
   const node = app.group();
   const isFinal = type === 'final';
   const isInitial = type === 'initial';
 
-  if (isFinal) {
+  if (isInitial) {
+    // UML initial pseudostate — solid circle; card size = glyph for correct anchors
+    const r = 9;
+    const size = r * 2;
+    node.metadata.diagramCardWidth = size;
+    node.metadata.diagramCardHeight = size;
     node.add(
       app.circle({
-        x: radius - 6,
-        y: radius - 6,
-        radius: radius + 1,
-        fill: null,
-        stroke: getActiveDiagram().stateFinalStroke,
-        strokeWidth: 1,
-        opacity: 0.35,
+        x: 0,
+        y: 0,
+        radius: r,
+        fill: getActiveDiagram().stateInitialStroke,
+        stroke: null,
         listening: false,
       })
     );
+    return node;
+  }
+
+  if (isFinal) {
+    // UML final: double ring with label centered inside (not below — keeps anchors tight)
+    const radius = 20;
+    const size = radius * 2;
+    node.metadata.diagramCardWidth = size;
+    node.metadata.diagramCardHeight = size;
     node.add(
       app.circle({
-        x: radius - 6,
-        y: radius - 6,
-        radius: radius - 2,
+        x: 0,
+        y: 0,
+        radius,
         fill: getActiveDiagram().stateFinalFill,
         stroke: getActiveDiagram().stateFinalStroke,
         strokeWidth: getActiveDiagram().stroke.nodeEmphasis,
-        shadow: getActiveDiagram().shadowElevated,
         listening: false,
       })
     );
     node.add(
       app.circle({
-        x: radius - 6,
-        y: radius - 6,
-        radius: radius - 9,
+        x: 6,
+        y: 6,
+        radius: radius - 6,
         fill: null,
         stroke: getActiveDiagram().stateFinalStroke,
-        strokeWidth: getActiveDiagram().stroke.node,
+        strokeWidth: getActiveDiagram().stroke.nodeEmphasis,
         listening: false,
       })
     );
@@ -707,8 +1029,8 @@ export function createStateNode(
       node.add(
         app.text({
           text: label,
-          x: centerTextX(label, radius * 2 - 4, fs),
-          y: radius * 2 - 6,
+          x: centerTextX(label, size, fs),
+          y: size / 2 - fs / 2 - 1,
           fontSize: fs,
           fontWeight: '600',
           fontFamily: getActiveDiagram().fontFamily,
@@ -720,50 +1042,28 @@ export function createStateNode(
     return node;
   }
 
-  if (isInitial) {
-    const w = radius * 2 - 4;
-    const h = radius * 2 - 4;
-    addCardChrome(app, node, {
-      width: w,
-      height: h,
-      cornerRadius: h / 2,
-      fill: getActiveDiagram().stateInitialFill,
-      stroke: getActiveDiagram().stateInitialStroke,
-      strokeWidth: getActiveDiagram().stroke.nodeEmphasis,
-      shadow: getActiveDiagram().shadowElevated,
-      sheen: false,
-    });
-    node.add(
-      app.circle({
-        x: 14,
-        y: h / 2,
-        radius: 6,
-        fill: getActiveDiagram().stateInitialStroke,
-        stroke: null,
-        listening: false,
-      })
-    );
-  } else {
-    const w = radius * 2 - 4;
-    addCardChrome(app, node, {
-      width: w,
-      height: w,
-      cornerRadius: getActiveDiagram().radii.lg,
-      fill: getActiveDiagram().stateFill,
-      stroke: getActiveDiagram().stateStroke,
-      strokeWidth: getActiveDiagram().stroke.nodeEmphasis,
-      shadow: getActiveDiagram().shadowSoft,
-      accentColor: getActiveDiagram().stateStroke,
-    });
-  }
+  const w = 112;
+  const h = 42;
+  node.metadata.diagramCardWidth = w;
+  node.metadata.diagramCardHeight = h;
+  // Clean Mermaid-style pill — stroke only, no accent bar / sheen artifacts
+  addCardChrome(app, node, {
+    width: w,
+    height: h,
+    cornerRadius: getActiveDiagram().radii.pill,
+    fill: getActiveDiagram().stateFill,
+    stroke: getActiveDiagram().stateStroke,
+    strokeWidth: getActiveDiagram().stroke.nodeEmphasis,
+    shadow: null,
+    sheen: false,
+  });
 
   const fs = getActiveDiagram().fontSize.md;
-  const boxW = radius * 2 - 4;
   node.add(
     app.text({
       text: label,
-      x: isInitial ? 26 : centerTextX(label, boxW, fs),
-      y: radius - fs / 2 - 3,
+      x: centerTextX(label, w, fs),
+      y: h / 2 - fs / 2 - 1,
       fontSize: fs,
       fontWeight: '600',
       fontFamily: getActiveDiagram().fontFamily,
@@ -774,7 +1074,7 @@ export function createStateNode(
   return node;
 }
 
-/** CAN bus ECU card with bus tap connector. */
+/** CAN bus ECU card with chip glyph and bus tap. */
 export function createCanEcuNode(
   app: App,
   label: string,
@@ -782,9 +1082,12 @@ export function createCanEcuNode(
   color: string,
   strokeWidth: number = getActiveDiagram().stroke.node
 ): Group {
-  const width = 88;
-  const height = 56;
+  const width = 96;
+  const height = 62;
   const ecuGroup = app.group();
+  ecuGroup.metadata.diagramCardWidth = width;
+  ecuGroup.metadata.diagramCardHeight = height;
+  ecuGroup.metadata.diagramTapPad = 22;
 
   addCardChrome(app, ecuGroup, {
     width,
@@ -796,6 +1099,40 @@ export function createCanEcuNode(
     shadow: getActiveDiagram().shadowElevated,
     accentColor: color,
   });
+
+  // IC chip glyph
+  ecuGroup.add(
+    app.roundedRect({
+      x: width - 28,
+      y: 10,
+      width: 16,
+      height: 20,
+      cornerRadius: 2,
+      fill: null,
+      stroke: color,
+      strokeWidth: 1.2,
+      opacity: 0.85,
+      listening: false,
+    })
+  );
+  for (const side of [0, 1]) {
+    for (let i = 0; i < 3; i++) {
+      ecuGroup.add(
+        app.line({
+          x: side === 0 ? width - 28 : width - 12,
+          y: 13 + i * 6,
+          x2: side === 0 ? -4 : 4,
+          y2: 0,
+          stroke: color,
+          strokeWidth: 1.1,
+          lineCap: 'round',
+          opacity: 0.75,
+          listening: false,
+        })
+      );
+    }
+  }
+
   ecuGroup.add(
     app.text({
       text: label,
@@ -813,7 +1150,7 @@ export function createCanEcuNode(
       app.text({
         text: address,
         x: getActiveDiagram().spacing.sm,
-        y: 30,
+        y: 32,
         fontSize: getActiveDiagram().fontSize.xs,
         fontFamily: getActiveDiagram().fontMono,
         fill: getActiveDiagram().edgeLabel,
@@ -821,26 +1158,41 @@ export function createCanEcuNode(
       })
     );
   }
+  // Bus tap: reaches dual-line midline when ECU.y = busY + 18 (tap to local y = -18)
+  const tapLen = 18;
   ecuGroup.add(
-    app.circle({
-      x: 44,
+    app.line({
+      x: width / 2,
       y: 0,
-      radius: 3,
-      fill: color,
-      stroke: getActiveDiagram().surface,
-      strokeWidth: 1,
+      x2: 0,
+      y2: -tapLen,
+      stroke: color,
+      strokeWidth: 2.25,
+      lineCap: 'round',
+      listening: false,
+    })
+  );
+  // Bridge across CAN-H / CAN-L at the junction
+  ecuGroup.add(
+    app.line({
+      x: width / 2,
+      y: -tapLen - 4,
+      x2: 0,
+      y2: 8,
+      stroke: color,
+      strokeWidth: 2,
+      lineCap: 'round',
       listening: false,
     })
   );
   ecuGroup.add(
-    app.line({
-      x: 44,
-      y: 0,
-      x2: 0,
-      y2: -14,
-      stroke: color,
-      strokeWidth: 2.5,
-      lineCap: 'round',
+    app.circle({
+      x: width / 2 - 3.5,
+      y: -tapLen - 3.5,
+      radius: 3.5,
+      fill: color,
+      stroke: getActiveDiagram().surface,
+      strokeWidth: 1.5,
       listening: false,
     })
   );

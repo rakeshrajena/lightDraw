@@ -27,7 +27,9 @@ for (const f of distFiles) {
 }
 
 const examplesOut = resolve(pub, 'examples');
-if (existsSync(examplesOut)) rmSync(examplesOut, { recursive: true });
+// Prefer in-place sync: a full rm+cp can briefly empty the folder and leave
+// Vite's public-file cache without example HTML (SPA fallback nests the site).
+if (!existsSync(examplesOut)) mkdirSync(examplesOut, { recursive: true });
 cpSync(resolve(root, 'examples'), examplesOut, { recursive: true });
 
 function rewriteExampleAssetPaths(dir) {

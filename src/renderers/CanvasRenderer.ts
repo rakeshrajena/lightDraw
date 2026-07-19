@@ -25,6 +25,7 @@ import { traceArcSector } from './arcSector';
 import { isSubtreeDirty } from '../performance/bounds';
 import { toHighContrastColor } from '../utils/a11y';
 import { unwrapThemeBackgroundSrc } from '../components/uiTheme';
+import { parsePathSegments } from '../utils/pathGeometry';
 
 export class CanvasRenderer extends Renderer {
   private canvas!: HTMLCanvasElement;
@@ -442,6 +443,27 @@ export class CanvasRenderer extends Renderer {
 
   drawPath(node: Path): void {
     const ctx = this.ctx;
+    // Path2D is missing in some test / non-browser canvases — fall back to stroke sampling.
+    if (typeof Path2D === 'undefined') {
+      const segs = parsePathSegments(node.d);
+      for (const seg of segs) {
+        if (seg.length < 2) continue;
+        ctx.beginPath();
+        ctx.moveTo(seg[0].x, seg[0].y);
+        for (let i = 1; i < seg.length; i++) ctx.lineTo(seg[i].x, seg[i].y);
+        if (node.fill) {
+          this.setFill(ctx, node.fill);
+          ctx.fill();
+          this.lastFillCallCount++;
+        }
+        if (node.stroke) {
+          this.applyStroke(ctx, node.stroke, node.strokeWidth, node.dash, node.dashOffset, node.lineCap, node.lineJoin);
+          ctx.stroke();
+        }
+      }
+      this.drawCallCount++;
+      return;
+    }
     const path = new Path2D(node.d);
     if (node.fill) {
       this.setFill(ctx, node.fill);

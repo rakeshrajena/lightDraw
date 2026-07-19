@@ -151,6 +151,7 @@ export class EventManager {
       );
       this.dragState.node.x = pos.x;
       this.dragState.node.y = pos.y;
+      this.dragState.node.markDirty();
       this.dispatchBubble(
         this.dragState.node,
         'dragmove',

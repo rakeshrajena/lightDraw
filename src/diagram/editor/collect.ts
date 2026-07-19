@@ -61,11 +61,13 @@ export function collectEdgesFromLayer(edgeLayer: Group): EditorEdgeRecord[] {
     const from = child.metadata?.edgeFrom as string | undefined;
     const to = child.metadata?.edgeTo as string | undefined;
     if (!from || !to) continue;
+    const rawWp = child.metadata?.edgeWaypoints as Array<{ x: number; y: number }> | undefined;
     edges.push({
       id: (child.metadata?.edgeId as string) ?? `${from}-${to}`,
       from,
       to,
       label: child.metadata?.edgeLabel as string | undefined,
+      waypoints: Array.isArray(rawWp) ? rawWp.map((w) => ({ x: w.x, y: w.y })) : undefined,
       options: {
         style: child.metadata?.edgeStyle as RouteStyle | undefined,
         stroke: child.metadata?.edgeStroke as string | undefined,
@@ -74,6 +76,7 @@ export function collectEdgesFromLayer(edgeLayer: Group): EditorEdgeRecord[] {
         arrowEnd: child.metadata?.edgeArrowEnd as ArrowStyle | undefined,
         arrowStart: child.metadata?.edgeArrowStart as ArrowStyle | undefined,
         dash: child.metadata?.edgeDash as number[] | undefined,
+        waypoints: Array.isArray(rawWp) ? rawWp.map((w) => ({ x: w.x, y: w.y })) : undefined,
       },
     });
   }

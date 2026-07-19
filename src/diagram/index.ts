@@ -4,25 +4,38 @@ export {
   createClassDiagram,
   createMindMap,
   createNetworkDiagram,
+  createNetworkIconCatalog,
   createOrgChart,
   createSchematic,
   createCanNetwork,
   createPipeline,
   toggleOrgCollapse,
   applyForceLayout,
+  wireOrgCollapseControls,
+  createDiagramFromProps,
 } from './definitions';
+
+export {
+  resolveNetworkIconKind,
+  listNetworkIconKinds,
+  listNetworkTypeAliases,
+  drawNetworkIcon,
+  getNetworkIconMeta,
+} from './networkIcons';
+export type { NetworkIconKind, NetworkIconCategory, NetworkIconMeta } from './networkIcons';
 
 export {
   forceDirectedLayout,
   layoutDiagram,
   radialLayout,
+  mindMapLayout,
   pipelineLayout,
   layoutNodesForce,
 } from './layouts';
 
-export { routeConnector, collectObstacles, getAnchor } from './router';
+export { routeConnector, collectObstacles, collectObstaclesInParent, getAnchor } from './router';
 export type { RouteStyle } from './router';
-export { createSymbol, buildSchematic, Symbols } from './symbols';
+export { createSymbol, buildSchematic, rewireSchematic, Symbols } from './symbols';
 export { diagramToJSON, fitDiagramToBounds, resolveGridLayout, readCanvasSize } from './helpers';
 export { installDiagramEditor, uninstallDiagramEditor, DiagramEditor } from './editor';
 
@@ -39,6 +52,9 @@ export type {
   Obstacle,
 } from './types';
 
+export type { OrgNodeOptions } from './primitives';
+export { orgInitialsAvatarDataUri } from './primitives';
+
 export type { ForceLayoutOptions, ForceNode, ForceEdge } from './layouts';
 
 import {
@@ -47,16 +63,23 @@ import {
   createClassDiagram,
   createMindMap,
   createNetworkDiagram,
+  createNetworkIconCatalog,
   createOrgChart,
   createSchematic,
   createCanNetwork,
   createPipeline,
   toggleOrgCollapse,
+  wireOrgCollapseControls,
+  createDiagramFromProps,
 } from './definitions';
 import { forceDirectedLayout, layoutDiagram } from './layouts';
-import { fitDiagramToBounds } from './helpers';
+import { fitDiagramToBounds, diagramToJSON } from './helpers';
 import { installDiagramEditor, uninstallDiagramEditor } from './editor';
 import { routeConnector } from './router';
+import { listNetworkIconKinds, resolveNetworkIconKind } from './networkIcons';
+import { createDiagramFromJSON } from './registryCore';
+
+export { createDiagramFromJSON } from './registryCore';
 
 /** Diagram module namespace for plugin install */
 export const Diagram = {
@@ -65,6 +88,7 @@ export const Diagram = {
   classDiagram: createClassDiagram,
   mindMap: createMindMap,
   network: createNetworkDiagram,
+  networkCatalog: createNetworkIconCatalog,
   orgChart: createOrgChart,
   schematic: createSchematic,
   canNetwork: createCanNetwork,
@@ -73,7 +97,15 @@ export const Diagram = {
   route: routeConnector,
   forceLayout: forceDirectedLayout,
   toggleCollapse: toggleOrgCollapse,
+  wireOrgCollapse: wireOrgCollapseControls,
   fitToBounds: fitDiagramToBounds,
   installEditor: installDiagramEditor,
   uninstallEditor: uninstallDiagramEditor,
+  listNetworkIcons: listNetworkIconKinds,
+  resolveNetworkIcon: resolveNetworkIconKind,
+  /** Serialize a diagram root to `{ type, props }` JSON. */
+  toJSON: diagramToJSON,
+  /** Build a diagram from type + props JSON. */
+  fromJSON: createDiagramFromJSON,
+  fromProps: createDiagramFromProps,
 };

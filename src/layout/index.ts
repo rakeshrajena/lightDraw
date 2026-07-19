@@ -162,38 +162,77 @@ export function circularLayout(
   }
 }
 
-/** Tree layout (simple hierarchical) */
+/** Tree layout — parents centered over their children (org-chart style). */
 export function treeLayout(
   group: Group,
   levelGap = 80,
   siblingGap = 40
 ): void {
-  layoutTreeNode(group, 0, 0, levelGap, siblingGap);
+  layoutTreeSubtree(group, levelGap, siblingGap);
+  group.markDirty();
 }
 
-function layoutTreeNode(
-  node: Group,
-  x: number,
-  y: number,
-  levelGap: number,
-  siblingGap: number
-): number {
-  node.x = x;
-  node.y = y;
-  node.markDirty();
+function nodeCardWidth(node: Group): number {
+  const metaW = node.metadata?.orgCardWidth as number | undefined;
+  if (typeof metaW === 'number' && metaW > 0) return metaW;
+  const b = node.getBounds();
+  return Math.max(b.width > 0 ? Math.min(b.width, 220) : 156, 40);
+}
 
-  let childX = x;
-  for (const child of node.children) {
-    if ('children' in child) {
-      childX = layoutTreeNode(child as Group, childX, y + levelGap, levelGap, siblingGap);
-    } else {
-      child.x = childX;
-      child.y = y + levelGap;
-      child.markDirty();
-      childX += child.getBounds().width + siblingGap;
-    }
+/** Org / tree children only — skip chrome, indicators, edge layers, and collapsed branches. */
+function treeChildren(node: Group): Group[] {
+  const orgKids = node.children.filter(
+    (c): c is Group =>
+      !!c.metadata?.orgNode &&
+      c.visible !== false &&
+      'children' in c
+  );
+  if (orgKids.length > 0) return orgKids;
+  return node.children.filter(
+    (c): c is Group =>
+      'children' in c &&
+      Array.isArray((c as Group).children) &&
+      c.visible !== false &&
+      !c.metadata?.diagramEdgeLayer &&
+      !c.metadata?.orgCollapseBtn
+  );
+}
+
+/**
+ * Recursively size subtrees and center each parent over its children.
+ * Child coordinates are local to the parent group.
+ * @returns subtree width used for sibling packing
+ */
+function layoutTreeSubtree(node: Group, levelGap: number, siblingGap: number): number {
+  const kids = treeChildren(node);
+  const ownW = nodeCardWidth(node);
+
+  if (kids.length === 0) {
+    node.markDirty();
+    return ownW;
   }
-  return childX;
+
+  const widths: number[] = [];
+  let total = 0;
+  for (const child of kids) {
+    const w = layoutTreeSubtree(child, levelGap, siblingGap);
+    widths.push(w);
+    total += w;
+  }
+  total += siblingGap * (kids.length - 1);
+
+  let cursor = (ownW - total) / 2;
+  kids.forEach((child, i) => {
+    const slot = widths[i];
+    const childOwn = nodeCardWidth(child);
+    child.x = cursor + (slot - childOwn) / 2;
+    child.y = levelGap;
+    child.markDirty();
+    cursor += slot + siblingGap;
+  });
+
+  node.markDirty();
+  return Math.max(ownW, total);
 }
 
 /** Auto-align children */

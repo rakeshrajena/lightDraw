@@ -13,7 +13,7 @@
     <header class="demo-header">
       <span class="demo-badge">Diagram Module</span>
       <h1>Diagram Gallery</h1>
-      <p>Polished, production-ready diagrams for flowcharts, state machines, networks, automotive buses, and more. Edit Config JSON below for live updates.</p>
+      <p>Drag nodes to move. Select a node and drag edge/corner handles to resize. Double-click a wire to add bend points. Zoom with + / −.</p>
     </header>
     <main class="demo-main">
       <div class="demo-layout-split">
@@ -43,7 +43,14 @@
           </div>
         </aside>
         <div class="demo-canvas-wrap demo-canvas-diagram" id="diagram-canvas-wrap">
+          <div class="demo-canvas-toolbar" id="diagram-zoom-bar" aria-label="Canvas zoom">
+            <button type="button" class="demo-zoom-btn" id="zoom-out" title="Zoom out" aria-label="Zoom out">−</button>
+            <span class="demo-zoom-label" id="zoom-label">100%</span>
+            <button type="button" class="demo-zoom-btn" id="zoom-in" title="Zoom in" aria-label="Zoom in">+</button>
+            <button type="button" class="demo-zoom-btn demo-zoom-fit" id="zoom-fit" title="Fit to view" aria-label="Fit to view">Fit</button>
+          </div>
           <div id="app"></div>
+          <p class="demo-canvas-hint">Drag to move. Select a node → resize handles. Org chart: click − / + to minimize a branch. Double-click a wire for bends.</p>
         </div>
       </div>
     </main>
@@ -74,7 +81,7 @@
       network: {
         category: 'Systems',
         title: 'Network Topology',
-        desc: 'Routers, servers, and clients with smart routing and interface labels.',
+        desc: 'Standard Cisco/Visio-style icons — routers, firewalls, servers, cloud, IoT, and more.',
       },
       can: {
         category: 'Systems',
@@ -89,7 +96,7 @@
       mindMap: {
         category: 'Structure',
         title: 'Mind Map',
-        desc: 'Radial branches with color-coded tiers for architecture overviews.',
+        desc: 'Left/right branches with smooth horizontal links — Mermaid-style overview maps.',
       },
       uml: {
         category: 'Structure',
@@ -99,14 +106,16 @@
       org: {
         category: 'Structure',
         title: 'Org Chart',
-        desc: 'Hierarchical roles with tier styling and parent–child connectors.',
+        desc: 'Hierarchy cards with photos. Click − / + on a card to minimize or expand that branch.',
       },
     };
 
     function measureCanvas() {
-      const rect = canvasWrap.getBoundingClientRect();
-      canvasW = Math.max(320, Math.floor(rect.width - 8));
-      canvasH = Math.max(280, Math.floor(rect.height - 8));
+      // clientWidth/Height avoid subpixel getBoundingClientRect flicker loops
+      const w = canvasWrap.clientWidth || canvasWrap.getBoundingClientRect().width;
+      const h = canvasWrap.clientHeight || canvasWrap.getBoundingClientRect().height;
+      canvasW = Math.max(320, Math.floor(w - 8));
+      canvasH = Math.max(280, Math.floor(h - 8));
       return { width: canvasW, height: canvasH };
     }
 
@@ -119,20 +128,139 @@
 
     let currentDiagram = 'flowchart';
     let currentGroup = null;
+    let currentEditor = null;
     let resizeTimer = null;
+    const ZOOM_MIN = 0.35;
+    const ZOOM_MAX = 2.75;
+    const ZOOM_STEP = 1.18;
+
+    function updateZoomLabel() {
+      const pct = Math.round((app.camera.zoom || 1) * 100);
+      const el = document.getElementById('zoom-label');
+      if (el) el.textContent = pct + '%';
+    }
+
+    function resetCamera() {
+      app.camera.setZoom(1);
+      app.camera.setPosition(0, 0);
+      updateZoomLabel();
+    }
+
+    function setCanvasZoom(next) {
+      const z = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, next));
+      app.camera.setZoom(z);
+      updateZoomLabel();
+      app.render();
+    }
+
+    function installArrangeEditor() {
+      if (!currentGroup || !LightDraw.Diagram.installEditor) return;
+      if (currentEditor) {
+        currentEditor.destroy();
+        currentEditor = null;
+      }
+      if (LightDraw.Diagram.uninstallEditor) {
+        try {
+          LightDraw.Diagram.uninstallEditor(currentGroup);
+        } catch (_) { /* ignore */ }
+      }
+      currentEditor = LightDraw.Diagram.installEditor(app, currentGroup, {
+        mode: 'arrange',
+        tool: 'select',
+        gridSize: 8,
+        showPorts: false,
+        onChange() {
+          if (window.LivePlayground) LivePlayground.syncScene(true);
+        },
+      });
+    }
+
+    const DIAGRAM_TYPE_TO_SAMPLE = {
+      flowchart: 'flowchart',
+      stateMachine: 'stateMachine',
+      processPipeline: 'pipeline',
+      networkTopology: 'network',
+      canNetwork: 'can',
+      electricalSchematic: 'schematic',
+      mindMap: 'mindMap',
+      classDiagram: 'uml',
+      orgChart: 'org',
+    };
 
     function diagramOpts(extra = {}) {
       return { width: canvasW, height: canvasH, ...extra };
+    }
+
+    function getDiagramScene() {
+      if (!currentGroup) {
+        return { type: 'flowchart', props: { width: canvasW, height: canvasH }, diagram: currentDiagram };
+      }
+      const serialized = LightDraw.Diagram.toJSON
+        ? LightDraw.Diagram.toJSON(currentGroup)
+        : {
+            type: currentGroup.metadata.diagramType,
+            props: { ...(currentGroup.metadata.diagramState || {}) },
+          };
+      const props = { ...(serialized.props || {}) };
+      props.width = canvasW;
+      props.height = canvasH;
+      return {
+        type: serialized.type,
+        props,
+        diagram: currentDiagram,
+      };
+    }
+
+    function mountDiagramGroup(group, sampleKey) {
+      if (currentEditor) {
+        currentEditor.destroy();
+        currentEditor = null;
+      }
+      resizeQuietUntil = Date.now() + 250;
+      app.resize(canvasW, canvasH);
+      resetCamera();
+      app.stage.clear();
+      currentGroup = group;
+      if (sampleKey) currentDiagram = sampleKey;
+      app.add(currentGroup);
+      fitCurrentDiagram();
+      installArrangeEditor();
+      app.render();
+      if (window.LivePlayground) LivePlayground.syncScene(true);
+    }
+
+    function showDiagramFromJSON(parsed) {
+      const type = parsed && parsed.type;
+      if (!type) throw new Error('Diagram JSON needs a type (e.g. "flowchart")');
+      const props = { ...(parsed.props || {}) };
+      props.width = canvasW;
+      props.height = canvasH;
+      const group = LightDraw.Diagram.fromJSON
+        ? LightDraw.Diagram.fromJSON(type, props, app)
+        : LightDraw.Diagram.fromProps(type, props, app);
+      if (!group) throw new Error('Unknown diagram type: ' + type);
+      const sampleKey =
+        DIAGRAM_TYPE_TO_SAMPLE[type] ||
+        (parsed.diagram && samples[parsed.diagram] ? parsed.diagram : currentDiagram);
+      if (sampleKey && samples[sampleKey]) {
+        const btn = document.querySelector(`[data-diagram="${sampleKey}"]`);
+        if (btn) {
+          document.querySelectorAll('[data-diagram]').forEach((b) => b.classList.remove('is-active'));
+          btn.classList.add('is-active');
+        }
+        updateDiagramInfo(sampleKey);
+      }
+      mountDiagramGroup(group, sampleKey);
     }
 
     const samples = {
       flowchart: () =>
         LightDraw.Diagram.flowchart(app, {
           nodes: [
-            { id: 'start', label: 'Start', type: 'start', x: 380, y: 24 },
-            { id: 'check', label: 'Valid input?', type: 'decision', x: 350, y: 100 },
-            { id: 'process', label: 'Process data', x: 350, y: 190 },
-            { id: 'end', label: 'Complete', type: 'end', x: 380, y: 280 },
+            { id: 'start', label: 'Start', type: 'start', x: 384, y: 24 },
+            { id: 'check', label: 'Valid input?', type: 'decision', x: 384, y: 110 },
+            { id: 'process', label: 'Process data', x: 384, y: 210 },
+            { id: 'end', label: 'Complete', type: 'end', x: 384, y: 300 },
           ],
           edges: [
             { from: 'start', to: 'check' },
@@ -143,36 +271,51 @@
       stateMachine: () =>
         LightDraw.Diagram.stateMachine(app, {
           states: [
-            { id: 'idle', label: 'Idle', type: 'initial', x: 60, y: 200 },
-            { id: 'load', label: 'Loading', x: 240, y: 80 },
-            { id: 'run', label: 'Running', x: 440, y: 200 },
-            { id: 'err', label: 'Error', x: 240, y: 340 },
-            { id: 'done', label: 'Done', type: 'final', x: 640, y: 200 },
+            { id: 'init', label: '', type: 'initial', x: 40, y: 211 },
+            { id: 'idle', label: 'Idle', x: 100, y: 200 },
+            { id: 'load', label: 'Loading', x: 300, y: 80 },
+            { id: 'run', label: 'Running', x: 500, y: 200 },
+            { id: 'err', label: 'Error', x: 300, y: 340 },
+            { id: 'done', label: 'Done', type: 'final', x: 700, y: 200 },
           ],
           transitions: [
+            { from: 'init', to: 'idle' },
             { from: 'idle', to: 'load', label: 'fetch' },
             { from: 'load', to: 'run', label: 'ok' },
             { from: 'load', to: 'err', label: 'fail' },
             { from: 'run', to: 'done', label: 'complete' },
-            { from: 'err', to: 'idle', label: 'retry' },
+            { from: 'err', to: 'load', label: 'retry' },
           ],
         }, diagramOpts()),
       network: () =>
         LightDraw.Diagram.network(app, {
           nodes: [
-            { id: 'r1', label: 'Edge Router', type: 'router', x: 400, y: 40 },
-            { id: 's1', label: 'API Server', type: 'server', x: 180, y: 170 },
-            { id: 's2', label: 'Database', type: 'server', x: 400, y: 170 },
-            { id: 's3', label: 'Cache', type: 'server', x: 620, y: 170 },
-            { id: 'c1', label: 'Client A', type: 'client', x: 120, y: 320 },
-            { id: 'c2', label: 'Client B', type: 'client', x: 680, y: 320 },
+            { id: 'inet', label: 'Internet', type: 'internet', x: 380, y: 8 },
+            { id: 'fw', label: 'NGFW', type: 'ngfw', x: 380, y: 100 },
+            { id: 'r1', label: 'Edge Router', type: 'edge_router', x: 380, y: 190 },
+            { id: 'sw', label: 'Core Switch', type: 'core_switch', x: 380, y: 280 },
+            { id: 'web', label: 'Web Server', type: 'web_server', x: 120, y: 280 },
+            { id: 'app', label: 'App Server', type: 'application_server', x: 220, y: 380 },
+            { id: 'db', label: 'SQL Database', type: 'sql_database', x: 380, y: 380 },
+            { id: 'redis', label: 'Redis Cache', type: 'redis', x: 540, y: 380 },
+            { id: 'lb', label: 'Load Balancer', type: 'load_balancer', x: 640, y: 280 },
+            { id: 'ap', label: 'Access Point', type: 'wap', x: 640, y: 190 },
+            { id: 'pc', label: 'Laptop', type: 'laptop', x: 760, y: 280 },
+            { id: 'cloud', label: 'Cloud Region', type: 'cloud_region', x: 120, y: 100 },
           ],
           edges: [
-            { from: 'r1', to: 's1', label: 'eth0' },
-            { from: 'r1', to: 's2' },
-            { from: 'r1', to: 's3' },
-            { from: 's1', to: 'c1' },
-            { from: 's3', to: 'c2' },
+            { from: 'inet', to: 'fw' },
+            { from: 'fw', to: 'r1' },
+            { from: 'r1', to: 'sw' },
+            { from: 'sw', to: 'web' },
+            { from: 'sw', to: 'db' },
+            { from: 'sw', to: 'lb' },
+            { from: 'web', to: 'app' },
+            { from: 'app', to: 'db' },
+            { from: 'db', to: 'redis' },
+            { from: 'lb', to: 'ap' },
+            { from: 'ap', to: 'pc' },
+            { from: 'cloud', to: 'fw', label: 'VPN' },
           ],
         }, diagramOpts()),
       can: () =>
@@ -188,7 +331,7 @@
               { id: 'icu', label: 'ICU', address: '0x7E4' },
             ],
           },
-          diagramOpts({ x: 24, y: 100 })
+          diagramOpts({ x: 0, y: 80 })
         ),
       pipeline: () =>
         LightDraw.Diagram.pipeline(
@@ -215,23 +358,24 @@
             {
               id: 'node',
               name: 'Node',
-              x: 80,
-              y: 40,
+              x: 340,
+              y: 36,
               attributes: ['- x: number', '- y: number'],
               methods: ['+ render(): void'],
             },
             {
               id: 'shape',
               name: 'Shape',
-              x: 80,
-              y: 200,
+              x: 120,
+              y: 260,
+              attributes: ['- fill: string'],
               methods: ['+ hitTest(): boolean'],
             },
             {
               id: 'group',
               name: 'Group',
-              x: 380,
-              y: 40,
+              x: 560,
+              y: 260,
               attributes: ['- children: Node[]'],
               methods: ['+ add(node): void'],
             },
@@ -239,6 +383,7 @@
           relations: [
             { from: 'shape', to: 'node', type: 'inheritance' },
             { from: 'group', to: 'node', type: 'inheritance' },
+            { from: 'group', to: 'shape', type: 'composition' },
           ],
         }, diagramOpts()),
       schematic: () =>
@@ -251,11 +396,59 @@
         ], diagramOpts()),
       org: () =>
         LightDraw.Diagram.orgChart(app, {
-          name: 'CEO',
+          name: 'Alex Rivera',
+          role: 'Chief Executive Officer',
+          department: 'Executive',
+          image: 'https://api.dicebear.com/9.x/notionists/svg?seed=AlexRivera&backgroundColor=1e3a5f',
           children: [
-            { name: 'CTO', children: [{ name: 'Engineering Lead' }, { name: 'QA Lead' }] },
-            { name: 'CFO', children: [{ name: 'Accounting' }] },
-            { name: 'COO', collapsed: true, children: [{ name: 'Operations Manager' }] },
+            {
+              name: 'Sam Chen',
+              role: 'Chief Technology Officer',
+              department: 'Engineering',
+              image: 'https://api.dicebear.com/9.x/notionists/svg?seed=SamChen&backgroundColor=1e1b4b',
+              children: [
+                {
+                  name: 'Jordan Lee',
+                  role: 'Engineering Lead',
+                  department: 'Platform',
+                  image: 'https://api.dicebear.com/9.x/notionists/svg?seed=JordanLee&backgroundColor=14532d',
+                },
+                {
+                  name: 'Riley Park',
+                  role: 'QA Lead',
+                  department: 'Quality',
+                  image: 'https://api.dicebear.com/9.x/notionists/svg?seed=RileyPark&backgroundColor=422006',
+                },
+              ],
+            },
+            {
+              name: 'Morgan Blake',
+              role: 'Chief Financial Officer',
+              department: 'Finance',
+              image: 'https://api.dicebear.com/9.x/notionists/svg?seed=MorganBlake&backgroundColor=3b0764',
+              children: [
+                {
+                  name: 'Casey Ng',
+                  role: 'Accounting Manager',
+                  department: 'Finance',
+                  image: 'https://api.dicebear.com/9.x/notionists/svg?seed=CaseyNg&backgroundColor=1c2740',
+                },
+              ],
+            },
+            {
+              name: 'Taylor Kim',
+              role: 'Chief Operating Officer',
+              department: 'Operations',
+              image: 'https://api.dicebear.com/9.x/notionists/svg?seed=TaylorKim&backgroundColor=0f172a',
+              children: [
+                {
+                  name: 'Avery Brooks',
+                  role: 'Ops Manager',
+                  department: 'Operations',
+                  image: 'https://api.dicebear.com/9.x/notionists/svg?seed=AveryBrooks&backgroundColor=1e293b',
+                },
+              ],
+            },
           ],
         }, diagramOpts()),
     };
@@ -278,6 +471,22 @@
       LightDraw.Diagram.fitToBounds(currentGroup, canvasW, canvasH, 24);
     }
 
+    /** Resize canvas only — do not rebuild the scene (prevents fluid reflow loops). */
+    let resizeQuietUntil = 0;
+    function handleCanvasResize() {
+      if (Date.now() < resizeQuietUntil) return;
+      const prevW = canvasW;
+      const prevH = canvasH;
+      measureCanvas();
+      if (Math.abs(canvasW - prevW) < 3 && Math.abs(canvasH - prevH) < 3) return;
+      // Ignore observer feedback while we apply the new bitmap size
+      resizeQuietUntil = Date.now() + 250;
+      app.resize(canvasW, canvasH);
+      if (!currentGroup) return;
+      fitCurrentDiagram();
+      app.render();
+    }
+
     function pick(btn, name) {
       document.querySelectorAll('[data-diagram]').forEach((b) => b.classList.remove('is-active'));
       btn.classList.add('is-active');
@@ -288,19 +497,33 @@
       currentDiagram = name;
       updateDiagramInfo(name);
       measureCanvas();
-      app.resize(canvasW, canvasH);
-      app.stage.clear();
-      currentGroup = samples[name]();
-      app.add(currentGroup);
-      fitCurrentDiagram();
-      app.render();
-      if (window.LivePlayground) LivePlayground.syncScene(true);
+      mountDiagramGroup(samples[name](), name);
     }
     window.showDiagram = showDiagram;
+    window.pick = pick;
+    window.showDiagramFromJSON = showDiagramFromJSON;
 
+    document.getElementById('zoom-in').addEventListener('click', () => {
+      setCanvasZoom((app.camera.zoom || 1) * ZOOM_STEP);
+    });
+    document.getElementById('zoom-out').addEventListener('click', () => {
+      setCanvasZoom((app.camera.zoom || 1) / ZOOM_STEP);
+    });
+    document.getElementById('zoom-fit').addEventListener('click', () => {
+      resetCamera();
+      fitCurrentDiagram();
+      app.render();
+    });
+    updateZoomLabel();
+
+    let resizeRaf = 0;
     function scheduleResize() {
+      if (Date.now() < resizeQuietUntil) return;
       clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(() => showDiagram(currentDiagram), 120);
+      resizeTimer = setTimeout(() => {
+        cancelAnimationFrame(resizeRaf);
+        resizeRaf = requestAnimationFrame(handleCanvasResize);
+      }, 200);
     }
 
     if (typeof ResizeObserver !== 'undefined') {
@@ -309,15 +532,21 @@
     window.addEventListener('resize', scheduleResize);
 
     const boot = () => {
-      showDiagram('flowchart');
+      // Mount dock first so layout height is final before first diagram paint
       LivePlayground.mount({
         app: () => app,
         panes: ['scene', 'snippet'],
-        getScene: () => ({ diagram: currentDiagram }),
+        getScene: () => getDiagramScene(),
         applyScene(parsed) {
+          if (parsed && parsed.type && parsed.props) {
+            showDiagramFromJSON(parsed);
+            return;
+          }
           const name = parsed && parsed.diagram;
           if (!name || !samples[name]) {
-            throw new Error('Unknown diagram: ' + (name || '(missing)'));
+            throw new Error(
+              'Expected diagram JSON like { "type": "flowchart", "props": { "data": { ... } } }'
+            );
           }
           const btn = document.querySelector(`[data-diagram="${name}"]`);
           if (btn) {
@@ -326,12 +555,15 @@
           }
           showDiagram(name);
         },
-        getSnippet(config) {
-          const name = (config && config.diagram) || 'flowchart';
+        getSnippet(scene) {
+          const type = (scene && scene.type) || 'flowchart';
+          const props = (scene && scene.props) || {};
+          const pretty = JSON.stringify({ type, props }, null, 2);
           return (
             `// Editable API — Run or Ctrl/Cmd+Enter\n` +
-            `showDiagram(${JSON.stringify(name)});\n` +
-            `// Valid: ${Object.keys(samples).join(', ')}\n`
+            `// Full diagram JSON is in the JSON tab (type + props).\n` +
+            `const scene = ${pretty};\n` +
+            `showDiagramFromJSON(scene);\n`
           );
         },
         applySnippet(code) {
@@ -339,11 +571,16 @@
             'LightDraw',
             'app',
             'showDiagram',
+            'showDiagramFromJSON',
             'samples',
             '"use strict";\n' + code
           );
-          runner(LightDraw, app, showDiagram, samples);
+          runner(LightDraw, app, showDiagram, showDiagramFromJSON, samples);
         },
+      });
+      resizeQuietUntil = Date.now() + 400;
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => showDiagram('flowchart'));
       });
     };
     if (document.readyState === 'complete') boot();

@@ -5,18 +5,48 @@ import { wirePointerDrag } from '../../components/interaction';
 import { connectNodes } from '../connectors';
 import { collectObstacles } from '../router';
 import { getActiveDiagram } from '../theme';
+import { nearestPointOnPolyline } from '../pathUtils';
 import { collectEditableNodes, collectEdgesFromLayer, findEdgeLayer, findNodeByDiagramId, nodeDiagramId, resolveEditableGroup } from './collect';
 import { attachEdgeHitTarget, edgeAnchorPoint } from './edgeWiring';
 import { showLabelEditor } from './labelEdit';
 import { rerouteDiagramEdges, syncEdgesToState, syncPositionsToState } from './reroute';
+import { applyAnchoredResize, RESIZE_HANDLES, type ResizeHandleId } from './resize';
 import type { DiagramEditorHandle, DiagramEditorOptions, DiagramEditorTool } from './types';
 
-const HANDLE = 8;
+const HANDLE = 9;
+const BEND_R = 6;
+
+/** True if this node and every ancestor is visible. */
+function isEffectivelyVisible(node: Node): boolean {
+  let cur: Node | null = node;
+  while (cur) {
+    if (cur.visible === false) return false;
+    cur = cur.parent;
+  }
+  return true;
+}
+
+function resolveEditorFlags(options: DiagramEditorOptions): {
+  allowLabelEdit: boolean;
+  allowResize: boolean;
+  allowConnect: boolean;
+  allowBendPoints: boolean;
+} {
+  const arrange = options.mode === 'arrange';
+  return {
+    allowLabelEdit: options.allowLabelEdit ?? !arrange,
+    // Resize from edges/corners is available in arrange mode too
+    allowResize: options.allowResize ?? true,
+    allowConnect: options.allowConnect ?? !arrange,
+    allowBendPoints: options.allowBendPoints ?? true,
+  };
+}
 
 export class DiagramEditor implements DiagramEditorHandle {
   readonly root: Group;
   private app: App;
   private options: DiagramEditorOptions;
+  private flags: ReturnType<typeof resolveEditorFlags>;
   private overlay: Group;
   private tool: DiagramEditorTool = 'select';
   private selectedId: string | null = null;
@@ -26,25 +56,39 @@ export class DiagramEditor implements DiagramEditorHandle {
   private handlers: Array<{ node: Node; type: string; fn: (...args: unknown[]) => void }> = [];
   private keyHandler: ((e: KeyboardEvent) => void) | null = null;
   private destroyed = false;
+  private dragRaf = 0;
 
   constructor(app: App, root: Group, options: DiagramEditorOptions = {}) {
     this.app = app;
     this.root = root;
     this.options = { gridSize: 8, showPorts: true, ...options };
-    this.tool = options.tool ?? 'select';
-    this.overlay = app.group({ zIndex: 1000, listening: false }) as Group;
+    this.flags = resolveEditorFlags(this.options);
+    this.tool = this.flags.allowConnect ? (options.tool ?? 'select') : 'select';
+    this.overlay = app.group({ zIndex: 1000, listening: true }) as Group;
     this.overlay.metadata.diagramEditorOverlay = true;
     app.stage.add(this.overlay);
-    this.keyHandler = (e: KeyboardEvent) => {
-      if (e.key !== 'Delete' && e.key !== 'Backspace') return;
-      if (!this.selectedEdgeId) return;
-      e.preventDefault();
-      this.deleteSelectedEdge();
-    };
-    window.addEventListener('keydown', this.keyHandler);
+    if (this.flags.allowConnect) {
+      this.keyHandler = (e: KeyboardEvent) => {
+        if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+        if (!this.selectedEdgeId) return;
+        e.preventDefault();
+        this.deleteSelectedEdge();
+      };
+      window.addEventListener('keydown', this.keyHandler);
+    } else if (this.flags.allowBendPoints) {
+      // Arrange mode: Delete removes the last bend point on the selected wire
+      this.keyHandler = (e: KeyboardEvent) => {
+        if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+        if (!this.selectedEdgeId) return;
+        e.preventDefault();
+        this.removeLastBendPoint(this.selectedEdgeId);
+      };
+      window.addEventListener('keydown', this.keyHandler);
+    }
   }
 
   setTool(tool: DiagramEditorTool): void {
+    if (!this.flags.allowConnect && tool === 'connect') return;
     this.tool = tool;
     this.connectFromId = null;
     this.clearPreview();
@@ -78,6 +122,36 @@ export class DiagramEditor implements DiagramEditorHandle {
     return this.selectedId;
   }
 
+  /**
+   * After org collapse/expand (or any relayout that hides nodes): drop selection
+   * chrome for hidden nodes so the dotted border doesn't linger in empty space.
+   */
+  afterStructureChange(): void {
+    if (this.destroyed) return;
+    if (this.selectedId) {
+      const node = findNodeByDiagramId(this.root, this.selectedId);
+      if (!node || !isEffectivelyVisible(node)) {
+        this.selectedId = null;
+      }
+    }
+    if (this.selectedEdgeId) {
+      const edgeLayer = findEdgeLayer(this.root);
+      const edges = edgeLayer ? collectEdgesFromLayer(edgeLayer) : [];
+      const edge = edges.find((e) => e.id === this.selectedEdgeId);
+      if (!edge) {
+        this.selectedEdgeId = null;
+      } else {
+        const from = findNodeByDiagramId(this.root, edge.from);
+        const to = findNodeByDiagramId(this.root, edge.to);
+        if (!from || !to || !isEffectivelyVisible(from) || !isEffectivelyVisible(to)) {
+          this.selectedEdgeId = null;
+        }
+      }
+    }
+    this.refreshOverlay();
+    this.app.requestRender();
+  }
+
   reroute(): void {
     rerouteDiagramEdges(this.app, this.root);
   }
@@ -88,7 +162,7 @@ export class DiagramEditor implements DiagramEditorHandle {
 
     const onClick = (e: { stopPropagation: () => void }) => {
       e.stopPropagation();
-      if (this.tool === 'connect') {
+      if (this.flags.allowConnect && this.tool === 'connect') {
         if (!this.connectFromId) {
           this.connectFromId = id;
           this.selectNode(id);
@@ -104,6 +178,7 @@ export class DiagramEditor implements DiagramEditorHandle {
 
     const onDblClick = (e: { stopPropagation: () => void }) => {
       e.stopPropagation();
+      if (!this.flags.allowLabelEdit) return;
       showLabelEditor(this.app, node, (text) => {
         this.updateNodeLabel(node, text);
         this.emitChange();
@@ -117,33 +192,54 @@ export class DiagramEditor implements DiagramEditorHandle {
         node.x = Math.round(node.x / grid) * grid;
         node.y = Math.round(node.y / grid) * grid;
       }
-      rerouteDiagramEdges(this.app, this.root);
-      this.refreshOverlay();
-      this.app.requestRender();
+      // Live wire follow — coalesce to one reroute per frame
+      if (this.dragRaf) cancelAnimationFrame(this.dragRaf);
+      this.dragRaf = requestAnimationFrame(() => {
+        this.dragRaf = 0;
+        if (this.destroyed) return;
+        rerouteDiagramEdges(this.app, this.root);
+        this.refreshOverlay();
+        this.app.requestRender();
+      });
     };
 
     const onDragEnd = () => {
+      if (this.dragRaf) {
+        cancelAnimationFrame(this.dragRaf);
+        this.dragRaf = 0;
+      }
+      rerouteDiagramEdges(this.app, this.root);
       syncPositionsToState(this.root);
       this.wireEdges();
+      this.refreshOverlay();
       this.emitChange();
+      this.app.requestRender();
     };
 
     node.on('click', onClick as never);
-    node.on('dblclick', onDblClick as never);
+    if (this.flags.allowLabelEdit) {
+      node.on('dblclick', onDblClick as never);
+    }
     node.on('dragmove', onDragMove as never);
     node.on('dragend', onDragEnd as never);
 
     this.handlers.push(
       { node, type: 'click', fn: onClick as never },
-      { node, type: 'dblclick', fn: onDblClick as never },
       { node, type: 'dragmove', fn: onDragMove as never },
       { node, type: 'dragend', fn: onDragEnd as never }
     );
+    if (this.flags.allowLabelEdit) {
+      this.handlers.push({ node, type: 'dblclick', fn: onDblClick as never });
+    }
   }
 
   wireEdges(): void {
     const edgeLayer = findEdgeLayer(this.root);
     if (!edgeLayer) return;
+    if (!this.flags.allowConnect && !this.flags.allowBendPoints) return;
+
+    // Edge layers are created listening:false; without this, hitTest skips all wires.
+    edgeLayer.listening = true;
 
     for (const child of edgeLayer.children) {
       const from = child.metadata?.edgeFrom as string | undefined;
@@ -159,9 +255,27 @@ export class DiagramEditor implements DiagramEditorHandle {
         this.selectEdge(edgeId);
       };
 
+      const onDblClick = (e: {
+        stopPropagation: () => void;
+        worldX?: number;
+        worldY?: number;
+      }) => {
+        e.stopPropagation();
+        if (!this.flags.allowBendPoints) return;
+        const wx = e.worldX ?? 0;
+        const wy = e.worldY ?? 0;
+        this.addBendPointAt(edgeId, wx, wy);
+      };
+
       child.on('click', onClick as never);
+      if (this.flags.allowBendPoints) {
+        child.on('dblclick', onDblClick as never);
+      }
       child.metadata.edgeEditorWired = true;
       this.handlers.push({ node: child, type: 'click', fn: onClick as never });
+      if (this.flags.allowBendPoints) {
+        this.handlers.push({ node: child, type: 'dblclick', fn: onDblClick as never });
+      }
     }
   }
 
@@ -253,19 +367,43 @@ export class DiagramEditor implements DiagramEditorHandle {
 
   private refreshOverlay(): void {
     this.overlay.clear();
-    if (this.selectedEdgeId) {
+    if (this.selectedEdgeId && (this.flags.allowConnect || this.flags.allowBendPoints)) {
       this.drawEdgeSelection(this.selectedEdgeId);
       return;
     }
     if (!this.selectedId) return;
     const node = findNodeByDiagramId(this.root, this.selectedId);
-    if (!node) return;
+    // Don't leave a dotted selection box in blank space after minimize
+    if (!node || !isEffectivelyVisible(node)) {
+      this.selectedId = null;
+      return;
+    }
 
-    const b = node.getBounds();
-    const wx = this.root.x + node.x + b.x;
-    const wy = this.root.y + node.y + b.y;
-    const w = b.width * node.scaleX;
-    const h = b.height * node.scaleY;
+    const pos = (() => {
+      let x = 0;
+      let y = 0;
+      let cur: Node | null = node;
+      while (cur && cur !== this.root) {
+        x += cur.x;
+        y += cur.y;
+        cur = cur.parent;
+      }
+      return { x, y };
+    })();
+    const cardW = (node.metadata?.orgCardWidth ?? node.metadata?.diagramCardWidth) as
+      | number
+      | undefined;
+    const cardH = (node.metadata?.orgCardHeight ?? node.metadata?.diagramCardHeight) as
+      | number
+      | undefined;
+    const bw = cardW ?? 40;
+    const bh = cardH ?? 32;
+    const sx = this.root.scaleX || 1;
+    const sy = this.root.scaleY || 1;
+    const wx = this.root.x + pos.x * sx;
+    const wy = this.root.y + pos.y * sy;
+    const w = bw * node.scaleX * sx;
+    const h = bh * node.scaleY * sy;
 
     this.overlay.add(
       this.app.rect({
@@ -275,16 +413,37 @@ export class DiagramEditor implements DiagramEditorHandle {
         height: h + 6,
         fill: null,
         stroke: getActiveDiagram().mindBranch.stroke,
-        strokeWidth: 2,
-        dash: [6, 4],
+        strokeWidth: 1.5,
+        dash: [5, 4],
         listening: false,
       })
     );
 
-    if (this.tool === 'select') {
+    // Connection ports (mid-side) — wires attach here and stretch when dragging
+    const ports = [
+      { px: wx + w / 2, py: wy },
+      { px: wx + w, py: wy + h / 2 },
+      { px: wx + w / 2, py: wy + h },
+      { px: wx, py: wy + h / 2 },
+    ];
+    for (const p of ports) {
+      this.overlay.add(
+        this.app.circle({
+          x: p.px - 3.5,
+          y: p.py - 3.5,
+          radius: 3.5,
+          fill: getActiveDiagram().edge,
+          stroke: '#fff',
+          strokeWidth: 1.25,
+          listening: false,
+        })
+      );
+    }
+
+    if (this.flags.allowResize && this.tool === 'select') {
       this.addResizeHandles(node, wx, wy, w, h);
     }
-    if (this.tool === 'connect' && this.options.showPorts) {
+    if (this.flags.allowConnect && this.tool === 'connect' && this.options.showPorts) {
       this.addPorts(node, wx, wy, w, h);
     }
   }
@@ -292,31 +451,236 @@ export class DiagramEditor implements DiagramEditorHandle {
   private drawEdgeSelection(edgeId: string): void {
     const edgeLayer = findEdgeLayer(this.root);
     if (!edgeLayer) return;
+    const edgeGroup = edgeLayer.children.find(
+      (c) => ((c.metadata?.edgeId as string) ?? `${c.metadata?.edgeFrom}-${c.metadata?.edgeTo}`) === edgeId
+    ) as Group | undefined;
     const record = collectEdgesFromLayer(edgeLayer).find((e) => e.id === edgeId);
     if (!record) return;
 
-    const fromNode = findNodeByDiagramId(this.root, record.from);
-    const toNode = findNodeByDiagramId(this.root, record.to);
-    if (!fromNode || !toNode) return;
+    // Highlight the actual wire path when available
+    const pathPts = (edgeGroup?.metadata?.edgePoints as number[] | undefined) ?? [];
+    if (pathPts.length >= 4) {
+      const stagePts: number[] = [];
+      for (let i = 0; i < pathPts.length; i += 2) {
+        const s = this.rootLocalToStage(pathPts[i], pathPts[i + 1]);
+        stagePts.push(s.x, s.y);
+      }
+      this.overlay.add(
+        this.app.polyline({
+          points: stagePts,
+          fill: null,
+          stroke: getActiveDiagram().mindBranch.stroke,
+          strokeWidth: 3,
+          opacity: 0.55,
+          lineJoin: 'round',
+          lineCap: 'round',
+          listening: false,
+        })
+      );
+    }
 
-    const fromPt = edgeAnchorPoint(this.root, fromNode, toNode, 'from');
-    const toPt = edgeAnchorPoint(this.root, fromNode, toNode, 'to');
+    if (this.flags.allowBendPoints) {
+      const wps = record.waypoints ?? [];
+      wps.forEach((wp, index) => {
+        const stage = this.rootLocalToStage(wp.x, wp.y);
+        this.addBendHandle(stage.x, stage.y, edgeId, index);
+      });
+    }
 
-    this.overlay.add(
-      this.app.line({
-        x: fromPt.x,
-        y: fromPt.y,
-        x2: toPt.x,
-        y2: toPt.y,
-        stroke: getActiveDiagram().mindBranch.stroke,
-        strokeWidth: 3,
-        dash: [8, 5],
-        listening: false,
-      })
+    if (this.flags.allowConnect) {
+      const fromNode = findNodeByDiagramId(this.root, record.from);
+      const toNode = findNodeByDiagramId(this.root, record.to);
+      if (fromNode && toNode) {
+        const fromPt = edgeAnchorPoint(this.root, fromNode, toNode, 'from');
+        const toPt = edgeAnchorPoint(this.root, fromNode, toNode, 'to');
+        this.addEndpointHandle(fromPt.x, fromPt.y, 'from', edgeId);
+        this.addEndpointHandle(toPt.x, toPt.y, 'to', edgeId);
+      }
+    }
+  }
+
+  /** Diagram-local → stage/world (accounts for fitToBounds scale/offset). */
+  private rootLocalToStage(lx: number, ly: number): { x: number; y: number } {
+    const sx = this.root.scaleX || 1;
+    const sy = this.root.scaleY || 1;
+    return { x: this.root.x + lx * sx, y: this.root.y + ly * sy };
+  }
+
+  /** Stage/world → diagram-local. */
+  private stageToRootLocal(wx: number, wy: number): { x: number; y: number } {
+    const sx = this.root.scaleX || 1;
+    const sy = this.root.scaleY || 1;
+    return { x: (wx - this.root.x) / sx, y: (wy - this.root.y) / sy };
+  }
+
+  private findEdgeGroup(edgeId: string): Group | undefined {
+    const edgeLayer = findEdgeLayer(this.root);
+    if (!edgeLayer) return undefined;
+    return edgeLayer.children.find((c) => {
+      const id = (c.metadata?.edgeId as string) ?? `${c.metadata?.edgeFrom}-${c.metadata?.edgeTo}`;
+      return id === edgeId;
+    }) as Group | undefined;
+  }
+
+  private updateEdgeWaypoints(edgeId: string, waypoints: Array<{ x: number; y: number }>, opts?: { live?: boolean }): void {
+    const edgeLayer = findEdgeLayer(this.root);
+    if (!edgeLayer) return;
+    const edges = collectEdgesFromLayer(edgeLayer).map((e) =>
+      e.id === edgeId
+        ? {
+            ...e,
+            waypoints: waypoints.map((w) => ({ x: w.x, y: w.y })),
+            options: { ...e.options, waypoints: waypoints.map((w) => ({ x: w.x, y: w.y })) },
+          }
+        : e
+    );
+    rerouteDiagramEdges(this.app, this.root, edges);
+    if (!opts?.live) {
+      syncEdgesToState(this.root);
+      this.wireEdges();
+      this.refreshOverlay();
+    } else {
+      // Rebuild wires under the handles; keep overlay so the active bend drag isn't destroyed
+      this.wireEdges();
+    }
+    this.app.requestRender();
+  }
+
+  private addBendPointAt(edgeId: string, stageX: number, stageY: number): void {
+    const edge = this.findEdgeGroup(edgeId);
+    if (!edge) return;
+    const local = this.stageToRootLocal(stageX, stageY);
+    const path = (edge.metadata?.edgePoints as number[] | undefined) ?? [];
+    const current = ((edge.metadata?.edgeWaypoints as Array<{ x: number; y: number }>) ?? []).slice();
+
+    let point = { x: local.x, y: local.y };
+    if (path.length >= 4) {
+      const near = nearestPointOnPolyline(path, local.x, local.y);
+      point = { x: near.x, y: near.y };
+    }
+
+    current.push(point);
+    const ordered = this.orderWaypointsAlongEdge(edgeId, current);
+    this.selectEdge(edgeId);
+    this.updateEdgeWaypoints(edgeId, ordered);
+    this.emitChange();
+  }
+
+  private orderWaypointsAlongEdge(
+    edgeId: string,
+    waypoints: Array<{ x: number; y: number }>
+  ): Array<{ x: number; y: number }> {
+    const edge = this.findEdgeGroup(edgeId);
+    const path = (edge?.metadata?.edgePoints as number[] | undefined) ?? [];
+    if (path.length < 4 || waypoints.length <= 1) return waypoints.slice();
+
+    const score = (wx: number, wy: number): number => {
+      let bestT = 0;
+      let bestD = Infinity;
+      let acc = 0;
+      for (let i = 0; i < path.length - 2; i += 2) {
+        const x0 = path[i];
+        const y0 = path[i + 1];
+        const x1 = path[i + 2];
+        const y1 = path[i + 3];
+        const segLen = Math.hypot(x1 - x0, y1 - y0);
+        const dx = x1 - x0;
+        const dy = y1 - y0;
+        const lenSq = dx * dx + dy * dy;
+        const t = lenSq < 1e-8 ? 0 : Math.max(0, Math.min(1, ((wx - x0) * dx + (wy - y0) * dy) / lenSq));
+        const px = x0 + dx * t;
+        const py = y0 + dy * t;
+        const d = Math.hypot(wx - px, wy - py);
+        if (d < bestD) {
+          bestD = d;
+          bestT = acc + segLen * t;
+        }
+        acc += segLen;
+      }
+      return bestT;
+    };
+
+    return waypoints.slice().sort((a, b) => score(a.x, a.y) - score(b.x, b.y));
+  }
+
+  private removeLastBendPoint(edgeId: string): void {
+    const edge = this.findEdgeGroup(edgeId);
+    if (!edge) return;
+    const current = ((edge.metadata?.edgeWaypoints as Array<{ x: number; y: number }>) ?? []).slice();
+    if (current.length === 0) return;
+    current.pop();
+    this.updateEdgeWaypoints(edgeId, current);
+    this.emitChange();
+  }
+
+  private addBendHandle(stageX: number, stageY: number, edgeId: string, index: number): void {
+    const handle = this.app.circle({
+      x: stageX - BEND_R,
+      y: stageY - BEND_R,
+      radius: BEND_R,
+      fill: '#fff',
+      stroke: getActiveDiagram().mindBranch.stroke,
+      strokeWidth: 2,
+      listening: true,
+    });
+    handle.metadata.diagramEditorOverlay = true;
+    handle.metadata.edgeBendIndex = index;
+    this.overlay.add(handle);
+
+    let liveWps: Array<{ x: number; y: number }> | null = null;
+
+    wirePointerDrag(
+      handle,
+      (wx, wy) => {
+        const local = this.stageToRootLocal(wx, wy);
+        const grid = this.options.gridSize ?? 0;
+        if (grid > 0) {
+          local.x = Math.round(local.x / grid) * grid;
+          local.y = Math.round(local.y / grid) * grid;
+        }
+        if (!liveWps) {
+          const edge = this.findEdgeGroup(edgeId);
+          liveWps = ((edge?.metadata?.edgeWaypoints as Array<{ x: number; y: number }>) ?? []).map(
+            (w) => ({ x: w.x, y: w.y })
+          );
+        }
+        if (!liveWps[index]) return;
+        liveWps[index] = { x: local.x, y: local.y };
+        // Move handle immediately for snappy UX
+        handle.x = this.rootLocalToStage(local.x, local.y).x - BEND_R;
+        handle.y = this.rootLocalToStage(local.x, local.y).y - BEND_R;
+        if (this.dragRaf) cancelAnimationFrame(this.dragRaf);
+        const snapshot = liveWps.map((w) => ({ x: w.x, y: w.y }));
+        this.dragRaf = requestAnimationFrame(() => {
+          this.dragRaf = 0;
+          if (this.destroyed) return;
+          this.updateEdgeWaypoints(edgeId, snapshot, { live: true });
+        });
+      },
+      () => {
+        if (this.dragRaf) {
+          cancelAnimationFrame(this.dragRaf);
+          this.dragRaf = 0;
+        }
+        if (liveWps) {
+          this.updateEdgeWaypoints(edgeId, liveWps);
+          this.emitChange();
+        }
+        liveWps = null;
+      }
     );
 
-    this.addEndpointHandle(fromPt.x, fromPt.y, 'from', edgeId);
-    this.addEndpointHandle(toPt.x, toPt.y, 'to', edgeId);
+    // Double-click bend handle to remove that point
+    const onDbl = (e: { stopPropagation: () => void }) => {
+      e.stopPropagation();
+      const edge = this.findEdgeGroup(edgeId);
+      const wps = ((edge?.metadata?.edgeWaypoints as Array<{ x: number; y: number }>) ?? []).slice();
+      wps.splice(index, 1);
+      this.updateEdgeWaypoints(edgeId, wps);
+      this.emitChange();
+    };
+    handle.on('dblclick', onDbl as never);
+    this.handlers.push({ node: handle, type: 'dblclick', fn: onDbl as never });
   }
 
   private addEndpointHandle(x: number, y: number, end: 'from' | 'to', edgeId: string): void {
@@ -355,21 +719,33 @@ export class DiagramEditor implements DiagramEditorHandle {
   }
 
   private addResizeHandles(node: Group, x: number, y: number, w: number, h: number): void {
-    const corners = [
-      { cx: x, cy: y },
-      { cx: x + w, cy: y },
-      { cx: x + w, cy: y + h },
-      { cx: x, cy: y + h },
-    ];
-    const baseW = (node.metadata.editorBaseW as number) ?? w;
-    const baseH = (node.metadata.editorBaseH as number) ?? h;
-    const baseSx = (node.metadata.editorBaseScaleX as number) ?? 1;
-    const baseSy = (node.metadata.editorBaseScaleY as number) ?? 1;
+    const cardW = ((node.metadata?.orgCardWidth ?? node.metadata?.diagramCardWidth) as
+      | number
+      | undefined) ?? (node.metadata.editorBaseW as number) ?? w;
+    const cardH = ((node.metadata?.orgCardHeight ?? node.metadata?.diagramCardHeight) as
+      | number
+      | undefined) ?? (node.metadata.editorBaseH as number) ?? h;
+    const safeCardW = Math.max(cardW, 1);
+    const safeCardH = Math.max(cardH, 1);
 
-    for (const c of corners) {
+    // Visual box in diagram-local space (accounts for fitToBounds via stage↔local)
+    const startLocal = this.stageToRootLocal(x, y);
+    const startBR = this.stageToRootLocal(x + w, y + h);
+    const startBox = {
+      x: startLocal.x,
+      y: startLocal.y,
+      width: Math.max(startBR.x - startLocal.x, 1),
+      height: Math.max(startBR.y - startLocal.y, 1),
+    };
+    const startNodeX = node.x;
+    const startNodeY = node.y;
+
+    for (const spec of RESIZE_HANDLES) {
+      const hx = x + w * spec.u;
+      const hy = y + h * spec.v;
       const handle = this.app.rect({
-        x: c.cx - HANDLE / 2,
-        y: c.cy - HANDLE / 2,
+        x: hx - HANDLE / 2,
+        y: hy - HANDLE / 2,
         width: HANDLE,
         height: HANDLE,
         fill: '#fff',
@@ -379,23 +755,35 @@ export class DiagramEditor implements DiagramEditorHandle {
         cornerRadius: 2,
       });
       handle.metadata.diagramEditorOverlay = true;
+      handle.metadata.resizeHandle = spec.id;
       this.overlay.add(handle);
 
-      wirePointerDrag(handle, (worldX, worldY) => {
-        const cx = x + w / 2;
-        const cy = y + h / 2;
-        const halfW = Math.max(20, Math.abs(worldX - cx) * 2);
-        const halfH = Math.max(16, Math.abs(worldY - cy) * 2);
-        node.scaleX = Math.max(0.4, Math.min(3, (halfW / baseW) * baseSx));
-        node.scaleY = Math.max(0.4, Math.min(3, (halfH / baseH) * baseSy));
-        rerouteDiagramEdges(this.app, this.root);
-        this.refreshOverlay();
-        this.app.requestRender();
-      }, () => {
-        syncPositionsToState(this.root);
-        this.wireEdges();
-        this.emitChange();
-      });
+      const handleId = spec.id as ResizeHandleId;
+      wirePointerDrag(
+        handle,
+        (worldX, worldY) => {
+          const local = this.stageToRootLocal(worldX, worldY);
+          const next = applyAnchoredResize(startBox, handleId, local.x, local.y);
+          const scaleX = Math.max(0.35, Math.min(4, next.width / safeCardW));
+          const scaleY = Math.max(0.35, Math.min(4, next.height / safeCardH));
+          node.scaleX = scaleX;
+          node.scaleY = scaleY;
+          // Keep the anchored edge/corner fixed by shifting the node
+          node.x = startNodeX + (next.x - startBox.x);
+          node.y = startNodeY + (next.y - startBox.y);
+          node.markDirty();
+          rerouteDiagramEdges(this.app, this.root);
+          this.refreshOverlay();
+          this.app.requestRender();
+        },
+        () => {
+          syncPositionsToState(this.root);
+          this.wireEdges();
+          this.refreshOverlay();
+          this.emitChange();
+          this.app.requestRender();
+        }
+      );
     }
   }
 
@@ -478,6 +866,10 @@ export class DiagramEditor implements DiagramEditorHandle {
   destroy(): void {
     if (this.destroyed) return;
     this.destroyed = true;
+    if (this.dragRaf) {
+      cancelAnimationFrame(this.dragRaf);
+      this.dragRaf = 0;
+    }
     if (this.keyHandler) {
       window.removeEventListener('keydown', this.keyHandler);
       this.keyHandler = null;
