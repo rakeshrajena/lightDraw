@@ -57,6 +57,10 @@
   <script src="demo-live-playground.js"></script>
   <script>
     const SAMPLE_SERIES = [12, 18, 15, 22, 28, 24, 30, 26];
+    const SAMPLE_MULTI = [
+      { name: 'North', data: [12, 18, 15, 22, 28, 24] },
+      { name: 'South', data: [8, 14, 20, 16, 22, 30] },
+    ];
     const SAMPLE_XY = [
       { x: 1, y: 12 },
       { x: 2, y: 18 },
@@ -74,7 +78,7 @@
       },
       dashboard: {
         label: 'Dashboard',
-        blurb: 'Gauges, meters, and 80+ chart widgets.',
+        blurb: 'Gauges, meters, 85 charts, and dataTable.',
         use: 'Ops dashboards, analytics boards, and live telemetry panels.',
       },
       automotive: {
@@ -176,7 +180,27 @@
       if (type === 'signalStrength') return { value: 3, max: 4, x: 40, y: 40 };
       if (type === 'legend') return { items: ['Alpha', 'Beta', 'Gamma'], x: 24, y: 24 };
       if (type === 'chartPanel') {
-        return { chartType: 'lineChart', title: 'Latency', width: 320, height: 180, data: SAMPLE_SERIES, x: 16, y: 12 };
+        return { chartType: 'lineChart', title: 'Latency', width: 320, height: 180, series: SAMPLE_MULTI, x: 16, y: 12 };
+      }
+      if (type === 'dataTable') {
+        return {
+          width: 320,
+          height: 200,
+          x: 16,
+          y: 12,
+          columns: ['Region', 'Sales', 'Status'],
+          rows: [
+            ['North', '120', 'Active'],
+            ['South', '86', 'Pending'],
+            ['East', '104', 'Active'],
+            ['West', '73', 'Inactive'],
+          ],
+          showSearch: true,
+          striped: true,
+        };
+      }
+      if (type === 'lineChart' || type === 'barChart' || type === 'columnChart' || type === 'horizontalBarChart') {
+        return { width: 320, height: 180, series: SAMPLE_MULTI, x: 16, y: 16 };
       }
       if (CHART_SERIES_TYPES.has(type)) return { width: 320, height: 180, data: SAMPLE_SERIES, x: 16, y: 16 };
       if (CHART_XY_TYPES.has(type)) return { width: 320, height: 180, data: SAMPLE_XY, x: 16, y: 16 };

@@ -43,8 +43,8 @@ This folder is the **single source of truth** for guides and schemas. The websit
 | Schema | Module |
 |--------|--------|
 | [UI components](./ui-components-schema.md) | Button, slider, dialog, … |
-| [Dashboard](./dashboard-widgets-schema.md) | Charts, gauges, thermometer |
-| [Automotive](./automotive-widgets-schema.md) | Cluster, TPMS, CAN |
+| [Dashboard](./dashboard-widgets-schema.md) | Charts (85), gauges, dataTable |
+| [Automotive](./automotive-widgets-schema.md) | Cluster, telltales, Individual dash |
 | [Diagram](./diagram-module-schema.md) | Flowchart, network, org chart, editor, [wire flow](./diagram-flow.md) |
 
 ---
@@ -109,14 +109,14 @@ Source of truth for demos. Prepared copy lands in `website/public/examples/`.
 | `demo.html` | Core shapes & animation |
 | `demo-animation.html` | Motion path, morph, stagger |
 | `demo-ui.html` / `demo-ui-catalog.html` | UI components |
-| `demo-dashboard.html` / `demo-charts.html` | Charts & gauges |
-| `demo-automotive.html` | Instrument cluster + catalog |
+| `demo-dashboard.html` / `demo-charts.html` | Charts, gauges, dataTable |
+| `demo-automotive.html` | Cluster + Individual dash + catalog |
 | `demo-diagram.html` | Interactive diagrams + wire flow (paths, play/pause) |
 | `demo-export.html` | Export formats |
 | `demo-a11y.html` | Keyboard & ARIA |
 | `demo-theme.html` | Theme lab |
 | `demo-color-stops.html` | Conditional color stops |
-| `demo-component-lab.html` | Component / chart lab |
+| `demo-component-lab.html` | Component / chart lab (Help embed) |
 | `demo-live-playground.js` | Shared Scene / Theme / API dock |
 | `demo-embed.js` / `demo-common.css` | Embed chrome |
 

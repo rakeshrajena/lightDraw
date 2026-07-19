@@ -273,7 +273,7 @@ At 1 000 nodes, **render stays under 0.5 ms** — headroom for 60 FPS on mid-ran
 | `lightdraw/core` | ~39 KB | Games, custom canvas apps |
 | `lightdraw` (full) | ~131 KB | All modules, CDN one-liner |
 | `lightdraw/dashboard` | ~38 KB | Charts + gauges only |
-| `lightdraw/automotive` | ~31 KB | Cluster + 160 widgets |
+| `lightdraw/automotive` | ~31 KB | Cluster + 160+ widgets |
 | `lightdraw/diagram` | ~35 KB | 9 diagram types + editor (resize, bends, org collapse, network icons) |
 | `lightdraw/ui` | ~16 KB | Form controls (pair with HTML renderer) |
 
@@ -302,13 +302,15 @@ Honest positioning — pick the right tool for the job.
 
 Full notes: [docs/v1.1-release-notes.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/v1.1-release-notes.md) · [CHANGELOG](./CHANGELOG.md)
 
-- Interactive diagram editor: drag, **8-handle resize**, **wire bend points**
+- Interactive diagram editor: drag, **8-handle resize**, **wire bend points**, rotate, wire flow
 - Professional **network device icons** and **org chart** minimize with descendant counts
 - **Unique branch colors** for any number of org teams
 - Live playground JSON shows real `{ type, props }` diagram state
 - Theme lab + Day/Night website hub with validated Scene / API docks
 
-**Try it live:** [Playground](https://rakeshrajena.github.io/lightDraw/) · [Diagram](https://rakeshrajena.github.io/lightDraw/#diagram) · [Help](https://rakeshrajena.github.io/lightDraw/help.html)
+**Since v1.1 (unreleased):** multi-series charts with auto colors + grouped bars; dashboard **`dataTable`** (search + stripes); automotive P0 telltales + **Individual dash** demo. See [CHANGELOG](./CHANGELOG.md).
+
+**Try it live:** [Playground](https://rakeshrajena.github.io/lightDraw/) · [Dashboard](https://rakeshrajena.github.io/lightDraw/#dashboard) · [Automotive](https://rakeshrajena.github.io/lightDraw/#automotive) · [Help](https://rakeshrajena.github.io/lightDraw/help.html)
 
 ```bash
 npm install lightdraw@1.1.0
@@ -321,12 +323,12 @@ npm install lightdraw@1.1.0
 <p align="center">
   <img src="https://raw.githubusercontent.com/rakeshrajena/lightDraw/main/docs/images/dashboard.png" alt="Dashboard widgets" width="100%" />
 </p>
-<p align="center"><em>Dashboard — gauges, charts, live tooltips</em></p>
+<p align="center"><em>Dashboard — multi-series charts, gauges, dataTable</em></p>
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/rakeshrajena/lightDraw/main/docs/images/automotive.png" alt="Automotive cluster" width="100%" />
 </p>
-<p align="center"><em>Automotive — speedometer, tachometer, TPMS, warning lamps</em></p>
+<p align="center"><em>Automotive — cluster, Individual dash, MIL / beams / ADAS lamps</em></p>
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/rakeshrajena/lightDraw/main/docs/images/diagram.png" alt="Diagrams" width="100%" />

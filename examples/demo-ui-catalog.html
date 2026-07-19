@@ -52,7 +52,7 @@
       { type: 'accordion', label: 'open', height: 120, props: { sections: [{ title: 'Details', content: 'Expanded panel' }], width: 240, x: 8, y: 8 } },
       { type: 'toolbar', label: 'actions', height: 48, props: { items: ['New', 'Save', '|', 'Export'], width: 240, x: 8, y: 8 } },
       { type: 'statusBar', label: 'segments', height: 36, props: { segments: ['Ready', 'Line 42', 'UTF-8'], primaryIndex: 0, width: 240, x: 8, y: 6 } },
-      { type: 'table', label: '3 rows', height: 120, props: { columns: ['Name', 'Status'], rows: [['Alpha', 'OK'], ['Beta', 'Warn'], ['Gamma', 'OK']], width: 240, height: 108, x: 8, y: 6 } },
+      { type: 'table', label: 'searchable', height: 160, props: { columns: ['Name', 'Status'], rows: [['Alpha', 'OK'], ['Beta', 'Warn'], ['Gamma', 'OK']], showSearch: true, striped: true, width: 240, height: 140, x: 8, y: 6 } },
       { type: 'tree', label: 'nested', height: 120, props: { nodes: [{ label: 'src', children: [{ label: 'App.ts' }, { label: 'theme.ts' }] }], width: 240, height: 108, x: 8, y: 6 } },
       { type: 'menu', label: 'open', height: 100, props: { items: ['Edit', 'Copy', 'Delete'], itemVariants: ['', '', 'danger'], open: true, width: 160, x: 12, y: 12 } },
       { type: 'tooltip', label: 'visible', height: 56, props: { text: 'Helpful hint', visible: true, placement: 'top', x: 12, y: 20 } },

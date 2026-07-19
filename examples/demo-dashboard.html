@@ -13,12 +13,12 @@
     <header class="demo-header">
       <span class="demo-badge">Dashboard Module</span>
       <h1>Analytics Dashboard</h1>
-      <p>Live widgets plus the full <strong>82-chart</strong> catalog — gauges, status indicators, and every dashboard chart type. Edit Scene JSON below for live updates.</p>
+      <p>Live widgets plus the full <strong>85-chart</strong> catalog, multi-series lines/bars, and a searchable <strong>dataTable</strong>. Edit Scene JSON below for live updates.</p>
     </header>
     <main class="demo-main">
       <div class="demo-view-tabs" id="view-tabs">
         <button type="button" class="demo-btn is-active" data-view="dashboard">Live dashboard</button>
-        <button type="button" class="demo-btn secondary" data-view="charts">Chart catalog (82)</button>
+        <button type="button" class="demo-btn secondary" data-view="charts">Chart catalog (85)</button>
       </div>
       <div id="view-dashboard">
       <div class="demo-toolbar" id="demo-toolbar">
@@ -67,6 +67,26 @@
     function widget(type, props) {
       return { type, props };
     }
+
+    const MULTI_SERIES = [
+      { name: 'North', data: [12, 28, 22, 44, 36, 58, 52] },
+      { name: 'South', data: [8, 18, 26, 30, 42, 38, 48] },
+    ];
+    const MULTI_BARS = [
+      { name: 'Q1', data: [34, 52, 41, 68, 55] },
+      { name: 'Q2', data: [28, 44, 38, 50, 62] },
+    ];
+    const TABLE_DEMO = {
+      columns: ['Region', 'Sales', 'Status'],
+      rows: [
+        ['North', '120', 'Active'],
+        ['South', '86', 'Pending'],
+        ['East', '104', 'Active'],
+        ['West', '73', 'Inactive'],
+      ],
+      showSearch: true,
+      striped: true,
+    };
 
     function centerIn(panelX, panelY, panelW, panelH, widgetW, widgetH) {
       return {
@@ -184,15 +204,14 @@
         panel(pad, y, lineW, chartH),
         panel(pad + lineW + gap, y, barW, chartH),
         widget('lineChart', {
-          data: [12, 28, 22, 44, 36, 58, 52],
+          series: MULTI_SERIES,
           width: lineChartW,
           height: lineChartH,
           x: linePos.x,
           y: linePos.y,
-          seriesLabel: 'Latency',
         }),
         widget('barChart', {
-          data: [34, 52, 41, 68, 55],
+          series: MULTI_BARS,
           width: barChartW,
           height: barChartH,
           x: barPos.x,
@@ -228,8 +247,8 @@
       row(140, 'thermometer', { value: 72, height: 110 }, 64, 110);
       const compass = Math.min(Math.round(inner * 0.28), inner - 56);
       row(140, 'compass', { heading: 128, size: compass }, compass, compass);
-      row(132, 'lineChart', { data: [12, 28, 22, 44, 36, 58, 52], width: inner - 24, height: 96, seriesLabel: 'Latency' }, inner - 24, 96);
-      row(132, 'barChart', { data: [34, 52, 41, 68, 55], width: inner - 24, height: 96 }, inner - 24, 96);
+      row(132, 'lineChart', { series: MULTI_SERIES, width: inner - 24, height: 96 }, inner - 24, 96);
+      row(132, 'barChart', { series: MULTI_BARS, width: inner - 24, height: 96 }, inner - 24, 96);
       y = addStatusStrip(children, y, pad, inner, gap, 108);
 
       return { children, height: y, narrow: true, embed: true };
@@ -259,13 +278,14 @@
         nrow(150, 'thermometer', { value: 72, height: 110 }, 64, 110);
         const compass = Math.min(100, inner - 56);
         nrow(150, 'compass', { heading: 128, size: compass }, compass, compass);
-        nrow(150, 'lineChart', { data: [12, 28, 22, 44, 36, 58, 52], width: inner - 24, height: 110, seriesLabel: 'Latency' }, inner - 24, 110);
-        nrow(150, 'barChart', { data: [34, 52, 41, 68, 55], width: inner - 24, height: 110 }, inner - 24, 110);
+        nrow(150, 'lineChart', { series: MULTI_SERIES, width: inner - 24, height: 110 }, inner - 24, 110);
+        nrow(150, 'barChart', { series: MULTI_BARS, width: inner - 24, height: 110 }, inner - 24, 110);
         nrow(150, 'areaChart', { data: [22, 38, 31, 52, 48, 64, 58, 71], width: inner - 24, height: 110, seriesLabel: 'Throughput' }, inner - 24, 110);
         const pie = Math.min(140, inner - 48);
         nrow(170, 'pieChart', { size: pie }, pie, pie);
         nrow(90, 'legend', { items: [{ label: 'CPU', color: '#3b82f6' }, { label: 'Memory', color: '#f59e0b' }, { label: 'Network', color: '#22c55e' }] }, inner - 48, 24);
         y = addStatusStrip(children, y, pad, inner, gap, 112);
+        nrow(220, 'dataTable', { ...TABLE_DEMO, width: inner - 24 }, inner - 24, 200);
         nrow(200, 'calendar', { width: inner - 24, height: 168, highlightDay: new Date().getDate() }, inner - 24, 168);
         nrow(180, 'timeline', { height: 140, events: [{ label: 'Deploy', time: '09:00' }, { label: 'Review', time: '12:30' }, { label: 'Release', time: '17:00' }] }, inner - 24, 140);
         return { children, height: y + pad, narrow: true };
@@ -309,8 +329,8 @@
       children.push(
         panel(pad, y, lineW, chartH),
         panel(pad + lineW + gap, y, barW, chartH),
-        widget('lineChart', { data: [12, 28, 22, 44, 36, 58, 52], width: lcW, height: lcH, x: lp.x, y: lp.y, seriesLabel: 'Latency' }),
-        widget('barChart', { data: [34, 52, 41, 68, 55], width: bcW, height: bcH, x: bp.x, y: bp.y })
+        widget('lineChart', { series: MULTI_SERIES, width: lcW, height: lcH, x: lp.x, y: lp.y }),
+        widget('barChart', { series: MULTI_BARS, width: bcW, height: bcH, x: bp.x, y: bp.y })
       );
       y += chartH + gap;
 
@@ -334,6 +354,15 @@
       y += row3H + gap;
 
       y = addStatusStrip(children, y, pad, inner, gap, fluid(W, 0.12, 108, 120));
+
+      const tableH = fluid(W, 0.2, 180, 220);
+      const tw = inner - 24;
+      const tablePos = centerIn(pad, y, inner, tableH, tw, tableH - 16);
+      children.push(
+        panel(pad, y, inner, tableH),
+        widget('dataTable', { ...TABLE_DEMO, width: tw, height: tableH - 16, x: tablePos.x, y: tablePos.y })
+      );
+      y += tableH + gap;
 
       const bottomH = fluid(W, 0.18, 168, 188);
       const calW = Math.floor(inner * 0.52);

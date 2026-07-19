@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — Dashboard multi-series + dataTable
+
+- Multi-series charts: omit `series[].color` → unique theme palette colors per series
+- Grouped (side-by-side) multi-series `barChart` / `columnChart` / `horizontalBarChart` with category hover listing each series
+- Multi-line / multi-area hover tooltips already list all series; palette colors now apply when colors are omitted
+- Dashboard **`dataTable`**: striped rows (default), optional `showSearch` + `search` / `searchQuery` keyword filter
+- UI **`table`**: same `striped` / `showSearch` / `search` props
+
+Docs: [dashboard-widgets-schema.md](./docs/dashboard-widgets-schema.md) · [ui-components-schema.md](./docs/ui-components-schema.md)
+
+### Added — Automotive P0 telltales + Individual dash
+
+- Lamps: `checkEngineLamp` (aliases `milStatus` / `checkEngine` / `engineStatus`), `lowBeamStatus`, `parkingLightStatus`
+- Badge: `pedestrianDetection` (`clear` / `detecting` / `warning`)
+- Drive feed keys: `checkEngine`, `lowBeam`, `parkingLight`, `pedestrian`
+- Demo **Individual dash** tab — compose from individuals (not only `instrumentCluster`)
+- Help Component lab Automotive family includes the new telltales
+
+Docs: [automotive-widgets-schema.md](./docs/automotive-widgets-schema.md) · [automotive-examples.md](./docs/automotive-examples.md)
+
 ### Added — Scene JSON export fidelity
 
 - `toJSON` / `app.exportJSON()` keep module widgets as opaque `{ type, props }` leaves (no visual-tree expansion)

@@ -13,7 +13,7 @@
     <header class="demo-header">
       <span class="demo-badge">UI Module</span>
       <h1>UI Components</h1>
-      <p>17 interactive controls — buttons, forms, tables, dialogs, and more. Edit Scene JSON below for live updates.</p>
+      <p>17 interactive controls — buttons, forms, searchable tables, dialogs, and more. Edit Scene JSON below for live updates.</p>
     </header>
     <main class="demo-main">
       <div class="demo-control-bar">
@@ -301,6 +301,8 @@
               sortColumn: 0,
               sortDirection: 'asc',
               stickyHeader: true,
+              showSearch: true,
+              striped: true,
               maxHeight: tableHeight,
               colWidth: 100,
               width: Math.floor(fieldW * 0.58),
@@ -342,6 +344,8 @@
               sortColumn: 0,
               sortDirection: 'asc',
               stickyHeader: true,
+              showSearch: true,
+              striped: true,
               maxHeight: tableHeight,
               colWidth: Math.min(120, Math.floor(fieldW / 3) - 8),
             },

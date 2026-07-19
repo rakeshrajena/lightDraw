@@ -20,7 +20,7 @@ const DEMOS = [
   {
     id: 'dashboard',
     title: 'Dashboard',
-    blurb: 'Gauges & charts — live JSON for the active layout.',
+    blurb: 'Gauges, multi-series charts & dataTable — live JSON.',
     src: 'examples/demo-dashboard.html?embed=1',
     full: 'examples/demo-dashboard.html',
   },
@@ -34,7 +34,7 @@ const DEMOS = [
   {
     id: 'automotive',
     title: 'Automotive',
-    blurb: 'Instrument cluster — edit cluster props live.',
+    blurb: 'Cluster + Individual dash — edit props live.',
     src: 'examples/demo-automotive.html?embed=1',
     full: 'examples/demo-automotive.html',
   },

@@ -1,4 +1,4 @@
-/** Registers all dashboard chart types (82+ widgets and aliases). */
+/** Registers all dashboard chart types (85 ids including aliases). */
 import './cartesian/register';
 import './polar/register';
 import './statistical/register';

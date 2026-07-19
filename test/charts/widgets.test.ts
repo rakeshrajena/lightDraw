@@ -10,8 +10,8 @@ describe('Chart catalog', () => {
     document.body.innerHTML = '';
   });
 
-  it('exports 82 chart type ids', () => {
-    expect(CHART_TYPES.length).toBeGreaterThanOrEqual(82);
+  it('exports 85 chart type ids', () => {
+    expect(CHART_TYPES.length).toBe(85);
   });
 
   for (const type of CHART_TYPES) {

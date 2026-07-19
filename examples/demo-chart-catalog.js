@@ -1,12 +1,12 @@
-/** Shared chart catalog for dashboard demos — 82+ registered chart types. */
+/** Shared chart catalog for dashboard demos — 85 chart types + dataTable. */
 window.LD_CHART_CATALOG = [
   'lineChart', 'areaChart', 'barChart', 'columnChart', 'horizontalBarChart', 'stackedColumnChart', 'stackedBarChart', 'stackedAreaChart',
   'stepChart', 'splineChart', 'errorBarChart', 'lollipopChart', 'dotPlot', 'stripPlot', 'sparklineChart', 'rangeChart', 'rangeAreaChart',
   'bandChart', 'ribbonChart', 'combinationChart', 'mixedChart', 'waterfallChart', 'paretoChart', 'runChart', 'controlChart',
-  'populationPyramidChart', 'bumpChart', 'horizonChart', 'pieChart', 'doughnutChart', 'radarChart', 'polarAreaChart', 'bulletChart',
-  'funnelChart', 'pyramidChart', 'coneChart', 'histogram', 'boxPlot', 'violinPlot', 'densityPlot', 'heatmap', 'hexbinChart',
-  'contourChart', 'qqPlot', 'beeswarmChart', 'ridgelinePlot', 'parallelCoordinatesPlot', 'mosaicChart', 'marimekkoChart', 'waffleChart',
-  'calendarHeatmap', 'stemLeafPlot', 'scatterChart', 'bubbleChart', 'candlestickChart', 'ohlcChart', 'heikinAshiChart', 'renkoChart',
+  'populationPyramidChart', 'bumpChart', 'horizonChart', 'pieChart', 'doughnutChart', 'radarChart', 'spiderChart', 'polarAreaChart', 'bulletChart',
+  'funnelChart', 'pyramidChart', 'coneChart', 'histogram', 'boxPlot', 'boxAndWhiskerChart', 'violinPlot', 'densityPlot', 'heatmap', 'hexbinChart',
+  'contourChart', 'qqPlot', 'beeswarmChart', 'ridgelinePlot', 'parallelCoordinatesPlot', 'mosaicChart', 'marimekkoChart', 'mekkoChart', 'waffleChart',
+  'calendarHeatmap', 'stemLeafPlot', 'scatterChart', 'bubbleChart', 'candlestickChart', 'kLineChart', 'ohlcChart', 'heikinAshiChart', 'renkoChart',
   'kagiChart', 'pointAndFigureChart', 'volumeChart', 'candlestickVolumeChart', 'highLowChart', 'volumeProfileChart', 'treemap',
   'sunburstChart', 'treeChart', 'dendrogramChart', 'sankeyChart', 'chordChart', 'alluvialChart', 'streamgraph', 'networkChart',
   'timeline', 'ganttChart', 'surfaceChart3d', 'wireframeChart3d', 'meshChart3d', 'vectorFieldChart', 'pictogramChart', 'wordCloudChart',
