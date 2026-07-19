@@ -267,16 +267,16 @@ npm run build && npm run benchmark && npm run benchmark:compare
 
 At 1 000 nodes, **render stays under 0.5 ms** — headroom for 60 FPS on mid-range hardware. Spatial indexing kicks in at ≥100 nodes.
 
-### Bundle size (gzip, v1.0.0 CI gates)
+### Bundle size (gzip, v1.1.0 measured)
 
 | Package | Size | Typical use |
 |---------|-----:|-------------|
-| `lightdraw/core` | 26 KB | Games, custom canvas apps |
-| `lightdraw` (full) | 101 KB | All modules, CDN one-liner |
-| `lightdraw/dashboard` | 32 KB | Charts + gauges only |
-| `lightdraw/automotive` | 29 KB | Cluster + 160 widgets |
-| `lightdraw/diagram` | 15 KB | 9 diagram types + editor (resize, bends, org collapse) |
-| `lightdraw/ui` + CSS | 11 KB + CSS | Form controls, HTML renderer |
+| `lightdraw/core` | ~39 KB | Games, custom canvas apps |
+| `lightdraw` (full) | ~131 KB | All modules, CDN one-liner |
+| `lightdraw/dashboard` | ~38 KB | Charts + gauges only |
+| `lightdraw/automotive` | ~31 KB | Cluster + 160 widgets |
+| `lightdraw/diagram` | ~35 KB | 9 diagram types + editor (resize, bends, org collapse, network icons) |
+| `lightdraw/ui` | ~16 KB | Form controls (pair with HTML renderer) |
 
 ---
 
