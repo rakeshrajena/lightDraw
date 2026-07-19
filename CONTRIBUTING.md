@@ -35,6 +35,8 @@ Do **not** commit generated `website/public/examples/`, `website/public/docs/`, 
 
 ## Library layout (where to edit)
 
+See **[docs/architecture.md](./docs/architecture.md)** for entry points and runtime flow. Quick map:
+
 | Area | Path | Notes |
 |------|------|--------|
 | Core / scene | `src/core`, `src/App.ts`, `src/io` | App, JSON, validation |

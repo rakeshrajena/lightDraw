@@ -105,7 +105,7 @@ Original aspirational targets (8 KB core / 25 KB full) are documented in `IMPLEM
 - [Diagram module](./diagram-module-schema.md)
 - [UI theme guide](./ui-theme-guide.md)
 - [Responsive layout](./responsive-guide.md)
-- [Legacy UI & CSS](./legacy-ui-guide.md)
+- [Legacy browser & UI](./legacy-browser-guide.md)
 - [Versioning policy](./VERSIONING.md)
 - [Release workflow](./RELEASE.md)
 - [Changelog (unreleased)](../CHANGELOG.md)

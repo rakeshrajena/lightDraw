@@ -2,17 +2,22 @@
 
 Extend LightDraw with custom components, renderers, and JSON types.
 
+The plugin host is **required** for modular loading (`lightdraw/core` + selective modules). Built-in UI / dashboard / automotive / diagram packages are plugins installed via `LightDraw.use(...)`.
+
 ## Plugin shape
 
 ```javascript
-import type { Plugin } from 'lightdraw';
+import { createPluginContext } from 'lightdraw/core';
 
 export const myPlugin = {
   name: 'my-plugin',
   version: '1.0.0',
-  install(LightDraw) {
-    LightDraw.registerComponent('myWidget', (props, app) => {
-      return app.group(props);
+  install(_LightDraw) {
+    const ctx = createPluginContext();
+    ctx.registerJSONType('myScene', (props, app) => {
+      const g = app.group(props);
+      g.add(app.text({ text: String(props.label ?? 'Hi'), x: 8, y: 8, fill: '#fff' }));
+      return g;
     });
   },
 };
@@ -20,7 +25,11 @@ export const myPlugin = {
 LightDraw.use(myPlugin);
 ```
 
+`LightDraw.use` installs each `plugin.name` **once** (safe to call again).
+
 ## Register a UI component
+
+After the UI module is loaded (full bundle, or `LightDraw.use(uiPlugin)`):
 
 ```javascript
 import { registerComponent } from 'lightdraw/ui';
@@ -34,6 +43,8 @@ registerComponent('badge', (props, app) => {
 
 app.loadJSON({ type: 'badge', props: { label: 'New', x: 10, y: 10 } });
 ```
+
+The UI plugin also attaches `LightDraw.registerComponent` on the static object for script-tag users.
 
 ## Register a renderer
 
@@ -61,7 +72,7 @@ registerJSONResolver((type, props, app) => {
 
 ## Dashboard / automotive / diagram
 
-Follow the same registry pattern:
+Same registry pattern after the matching plugin is installed:
 
 ```javascript
 import { registerDashboard } from 'lightdraw/dashboard';
@@ -69,25 +80,28 @@ import { registerAutomotive } from 'lightdraw/automotive';
 import { registerDiagram } from 'lightdraw/diagram';
 ```
 
-## Plugin context (advanced)
+## Plugin context
 
 ```javascript
 import { createPluginContext } from 'lightdraw/core';
 
 const ctx = createPluginContext();
 ctx.registerJSONType('custom', factory);
+ctx.registerJSONResolver((type, props, app) => null);
 ctx.registerEasing('customEase', (t) => t);
 ```
 
 ## Modular bundles
 
-Ship plugins as separate entry points so consumers tree-shake unused code:
-
 ```javascript
-import LightDraw from 'lightdraw/core';
-import uiPlugin from 'lightdraw/ui';
+import { LightDraw } from 'lightdraw/core';
+import { uiPlugin } from 'lightdraw/ui';
+import { dashboardPlugin } from 'lightdraw/dashboard';
 
 LightDraw.use(uiPlugin);
+LightDraw.use(dashboardPlugin);
 ```
 
-See [README](../README.md) for the full exports map.
+Full `import 'lightdraw'` (or CDN `lightdraw.min.js`) installs all built-in plugins automatically.
+
+See [architecture.md](./architecture.md) for entry points and [README](../README.md) for the exports map.

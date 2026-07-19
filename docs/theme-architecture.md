@@ -1,6 +1,10 @@
 # Theme architecture (library)
 
-Internal contract for consistent, dynamic theming across UI, dashboard, automotive, and diagram.
+Internal contract for consistent theming across UI, dashboard, automotive, and diagram.
+
+**How to apply themes day-to-day:** [UI Theme Guide](./ui-theme-guide.md) (`applyTheme`, presets, CSS tokens).  
+**This page:** resolve order, packs, dual automotive system, update flow.
+
 Public entry points: **`app.applyTheme()`** / **`app.setUiTheme()`** / createApp `uiTheme` / scene JSON **`theme`**.
 
 ## Goals

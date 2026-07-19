@@ -1,102 +1,129 @@
 # LightDraw.js Documentation
 
-<p align="center">
-  <a href="https://github.com/rakeshrajena/lightDraw"><img src="https://img.shields.io/github/v/release/rakeshrajena/lightDraw?label=GitHub" alt="GitHub release" /></a>
-  <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" />
-</p>
+**Version:** 1.1.0 · `npm install lightdraw@1.1.0`  
+**Live:** [Playground](https://rakeshrajena.github.io/lightDraw/) · [Help](https://rakeshrajena.github.io/lightDraw/help.html) · [API](https://rakeshrajena.github.io/lightDraw/docs/api/index.html)
 
-**Version:** 1.1.0 · **Install:** `npm install lightdraw@1.1.0` · **Live:** [Playground](https://rakeshrajena.github.io/lightDraw/) · [Help](https://rakeshrajena.github.io/lightDraw/help.html) · [Diagram](https://rakeshrajena.github.io/lightDraw/#diagram)
+This folder is the **single source of truth** for guides and schemas. The website copies them into `website/public/docs/` via `npm run prepare:website`.
 
-## Guides
+---
 
-| Guide | Description |
-|-------|-------------|
-| [Getting Started](./getting-started.md) | Install, basic usage, JSON, local playground |
+## Start here
+
+| Doc | Audience |
+|-----|----------|
+| [Getting started](./getting-started.md) | Install, first scene, JSON, playground |
+| [Architecture](./architecture.md) | Entry points, `src/` layout, plugins |
+| [API overview](./api-overview.md) | Key functions (TypeDoc for full detail) |
+| [Root README](../README.md) | Product overview, use cases, CDN / npm |
+| [v1.1 release notes](./v1.1-release-notes.md) | What changed in the current minor |
+
+---
+
+## User guides
+
+| Guide | Topic |
+|-------|--------|
 | [Animation](./animation-guide.md) | Easing, timelines, path motion, stagger |
-| [Plugins](./plugin-guide.md) | Custom components, renderers, registration |
-| [Performance](./performance-guide.md) | Benchmarks, spatial index, dirty regions |
-| [Legacy Browsers](./legacy-browser-guide.md) | ES5 build, polyfills, WebView |
-| [UI Theme](./ui-theme-guide.md) | Presets, tokens, high contrast — no mandatory CSS |
-| [Theme architecture](./theme-architecture.md) | Library-wide theme contract, phases, resolve order |
-| [Pipeline symbol structure](./diagram-pipeline-structure.md) | Modular catalog layout — how to add/remove pipeline glyphs |
-| [Repo modularity](./repo-modularity.md) | Library-wide split roadmap (UI, renderers, dashboard, …) |
-| [Responsive Layout](./responsive-guide.md) | Breakpoints, `fullWidth`, `autoResize` |
-| [Legacy UI & CSS](./legacy-ui-guide.md) | ES5 + `lightdraw.min.css` compatibility |
-| [Automotive Examples](./automotive-examples.md) | Cluster, CAN viewer, drive simulation |
-| [AI Integration](./ai-integration-guide.md) | JSON schema, validation with expected values, prompts |
-| [Export Pipeline](./export-pipeline.md) | PNG, SVG, PDF, `validateSceneJSON` / `validateThemePack` |
-| [Versioning](./VERSIONING.md) | Semantic versioning policy |
-| [Release workflow](./RELEASE.md) | GitHub Release + npm publish steps |
-| [v1.1.0 notes](./v1.1-release-notes.md) | Diagram studio, playground, migration from 1.0 |
-| [v1.0.0 notes](./v1-release-notes.md) | Migration from v0.1 |
+| [Plugins](./plugin-guide.md) | `LightDraw.use`, custom components / renderers / JSON types |
+| [Performance](./performance-guide.md) | Spatial index, dirty regions, benchmarks |
+| [UI theme](./ui-theme-guide.md) | Presets, tokens, `applyTheme` — no mandatory CSS |
+| [Theme architecture](./theme-architecture.md) | Resolve order, packs, automotive vs UI themes |
+| [Responsive layout](./responsive-guide.md) | Breakpoints, `fullWidth`, `autoResize` |
+| [Export](./export-pipeline.md) | PNG, SVG, PDF, scene / theme validation |
+| [AI + JSON](./ai-integration-guide.md) | Schemas, validation, prompts |
+| [Automotive examples](./automotive-examples.md) | Cluster, CAN, drive simulation |
+| [Legacy browsers & UI](./legacy-browser-guide.md) | ES5 / WebView, CSS table, a11y |
 
-## Module schemas
+---
+
+## Module schemas (props / JSON types)
 
 | Schema | Module |
 |--------|--------|
-| [UI Components](./ui-components-schema.md) | Button, slider, dialog, … |
+| [UI components](./ui-components-schema.md) | Button, slider, dialog, … |
 | [Dashboard](./dashboard-widgets-schema.md) | Charts, gauges, thermometer |
 | [Automotive](./automotive-widgets-schema.md) | Cluster, TPMS, CAN |
-| [Diagram](./diagram-module-schema.md) | Flowchart, network icons, org chart, editor (resize / bends / collapse) |
+| [Diagram](./diagram-module-schema.md) | Flowchart, network, org chart, editor |
 
-## API reference
+---
 
-Generate locally (output is gitignored):
+## Maintainers / contributors
+
+| Doc | Topic |
+|-----|--------|
+| [Architecture](./architecture.md) | Entry points, `src/` layout, plugins, runtime flow |
+| [API overview](./api-overview.md) | Key functions (TypeDoc for full reference) |
+| [Contributing](../CONTRIBUTING.md) | Dev setup, PR checklist |
+| [Versioning](./VERSIONING.md) | SemVer policy |
+| [Release](./RELEASE.md) | GitHub Release + npm publish |
+| [Changelog](../CHANGELOG.md) | Full history |
+| [v1.0 notes](./v1-release-notes.md) | Migration from 0.x |
+| [Diagram catalog layout](./diagram-pipeline-structure.md) | Pipeline / schematic / network glyph split |
+| [Repo modularity](./repo-modularity.md) | Completed R1–R7 split history |
+
+---
+
+## Doc inventory (keep / merge / drop)
+
+| Path | Status | Notes |
+|------|--------|--------|
+| `README.md` (root) | **Keep** | Product entry; trim overlapping guide lists in later phase |
+| `CHANGELOG.md` | **Keep** | History |
+| `CONTRIBUTING.md` | **Keep** | Contributor entry |
+| `docs/getting-started.md` … schemas | **Keep** | User-facing |
+| `docs/ui-theme-guide.md` + `theme-architecture.md` | **Keep (dedupe later)** | Overlap on `applyTheme`; architecture stays for resolve-order detail |
+| `docs/legacy-browser-guide.md` | **Keep** | Merged former `legacy-ui-guide` (CSS / a11y) |
+| `docs/legacy-ui-guide.md` | **Stub** | Redirects to legacy-browser-guide |
+| `docs/repo-modularity.md` | **Keep → fold into architecture** | Done roadmap; replace with short `architecture.md` later |
+| `docs/v1-release-notes.md` | **Keep** | Linked from tests / migration |
+| `docs/api/` | **Generated** | `npm run docs:api` — gitignored |
+| `DATA_FEED_PLAN.md`, `*_PLAN.md`, `PROJECT_STATUS.md` | **Drop** | Gitignored internals — do not publish |
+| Root `*.pid`, empty `node` / `npm` / `lightdraw@*` | **Drop** | Accidental leftovers |
+
+---
+
+## Local website & API
 
 ```bash
-npm run docs:api
+npm run build
+npm run prepare:website   # bundles + docs + examples → website/public
+npm run dev:website       # http://localhost:5173
+npm run docs:api          # TypeDoc → docs/api/ (gitignored)
 ```
 
-Output: `docs/api/` (TypeDoc HTML). The website build copies guides into `website/public/docs/` via `npm run prepare:website`.
+| Surface | Role |
+|---------|------|
+| Playground hub | Demo rail (Theme, UI, Charts, Auto, Diagram, …) |
+| Help center (`help.html`) | Short topics + live iframe embeds |
+| Doc viewer (`doc.html`) | Renders these Markdown guides |
+| TypeDoc API | Function / class reference |
 
-## Live playground & help
+### Examples (`examples/`)
 
-```bash
-npm run build          # build library first
-npm run prepare:website  # copy bundles + examples into website/public
-npm run dev:website    # http://localhost:5173
-npm run build:website  # static site → website/dist/ (gitignored)
-```
-
-| Surface | What it is |
-|---------|------------|
-| [Playground hub](https://rakeshrajena.github.io/lightDraw/) | Single-stage demo rail (Theme, UI, Charts, Auto, …) |
-| [Help center](https://rakeshrajena.github.io/lightDraw/help.html) | Short topics with live iframe embeds |
-| Day / Night | Site chrome theme; defaults to **Night**; syncs into demo iframes |
-| Live code dock | JSON · API — auto-apply with **Live** on; put `theme` on the scene root |
-
-### JSON validation in demos
-
-Editors use `parseAndValidateSceneJSON` / `validateThemePack`. Errors include:
-
-- **Parse:** line, column, caret snippet
-- **Schema / enums:** JSON path + `expected one of: …` + `did you mean …?`
-
-## Examples
-
-Interactive HTML demos live in [`../examples/`](../examples/) (source of truth; `website/public/examples/` is a prepared copy):
+Source of truth for demos. Prepared copy lands in `website/public/examples/`.
 
 | File | Focus |
 |------|--------|
 | `demo.html` | Core shapes & animation |
 | `demo-animation.html` | Motion path, morph, stagger |
-| `demo-ui.html` | 17 UI components + live dock |
-| `demo-ui-catalog.html` | Storybook-style variant gallery |
-| `demo-dashboard.html` | Live charts & gauges |
+| `demo-ui.html` / `demo-ui-catalog.html` | UI components |
+| `demo-dashboard.html` / `demo-charts.html` | Charts & gauges |
 | `demo-automotive.html` | Instrument cluster + catalog |
-| `demo-diagram.html` | Interactive diagrams — resize, wire bends, org collapse, live JSON |
-| `demo-export.html` | Download all export formats |
+| `demo-diagram.html` | Interactive diagrams |
+| `demo-export.html` | Export formats |
 | `demo-a11y.html` | Keyboard & ARIA |
-| `demo-theme.html` | Theme lab (presets, Scene/Theme/API editors, dark default) |
-| `demo-color-stops.html` | Conditional `colorStops` / `colorZones` |
-| `demo-live-playground.js` | Shared Scene / Theme / API live dock |
-| `demo-embed.js` | Embed layout + shell theme sync |
-| `demo-common.css` | Shared demo chrome, scrollbars, dock |
+| `demo-theme.html` | Theme lab |
+| `demo-color-stops.html` | Conditional color stops |
+| `demo-component-lab.html` | Component / chart lab |
+| `demo-live-playground.js` | Shared Scene / Theme / API dock |
+| `demo-embed.js` / `demo-common.css` | Embed chrome |
+
+---
 
 ## Source of truth vs generated
 
-| Keep in git | Generated / local (gitignored) |
-|-------------|-------------------------------|
+| In git | Generated / local (gitignored) |
+|--------|--------------------------------|
 | `docs/*.md`, `examples/`, `src/` | `docs/api/`, `dist/`, `coverage/` |
-| `website/index.html`, `help.html`, `public/{main,site-theme,styles}.*` | `website/dist/`, `website/public/{examples,docs,lightdraw*}` |
-| Module schemas | Internal `*_PLAN.md`, `PROJECT_STATUS.md`, blog fixtures |
+| `website/{index,help,doc}.html`, `website/public/{main,site-theme,styles,doc-viewer}.*` | `website/dist/`, `website/public/{examples,docs,blog,lightdraw*}` |
+| Module schemas | `*_PLAN.md`, `blog/`, audit scratch HTML |

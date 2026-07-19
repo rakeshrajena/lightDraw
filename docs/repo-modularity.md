@@ -1,6 +1,10 @@
 # Repo-wide modularity roadmap
 
-Same goals as the diagram catalog split: small editable files, stable public façades, structure tests that catch dead aliases / missing registrations, AI-friendly checklists.
+> **Status: complete (R1–R7).** Living overview: [architecture.md](./architecture.md). Diagram catalogs: [diagram-pipeline-structure.md](./diagram-pipeline-structure.md).
+
+This page keeps the historical split checklist for contributors.
+
+Same goals as the diagram catalog split: small editable files, stable public façades, structure tests that catch dead aliases / missing registrations.
 
 Diagram catalog work is **done** (see [diagram-pipeline-structure.md](./diagram-pipeline-structure.md)). This doc tracks the rest of the library.
 

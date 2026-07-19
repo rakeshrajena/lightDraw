@@ -373,49 +373,27 @@ Full guide: [ai-integration-guide.md](https://github.com/rakeshrajena/lightDraw/
 
 ---
 
-## Live demos
+## Live demos & docs
 
-| Demo | Link |
-|------|------|
-| **Live playground** | [rakeshrajena.github.io/lightDraw](https://rakeshrajena.github.io/lightDraw/) |
-| **Diagram studio** | [rakeshrajena.github.io/lightDraw/#diagram](https://rakeshrajena.github.io/lightDraw/#diagram) |
-| **Help center** | [rakeshrajena.github.io/lightDraw/help.html](https://rakeshrajena.github.io/lightDraw/help.html) |
-| **npm package** | [npmjs.com/package/lightdraw](https://www.npmjs.com/package/lightdraw) |
-| Local dev | `npm run build && npm run prepare:website && npm run dev:website` → http://localhost:5173 |
-| Theme lab (Scene / API) | [demo-theme.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-theme.html) |
-| Dashboard + charts | [demo-dashboard.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-dashboard.html) |
-| UI + themes | [demo-ui.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-ui.html) |
-| UI variant catalog | [demo-ui-catalog.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-ui-catalog.html) |
-| Diagrams (full page) | [demo-diagram.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-diagram.html) |
-| Automotive cluster | [demo-automotive.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-automotive.html) |
-| Export PNG/PDF/SVG | [demo-export.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-export.html) |
-| Accessibility | [demo-a11y.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-a11y.html) |
-| Conditional colors | [demo-color-stops.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-color-stops.html) |
+| | |
+|--|--|
+| **Playground** | [rakeshrajena.github.io/lightDraw](https://rakeshrajena.github.io/lightDraw/) |
+| **Help center** | [help.html](https://rakeshrajena.github.io/lightDraw/help.html) |
+| **npm** | [npmjs.com/package/lightdraw](https://www.npmjs.com/package/lightdraw) |
+| **All guides & schemas** | [docs/README.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/README.md) |
+| Local | `npm run build && npm run prepare:website && npm run dev:website` → http://localhost:5173 |
 
-Playground notes: **Night** site chrome by default; demos mount a live **JSON · API** dock. GitHub Pages updates on every merge to `main`.
+Quick reads: [Getting started](https://github.com/rakeshrajena/lightDraw/blob/main/docs/getting-started.md) · [UI themes](https://github.com/rakeshrajena/lightDraw/blob/main/docs/ui-theme-guide.md) · [AI + JSON](https://github.com/rakeshrajena/lightDraw/blob/main/docs/ai-integration-guide.md) · [v1.1 notes](https://github.com/rakeshrajena/lightDraw/blob/main/docs/v1.1-release-notes.md)
 
----
-
-## Documentation
-
-| Guide | Link |
-|-------|------|
-| Getting started | [getting-started.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/getting-started.md) |
-| Performance & benchmarks | [performance-guide.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/performance-guide.md) |
-| AI integration | [ai-integration-guide.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/ai-integration-guide.md) |
-| UI themes | [ui-theme-guide.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/ui-theme-guide.md) |
-| Theme architecture | [theme-architecture.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/theme-architecture.md) |
-| v1.1 release notes | [v1.1-release-notes.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/v1.1-release-notes.md) |
-| v1.0 release notes | [v1-release-notes.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/v1-release-notes.md) |
-| All docs | [docs/README.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/README.md) |
+Demo HTML lives in [`examples/`](./examples/) (listed in the docs index). Night chrome + live JSON/API dock by default; Pages updates on `main`.
 
 ---
 
 ## Browser support
 
-Chromium 49+, Chrome, Firefox, Edge, Safari, Android WebView, Qt WebEngine, automotive infotainment.
+Chromium 49+, Chrome, Firefox, Edge, Safari, Android WebView, Qt WebEngine.
 
-Legacy: `lightdraw.legacy.js` + `lightdraw.min.css` on HTML renderer.
+Legacy ES5 / WebView: [legacy-browser-guide.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/legacy-browser-guide.md).
 
 ---
 
@@ -428,6 +406,8 @@ npm test                  # 1 600+ unit tests
 npm run ci:local          # full gate: lint, size, coverage, benchmarks
 npm run test:ci:visual    # Playwright golden screenshots
 ```
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 ---
 

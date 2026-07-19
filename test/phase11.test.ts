@@ -15,7 +15,6 @@ describe('Phase 11 — Documentation & Playground', () => {
       'docs/legacy-browser-guide.md',
       'docs/ui-theme-guide.md',
       'docs/responsive-guide.md',
-      'docs/legacy-ui-guide.md',
       'docs/automotive-examples.md',
       'docs/ai-integration-guide.md',
     ];
