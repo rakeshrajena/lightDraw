@@ -24,6 +24,7 @@ This folder is the **single source of truth** for guides and schemas. The websit
 | Guide | Topic |
 |-------|--------|
 | [Animation](./animation-guide.md) | Easing, timelines, path motion, stagger |
+| [Diagram wire flow](./diagram-flow.md) | Dashes, packets, multi-path runs, play/pause |
 | [Plugins](./plugin-guide.md) | `LightDraw.use`, custom components / renderers / JSON types |
 | [Performance](./performance-guide.md) | Spatial index, dirty regions, benchmarks |
 | [UI theme](./ui-theme-guide.md) | Presets, tokens, `applyTheme` — no mandatory CSS |
@@ -43,7 +44,7 @@ This folder is the **single source of truth** for guides and schemas. The websit
 | [UI components](./ui-components-schema.md) | Button, slider, dialog, … |
 | [Dashboard](./dashboard-widgets-schema.md) | Charts, gauges, thermometer |
 | [Automotive](./automotive-widgets-schema.md) | Cluster, TPMS, CAN |
-| [Diagram](./diagram-module-schema.md) | Flowchart, network, org chart, editor (resize / rotate / wires) |
+| [Diagram](./diagram-module-schema.md) | Flowchart, network, org chart, editor, [wire flow](./diagram-flow.md) |
 
 ---
 
@@ -109,7 +110,7 @@ Source of truth for demos. Prepared copy lands in `website/public/examples/`.
 | `demo-ui.html` / `demo-ui-catalog.html` | UI components |
 | `demo-dashboard.html` / `demo-charts.html` | Charts & gauges |
 | `demo-automotive.html` | Instrument cluster + catalog |
-| `demo-diagram.html` | Interactive diagrams (drag / resize / rotate / bends) |
+| `demo-diagram.html` | Interactive diagrams + wire flow (paths, play/pause) |
 | `demo-export.html` | Export formats |
 | `demo-a11y.html` | Keyboard & ARIA |
 | `demo-theme.html` | Theme lab |

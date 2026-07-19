@@ -93,6 +93,56 @@ LightDraw.Diagram.uninstallEditor(org);
 
 JSON `rotation` is persisted on flowchart / network / pipeline / state / class / schematic nodes via `diagramState` (and `editorPositions`).
 
+## Wire flow animation
+
+Animate connectors to show direction of travel, with optional node highlight:
+
+```javascript
+LightDraw.Diagram.applyFlow(app, chart, {
+  enabled: true,
+  speed: 1,              // 1 = default, higher = faster
+  paused: false,
+  playback: 'loop',      // or 'once'
+  mode: 'both',          // 'dash' | 'packet' | 'both'
+  highlight: 'pulse',    // 'pulse' | 'breathe' | 'flash' | 'none'
+  // Ordered node path (single run):
+  // path: ['start', 'check', 'process', 'end'],
+  // Multiple runs in index order (run 0, then run 1, …):
+  paths: [
+    ['start', 'check', 'process', 'end'],
+    ['start', 'check', 'end'],
+  ],
+  pathGapMs: 500, // pause between runs
+  // Or explicit hops / multi hop-lists:
+  // pathEdges: [{ from: 'start', to: 'check' }],
+  // pathsEdges: [[{ from: 'a', to: 'b' }], [{ from: 'a', to: 'c' }]],
+});
+
+LightDraw.Diagram.pauseFlow(app, chart);
+LightDraw.Diagram.resumeFlow(app, chart);
+LightDraw.Diagram.toggleFlowPause(app, chart);
+LightDraw.Diagram.replayFlow(app, chart); // restart (esp. after once)
+LightDraw.Diagram.stopFlow(chart);
+```
+
+| Option | Effect |
+|--------|--------|
+| `playback: 'loop'` | Continuous (default); after last path run, restart at run 0 |
+| `playback: 'once'` | Play all path runs in order, then auto-pauses |
+| `path` | Single node-id sequence (or `string[][]` shorthand for `paths`) |
+| `paths` | Multiple runs — index order, one after another |
+| `pathGapMs` | Delay between runs (default 450) |
+| `pathEdges` / `pathsEdges` | Same idea with `{ from, to }` hops |
+| `mode: 'dash'` | Marching dashes on path edges |
+| `mode: 'packet'` | Dot travels hops; flashes target on arrival |
+| `highlight: 'pulse'` | Soft ring on active hop endpoints |
+| `paused` / canvas ▶⏸ | Pause without clearing options |
+
+Persist under builder options / JSON: `{ flow: { enabled, playback, paths, … } }`.
+Editor re-route keeps `diagramState.flow` and restarts when not paused.
+
+**Full guide:** [diagram-flow.md](./diagram-flow.md)
+
 ## Network icons
 
 Node `type` resolves through a large Visio/Cisco-style catalog (aliases supported):

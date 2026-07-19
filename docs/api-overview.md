@@ -70,7 +70,17 @@ Consumer-facing surface of LightDraw. For generated class/method pages run `npm 
 | **UI** | `registerComponent`, `createComponentFromJSON` — button, slider, dialog, tabs, … |
 | **Dashboard** | `registerDashboard`, `updateChartProps`, `pushChartValue`, `setLiveValue`, chart resize observers |
 | **Automotive** | `createAutomotiveFromJSON`, `applyDriveState`, `sampleDriveFrames`, `updateAutoWidgetProps`, `listAutomotiveWidgets` |
-| **Diagram** | `Diagram.*` helpers, editor (drag / resize / rotate / wire bends), catalogs |
+| **Diagram** | Builders, editor (drag / resize / rotate / bends), **wire flow** (`applyFlow` / `pauseFlow` / `paths`) |
+
+### Diagram flow (short)
+
+| API | Purpose |
+|-----|---------|
+| `Diagram.applyFlow(app, root, opts)` | Dashes / packets / highlight; `paths`, `playback`, `speed` |
+| `Diagram.pauseFlow` / `resumeFlow` / `toggleFlowPause` / `replayFlow` | Playback control |
+| `Diagram.stopFlow` / `isFlowPlaying` | Stop / query |
+
+See [diagram-flow.md](./diagram-flow.md).
 
 ## Plugins
 

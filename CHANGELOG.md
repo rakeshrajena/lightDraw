@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — Diagram wire flow
+
+- `Diagram.applyFlow` / `stopFlow` / `refreshFlow` — marching dashes, traveling packets, node pulse/flash
+- `playback: 'loop' | 'once'`, `pauseFlow` / `resumeFlow` / `toggleFlowPause` / `replayFlow`
+- Definable path: `path: ['a','b','c']`, multi-run `paths: [['a','b'],['a','c']]` (index order + `pathGapMs`), or `pathEdges` / `pathsEdges`
+- Builder option / `diagramState.flow`; canvas ▶ / ⏸ / ↻ when flow is on (diagram demo)
+- Flow restarts after editor wire re-route
+
+Docs: [diagram-flow.md](./docs/diagram-flow.md) · [diagram-module-schema.md](./docs/diagram-module-schema.md)
+
 ### Added — Diagram rotate
 
 - Editor **rotate handle** on selected symbols (`allowRotate`, default on): 15° snap, **Shift** = free angle; spins around card center

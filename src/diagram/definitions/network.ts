@@ -19,6 +19,7 @@ import { collectObstacles } from '../router';
 import { connectNodes } from '../connectors';
 import { listNetworkIconKinds } from '../networkIcons';
 import type { DiagramData } from '../types';
+import { maybeApplyDiagramFlow } from '../flow';
 
 /** Create network topology diagram */
 export function createNetworkDiagram(
@@ -67,6 +68,7 @@ export function createNetworkDiagram(
   }
   group.add(edgeLayer);
 
+  maybeApplyDiagramFlow(app, group, options as Record<string, unknown>);
   return group;
 }
 

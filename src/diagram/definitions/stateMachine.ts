@@ -17,6 +17,7 @@ import {
 import { collectObstacles } from '../router';
 import { connectNodes } from '../connectors';
 import type { StateMachineData } from '../types';
+import { maybeApplyDiagramFlow } from '../flow';
 
 /** Create state machine diagram */
 export function createStateMachine(
@@ -73,5 +74,6 @@ export function createStateMachine(
     group.add(node);
   }
 
+  maybeApplyDiagramFlow(app, group, options as Record<string, unknown>);
   return group;
 }

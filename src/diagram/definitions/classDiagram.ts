@@ -15,6 +15,7 @@ import {
 import { collectObstacles } from '../router';
 import { connectNodes } from '../connectors';
 import type { ClassDiagramData } from '../types';
+import { maybeApplyDiagramFlow } from '../flow';
 
 /** Create UML class diagram */
 export function createClassDiagram(
@@ -91,5 +92,6 @@ export function createClassDiagram(
   }
   group.add(edgeLayer);
 
+  maybeApplyDiagramFlow(app, group, options as Record<string, unknown>);
   return group;
 }

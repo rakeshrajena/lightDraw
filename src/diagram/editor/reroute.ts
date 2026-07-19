@@ -12,15 +12,18 @@ import {
 } from './collect';
 import type { DiagramEdge } from '../types';
 import type { EditorEdgeRecord } from './types';
+import { refreshDiagramFlow, stopDiagramFlow } from '../flow';
 
 /** Rebuild all connectors in the diagram edge layer from stored edge metadata. */
 export function rerouteDiagramEdges(app: App, root: Group, edges?: EditorEdgeRecord[]): void {
+  stopDiagramFlow(root);
   const type = root.metadata?.diagramType as string | undefined;
 
   // Keep Mermaid-style wiring for org / mind maps
   if (type === 'orgChart') {
     wireOrgChartConnectors(app, root);
     root.markDirty();
+    refreshDiagramFlow(app, root);
     return;
   }
   if (type === 'mindMap') {
@@ -32,10 +35,12 @@ export function rerouteDiagramEdges(app: App, root: Group, edges?: EditorEdgeRec
     }
     wireMindMapConnectors(app, root);
     root.markDirty();
+    refreshDiagramFlow(app, root);
     return;
   }
   if (type === 'electricalSchematic') {
     rewireSchematic(app, root);
+    refreshDiagramFlow(app, root);
     return;
   }
 
@@ -77,6 +82,7 @@ export function rerouteDiagramEdges(app: App, root: Group, edges?: EditorEdgeRec
     );
   }
   root.markDirty();
+  refreshDiagramFlow(app, root);
 }
 
 /**

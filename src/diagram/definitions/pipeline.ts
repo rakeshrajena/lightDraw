@@ -18,6 +18,7 @@ import { connectNodes } from '../connectors';
 import { createPipelineSymbol } from '../pipelineSymbols';
 import { listPipelineSymbols, type PipelineSymbolCategory } from '../pipelineIcons';
 import type { PipelineStage } from '../types';
+import { maybeApplyDiagramFlow } from '../flow';
 
 /** Create horizontal process pipeline */
 export function createPipeline(
@@ -69,6 +70,7 @@ export function createPipeline(
   }
   group.add(edgeLayer);
 
+  maybeApplyDiagramFlow(app, group, options as Record<string, unknown>);
   return group;
 }
 

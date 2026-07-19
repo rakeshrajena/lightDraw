@@ -255,6 +255,7 @@ export function createConnector(
       lineCap: 'round',
       ...(options.dash ? { dash: options.dash } : {}),
       listening: false,
+      metadata: { edgeStrokePoly: true },
     })
   );
 

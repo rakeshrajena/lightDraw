@@ -97,7 +97,7 @@ npm run prepare:website   # copies dist + examples into website/public (gitignor
 npm run dev:website       # http://localhost:5173
 ```
 
-- **Playground** — theme lab, UI, charts, automotive, **interactive diagrams** (drag / resize / **rotate** / wire bends / org collapse) with a live Scene / API dock  
+- **Playground** — theme lab, UI, charts, automotive, **interactive diagrams** (drag / resize / rotate / **wire flow** / bends / org collapse) with a live Scene / API dock  
 - **Help** — `/help.html` topics with live embeds  
 - Site chrome defaults to **Night**; toggle Day/Night in the rail  
 
@@ -118,10 +118,29 @@ LightDraw.Diagram.installEditor(app, chart, {
   allowRotate: true,
 });
 // Select a node → resize / rotate handles. Double-click wires for bends.
-// Org cards: click −N / +N to collapse branches.
 ```
 
-See [Diagram module schema](./diagram-module-schema.md) (`rotation` on nodes, wire re-route on rotate).
+### Wire flow (flowchart / network / pipeline)
+
+```javascript
+const flow = LightDraw.Diagram.flowchart(app, data, {
+  width: 800,
+  height: 480,
+  flow: {
+    enabled: true,
+    mode: 'both',
+    playback: 'loop',
+    paths: [
+      ['start', 'check', 'process', 'end'],
+      ['start', 'check', 'end'],
+    ],
+  },
+});
+app.add(flow);
+// Canvas: ▶ / ⏸ / ↻ — or Diagram.pauseFlow / resumeFlow / replayFlow
+```
+
+See [Diagram wire-flow](./diagram-flow.md) and [Diagram module schema](./diagram-module-schema.md).
 ## Plugins
 
 ```javascript

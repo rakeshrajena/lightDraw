@@ -60,6 +60,26 @@ export { createSymbol, buildSchematic, rewireSchematic, Symbols } from './symbol
 export { diagramToJSON, fitDiagramToBounds, resolveGridLayout, readCanvasSize } from './helpers';
 export { installDiagramEditor, uninstallDiagramEditor, DiagramEditor } from './editor';
 
+export {
+  applyDiagramFlow,
+  stopDiagramFlow,
+  refreshDiagramFlow,
+  pauseDiagramFlow,
+  resumeDiagramFlow,
+  toggleDiagramFlowPause,
+  replayDiagramFlow,
+  isDiagramFlowPlaying,
+  edgePointsToPathD,
+  getEdgeStrokePolyline,
+} from './flow';
+export type {
+  DiagramFlowOptions,
+  DiagramFlowMode,
+  DiagramFlowHighlight,
+  DiagramFlowPlayback,
+  DiagramFlowHop,
+} from './flow';
+
 export type {
   DiagramNode,
   DiagramEdge,
@@ -98,6 +118,16 @@ import {
 import { forceDirectedLayout, layoutDiagram } from './layouts';
 import { fitDiagramToBounds, diagramToJSON } from './helpers';
 import { installDiagramEditor, uninstallDiagramEditor } from './editor';
+import {
+  applyDiagramFlow,
+  stopDiagramFlow,
+  refreshDiagramFlow,
+  pauseDiagramFlow,
+  resumeDiagramFlow,
+  toggleDiagramFlowPause,
+  replayDiagramFlow,
+  isDiagramFlowPlaying,
+} from './flow';
 import { routeConnector } from './router';
 import { listNetworkIconKinds, resolveNetworkIconKind } from './networkIcons';
 import { listSchematicSymbols, resolveSchematicSymbolKind, listSchematicSymbolCategories } from './schematicIcons';
@@ -138,6 +168,17 @@ export const Diagram = {
   fitToBounds: fitDiagramToBounds,
   installEditor: installDiagramEditor,
   uninstallEditor: uninstallDiagramEditor,
+  /** Animate wire flow (dashes / packets) + node highlight. */
+  applyFlow: applyDiagramFlow,
+  /** Stop flow animations on a diagram root. */
+  stopFlow: stopDiagramFlow,
+  /** Re-apply `diagramState.flow` after rebuild/reroute. */
+  refreshFlow: refreshDiagramFlow,
+  pauseFlow: pauseDiagramFlow,
+  resumeFlow: resumeDiagramFlow,
+  toggleFlowPause: toggleDiagramFlowPause,
+  replayFlow: replayDiagramFlow,
+  isFlowPlaying: isDiagramFlowPlaying,
   listNetworkIcons: listNetworkIconKinds,
   resolveNetworkIcon: resolveNetworkIconKind,
   listSchematicSymbols,

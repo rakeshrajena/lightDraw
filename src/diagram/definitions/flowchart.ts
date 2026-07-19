@@ -18,6 +18,7 @@ import {
 import { collectObstacles } from '../router';
 import { connectNodes } from '../connectors';
 import type { DiagramData } from '../types';
+import { maybeApplyDiagramFlow } from '../flow';
 
 /** Create a flowchart from node/edge data */
 export function createFlowchart(app: App, data: DiagramData, options: NodeOptions = {}): Group {
@@ -65,5 +66,6 @@ export function createFlowchart(app: App, data: DiagramData, options: NodeOption
     group.add(nodeGroup);
   }
 
+  maybeApplyDiagramFlow(app, group, options as Record<string, unknown>);
   return group;
 }

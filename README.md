@@ -168,14 +168,16 @@ LightDraw.Diagram.installEditor(app, net, { mode: 'arrange', allowResize: true }
 
 | Feature | Behavior |
 |---------|----------|
+| Wire flow | Marching dashes + packets; `paths` / play·pause; see [diagram-flow.md](./docs/diagram-flow.md) |
 | Wire bends | Double-click a wire → drag bend handles |
 | 8-handle resize | Edges + corners, grow/shrink |
+| Rotate | Handle above selection; Shift = free angle |
 | Org collapse | `−N` / `+N` on cards (N = total people under that node) |
 | Branch colors | Unique colors for any number of top-level teams |
 | JSON dock | Demo shows full `{ type, props }` via `Diagram.toJSON` |
 
 **Where:** Docs, runbooks, incident boards, LLM-generated architecture / org views.  
-**Demo:** [demo-diagram.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-diagram.html) · **Schema:** [diagram-module-schema.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/diagram-module-schema.md)
+**Demo:** [demo-diagram.html](https://github.com/rakeshrajena/lightDraw/blob/main/examples/demo-diagram.html) · **Schema:** [diagram-module-schema.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/diagram-module-schema.md) · **Flow:** [diagram-flow.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/diagram-flow.md)
 
 ---
 
@@ -367,7 +369,7 @@ User prompt → LLM + schema docs → scene JSON → parseAndValidateSceneJSON �
 | UI (17 components) | [ui-components-schema.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/ui-components-schema.md) |
 | Dashboard | [dashboard-widgets-schema.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/dashboard-widgets-schema.md) |
 | Automotive | [automotive-widgets-schema.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/automotive-widgets-schema.md) |
-| Diagram | [diagram-module-schema.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/diagram-module-schema.md) |
+| Diagram | [diagram-module-schema.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/diagram-module-schema.md) · [diagram-flow.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/diagram-flow.md) |
 
 Full guide: [ai-integration-guide.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/ai-integration-guide.md)
 
