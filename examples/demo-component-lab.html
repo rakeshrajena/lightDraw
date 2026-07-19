@@ -30,9 +30,11 @@
             <span>Search</span>
             <input id="lab-search" type="search" placeholder="Filter components…" autocomplete="off">
           </label>
-          <label class="lab-field">
+          <label class="lab-field lab-field--list">
             <span>Component</span>
-            <select id="lab-component" size="14"></select>
+            <div class="lab-component-scroller">
+              <select id="lab-component" size="12" aria-label="Component"></select>
+            </div>
           </label>
         </aside>
 

@@ -1301,17 +1301,37 @@ html.demo-embed .demo-section-pills .demo-btn {
   background: linear-gradient(180deg, var(--surface-elevated) 0%, var(--surface) 100%);
   box-shadow: var(--shadow);
   min-height: 0;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
 }
 
 .lab-field {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+  flex: 0 0 auto;
   font-size: 0.6875rem;
   font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--text-muted);
+}
+
+.lab-field--list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.lab-component-scroller {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 8rem;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
 }
 
 .lab-field select,
@@ -1331,15 +1351,29 @@ html.demo-embed .demo-section-pills .demo-btn {
   padding: 0.45rem 0.55rem;
 }
 
-.lab-field select[size] {
-  flex: 1;
-  min-height: 220px;
+/* Absolute fill so the native size=N intrinsic height cannot blow past the picker */
+.lab-component-scroller select[size] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+  margin: 0;
   padding: 0.25rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .lab-field select[size] option {
   padding: 0.35rem 0.45rem;
   border-radius: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .lab-stage {
@@ -1397,22 +1431,30 @@ html.demo-embed .demo-section-pills .demo-btn {
 }
 
 .demo-embed .lab-canvas-wrap {
-  height: 300px;
-  min-height: 260px;
+  height: 220px;
+  min-height: 180px;
+  flex: 1 1 auto;
 }
 
-.demo-embed .lab-field select[size] {
-  min-height: 160px;
-  size: 10;
+.demo-embed .lab-main.pg-has-live-dock > .lab-layout {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.demo-embed .lab-picker {
+  align-self: stretch;
 }
 
 @media (max-width: 860px) {
   .lab-layout {
     grid-template-columns: 1fr;
+    grid-template-rows: minmax(200px, 42vh) minmax(0, 1fr);
   }
 
-  .lab-field select[size] {
-    min-height: 140px;
+  .lab-picker {
+    height: auto;
+    max-height: 42vh;
   }
 }
 
@@ -1797,7 +1839,8 @@ html.demo-embed .demo-main.pg-has-live-dock .demo-aside-panel p {
 .demo-main.pg-has-live-dock > .demo-canvas-wrap,
 .demo-main.pg-has-live-dock > .demo-layout-aside,
 .demo-main.pg-has-live-dock > .demo-layout-split,
-.demo-main.pg-has-live-dock > .pg-stage {
+.demo-main.pg-has-live-dock > .pg-stage,
+.demo-main.pg-has-live-dock > .lab-layout {
   flex: 1;
   min-height: 0;
 }
