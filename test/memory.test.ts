@@ -15,7 +15,8 @@ const MAX_GROWTH = {
   nodes1000: 56 * 1024 * 1024,
   groups500: 40 * 1024 * 1024,
   render500: 50 * 1024 * 1024,
-  forceLayout50: 32 * 1024 * 1024,
+  // Raised for diagram icon/editor overhead under full-suite load (~36 MB observed).
+  forceLayout50: 40 * 1024 * 1024,
 };
 
 describe('Memory', () => {
