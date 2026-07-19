@@ -18,6 +18,7 @@
 | [Legacy Browsers](./legacy-browser-guide.md) | ES5 build, polyfills, WebView |
 | [UI Theme](./ui-theme-guide.md) | Presets, tokens, high contrast — no mandatory CSS |
 | [Theme architecture](./theme-architecture.md) | Library-wide theme contract, phases, resolve order |
+| [Pipeline symbol structure](./diagram-pipeline-structure.md) | Modular catalog layout — how to add/remove pipeline glyphs |
 | [Responsive Layout](./responsive-guide.md) | Breakpoints, `fullWidth`, `autoResize` |
 | [Legacy UI & CSS](./legacy-ui-guide.md) | ES5 + `lightdraw.min.css` compatibility |
 | [Automotive Examples](./automotive-examples.md) | Cluster, CAN viewer, drive simulation |

@@ -10,6 +10,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Help **Component lab**: pick family → component, live single-component preview, editable JSON / API
 - `Diagram.pipelineSymbol` / `schematicSymbol` / `networkNode` for single-symbol rendering
 
+### Changed — Pipeline module structure (Phase 1)
+
+- Split pipeline catalog data into `src/diagram/pipeline/` (`types`, `catalog`, `familyMap`, `aliases`, `resolve`)
+- `pipelineIcons.ts` now owns drawers + dispatch only; public API unchanged
+- Docs: [diagram-pipeline-structure.md](./docs/diagram-pipeline-structure.md) — how to add/remove symbols
+
+### Changed — Pipeline drawers (Phase 2)
+
+- Split glyph drawers into `src/diagram/pipeline/drawers/` by domain (`flow`, `data`, `manufacturing`, …)
+- Replaced giant switch with `PIPELINE_DRAWERS` family→fn map in `drawers/registry.ts`
+- `pipelineIcons.ts` is a ~20-line public façade
+
+### Changed — Schematic + network modules (Phase 3)
+
+- Split `schematicIcons.ts` into `src/diagram/schematic/` (catalog / aliases / resolve + domain drawers)
+- Split `networkIcons.ts` into `src/diagram/network/` (types / aliases / kindMeta / resolve + drawers)
+- Public façades remain thin re-exports; APIs unchanged
+- Docs: [diagram-pipeline-structure.md](./docs/diagram-pipeline-structure.md) covers all three families
+
+### Changed — Diagram catalog tests (Phase 4)
+
+- Moved catalog tests to `test/diagram/{pipeline,schematic,network}/`
+- Added structure/integrity tests (catalog ↔ familyMap/drawers/aliases; every glyph draws)
+- Fixed dead `devops → cicd` alias by adding canonical `cicd` catalog kind + family mapping
+
 - **~300** process / facility / transport symbols across 26 categories
 - Governance glyphs clarified: validation, verification, inspection, signOff, certification, version; improved machine
 - New categories: facilities, transport, nature, devices (factory, vehicles, wifi, solar, temple, …)

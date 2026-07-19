@@ -1,3 +1,7 @@
+/**
+ * Schematic catalog — public Diagram API coverage.
+ * @see docs/diagram-pipeline-structure.md
+ */
 import { describe, it, expect } from 'vitest';
 import {
   createSchematic,
@@ -7,8 +11,8 @@ import {
   listSchematicSymbolCategories,
   resolveSchematicSymbolKind,
   getSchematicSymbolMeta,
-} from '../src/diagram/index';
-import { createTestApp, createTestContainer } from './helpers';
+} from '../../../src/diagram/index';
+import { createTestApp, createTestContainer } from '../../helpers';
 
 describe('Schematic electronic symbol catalog', () => {
   it('lists a full multi-category catalog', () => {

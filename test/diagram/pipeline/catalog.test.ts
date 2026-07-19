@@ -1,3 +1,7 @@
+/**
+ * Pipeline catalog — public Diagram API coverage.
+ * @see docs/diagram-pipeline-structure.md
+ */
 import { describe, it, expect } from 'vitest';
 import {
   createPipeline,
@@ -7,13 +11,13 @@ import {
   listPipelineSymbolCategories,
   resolvePipelineSymbolKind,
   getPipelineSymbolMeta,
-} from '../src/diagram/index';
-import { createTestApp, createTestContainer } from './helpers';
+} from '../../../src/diagram/index';
+import { createTestApp, createTestContainer } from '../../helpers';
 
 describe('Pipeline process symbol catalog', () => {
   it('lists a full multi-category catalog', () => {
     const all = listPipelineSymbols();
-    expect(all.length).toBeGreaterThanOrEqual(240);
+    expect(all.length).toBeGreaterThanOrEqual(290);
     const cats = listPipelineSymbolCategories();
     expect(cats).toEqual(
       expect.arrayContaining([
@@ -27,6 +31,10 @@ describe('Pipeline process symbol catalog', () => {
         'industrial',
         'cloud',
         'people',
+        'facilities',
+        'transport',
+        'nature',
+        'devices',
       ])
     );
     expect(listPipelineSymbols('cicd').every((m) => m.category === 'cicd')).toBe(true);

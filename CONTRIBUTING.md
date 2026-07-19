@@ -33,6 +33,21 @@ Do **not** commit generated `website/public/examples/`, `website/public/docs/`, 
 - Add tests for new features
 - Update documentation and CHANGELOG under `[Unreleased]`
 
+## Library layout (where to edit)
+
+| Area | Path | Notes |
+|------|------|--------|
+| Core / scene | `src/core`, `src/App.ts`, `src/io` | App, JSON, validation |
+| UI components | `src/components` | Buttons, forms, … |
+| Dashboard / charts | `src/dashboard` (+ `charts/*/register.ts`) | Prefer chart folder pattern |
+| Diagram | `src/diagram` | Flowcharts, catalogs, editor |
+| Pipeline symbols | `src/diagram/pipeline/` (+ `drawers/`) · façade `pipelineIcons.ts` | See [docs/diagram-pipeline-structure.md](docs/diagram-pipeline-structure.md) |
+| Schematic symbols | `src/diagram/schematic/` (+ `drawers/`) · façade `schematicIcons.ts` | Same doc |
+| Network icons | `src/diagram/network/` (+ `drawers/`) · façade `networkIcons.ts` | Same doc |
+| Plugins | `src/modules/*` | Wire domain into `LightDraw.*` |
+
+**Catalog symbols — add/remove:** follow the checklists in [docs/diagram-pipeline-structure.md](docs/diagram-pipeline-structure.md) (pipeline / schematic / network). Run `npx vitest run test/diagram/` after changes.
+
 ## JSON / theme validation
 
 When changing scene types or prop enums, update:
