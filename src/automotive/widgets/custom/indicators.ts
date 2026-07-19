@@ -128,6 +128,16 @@ registerAutomotive('parkingBrake', (props, app) => buildLampWidget(app, 'parking
 
 registerAutomotive('headlights', (props, app) => buildLampWidget(app, 'headlights', 'headlights', props, 'HL'));
 
+/** Amber MIL / check-engine lamp (ISO 2575 style amber telltale). */
+registerAutomotive('checkEngineLamp', (props, app) =>
+  buildLampWidget(app, 'checkEngineLamp', 'checkEngineLamp', props, 'MIL', {
+    onFill: '#f59e0b',
+    onStroke: '#fbbf24',
+    onText: '#111',
+    onShadow: 'rgba(245,158,11,0.55)',
+  })
+);
+
 registerAutomotive('cruiseControl', (props, app) => {
   const speed = num(props, 'speed', 0);
   const active = bool(props, 'active', speed > 0);
@@ -197,6 +207,55 @@ registerAutomotive('adasStatus', (props, app) => {
   group.metadata.textRefresh = (t: string) => {
     const bg = group.children[0] as { fill?: string };
     if (bg) bg.fill = colors[t.toLowerCase()] ?? '#333';
+  };
+  setState(group, { status, width: bounds.width, height: bounds.height });
+  return group;
+});
+
+/** Pedestrian detection ADAS badge — clear / detecting / warning. */
+registerAutomotive('pedestrianDetection', (props, app) => {
+  const status = str(props, 'status', str(props, 'text', 'clear')).toLowerCase();
+  const colors: Record<string, string> = {
+    clear: '#333',
+    off: '#333',
+    detecting: '#2563eb',
+    standby: '#f59e0b',
+    warning: '#ef4444',
+    alert: '#ef4444',
+    fault: '#ef4444',
+  };
+  const bounds = resolveBounds(props, 120, 36);
+  const group = createAutoGroup(
+    app,
+    'pedestrianDetection',
+    { ...props, width: bounds.width, height: bounds.height },
+    'pedestrianDetection'
+  );
+  const w = bounds.innerWidth;
+  const h = bounds.innerHeight;
+  const compact = w < 72;
+  const label = compact
+    ? `PED ${status === 'clear' || status === 'off' ? '—' : status[0]?.toUpperCase() ?? '?'}`
+    : `PED ${status.toUpperCase()}`;
+  const bg = app.roundedRect({
+    width: w,
+    height: h,
+    cornerRadius: Math.min(6, h * 0.2),
+    fill: colors[status] ?? '#333',
+    listening: false,
+  });
+  const text = autoCenteredText(app, label, w, h / 2, {
+    fontSize: fluidFont(10, bounds, 7, 11),
+    fontWeight: 'bold',
+    fill: '#fff',
+  });
+  group.add(bg, text);
+  group.metadata.textRefresh = (t: string) => {
+    const key = t.toLowerCase();
+    (bg as { fill: string }).fill = colors[key] ?? '#333';
+    (text as TextNode).text = compact
+      ? `PED ${key === 'clear' || key === 'off' ? '—' : key[0]?.toUpperCase() ?? '?'}`
+      : `PED ${key.toUpperCase()}`;
   };
   setState(group, { status, width: bounds.width, height: bounds.height });
   return group;

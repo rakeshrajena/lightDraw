@@ -20,7 +20,7 @@ All chart types ship in `lightdraw.dashboard`. Open `examples/demo-dashboard.htm
 | width | number | 300 | Chart width |
 | height | number | 150 | Chart height |
 | data | number[] | sample | Single-series values |
-| series | ChartSeries[] | — | Multi-series (`name`, `data`, `type`, `color`, `colorStops`) |
+| series | ChartSeries[] | — | Multi-series (`name`, `data`, `type`, `color?`). Omitting `color` assigns unique theme palette colors per series. |
 | categories | string[] | auto | X-axis labels |
 | minY / maxY | number | auto | Y-axis bounds |
 | tickCount | number | 5 | Y-axis ticks |
@@ -29,7 +29,23 @@ All chart types ship in `lightdraw.dashboard`. Open `examples/demo-dashboard.htm
 | orientation | `vertical` \| `horizontal` | vertical | Bar orientation |
 | colorStops | `{ upTo?: number; color: string }[]` | — | Per-bar colors by value (alias: `thresholds`) |
 
+Multi-series `lineChart` / `areaChart` draw distinct colored lines with multi-value hover tooltips. Multi-series `barChart` / `columnChart` / `horizontalBarChart` draw **grouped** (side-by-side) bars with category hover listing each series. Use `stackedColumnChart` / `stackedBarChart` for stacked segments.
+
 **Cartesian types:** `lineChart`, `areaChart`, `barChart`, `columnChart` (alias), `horizontalBarChart`, `stackedColumnChart`, `stackedBarChart`, `stackedAreaChart`, `stepChart`, `splineChart`, `errorBarChart`, `lollipopChart`, `dotPlot`, `stripPlot`, `sparklineChart`, `rangeChart`, `rangeAreaChart`, `bandChart`, `ribbonChart`, `combinationChart`, `mixedChart`, `waterfallChart`, `paretoChart`, `runChart`, `controlChart`, `populationPyramidChart`, `bumpChart`, `horizonChart`
+
+### Data table
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| columns | string[] | `['Name','Value']` | Header labels |
+| rows | string[][] | sample | Cell values |
+| striped | boolean | `true` | Odd/even row coloring |
+| showSearch | boolean | `false` | Show keyword search box |
+| search / searchQuery | string | `''` | Filter rows (any cell match) |
+| sortable | boolean | `false` | Clickable column headers |
+| width / height | number | auto | Widget size |
+
+Type: **`dataTable`** (dashboard). UI module also has `table` with the same search/stripe props.
 
 ### Polar & funnel
 

@@ -71,7 +71,7 @@ export const DASHBOARD = {
   timelineLine: '#475569',
   timelineDot: '#3b82f6',
   highlight: '#3b82f6',
-  series: ['#3b82f6', '#ef4444', '#22c55e', '#f59e0b'] as const,
+  series: ['#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#a855f7', '#06b6d4', '#f97316', '#ec4899'] as const,
   financialUp: '#22c55e',
   financialDown: '#ef4444',
   flowLink: 'rgba(59, 130, 246, 0.45)',

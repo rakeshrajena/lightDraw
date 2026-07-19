@@ -226,6 +226,9 @@ Events: `open`, `close`
 |------|------|---------|-------------|
 | columns | string[] | `["Name","Value"]` | Column headers |
 | rows | string[][] | sample rows | Cell data |
+| striped | boolean | `true` | Odd/even row coloring |
+| showSearch | boolean | `false` | Show keyword search box |
+| search / searchQuery | string | `""` | Filter rows (any cell contains query) |
 | sortable | boolean | `false` | Click headers to sort |
 | sortColumn | number | `-1` | Active sort column |
 | sortDirection | `"asc"` \| `"desc"` | `"asc"` | Sort direction |

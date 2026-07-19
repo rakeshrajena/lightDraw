@@ -13,12 +13,13 @@
     <header class="demo-header">
       <span class="demo-badge">Automotive Module</span>
       <h1>Digital Instrument Cluster</h1>
-      <p>Live cockpit with speed, RPM, ADAS lamps, and an <strong>incoming-call overlay</strong> between the primary gauges — plus a <strong>160-widget</strong> automotive catalog. Edit Scene JSON below for live updates.</p>
+      <p>Live cockpit, a compose-from-individuals dash strip (MIL, beams, pedestrian, weather…), and the full automotive catalog. Edit Scene JSON below for live updates.</p>
     </header>
     <main class="demo-main">
       <div class="demo-view-tabs" id="view-tabs">
         <button type="button" class="demo-btn is-active" data-view="cluster">Instrument cluster</button>
-        <button type="button" class="demo-btn secondary" data-view="widgets">Widget catalog (160)</button>
+        <button type="button" class="demo-btn secondary" data-view="dash">Individual dash</button>
+        <button type="button" class="demo-btn secondary" data-view="widgets">Widget catalog</button>
       </div>
       <div id="view-cluster">
         <div class="demo-toolbar cluster-toolbar">
@@ -41,6 +42,27 @@
         </div>
         <div class="demo-canvas-wrap cluster-canvas-wrap">
           <div id="app"></div>
+        </div>
+      </div>
+      <div id="view-dash" hidden>
+        <div class="demo-toolbar cluster-toolbar">
+          <div class="cluster-toolbar-group">
+            <button class="demo-btn" id="btn-dash-drive" onclick="toggleDashDrive()">Start drive simulation</button>
+            <button class="demo-btn secondary" onclick="randomDashFrame()">Random frame</button>
+          </div>
+          <label class="demo-label">Theme
+            <select class="demo-select" id="dash-theme" onchange="setDashTheme(this.value)">
+              <option value="classic">Classic</option>
+              <option value="sport">Sport</option>
+              <option value="digital">Digital</option>
+            </select>
+          </label>
+        </div>
+        <div class="cluster-status" aria-live="polite">
+          <span id="dash-status-text">Composed from individual widgets (not instrumentCluster)</span>
+        </div>
+        <div class="demo-canvas-wrap cluster-canvas-wrap">
+          <div id="dash-app"></div>
         </div>
       </div>
       <div class="chart-catalog-wrap" id="view-widgets" hidden>
@@ -339,6 +361,241 @@
 
     syncCallChrome();
 
+    /* ── Individual dash strip (composed widgets, not instrumentCluster) ── */
+    const DASH_ASPECT = 960 / 400;
+    let dashApp = null;
+    let dashRoot = null;
+    let dashDriveTimer = null;
+    let dashFrameIndex = 0;
+    let lastDashSize = { w: 0, h: 0 };
+    let dashQuietUntil = 0;
+    let dashResizeTimer = 0;
+    let dashBooted = false;
+
+    function ensureDashApp() {
+      if (dashApp) return dashApp;
+      dashApp = LightDraw.createApp('#dash-app', {
+        width: 960,
+        height: 400,
+        background: '#0a0a0a',
+        renderer: 'canvas',
+        autoResize: false,
+      });
+      return dashApp;
+    }
+
+    function dashWrapSize() {
+      const wrap = document.querySelector('#view-dash .demo-canvas-wrap');
+      if (!wrap) return { w: 960, h: 400 };
+      const pad = 8;
+      const availW = Math.max(320, Math.floor(wrap.clientWidth - pad));
+      const availH = Math.max(220, Math.floor(wrap.clientHeight - pad));
+      let w = availW;
+      let h = Math.round(w / DASH_ASPECT);
+      if (h > availH) {
+        h = availH;
+        w = Math.round(h * DASH_ASPECT);
+      }
+      return { w: Math.floor(w), h: Math.floor(h) };
+    }
+
+    function applyDashCanvasSize(w, h) {
+      const app = ensureDashApp();
+      const size = app.getSize?.() ?? { width: 0, height: 0 };
+      if (Math.abs(size.width - w) < 2 && Math.abs(size.height - h) < 2) return;
+      dashQuietUntil = Date.now() + 280;
+      const el = document.getElementById('dash-app');
+      if (el) {
+        el.style.width = `${w}px`;
+        el.style.height = `${h}px`;
+        el.style.flex = '0 0 auto';
+      }
+      app.resize(w, h);
+    }
+
+    function buildDashScene(theme, w, h) {
+      const m = Math.max(8, Math.round(Math.min(w, h) * 0.02));
+      const dial = Math.min(148, Math.floor(h * 0.52));
+      const lamp = Math.max(28, Math.min(40, Math.floor(h * 0.1)));
+      const badgeH = Math.max(28, Math.min(36, Math.floor(h * 0.09)));
+      const badgeW = Math.max(88, Math.min(120, Math.floor(w * 0.12)));
+      const numW = Math.max(72, Math.min(100, Math.floor(w * 0.1)));
+      const numH = Math.max(40, Math.min(52, Math.floor(h * 0.13)));
+      const turnW = Math.max(56, lamp * 2.2);
+      const turnH = Math.max(22, Math.floor(lamp * 0.7));
+      const topY = m;
+      const dialY = topY + lamp + m;
+      const bottomY = dialY + dial + m;
+      const t = theme;
+
+      const lamps = [
+        { type: 'turnIndicators', props: { left: false, right: false, width: turnW, height: turnH, theme: t } },
+        { type: 'parkingLightStatus', props: { active: true, width: lamp, height: lamp, theme: t } },
+        { type: 'lowBeamStatus', props: { active: true, width: lamp, height: lamp, theme: t } },
+        { type: 'headlights', props: { active: false, width: lamp, height: lamp, theme: t } },
+        { type: 'highBeamStatus', props: { active: false, width: lamp, height: lamp, theme: t } },
+        { type: 'checkEngineLamp', props: { active: false, width: lamp, height: lamp, theme: t } },
+        { type: 'awdFourWdStatus', props: { active: true, width: lamp, height: lamp, theme: t } },
+        { type: 'parkingBrake', props: { active: false, width: lamp, height: lamp, theme: t } },
+      ];
+      let lx = m;
+      const lampChildren = lamps.map((item) => {
+        const node = { type: item.type, props: { ...item.props, x: lx, y: topY } };
+        lx += (item.props.width || lamp) + m * 0.6;
+        return node;
+      });
+
+      const mid = [
+        { type: 'speedometer', props: { value: 0, width: dial, height: dial, x: m, y: dialY, theme: t, display: t === 'digital' ? 'digital' : 'analog' } },
+        { type: 'tachometer', props: { value: 800, width: dial, height: dial, x: m + dial + m, y: dialY, theme: t, display: t === 'digital' ? 'digital' : 'analog' } },
+        { type: 'gearIndicator', props: { gear: 'P', width: 56, height: 56, x: m + dial * 2 + m * 2, y: dialY + (dial - 56) / 2, theme: t } },
+        { type: 'fuelGauge', props: { value: 75, width: numW + 20, height: numH, x: m + dial * 2 + m * 2 + 64, y: dialY + 8, theme: t } },
+        { type: 'engineTemp', props: { value: 85, width: dial * 0.55, height: dial * 0.55, x: m + dial * 2 + m * 2 + 64, y: dialY + numH + 16, theme: t, display: t === 'digital' ? 'digital' : 'analog' } },
+      ];
+
+      const rightX = Math.min(w - m - badgeW, m + dial * 2 + m * 3 + 160);
+      const side = [
+        { type: 'digitalClock', props: { text: '14:32', width: numW, height: numH, x: rightX, y: dialY, theme: t, display: 'digital' } },
+        { type: 'outsideTemperature', props: { value: 18, width: numW, height: numH, x: rightX + numW + m * 0.5, y: dialY, theme: t } },
+        { type: 'cabinTemperature', props: { value: 22, width: numW, height: numH, x: rightX, y: dialY + numH + m * 0.5, theme: t } },
+        { type: 'weatherWidget', props: { title: 'Weather', rows: ['Clear', '18°C'], width: badgeW + 20, height: badgeH + 28, x: rightX + numW + m * 0.5, y: dialY + numH + m * 0.5, theme: t } },
+        { type: 'hvacStatus', props: { title: 'AC', rows: ['Auto', '22°C'], width: badgeW + 20, height: badgeH + 28, x: rightX, y: dialY + numH * 2 + m, theme: t } },
+        { type: 'pedestrianDetection', props: { status: 'clear', width: badgeW, height: badgeH, x: rightX + badgeW + m, y: dialY + numH * 2 + m + 8, theme: t } },
+        { type: 'adasStatus', props: { status: 'standby', width: badgeW, height: badgeH, x: rightX, y: bottomY - 4, theme: t } },
+      ];
+
+      return {
+        type: 'group',
+        children: [
+          {
+            type: 'rect',
+            props: {
+              x: 0,
+              y: 0,
+              width: w,
+              height: h,
+              fill: t === 'sport' ? '#111827' : t === 'digital' ? '#020617' : '#0a0a0a',
+              cornerRadius: 12,
+              listening: false,
+            },
+          },
+          ...lampChildren,
+          ...mid,
+          ...side,
+        ],
+      };
+    }
+
+    function loadDash(theme) {
+      const { w, h } = dashWrapSize();
+      if (w < 100 || h < 100) return;
+      lastDashSize = { w, h };
+      applyDashCanvasSize(w, h);
+      const app = ensureDashApp();
+      const scene = buildDashScene(theme, w, h);
+      app.clear();
+      app.loadJSON(scene);
+      dashRoot = app.stage;
+      app.render();
+      const status = document.getElementById('dash-status-text');
+      if (status) {
+        status.textContent = `Individual widgets · MIL / beams / pedestrian / weather / AC · ${w}×${h}`;
+      }
+    }
+
+    function applyDashFrame(state) {
+      if (!dashRoot || !LightDraw.applyDriveState) return;
+      LightDraw.applyDriveState(dashRoot, state);
+    }
+
+    function toggleDashDrive() {
+      const btn = document.getElementById('btn-dash-drive');
+      if (dashDriveTimer) {
+        clearInterval(dashDriveTimer);
+        dashDriveTimer = null;
+        if (btn) btn.textContent = 'Start drive simulation';
+        return;
+      }
+      if (btn) btn.textContent = 'Stop drive simulation';
+      dashDriveTimer = setInterval(() => {
+        if (!frames.length) return;
+        applyDashFrame(frames[dashFrameIndex % frames.length]);
+        dashFrameIndex++;
+      }, 100);
+    }
+
+    function randomDashFrame() {
+      applyDashFrame({
+        speed: Math.round(Math.random() * 140),
+        rpm: Math.round(1000 + Math.random() * 5000),
+        fuel: Math.round(Math.random() * 100),
+        engineTemp: Math.round(70 + Math.random() * 50),
+        gear: ['P', 'R', 'N', 'D'][Math.floor(Math.random() * 4)],
+        turnLeft: Math.random() > 0.8,
+        turnRight: Math.random() > 0.8,
+        parkingBrake: Math.random() > 0.7,
+        headlights: Math.random() > 0.5,
+        lowBeam: Math.random() > 0.4,
+        parkingLight: Math.random() > 0.5,
+        checkEngine: Math.random() > 0.75,
+        pedestrian: ['clear', 'detecting', 'warning'][Math.floor(Math.random() * 3)],
+        adasStatus: ['off', 'standby', 'active'][Math.floor(Math.random() * 3)],
+        awdFourWdStatus: Math.random() > 0.5,
+        highBeamStatus: Math.random() > 0.7,
+      });
+    }
+
+    function setDashTheme(theme) {
+      const wasRunning = !!dashDriveTimer;
+      if (dashDriveTimer) clearInterval(dashDriveTimer);
+      dashDriveTimer = null;
+      const btn = document.getElementById('btn-dash-drive');
+      if (btn) btn.textContent = 'Start drive simulation';
+      loadDash(theme);
+      if (wasRunning) toggleDashDrive();
+    }
+
+    function syncDashSize() {
+      if (Date.now() < dashQuietUntil) return;
+      if (document.getElementById('view-dash')?.hidden) return;
+      const { w, h } = dashWrapSize();
+      if (w < 100 || h < 100) return;
+      if (Math.abs(lastDashSize.w - w) < 3 && Math.abs(lastDashSize.h - h) < 3) return;
+      const theme = document.getElementById('dash-theme')?.value || 'classic';
+      loadDash(theme);
+    }
+
+    function initDashLayoutWatch() {
+      const wrap = document.querySelector('#view-dash .demo-canvas-wrap');
+      if (!wrap) return;
+      if (typeof ResizeObserver !== 'undefined') {
+        new ResizeObserver(() => {
+          if (!dashBooted) return;
+          clearTimeout(dashResizeTimer);
+          dashResizeTimer = setTimeout(syncDashSize, 200);
+        }).observe(wrap);
+      }
+      window.addEventListener('resize', () => {
+        if (!dashBooted) return;
+        clearTimeout(dashResizeTimer);
+        dashResizeTimer = setTimeout(syncDashSize, 200);
+      });
+    }
+
+    function bootDashIfNeeded() {
+      if (dashBooted) {
+        syncDashSize();
+        return;
+      }
+      dashBooted = true;
+      ensureDashApp();
+      initDashLayoutWatch();
+      requestAnimationFrame(() => {
+        const theme = document.getElementById('dash-theme')?.value || 'classic';
+        loadDash(theme);
+      });
+    }
+
     function destroyWidgetGallery() {
       widgetMounts.forEach((m) => m.destroy());
       widgetMounts.length = 0;
@@ -483,19 +740,26 @@
 
     function setView(view) {
       const clusterView = document.getElementById('view-cluster');
+      const dashView = document.getElementById('view-dash');
       const widgetsView = document.getElementById('view-widgets');
-      const isCluster = view === 'cluster';
-      clusterView.hidden = !isCluster;
-      widgetsView.hidden = isCluster;
+      clusterView.hidden = view !== 'cluster';
+      dashView.hidden = view !== 'dash';
+      widgetsView.hidden = view !== 'widgets';
       document.querySelectorAll('#view-tabs [data-view]').forEach((btn) => {
         btn.classList.toggle('is-active', btn.dataset.view === view);
         btn.classList.toggle('secondary', btn.dataset.view !== view);
       });
-      if (!isCluster) buildWidgetGallery(document.getElementById('widget-search')?.value || '');
-      else scheduleClusterResize();
+      if (view === 'widgets') {
+        buildWidgetGallery(document.getElementById('widget-search')?.value || '');
+      } else if (view === 'dash') {
+        bootDashIfNeeded();
+      } else {
+        scheduleClusterResize();
+      }
       if (!isEmbed()) {
         const url = new URL(location.href);
         if (view === 'widgets') url.hash = 'widgets';
+        else if (view === 'dash') url.hash = 'dash';
         else url.hash = '';
         history.replaceState(null, '', url);
       }
@@ -510,8 +774,9 @@
       buildWidgetGallery(e.target.value);
     });
 
-    if (location.hash === '#widgets' && !isEmbed()) {
-      setView('widgets');
+    if (!isEmbed()) {
+      if (location.hash === '#widgets') setView('widgets');
+      else if (location.hash === '#dash') setView('dash');
     }
   </script>
 </body>

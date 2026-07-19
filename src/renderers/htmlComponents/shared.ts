@@ -84,6 +84,12 @@ export function sortTableRows(rows: string[][], col: number, dir: 'asc' | 'desc'
   });
 }
 
+export function filterTableRows(rows: string[][], query: string): string[][] {
+  const q = query.trim().toLowerCase();
+  if (!q) return rows;
+  return rows.filter((row) => row.some((cell) => String(cell).toLowerCase().includes(q)));
+}
+
 export function absPosition(node: Node, width?: number | string, height?: number | string): string {
   const w = width !== undefined ? `width: ${typeof width === 'number' ? `${width}px` : width};` : '';
   const h = height !== undefined ? `height: ${typeof height === 'number' ? `${height}px` : height};` : '';

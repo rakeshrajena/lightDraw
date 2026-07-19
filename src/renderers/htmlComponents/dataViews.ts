@@ -9,13 +9,28 @@ import {
   escHtml,
   formatTableCell,
   sortTableRows,
+  filterTableRows,
   absPosition,
   bindDelegated,
 } from './shared';
 
-/** Data table with striped rows */
+function resolveTableState(node: Node): Record<string, unknown> {
+  const widget = node.metadata?.widgetState;
+  if (widget && typeof widget === 'object') return widget as Record<string, unknown>;
+  return getState(node);
+}
+
+function patchTableState(node: Node, patch: Record<string, unknown>): void {
+  if (node.metadata?.widgetType === 'dataTable') {
+    node.metadata.widgetState = { ...resolveTableState(node), ...patch };
+    return;
+  }
+  node.metadata.componentState = { ...getState(node), ...patch };
+}
+
+/** Data table with striped rows + optional search */
 export function syncNativeTable(node: Node, parent: HTMLElement, ctx: NativeSyncContext): void {
-  const state = getState(node);
+  const state = resolveTableState(node);
   const columns = (state.columns as string[]) ?? ['Name', 'Value'];
   const rows = (state.rows as string[][]) ?? [['A', '1']];
   const selectedRow = Number(state.selectedRow ?? -1);
@@ -26,10 +41,13 @@ export function syncNativeTable(node: Node, parent: HTMLElement, ctx: NativeSync
   const sortDirection = String(state.sortDirection ?? 'asc') === 'desc' ? 'desc' : 'asc';
   const stickyHeader = state.stickyHeader !== false;
   const maxHeight = Number(state.maxHeight ?? 0);
+  const showSearch = Boolean(state.showSearch);
+  const search = String(state.search ?? state.searchQuery ?? '');
+  const striped = state.striped !== false;
 
-  let displayRows = rows;
+  let displayRows = filterTableRows(rows, search);
   if (sortColumn >= 0 && sortColumn < columns.length) {
-    displayRows = sortTableRows(rows, sortColumn, sortDirection);
+    displayRows = sortTableRows(displayRows, sortColumn, sortDirection);
   }
 
   let el = ctx.nodeElements.get(node.id) as HTMLDivElement | undefined;
@@ -43,22 +61,41 @@ export function syncNativeTable(node: Node, parent: HTMLElement, ctx: NativeSync
       const th = (e.target as HTMLElement).closest('.lightdraw-table-th--sortable');
       if (th) {
         const ci = Number(th.getAttribute('data-col'));
-        const st = getState(node);
+        const st = resolveTableState(node);
         const prevCol = Number(st.sortColumn ?? -1);
         const prevDir = String(st.sortDirection ?? 'asc');
         const nextDir = prevCol === ci && prevDir === 'asc' ? 'desc' : 'asc';
-        node.metadata.componentState = { ...st, sortColumn: ci, sortDirection: nextDir };
+        patchTableState(node, { sortColumn: ci, sortDirection: nextDir });
         node.emit('change', syntheticEvent('change', node, { value: ci, field: nextDir }));
-        node.getApp()?.requestRender();
+        if (typeof node.metadata.chartRebuild === 'function') {
+          (node.metadata.chartRebuild as () => void)();
+        } else {
+          node.getApp()?.requestRender();
+        }
         return;
       }
       const row = (e.target as HTMLElement).closest('.lightdraw-table-row');
       if (!row) return;
       const ri = Number(row.getAttribute('data-index'));
-      const tableRows = (getState(node).rows as string[][]) ?? [];
-      node.metadata.componentState = { ...getState(node), selectedRow: ri };
+      const tableRows = (resolveTableState(node).rows as string[][]) ?? [];
+      patchTableState(node, { selectedRow: ri });
       node.emit('select', syntheticEvent('select', node, { index: ri, row: tableRows[ri] }));
-      node.getApp()?.requestRender();
+      if (typeof node.metadata.chartRebuild === 'function') {
+        (node.metadata.chartRebuild as () => void)();
+      } else {
+        node.getApp()?.requestRender();
+      }
+    });
+    el.addEventListener('input', (e) => {
+      const input = (e.target as HTMLElement).closest('.lightdraw-table-search');
+      if (!input || !(input instanceof HTMLInputElement)) return;
+      const next = input.value;
+      patchTableState(node, { search: next, searchQuery: next });
+      if (typeof node.metadata.chartRebuild === 'function') {
+        (node.metadata.chartRebuild as () => void)();
+      } else {
+        node.getApp()?.requestRender();
+      }
     });
     ctx.nodeElements.set(node.id, el);
   } else if (el.parentElement !== parent) {
@@ -78,18 +115,22 @@ export function syncNativeTable(node: Node, parent: HTMLElement, ctx: NativeSync
     .join('');
   const body = displayRows
     .map((row, ri) => {
-      const sourceIndex = rows.indexOf(row);
+      const sourceIndex = rows.findIndex((r) => r === row || r.every((c, i) => c === row[i]));
       const dataIndex = sourceIndex >= 0 ? sourceIndex : ri;
-      return `<tr class="lightdraw-table-row${dataIndex === selectedRow ? ' lightdraw-table-row--selected' : ''}" data-index="${dataIndex}">${row.map((cell) => `<td>${formatTableCell(cell)}</td>`).join('')}</tr>`;
+      const zebraCls = striped ? '' : ' lightdraw-table-row--no-stripe';
+      return `<tr class="lightdraw-table-row${zebraCls}${dataIndex === selectedRow ? ' lightdraw-table-row--selected' : ''}" data-index="${dataIndex}">${row.map((cell) => `<td>${formatTableCell(cell)}</td>`).join('')}</tr>`;
     })
     .join('');
 
   const theadAttr = stickyHeader ? ' class="lightdraw-table-head--sticky"' : '';
   const scrollStyle = maxHeight > 0 ? ` style="max-height:${maxHeight}px"` : '';
-  el.className = 'lightdraw-table-wrap lightdraw-table-wrap--scroll-x';
-  el.innerHTML = `<div class="lightdraw-table-scroll"${scrollStyle}><table class="lightdraw-table"><thead${theadAttr}><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+  const searchHtml = showSearch
+    ? `<div class="lightdraw-table-search-wrap"><input type="search" class="lightdraw-table-search" placeholder="Search…" value="${escHtml(search)}" aria-label="Filter table rows"></div>`
+    : '';
+  el.className = `lightdraw-table-wrap lightdraw-table-wrap--scroll-x${striped ? '' : ' lightdraw-table-wrap--no-stripe'}`;
+  el.innerHTML = `${searchHtml}<div class="lightdraw-table-scroll"${scrollStyle}><table class="lightdraw-table"><thead${theadAttr}><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
 
-  const tableH = maxHeight > 0 ? maxHeight : 36 * (rows.length + 1);
+  const tableH = maxHeight > 0 ? maxHeight : 36 * (displayRows.length + 1) + (showSearch ? 40 : 0);
   el.style.cssText = absPosition(node, width, tableH);
   ctx.applyA11y(node, el);
   ctx.applyUiClasses(node, el);

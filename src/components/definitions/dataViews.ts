@@ -21,7 +21,16 @@ registerComponent('table', (props, app) => {
   const colW = num(props, 'colWidth', 100);
   const width = num(props, 'width', colW * columns.length);
   const rowH = 36;
-  const tableH = rowH * (rows.length + 1);
+  const showSearch = bool(props, 'showSearch', false);
+  const search = str(props, 'search', str(props, 'searchQuery', ''));
+  const striped = bool(props, 'striped', true);
+  const searchH = showSearch ? 40 : 0;
+  const q = search.trim().toLowerCase();
+  const filtered =
+    q.length === 0
+      ? rows
+      : rows.filter((row) => row.some((cell) => String(cell).toLowerCase().includes(q)));
+  const tableH = searchH + rowH * (filtered.length + 1);
   const sortable = bool(props, 'sortable', false);
   const sortColumn = num(props, 'sortColumn', -1);
   const sortDirection = str(props, 'sortDirection', 'asc');
@@ -30,10 +39,37 @@ registerComponent('table', (props, app) => {
 
   group.add(canvasSurface(app, width, tableH, { radius: UI().radius }));
 
+  if (showSearch) {
+    group.add(
+      app.roundedRect({
+        x: 8,
+        y: 8,
+        width: width - 16,
+        height: 28,
+        cornerRadius: UI().radiusSm,
+        fill: UI().surfaceMuted,
+        stroke: UI().border,
+        strokeWidth: 1,
+        listening: false,
+      })
+    );
+    group.add(
+      app.text({
+        text: search || 'Search…',
+        x: 16,
+        y: 14,
+        fontSize: UI().fontSizeSm,
+        fill: search ? UI().text : UI().textMuted,
+        listening: false,
+      })
+    );
+  }
+
   group.add(
     app.rect({
       width,
       height: rowH,
+      y: searchH,
       fill: UI().surfaceMuted,
       stroke: null,
       listening: false,
@@ -47,7 +83,7 @@ registerComponent('table', (props, app) => {
       app.text({
         text: col.toUpperCase() + arrow,
         x: ci * colW + 14,
-        y: 10,
+        y: searchH + 10,
         fontSize: UI().fontSizeSm,
         fontWeight: 'bold',
         fill: sorted ? UI().primary : UI().textMuted,
@@ -56,9 +92,9 @@ registerComponent('table', (props, app) => {
     );
   });
 
-  rows.forEach((row, ri) => {
-    const rowY = (ri + 1) * rowH;
-    const zebra = ri % 2 === 1;
+  filtered.forEach((row, ri) => {
+    const rowY = searchH + (ri + 1) * rowH;
+    const zebra = striped && ri % 2 === 1;
     const selected = ri === selectedRow;
     if (zebra || selected) {
       group.add(
@@ -113,6 +149,10 @@ registerComponent('table', (props, app) => {
     sortable,
     sortColumn,
     sortDirection,
+    striped,
+    showSearch,
+    search,
+    searchQuery: search,
     stickyHeader: bool(props, 'stickyHeader', true),
     maxHeight: num(props, 'maxHeight', 0),
   });

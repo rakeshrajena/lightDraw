@@ -2,7 +2,7 @@
 
 Load widgets via `app.loadJSON({ type: '<widget>', props: { ... } })`.
 
-**160 widget types** are registered via the declarative catalog (`src/automotive/catalog.ts`) plus rich custom overrides (`src/automotive/widgets/custom.ts`). Use `listAutomotiveWidgets()` from `lightdraw/automotive` for the full sorted list.
+**160+ widget types** are registered via the declarative catalog (`src/automotive/catalog.ts`) plus rich custom overrides (`src/automotive/widgets/custom.ts`). Use `listAutomotiveWidgets()` from `lightdraw/automotive` for the full sorted list.
 
 ## Widget categories
 
@@ -11,8 +11,8 @@ Load widgets via `app.loadJSON({ type: '<widget>', props: { ... } })`.
 | **Dials** | speedometer, tachometer, turboBoostGauge, oilPressure | value, max, size, theme |
 | **Bars** | fuelGauge, stateOfCharge, chargingPower | value (0–100) |
 | **Numeric** | odometer, outsideTemperature, eta | value, decimals |
-| **Lamps** | parkingBrake, absStatus, laneKeepAssist | active |
-| **Badges** | cruiseControl, bluetoothStatus, chargingStatus | status, active |
+| **Lamps** | parkingBrake, checkEngineLamp, lowBeamStatus, parkingLightStatus, absStatus | active |
+| **Badges** | cruiseControl, pedestrianDetection, bluetoothStatus, chargingStatus | status, active |
 | **Panels** | mediaPlayer, gpsNavigationMap, warningAlertPanel | title, rows |
 | **Composite** | instrumentCluster, digitalInstrumentCluster | theme, speed, rpm, fuel, … |
 
@@ -23,6 +23,7 @@ Load widgets via `app.loadJSON({ type: '<widget>', props: { ... } })`.
 | gearPositionIndicator | gearIndicator |
 | tirePressureMonitoring | tpms |
 | turnIndicator | turnIndicators |
+| milStatus / checkEngine / engineStatus | checkEngineLamp |
 
 ## Instrument cluster
 
@@ -60,15 +61,15 @@ See [theme-architecture.md](./theme-architecture.md).
 `applyDriveState(cluster, state)` walks `autoPart` metadata and updates matching widgets:
 
 - **Numbers** — `speed`, `rpm`, `fuel`, `engineTemp`, `batteryVoltage`, or any key matching `autoPart`
-- **Booleans** — `parkingBrake`, `headlights`, ADAS lamps, etc.
-- **Strings** — `gear`, `adasStatus`
+- **Booleans** — `parkingBrake`, `headlights`, `checkEngine`, `lowBeam`, `parkingLight`, ADAS lamps, etc.
+- **Strings** — `gear`, `adasStatus`, `pedestrian` (`clear` / `detecting` / `warning`)
 - **Arrays** — `tpms` pressures
 - **Objects** — `signals` for CAN viewer
 
 ```javascript
 import { applyDriveState, sampleDriveFrames, listAutomotiveWidgets } from 'lightdraw/automotive';
 
-console.log(listAutomotiveWidgets().length); // 160
+console.log(listAutomotiveWidgets().length); // 160+
 
 const frames = sampleDriveFrames(120);
 let i = 0;

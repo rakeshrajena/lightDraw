@@ -210,7 +210,8 @@ function drawBarSeries(
   ctx: ReturnType<typeof buildChartContext>,
   series: ChartSeries,
   horizontal: boolean,
-  stackBase?: number[]
+  stackBase?: number[],
+  cluster?: { seriesIndex: number; seriesCount: number }
 ): Node[] {
   const { layout, bounds } = ctx;
   const n = series.data.length;
@@ -221,21 +222,28 @@ function drawBarSeries(
     series.colorStops?.length
       ? resolveValueColor(val, series.colorStops, fallback)
       : fallback;
+  const seriesCount = Math.max(1, cluster?.seriesCount ?? 1);
+  const seriesIndex = cluster?.seriesIndex ?? 0;
+  const clustered = seriesCount > 1 && !stackBase;
 
   if (horizontal) {
-    const bw = bandWidth(n, layout.plotHeight, gap);
+    const rowStep = layout.plotHeight / Math.max(n, 1);
+    const usable = rowStep * (1 - gap);
+    const barH = clustered ? Math.max(2, (usable / seriesCount) * 0.88) : usable;
     const scale = linearScale([bounds.min, bounds.max], [0, layout.plotWidth]);
-    const rowStep = layout.plotHeight / n;
     series.data.forEach((val: number, i: number) => {
       const base = stackBase?.[i] ?? bounds.min;
       const x0 = scale(base);
       const x1 = scale(val);
-      const y = layout.plotY + rowStep * i + (rowStep - bw) / 2;
+      const clusterTop = layout.plotY + rowStep * i + (rowStep - usable) / 2;
+      const y = clustered
+        ? clusterTop + seriesIndex * (usable / seriesCount) + ((usable / seriesCount) - barH) / 2
+        : clusterTop;
       const bar = app.rect({
         x: layout.plotX + x0,
         y,
         width: Math.max(1, x1 - x0),
-        height: bw,
+        height: barH,
         fill: barFill(val),
         listening: false,
       });
@@ -243,16 +251,21 @@ function drawBarSeries(
       group.add(bar);
     });
   } else {
-    const bw = bandWidth(n, layout.plotWidth, gap);
+    const colStep = layout.plotWidth / Math.max(n, 1);
+    const usable = colStep * (1 - gap);
+    const barW = clustered ? Math.max(2, (usable / seriesCount) * 0.88) : usable;
     series.data.forEach((val: number, i: number) => {
       const base = stackBase?.[i] ?? bounds.min;
       const yTop = valueToY(val, layout, bounds);
       const yBase = valueToY(base, layout, bounds);
-      const x = layout.plotX + (layout.plotWidth / n) * i + (layout.plotWidth / n - bw) / 2;
+      const clusterLeft = layout.plotX + colStep * i + (colStep - usable) / 2;
+      const x = clustered
+        ? clusterLeft + seriesIndex * (usable / seriesCount) + ((usable / seriesCount) - barW) / 2
+        : clusterLeft;
       const bar = app.rect({
         x,
         y: Math.min(yTop, yBase),
-        width: bw,
+        width: barW,
         height: Math.max(1, Math.abs(yBase - yTop)),
         fill: barFill(val),
         listening: false,
@@ -599,13 +612,25 @@ export function buildCartesianChart(
     variant === 'mixed'
   ) {
     const stacked = variant === 'stackedBar' || variant === 'stackedColumn';
+    const clusterBars =
+      !stacked &&
+      series.length > 1 &&
+      (variant === 'bar' || variant === 'horizontalBar');
     series.forEach((s, si) => {
       const base = stacked ? (s as ChartSeries & { _base?: number[] })._base : undefined;
       const kind = variant === 'mixed' || variant === 'combination' ? s.type ?? (si === 0 ? 'bar' : 'line') : 'bar';
       if (kind === 'line' || kind === 'area') {
         drawLineSeries(app, group, ctx, s, kind === 'area' ? 'area' : 'line');
       } else {
-        drawBarSeries(app, group, ctx, s, horizontal, base);
+        drawBarSeries(
+          app,
+          group,
+          ctx,
+          s,
+          horizontal,
+          base,
+          clusterBars ? { seriesIndex: si, seriesCount: series.length } : undefined
+        );
       }
     });
   } else if (variant === 'ribbon') {
@@ -628,13 +653,18 @@ export function buildCartesianChart(
 
   const primaryData = series[0]?.data ?? [];
   const isStacked = variant === 'stackedBar' || variant === 'stackedColumn';
+  const multiBar = rawSeries.length > 1 && (variant === 'bar' || variant === 'horizontalBar' || isStacked);
   const stackedMulti = isStacked && rawSeries.length > 1;
-  const stackedTotals = isStacked ? (series[series.length - 1]?.data ?? primaryData) : primaryData;
+  const categoryMax = multiBar
+    ? rawSeries[0].data.map((_, i) => Math.max(...rawSeries.map((s) => s.data[i] ?? 0), 0))
+    : primaryData;
+  const stackedTotals = isStacked ? (series[series.length - 1]?.data ?? primaryData) : categoryMax;
+  const hoverTotals = stackedMulti ? stackedTotals : categoryMax;
 
   if (['bar', 'horizontalBar', 'stackedBar', 'stackedColumn', 'waterfall', 'pareto'].includes(variant)) {
     if (horizontal) {
       const n = primaryData.length;
-      if (stackedMulti) {
+      if (multiBar) {
         const highlight = app.rect({
           fill: 'rgba(96,165,250,0.28)',
           stroke: getActiveDashboard().chartLine,
@@ -672,7 +702,7 @@ export function buildCartesianChart(
         });
         group.add(highlight, tooltip, tooltipLabel, hitArea);
         if (props.interactive !== false) {
-          wireStackedHorizontalBarChartInteraction(group, rawSeries, ctx.layout, ctx.bounds, stackedTotals, 0.2, {
+          wireStackedHorizontalBarChartInteraction(group, rawSeries, ctx.layout, ctx.bounds, hoverTotals, 0.2, {
             tooltip,
             tooltipLabel,
             highlight,
@@ -707,8 +737,8 @@ export function buildCartesianChart(
       const hitArea = app.rect({ x: ctx.layout.plotX, y: ctx.layout.plotY, width: ctx.layout.plotWidth, height: ctx.layout.plotHeight, fill: 'rgba(0,0,0,0.001)', listening: true });
       group.add(highlight, tooltip, tooltipLabel, hitArea);
       if (props.interactive !== false) {
-        if (stackedMulti) {
-          wireStackedBarChartInteraction(group, rawSeries, ctx.layout, ctx.bounds, stackedTotals, 0.2, {
+        if (multiBar) {
+          wireStackedBarChartInteraction(group, rawSeries, ctx.layout, ctx.bounds, hoverTotals, 0.2, {
             tooltip,
             tooltipLabel,
             highlight,

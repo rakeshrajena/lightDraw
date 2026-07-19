@@ -10,6 +10,7 @@ window.LD_CHART_CATALOG = [
   'kagiChart', 'pointAndFigureChart', 'volumeChart', 'candlestickVolumeChart', 'highLowChart', 'volumeProfileChart', 'treemap',
   'sunburstChart', 'treeChart', 'dendrogramChart', 'sankeyChart', 'chordChart', 'alluvialChart', 'streamgraph', 'networkChart',
   'timeline', 'ganttChart', 'surfaceChart3d', 'wireframeChart3d', 'meshChart3d', 'vectorFieldChart', 'pictogramChart', 'wordCloudChart',
+  'dataTable',
 ];
 
 const SAMPLE_OHLC = [
@@ -198,8 +199,25 @@ window.ldChartProps = function ldChartProps(type, w, h) {
   }
   if (type === 'combinationChart' || type === 'mixedChart' || type === 'ribbonChart' ||
       type === 'stackedAreaChart' || type === 'stackedBarChart' || type === 'stackedColumnChart' ||
-      type === 'horizonChart') {
+      type === 'horizonChart' || type === 'lineChart' || type === 'barChart' || type === 'columnChart' ||
+      type === 'horizontalBarChart') {
     return { ...base, series: SAMPLE_SERIES };
+  }
+  if (type === 'dataTable') {
+    return {
+      ...base,
+      width: Math.max(280, width),
+      height: Math.max(160, height),
+      columns: ['Region', 'Sales', 'Status'],
+      rows: [
+        ['North', '120', 'Active'],
+        ['South', '86', 'Pending'],
+        ['East', '104', 'Active'],
+        ['West', '73', 'Inactive'],
+      ],
+      showSearch: true,
+      striped: true,
+    };
   }
   if (type.includes('Chart3d') || type === 'meshChart3d') {
     return {

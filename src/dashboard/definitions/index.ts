@@ -9,6 +9,7 @@ import './indicators';
 import './calendar';
 import './clock';
 import './chartPanel';
+import './dataTable';
 
 export { animateLiveValue, setLiveValue, dashboardToJSON } from '../helpers';
 export { CHART_TYPES } from '../charts/registerAll';
