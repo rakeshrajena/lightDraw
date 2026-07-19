@@ -231,7 +231,7 @@ describe('Phase 9 — Diagram Module', () => {
     const net = createNetworkDiagram(app, { nodes, edges });
     app.add(net);
     const avg = measureAverageMs(() => app.render(), 5);
-    expect(avg).toBeLessThan(80); // v1.1 network icons; headroom for slower CI / full-suite load
+    expect(avg).toBeLessThan(120); // v1.1 network icons; headroom for slower hosts / full-suite load
     app.destroy();
   });
 

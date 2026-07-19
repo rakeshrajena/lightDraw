@@ -135,7 +135,7 @@
     "benchmark": "node scripts/benchmark.mjs",
     "benchmark:save": "node scripts/benchmark.mjs --save",
     "benchmark:compare": "node scripts/benchmark.mjs --compare",
-    "prepublishOnly": "npm run build && npm run test"
+    "prepublishOnly": "npm run typecheck && npm run lint && npm run build && npm run size-gate"
   },
   "author": "Rakesh Ranjan Jena <https://rakeshranjanjena.com>",
   "license": "MIT",

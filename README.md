@@ -10,9 +10,6 @@
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/lightdraw"><img src="https://img.shields.io/npm/v/lightdraw.svg" alt="npm version" /></a>
-  <a href="https://www.npmjs.com/package/lightdraw"><img src="https://img.shields.io/npm/dm/lightdraw.svg" alt="npm downloads / month" /></a>
-  <a href="https://www.npmjs.com/package/lightdraw"><img src="https://img.shields.io/npm/dt/lightdraw.svg" alt="npm total downloads" /></a>
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" />
   <img src="https://img.shields.io/badge/deps-zero-success" alt="Zero dependencies" />
   <img src="https://img.shields.io/badge/renderers-Canvas%20%7C%20SVG%20%7C%20HTML-64748b" alt="Renderers" />
