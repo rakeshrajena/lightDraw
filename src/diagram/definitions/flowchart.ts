@@ -33,6 +33,7 @@ export function createFlowchart(app: App, data: DiagramData, options: NodeOption
     const nodeGroup = createFlowchartNode(app, n.label, n.type ?? 'process');
     nodeGroup.x = n.x ?? 0;
     nodeGroup.y = n.y ?? 0;
+    if (typeof n.rotation === 'number') nodeGroup.rotation = n.rotation;
     nodeGroup.metadata = { ...nodeGroup.metadata, diagramId: n.id };
     nodeMap.set(n.id, nodeGroup);
   }

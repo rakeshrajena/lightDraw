@@ -45,6 +45,14 @@ export function createPipeline(
 
   pipelineLayout(group, Math.max(8, Math.floor((canvas.width - 48) / Math.max(stages.length, 1) / 3)), 12, canvas.height);
 
+  for (let i = 0; i < stages.length; i++) {
+    const stage = stages[i];
+    const node = stageNodes[i];
+    if (typeof stage.x === 'number') node.x = stage.x;
+    if (typeof stage.y === 'number') node.y = stage.y;
+    if (typeof stage.rotation === 'number') node.rotation = stage.rotation;
+  }
+
   const edgeLayer = app.group({ zIndex: -10, listening: false }) as Group;
   edgeLayer.metadata.diagramEdgeLayer = true;
   for (let i = 0; i < stageNodes.length - 1; i++) {

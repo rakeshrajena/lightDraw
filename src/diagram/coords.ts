@@ -62,6 +62,31 @@ export function positionInParent(node: Node, parent: Group): { x: number; y: num
   return { x, y };
 }
 
+/**
+ * Map a point in the node's unscaled local card space into parent-local coords,
+ * applying the node's scale then rotation (same order as Node.getLocalMatrix).
+ */
+export function nodeLocalToParent(
+  node: Node,
+  parent: Group,
+  lx: number,
+  ly: number
+): { x: number; y: number } {
+  const pos = positionInParent(node, parent);
+  const sx = Number.isFinite(node.scaleX) && node.scaleX !== 0 ? node.scaleX : 1;
+  const sy = Number.isFinite(node.scaleY) && node.scaleY !== 0 ? node.scaleY : 1;
+  const rx = lx * sx;
+  const ry = ly * sy;
+  const rad = ((node.rotation || 0) * Math.PI) / 180;
+  if (!rad) return { x: pos.x + rx, y: pos.y + ry };
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  return {
+    x: pos.x + rx * cos - ry * sin,
+    y: pos.y + rx * sin + ry * cos,
+  };
+}
+
 /** Local content box of a node (card metadata or children AABB), ignoring nested diagram nodes. */
 export function getLocalNodeBox(node: Node): { x: number; y: number; width: number; height: number } {
   const sx = Number.isFinite(node.scaleX) && node.scaleX !== 0 ? node.scaleX : 1;
@@ -122,13 +147,42 @@ export function getLocalNodeBox(node: Node): { x: number; y: number; width: numb
   };
 }
 
-/** Node content box in a parent group's local coordinates (drag-safe). */
+/** Node content box in a parent group's local coordinates (drag-safe, rotation-aware AABB). */
 export function getNodeBoxInParent(
   node: Node,
   parent: Group
 ): { x: number; y: number; width: number; height: number } {
+  const card = getDiagramCardSize(node);
+  if (card) {
+    const w = card.width;
+    const h = card.height;
+    const corners = [
+      nodeLocalToParent(node, parent, 0, 0),
+      nodeLocalToParent(node, parent, w, 0),
+      nodeLocalToParent(node, parent, w, h),
+      nodeLocalToParent(node, parent, 0, h),
+    ];
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const c of corners) {
+      minX = Math.min(minX, c.x);
+      minY = Math.min(minY, c.y);
+      maxX = Math.max(maxX, c.x);
+      maxY = Math.max(maxY, c.y);
+    }
+    return {
+      x: minX,
+      y: minY,
+      width: Math.max(maxX - minX, 1),
+      height: Math.max(maxY - minY, 1),
+    };
+  }
+
   const pos = positionInParent(node, parent);
   const box = getLocalNodeBox(node);
+  // Fallback without card metadata: axis-aligned (legacy)
   return {
     x: pos.x + box.x,
     y: pos.y + box.y,
@@ -144,23 +198,32 @@ export function localPointToParent(
   lx: number,
   ly: number
 ): { x: number; y: number } {
-  // Prefer live x/y walk (correct while dragging) over world-matrix (can be stale)
-  const pos = positionInParent(node, parent);
-  return { x: pos.x + lx, y: pos.y + ly };
+  return nodeLocalToParent(node, parent, lx, ly);
 }
 
 export type CardSide = 'top' | 'bottom' | 'left' | 'right' | 'center';
 
-/** Connection port on a node edge (mid-side), in parent local space. */
+/** Connection port on a node edge (mid-side), in parent local space — respects rotation. */
 export function getCardSideAnchor(node: Node, parent: Group, side: CardSide): { x: number; y: number } {
-  const box = getNodeBoxInParent(node, parent);
-  const cx = box.x + box.width / 2;
-  const cy = box.y + box.height / 2;
-  if (side === 'center') return { x: cx, y: cy };
-  if (side === 'top') return { x: cx, y: box.y };
-  if (side === 'bottom') return { x: cx, y: box.y + box.height };
-  if (side === 'left') return { x: box.x, y: cy };
-  return { x: box.x + box.width, y: cy };
+  const card = getDiagramCardSize(node) ?? { width: 40, height: 32 };
+  const w = card.width;
+  const h = card.height;
+  let lx = w / 2;
+  let ly = h / 2;
+  if (side === 'top') {
+    lx = w / 2;
+    ly = 0;
+  } else if (side === 'bottom') {
+    lx = w / 2;
+    ly = h;
+  } else if (side === 'left') {
+    lx = 0;
+    ly = h / 2;
+  } else if (side === 'right') {
+    lx = w;
+    ly = h / 2;
+  }
+  return nodeLocalToParent(node, parent, lx, ly);
 }
 
 /**
@@ -230,32 +293,52 @@ export function getCardObstacle(node: Node): Obstacle | null {
 
 /**
  * Anchor points between two nodes in parent group's local coordinates.
- * Ports sit on node edges and update from live x/y so wires stretch while dragging.
+ * Chooses facing mid-side ports on the rotated cards so wires attach cleanly
+ * after move/resize/rotate; users can still add manual bend points later.
  */
 export function getConnectorAnchors(
   from: Node,
   to: Node,
   parent: Group
 ): { x1: number; y1: number; x2: number; y2: number } {
-  const fromBox = getNodeBoxInParent(from, parent);
-  const toBox = getNodeBoxInParent(to, parent);
-  const { fromSide, toSide } = pickConnectionSides(fromBox, toBox);
+  const sides: CardSide[] = ['top', 'right', 'bottom', 'left'];
+  const fromC = getCardSideAnchor(from, parent, 'center');
+  const toC = getCardSideAnchor(to, parent, 'center');
+  let bestFrom: CardSide = 'right';
+  let bestTo: CardSide = 'left';
+  let bestScore = Infinity;
 
-  const sidePoint = (
-    box: { x: number; y: number; width: number; height: number },
-    side: CardSide
-  ): { x: number; y: number } => {
-    const cx = box.x + box.width / 2;
-    const cy = box.y + box.height / 2;
-    if (side === 'top') return { x: cx, y: box.y };
-    if (side === 'bottom') return { x: cx, y: box.y + box.height };
-    if (side === 'left') return { x: box.x, y: cy };
-    if (side === 'right') return { x: box.x + box.width, y: cy };
-    return { x: cx, y: cy };
-  };
+  for (const fromSide of sides) {
+    const a = getCardSideAnchor(from, parent, fromSide);
+    const outFrom =
+      (a.x - fromC.x) * (toC.x - fromC.x) + (a.y - fromC.y) * (toC.y - fromC.y);
+    for (const toSide of sides) {
+      const b = getCardSideAnchor(to, parent, toSide);
+      const outTo =
+        (b.x - toC.x) * (fromC.x - toC.x) + (b.y - toC.y) * (fromC.y - toC.y);
+      const dist = Math.hypot(a.x - b.x, a.y - b.y);
+      // Prefer ports that face the other node; heavily penalize inward ports
+      const facePenalty = (outFrom < 0 ? 400 : 0) + (outTo < 0 ? 400 : 0);
+      const score = dist + facePenalty;
+      if (score < bestScore) {
+        bestScore = score;
+        bestFrom = fromSide;
+        bestTo = toSide;
+      }
+    }
+  }
 
-  const a = sidePoint(fromBox, fromSide);
-  const b = sidePoint(toBox, toSide);
+  // Fallback when all ports score poorly: AABB heuristic
+  if (!Number.isFinite(bestScore) || bestScore > 1e9) {
+    const fromBox = getNodeBoxInParent(from, parent);
+    const toBox = getNodeBoxInParent(to, parent);
+    const picked = pickConnectionSides(fromBox, toBox);
+    bestFrom = picked.fromSide;
+    bestTo = picked.toSide;
+  }
+
+  const a = getCardSideAnchor(from, parent, bestFrom);
+  const b = getCardSideAnchor(to, parent, bestTo);
   return { x1: a.x, y1: a.y, x2: b.x, y2: b.y };
 }
 

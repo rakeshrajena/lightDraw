@@ -224,15 +224,31 @@ export function rewireSchematic(app: App, root: Group): void {
       type: String(c.metadata.symbolType),
       x: c.x,
       y: c.y,
+      rotation: c.rotation || 0,
     }));
   layoutSchematicWires(app, wireLayer, comps);
   root.markDirty();
 }
 
+function schematicPort(
+  c: { x: number; y: number; rotation?: number },
+  side: 'left' | 'right'
+): { x: number; y: number } {
+  const lx = side === 'right' ? SYMBOL_SIZE : 0;
+  const ly = SYMBOL_SIZE / 2;
+  const rad = (((c.rotation || 0) * Math.PI) / 180);
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  return {
+    x: c.x + lx * cos - ly * sin,
+    y: c.y + lx * sin + ly * cos,
+  };
+}
+
 function layoutSchematicWires(
   app: App,
   wireLayer: Group,
-  components: Array<{ type: string; x: number; y: number }>
+  components: Array<{ type: string; x: number; y: number; rotation?: number }>
 ): void {
   const sorted = [...components].sort((a, b) => a.x - b.x);
   for (let i = 0; i < sorted.length - 1; i++) {
@@ -241,11 +257,13 @@ function layoutSchematicWires(
     if (resolveSchematicSymbolKind(a.type) === 'wire' || resolveSchematicSymbolKind(b.type) === 'wire') {
       continue;
     }
-    const y1 = a.y + SYMBOL_SIZE / 2;
-    const y2 = b.y + SYMBOL_SIZE / 2;
-    const x1 = a.x + SYMBOL_SIZE;
-    const x2 = b.x;
-    if (x2 <= x1 && Math.abs(y2 - y1) < 1) continue;
+    const p1 = schematicPort(a, 'right');
+    const p2 = schematicPort(b, 'left');
+    const x1 = p1.x;
+    const y1 = p1.y;
+    const x2 = p2.x;
+    const y2 = p2.y;
+    if (x2 <= x1 - 2 && Math.abs(y2 - y1) < 1) continue;
     if (Math.abs(y1 - y2) < 1.5) {
       if (x2 > x1) {
         wireLayer.add(wireBetween(app, x1, y1, x2, y2));

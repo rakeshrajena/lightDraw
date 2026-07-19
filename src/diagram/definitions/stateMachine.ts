@@ -41,6 +41,7 @@ export function createStateMachine(
     const nodeGroup = createStateNode(app, s.label, s.type ?? 'normal');
     nodeGroup.x = s.x ?? 0;
     nodeGroup.y = s.y ?? 0;
+    if (typeof s.rotation === 'number') nodeGroup.rotation = s.rotation;
     nodeGroup.metadata = { ...nodeGroup.metadata, diagramId: s.id };
     nodeMap.set(s.id, nodeGroup);
   }

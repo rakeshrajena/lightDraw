@@ -38,6 +38,7 @@ export function createNetworkDiagram(
     const nodeGroup = createNetworkNode(app, n.label, n.type ?? 'default');
     nodeGroup.x = n.x ?? 0;
     nodeGroup.y = n.y ?? 0;
+    if (typeof n.rotation === 'number') nodeGroup.rotation = n.rotation;
     nodeGroup.metadata = { ...nodeGroup.metadata, diagramId: n.id };
     nodeMap.set(n.id, nodeGroup);
     group.add(nodeGroup);

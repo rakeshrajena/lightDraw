@@ -7,7 +7,7 @@ import {
   findNodeByDiagramId,
 } from '../src/diagram/editor/collect';
 import { installDiagramEditor, uninstallDiagramEditor } from '../src/diagram/editor';
-import { rerouteDiagramEdges } from '../src/diagram/editor/reroute';
+import { rerouteDiagramEdges, syncPositionsToState } from '../src/diagram/editor/reroute';
 import { attachNodeHitTarget } from '../src/diagram/editor/hitTargets';
 import { fitDiagramToBounds } from '../src/diagram/helpers';
 import { createTestApp, createTestContainer } from './helpers';
@@ -140,7 +140,36 @@ describe('Diagram editor', () => {
     const resizeHandles =
       overlay?.children.filter((c) => typeof c.metadata?.resizeHandle === 'string') ?? [];
     expect(resizeHandles.length).toBe(8);
+    const rotateHandles =
+      overlay?.children.filter((c) => c.metadata?.rotateHandle === true) ?? [];
+    expect(rotateHandles.length).toBe(1);
     uninstallDiagramEditor(diagram);
+    app.destroy();
+  });
+
+  it('applies JSON rotation on flowchart symbols and persists via sync', () => {
+    const container = createTestContainer(800, 500);
+    const app = createTestApp(container, { renderer: 'canvas', width: 800, height: 500 });
+    const diagram = createFlowchart(
+      app,
+      {
+        nodes: [
+          { id: 'a', label: 'A', x: 40, y: 40, rotation: 45 },
+          { id: 'b', label: 'B', x: 200, y: 40 },
+        ],
+        edges: [{ from: 'a', to: 'b' }],
+      },
+      { width: 800, height: 500 }
+    );
+    app.add(diagram);
+    const a = findNodeByDiagramId(diagram, 'a')!;
+    expect(a.rotation).toBe(45);
+    a.rotation = 90;
+    syncPositionsToState(diagram);
+    const state = diagram.metadata.diagramState as {
+      data: { nodes: Array<{ id: string; rotation?: number }> };
+    };
+    expect(state.data.nodes.find((n) => n.id === 'a')?.rotation).toBe(90);
     app.destroy();
   });
 

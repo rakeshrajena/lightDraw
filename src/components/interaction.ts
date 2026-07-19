@@ -3,7 +3,12 @@ import type { Node } from '../Node';
 import type { LightDrawEvent } from '../types';
 import { emitChange, getState, setState, syntheticEvent } from './helpers';
 
-type DragHandler = (worldX: number, worldY: number, event: LightDrawEvent) => void;
+type DragHandler = (
+  worldX: number,
+  worldY: number,
+  event: LightDrawEvent,
+  pointer?: MouseEvent
+) => void;
 
 /** Attach document-level pointer tracking for slider-style drag. */
 export function wirePointerDrag(
@@ -22,7 +27,7 @@ export function wirePointerDrag(
       const x = me.clientX - rect.left;
       const y = me.clientY - rect.top;
       const world = app.camera.screenToWorld(x, y);
-      onDrag(world.x, world.y, event);
+      onDrag(world.x, world.y, event, me);
     };
 
     const up = () => {
@@ -35,11 +40,8 @@ export function wirePointerDrag(
     el.addEventListener('mousemove', move);
     el.addEventListener('mouseup', up);
     el.addEventListener('mouseleave', up);
-    onDrag(
-      event.worldX,
-      event.worldY,
-      event
-    );
+    const startPtr = event.originalEvent as MouseEvent | undefined;
+    onDrag(event.worldX, event.worldY, event, startPtr);
   });
 }
 

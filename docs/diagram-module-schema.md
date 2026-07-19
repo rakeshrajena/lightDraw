@@ -2,7 +2,7 @@
 
 Load diagrams via `app.loadJSON({ type: '<diagram>', props: { ... } })` or `LightDraw.Diagram.*` helpers.
 
-Interactive gallery: [`examples/demo-diagram.html`](../examples/demo-diagram.html) (drag, resize, wire bends, org collapse, live JSON dock).
+Interactive gallery: [`examples/demo-diagram.html`](../examples/demo-diagram.html) (drag, resize, **rotate**, wire bends, org collapse, live JSON dock).
 
 ## Common props
 
@@ -10,6 +10,35 @@ Interactive gallery: [`examples/demo-diagram.html`](../examples/demo-diagram.htm
 |------|------|-------------|
 | uiTheme | string \| object | Optional UI preset or tokens. Wins over app `setUiTheme`. |
 | width / height | number | Canvas hints used by layout and `fitToBounds`. |
+
+## Node transforms (all editable symbols)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `x` / `y` | number | Top-left position in diagram space |
+| `rotation` | number | Degrees (clockwise). Applied on load; updated by the editor rotate handle |
+| scale | via editor | Live `scaleX` / `scaleY` after resize (also in `diagramState.editorPositions`) |
+
+**Wires on rotate:** connected edges drop temporary bend points and **smart-route** again to facing ports on the rotated card. You can double-click a wire afterward to add bends / reshape.
+
+Example:
+
+```json
+{
+  "type": "flowchart",
+  "props": {
+    "data": {
+      "nodes": [
+        { "id": "a", "label": "Start", "type": "start", "x": 40, "y": 40, "rotation": 15 },
+        { "id": "b", "label": "Work", "x": 220, "y": 40 }
+      ],
+      "edges": [{ "from": "a", "to": "b" }]
+    }
+  }
+}
+```
+
+Schematic components already supported `rotation`; flowchart, network, pipeline, state machine, and class diagrams now do as well.
 
 ## Diagram types
 
@@ -21,10 +50,10 @@ Interactive gallery: [`examples/demo-diagram.html`](../examples/demo-diagram.htm
 | mindMap | `Diagram.mindMap(app, center, branches)` | `center`, `branches[]` |
 | networkTopology | `Diagram.network(app, data)` | `data.nodes`, `data.edges` (rich `type` icons) |
 | orgChart | `Diagram.orgChart(app, root)` | Tree of `{ name, role?, image?, department?, collapsed?, children? }` |
-| electricalSchematic | `Diagram.schematic(app, components)` | `components[]` |
+| electricalSchematic | `Diagram.schematic(app, components)` | `components[]` (optional `rotation`) |
 | schematicSymbolCatalog | `Diagram.schematicCatalog(app, opts)` | `category?`, `columns?` |
 | canNetwork | `Diagram.canNetwork(app, data)` | `data.ecus`, `data.busLabel` |
-| processPipeline | `Diagram.pipeline(app, stages)` | `stages[]` with `status`, optional `type` (catalog symbol) |
+| processPipeline | `Diagram.pipeline(app, stages)` | `stages[]` with `status`, optional `type`, `rotation` |
 | pipelineSymbolCatalog | `Diagram.pipelineCatalog(app, opts)` | `category?`, `columns?` |
 
 ## Interactive editor
@@ -37,10 +66,11 @@ LightDraw.Diagram.fitToBounds(org, 900, 520, 24);
 const editor = LightDraw.Diagram.installEditor(app, org, {
   mode: 'arrange', // or 'edit'
   allowResize: true,
+  allowRotate: true, // rotate handle above selection (15° snap; Shift = free)
   allowBendPoints: true,
   gridSize: 8,
   onChange(state) {
-    // diagramState after drag / resize / rewire
+    // diagramState after drag / resize / rotate / rewire
   },
 });
 
@@ -48,6 +78,7 @@ const editor = LightDraw.Diagram.installEditor(app, org, {
 LightDraw.Diagram.uninstallEditor(org);
 ```
 
+**Rotate:** select a symbol → drag the circular handle above the box. Snaps to 15° by default; hold **Shift** for free angles.
 | Capability | How |
 |------------|-----|
 | Drag nodes | Arrange/edit mode |

@@ -29,6 +29,7 @@ export function createClassDiagram(
     const nodeGroup = createClassNode(app, cls.name, cls.attributes ?? [], cls.methods ?? []);
     nodeGroup.x = cls.x ?? 0;
     nodeGroup.y = cls.y ?? 0;
+    if (typeof cls.rotation === 'number') nodeGroup.rotation = cls.rotation;
     nodeGroup.metadata = { ...nodeGroup.metadata, diagramId: cls.id };
     nodeMap.set(cls.id, nodeGroup);
     group.add(nodeGroup);

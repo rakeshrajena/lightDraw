@@ -79,28 +79,55 @@ export function rerouteDiagramEdges(app: App, root: Group, edges?: EditorEdgeRec
   root.markDirty();
 }
 
+/**
+ * Drop manual bend points on edges touching `nodeId` so smart routing can
+ * rebuild a clean path after rotate/move. Users can add bends again afterward.
+ */
+export function clearEdgeWaypointsForNode(root: Group, nodeId: string): void {
+  const edgeLayer = findEdgeLayer(root);
+  if (!edgeLayer || !nodeId) return;
+  for (const child of edgeLayer.children) {
+    const from = child.metadata?.edgeFrom as string | undefined;
+    const to = child.metadata?.edgeTo as string | undefined;
+    if (from !== nodeId && to !== nodeId) continue;
+    delete child.metadata.edgeWaypoints;
+  }
+}
+
 /** Persist node positions into diagramState for JSON round-trip. */
 export function syncPositionsToState(root: Group): void {
   const state = { ...(root.metadata?.diagramState as Record<string, unknown> | undefined) };
   const type = root.metadata?.diagramType as string | undefined;
   const nodes = collectEditableNodes(root);
 
-  const positions: Record<string, { x: number; y: number; scaleX?: number; scaleY?: number }> = {};
+  const positions: Record<
+    string,
+    { x: number; y: number; scaleX?: number; scaleY?: number; rotation?: number }
+  > = {};
   for (const n of nodes) {
     const id = n.metadata?.diagramId as string;
     if (!id) continue;
-    positions[id] = { x: n.x, y: n.y, scaleX: n.scaleX, scaleY: n.scaleY };
+    positions[id] = {
+      x: n.x,
+      y: n.y,
+      scaleX: n.scaleX,
+      scaleY: n.scaleY,
+      rotation: n.rotation,
+    };
   }
   state.editorPositions = positions;
 
   if (type === 'flowchart' || type === 'networkTopology') {
-    const data = state.data as { nodes: Array<{ id: string; x?: number; y?: number }> } | undefined;
+    const data = state.data as
+      | { nodes: Array<{ id: string; x?: number; y?: number; rotation?: number }> }
+      | undefined;
     if (data?.nodes) {
       for (const n of data.nodes) {
         const p = positions[n.id];
         if (p) {
           n.x = p.x;
           n.y = p.y;
+          n.rotation = p.rotation;
         }
       }
       state.data = data;
@@ -109,7 +136,7 @@ export function syncPositionsToState(root: Group): void {
 
   if (type === 'stateMachine') {
     const data = state.data as {
-      states: Array<{ id: string; x?: number; y?: number }>;
+      states: Array<{ id: string; x?: number; y?: number; rotation?: number }>;
     } | undefined;
     if (data?.states) {
       for (const s of data.states) {
@@ -117,6 +144,7 @@ export function syncPositionsToState(root: Group): void {
         if (p) {
           s.x = p.x;
           s.y = p.y;
+          s.rotation = p.rotation;
         }
       }
       state.data = data;
@@ -128,26 +156,26 @@ export function syncPositionsToState(root: Group): void {
     if (stages) {
       state.stages = stages.map((s) => {
         const p = positions[s.id];
-        return p ? { ...s, x: p.x, y: p.y } : s;
+        return p ? { ...s, x: p.x, y: p.y, rotation: p.rotation } : s;
       });
     }
   }
 
   if (type === 'electricalSchematic') {
     const components = state.components as
-      | Array<{ id: string; x?: number; y?: number }>
+      | Array<{ id: string; x?: number; y?: number; rotation?: number }>
       | undefined;
     if (components) {
       state.components = components.map((c) => {
         const p = positions[c.id];
-        return p ? { ...c, x: p.x, y: p.y } : c;
+        return p ? { ...c, x: p.x, y: p.y, rotation: p.rotation } : c;
       });
     }
   }
 
   if (type === 'classDiagram') {
     const data = state.data as {
-      classes: Array<{ id: string; x?: number; y?: number }>;
+      classes: Array<{ id: string; x?: number; y?: number; rotation?: number }>;
     } | undefined;
     if (data?.classes) {
       for (const c of data.classes) {
@@ -155,6 +183,7 @@ export function syncPositionsToState(root: Group): void {
         if (p) {
           c.x = p.x;
           c.y = p.y;
+          c.rotation = p.rotation;
         }
       }
       state.data = data;
