@@ -749,7 +749,7 @@ export function applyDiagramFlow(
     return overlay;
   };
 
-  let pathRunsResolved: Array<Array<{ edge: Group; from: string; to: string; pathD: string }>> =
+  const pathRunsResolved: Array<Array<{ edge: Group; from: string; to: string; pathD: string }>> =
     [];
   if (edgeLayer && merged.pathRuns.length > 0) {
     for (const run of merged.pathRuns) {
