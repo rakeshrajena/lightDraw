@@ -11,21 +11,21 @@ import { readFileSync, existsSync } from 'fs';
 import { gzipSync } from 'zlib';
 
 /**
- * Gzip limits in bytes (v1.1 measured baselines + pipeline catalog headroom).
+ * Gzip limits in bytes (v1.1 measured baselines + feature headroom).
  *
- * Measured after pipeline symbol catalog (2026-07):
- *   core 42.0 KB | svg 12.6 KB | html 20.1 KB | ui 16.0 KB
- *   dashboard 41.0 KB | automotive 30.8 KB | diagram 50.6 KB | full 146.3 KB
+ * Measured 2026-07-19 (dataTable / multi-series / diagram flow+rotate):
+ *   core 43.0 KB | svg 12.6 KB | html 20.5 KB | ui 16.2 KB
+ *   dashboard 43.0 KB | automotive 31.4 KB | diagram 65.9 KB | full 162.1 KB
  */
 const TARGETS = {
-  'lightdraw.core.min.js': 43 * 1024,
+  'lightdraw.core.min.js': 44 * 1024,
   'lightdraw.svg.min.js': 13 * 1024,
   'lightdraw.html.min.js': 21 * 1024,
   'lightdraw.ui.min.js': 17 * 1024,
-  'lightdraw.dashboard.min.js': 42 * 1024,
+  'lightdraw.dashboard.min.js': 44 * 1024,
   'lightdraw.automotive.min.js': 32 * 1024,
-  'lightdraw.diagram.min.js': 59 * 1024,
-  'lightdraw.min.js': 155 * 1024,
+  'lightdraw.diagram.min.js': 67 * 1024,
+  'lightdraw.min.js': 163 * 1024,
 };
 
 const LEGACY_BUNDLES = [
