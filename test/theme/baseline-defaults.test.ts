@@ -43,7 +43,16 @@ describe('Phase 0 — baseline default colors', () => {
     expect(DASHBOARD.chartLine).toBe('#3b82f6');
     expect(DASHBOARD.gaugeNeedle).toBe('#3b82f6');
     expect(DASHBOARD.text).toBe('#e2e8f0');
-    expect(DASHBOARD.series).toEqual(['#3b82f6', '#ef4444', '#22c55e', '#f59e0b']);
+    expect(DASHBOARD.series).toEqual([
+      '#3b82f6',
+      '#ef4444',
+      '#22c55e',
+      '#f59e0b',
+      '#a855f7',
+      '#06b6d4',
+      '#f97316',
+      '#ec4899',
+    ]);
   });
 
   it('resolveDashboardTheme() with no UI input equals DASHBOARD', () => {
