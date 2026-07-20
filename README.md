@@ -272,10 +272,10 @@ At 1 000 nodes, **render stays under 0.5 ms** — headroom for 60 FPS on mid-ran
 | Package | Size | Typical use |
 |---------|-----:|-------------|
 | `lightdraw/core` | ~43 KB | Games, custom canvas apps |
-| `lightdraw` (full) | ~163 KB | All modules, CDN one-liner |
+| `lightdraw` (full) | ~167 KB | All modules, CDN one-liner |
 | `lightdraw/dashboard` | ~43 KB | Charts + gauges + dataTable |
 | `lightdraw/automotive` | ~31 KB | Cluster + 160+ widgets |
-| `lightdraw/diagram` | ~67 KB | Diagram types + editor (resize, bends, rotate, flow + status) |
+| `lightdraw/diagram` | ~71 KB | Diagram types + editor (resize, bends, rotate, flow + status, CAN) |
 | `lightdraw/ui` | ~16 KB | Form controls (pair with HTML renderer) |
 
 ---

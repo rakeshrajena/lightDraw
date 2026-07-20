@@ -13,9 +13,9 @@ import { gzipSync } from 'zlib';
 /**
  * Gzip limits in bytes (v1.1 measured baselines + feature headroom).
  *
- * Measured 2026-07-20 (flow status tint + edge tint + overrides):
- *   core 43.0 KB | svg 12.6 KB | html 20.5 KB | ui 16.2 KB
- *   dashboard 43.0 KB | automotive 31.4 KB | diagram 67.2 KB | full 163.4 KB
+ * Measured 2026-07-20 (smart routing + CAN bus flow hops):
+ *   core 43.1 KB | svg 12.6 KB | html 20.6 KB | ui 16.2 KB
+ *   dashboard 43.1 KB | automotive 31.4 KB | diagram 71.05 KB | full 167.2 KB
  */
 const TARGETS = {
   'lightdraw.core.min.js': 44 * 1024,
@@ -24,8 +24,8 @@ const TARGETS = {
   'lightdraw.ui.min.js': 17 * 1024,
   'lightdraw.dashboard.min.js': 44 * 1024,
   'lightdraw.automotive.min.js': 32 * 1024,
-  'lightdraw.diagram.min.js': 68 * 1024,
-  'lightdraw.min.js': 164 * 1024,
+  'lightdraw.diagram.min.js': 73 * 1024,
+  'lightdraw.min.js': 169 * 1024,
 };
 
 const LEGACY_BUNDLES = [

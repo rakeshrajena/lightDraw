@@ -23,6 +23,7 @@ Docs: [diagram-flow.md](./docs/diagram-flow.md#can-bus-message-flow) · [diagram
 - Arrowheads larger and tip pulled clear of the card border; edge labels near source with obstacle avoidance
 - On node drag / resize, connected bends clear and wires smart-reconnect to free ports
 - Overlapping nodes separated on flowchart / network / state / class create
+- Size gates raised for measured gzip: diagram ≤ 73 KB, full ≤ 169 KB
 
 Docs: [diagram-module-schema.md](./docs/diagram-module-schema.md)
 
