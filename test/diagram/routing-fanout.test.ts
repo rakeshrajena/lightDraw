@@ -4,6 +4,8 @@ import {
   fanAlongSlots,
   planEdgeFanAnchors,
   preferredExitSide,
+  nearestFreePortOnSymbol,
+  getCardSideAnchor,
 } from '../../src/diagram/coords';
 import { separateOverlappingNodes } from '../../src/diagram/helpers';
 import { findEdgeLayer, findNodeByDiagramId } from '../../src/diagram/editor/collect';
@@ -127,6 +129,74 @@ describe('diagram wire routing + fan-out', () => {
     const p1 = plan.get('a->b')!;
     const p2 = plan.get('a->c')!;
     expect(Math.abs(p1.x1 - p2.x1) + Math.abs(p1.y1 - p2.y1)).toBeGreaterThan(4);
+  });
+
+  it('nearestFreePortOnSymbol avoids occupied border points', () => {
+    const root = Diagram.flowchart(
+      app,
+      {
+        nodes: [
+          { id: 'a', label: 'A', x: 200, y: 40 },
+          { id: 'b', label: 'B', x: 80, y: 200 },
+          { id: 'c', label: 'C', x: 320, y: 200 },
+        ],
+        edges: [{ from: 'a', to: 'b' }],
+      },
+      { width: 640, height: 400 }
+    );
+    const from = findNodeByDiagramId(root as Group, 'a')!;
+    const mid = getCardSideAnchor(from, root as Group, 'bottom', 0.5);
+    const peer = getCardSideAnchor(
+      findNodeByDiagramId(root as Group, 'c')!,
+      root as Group,
+      'center'
+    );
+    const free = nearestFreePortOnSymbol(from, root as Group, peer.x, peer.y, [
+      { x: mid.x, y: mid.y },
+    ]);
+    expect(free).toBeTruthy();
+    expect(Math.hypot(free!.x - mid.x, free!.y - mid.y)).toBeGreaterThan(8);
+  });
+
+  it('crowded same-side edges snap to distinct ports on the symbol', () => {
+    const root = Diagram.flowchart(
+      app,
+      {
+        nodes: [
+          { id: 'hub', label: 'Hub', x: 220, y: 40 },
+          { id: 'a', label: 'A', x: 100, y: 220 },
+          { id: 'b', label: 'B', x: 220, y: 220 },
+          { id: 'c', label: 'C', x: 340, y: 220 },
+        ],
+        edges: [
+          { from: 'hub', to: 'a' },
+          { from: 'hub', to: 'b' },
+          { from: 'hub', to: 'c' },
+        ],
+      },
+      { width: 640, height: 400 }
+    );
+    const hub = findNodeByDiagramId(root as Group, 'hub')!;
+    const a = findNodeByDiagramId(root as Group, 'a')!;
+    const b = findNodeByDiagramId(root as Group, 'b')!;
+    const c = findNodeByDiagramId(root as Group, 'c')!;
+    const plan = planEdgeFanAnchors(
+      [
+        { key: '1', from: hub, to: a },
+        { key: '2', from: hub, to: b },
+        { key: '3', from: hub, to: c },
+      ],
+      root as Group
+    );
+    const pts = [plan.get('1')!, plan.get('2')!, plan.get('3')!].map((p) => ({
+      x: p.x1,
+      y: p.y1,
+    }));
+    for (let i = 0; i < pts.length; i++) {
+      for (let j = i + 1; j < pts.length; j++) {
+        expect(Math.hypot(pts[i].x - pts[j].x, pts[i].y - pts[j].y)).toBeGreaterThan(6);
+      }
+    }
   });
 
   it('separateOverlappingNodes pushes stacked symbols apart', () => {

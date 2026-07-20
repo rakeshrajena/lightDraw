@@ -13,6 +13,7 @@ window.DIAGRAM_AUDIT_SAMPLES = {
         edges: [
           { from: 'start', to: 'check' },
           { from: 'check', to: 'process', label: 'yes' },
+          { from: 'check', to: 'end', label: 'no' },
           { from: 'process', to: 'end' },
         ],
       },

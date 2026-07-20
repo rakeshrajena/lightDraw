@@ -13,13 +13,13 @@ export function createEdgeLabel(
   y: number,
   accentStroke: string = getActiveDiagram().edge
 ): Group {
-  const fontSize = getActiveDiagram().fontSize.sm;
-  const tw = measureTextWidth(text, fontSize, '600');
-  const padX = 8;
-  const padY = 4;
-  const pw = tw + padX * 2;
+  const fontSize = Math.max(getActiveDiagram().fontSize.sm, 12);
+  const tw = measureTextWidth(text, fontSize, '700');
+  const padX = 10;
+  const padY = 5;
+  const pw = Math.max(tw + padX * 2, 28);
   const ph = fontSize + padY * 2;
-  const g = app.group({ listening: false });
+  const g = app.group({ listening: false, zIndex: 8 });
   g.add(
     app.roundedRect({
       x: x - pw / 2,
@@ -29,7 +29,7 @@ export function createEdgeLabel(
       cornerRadius: getActiveDiagram().radii.sm,
       fill: getActiveDiagram().labelPillFill,
       stroke: accentStroke,
-      strokeWidth: getActiveDiagram().stroke.label,
+      strokeWidth: Math.max(getActiveDiagram().stroke.label, 1.25),
       shadow: getActiveDiagram().shadowSoft,
       listening: false,
     })
@@ -40,7 +40,7 @@ export function createEdgeLabel(
       x: x - tw / 2,
       y: y - fontSize / 2 - 1,
       fontSize,
-      fontWeight: '600',
+      fontWeight: '700',
       fontFamily: getActiveDiagram().fontFamily,
       fill: getActiveDiagram().edgeLabel,
       listening: false,

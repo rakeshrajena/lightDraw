@@ -27,6 +27,13 @@ export interface ConnectorOptions {
   arrowStart?: ArrowStyle;
   label?: string;
   labelColor?: string;
+  /**
+   * Fraction along the path (0..1) for the label. Default ~0.38 keeps labels
+   * near the source so they stay visible (not under the target node).
+   */
+  labelT?: number;
+  /** Perpendicular offset (px) from the path for the label (avoids stacked labels). */
+  labelOffset?: number;
   dash?: number[];
   edgeId?: string;
   fromId?: string;
@@ -47,10 +54,10 @@ export function segmentAngle(x1: number, y1: number, x2: number, y2: number): nu
   return Math.atan2(y2 - y1, x2 - x1);
 }
 
-/** Sleek filled arrowhead (slightly longer, narrower than a blunt triangle). */
-export function arrowHeadPoints(tipX: number, tipY: number, angle: number, size = 10): number[] {
-  const half = size * 0.38;
-  const back = size * 1.05;
+/** Sleek filled arrowhead — wider base so it reads clearly on dark themes. */
+export function arrowHeadPoints(tipX: number, tipY: number, angle: number, size = 14): number[] {
+  const half = size * 0.48;
+  const back = size * 1.15;
   const bx = tipX - back * Math.cos(angle);
   const by = tipY - back * Math.sin(angle);
   const lx = bx + half * Math.sin(angle);
@@ -61,9 +68,9 @@ export function arrowHeadPoints(tipX: number, tipY: number, angle: number, size 
 }
 
 /** Open (V-shaped) arrow for associations */
-export function openArrowPoints(tipX: number, tipY: number, angle: number, size = 10): number[] {
-  const half = size * 0.42;
-  const back = size * 0.9;
+export function openArrowPoints(tipX: number, tipY: number, angle: number, size = 14): number[] {
+  const half = size * 0.5;
+  const back = size * 1.0;
   const bx = tipX - back * Math.cos(angle);
   const by = tipY - back * Math.sin(angle);
   return [
@@ -101,7 +108,7 @@ export function shortenPathEnd(points: number[], trim: number): number[] {
   const x1 = copy[n - 4];
   const y1 = copy[n - 3];
   const len = Math.hypot(x2 - x1, y2 - y1);
-  const t = Math.min(trim / Math.max(len, 1), 0.45);
+  const t = Math.min(trim / Math.max(len, 1), 0.65);
   copy[n - 2] = x2 - (x2 - x1) * t;
   copy[n - 1] = y2 - (y2 - y1) * t;
   return copy;
@@ -109,9 +116,22 @@ export function shortenPathEnd(points: number[], trim: number): number[] {
 
 /** Midpoint along polyline by arc length */
 export function pathMidpoint(points: number[]): { x: number; y: number } {
-  if (points.length < 4) return { x: points[0] ?? 0, y: points[1] ?? 0 };
-  let total = 0;
+  return pathPointAt(points, 0.5);
+}
+
+/**
+ * Point at fraction `t` (0..1) along polyline arc length, plus unit tangent.
+ * Used to park edge labels near the source so they are not buried under target nodes.
+ */
+export function pathPointAt(
+  points: number[],
+  t: number
+): { x: number; y: number; tx: number; ty: number } {
+  if (points.length < 4) {
+    return { x: points[0] ?? 0, y: points[1] ?? 0, tx: 1, ty: 0 };
+  }
   const segs: { len: number; x1: number; y1: number; x2: number; y2: number }[] = [];
+  let total = 0;
   for (let i = 0; i < points.length - 2; i += 2) {
     const x1 = points[i];
     const y1 = points[i + 1];
@@ -121,16 +141,87 @@ export function pathMidpoint(points: number[]): { x: number; y: number } {
     segs.push({ len, x1, y1, x2, y2 });
     total += len;
   }
-  let half = total / 2;
+  const target = Math.max(0, Math.min(1, t)) * total;
+  let walked = 0;
   for (const s of segs) {
-    if (half <= s.len) {
-      const t = s.len > 0 ? half / s.len : 0;
-      return { x: s.x1 + (s.x2 - s.x1) * t, y: s.y1 + (s.y2 - s.y1) * t };
+    if (walked + s.len >= target || s === segs[segs.length - 1]) {
+      const local = s.len > 0 ? (target - walked) / s.len : 0;
+      const clamped = Math.max(0, Math.min(1, local));
+      const dx = s.x2 - s.x1;
+      const dy = s.y2 - s.y1;
+      const len = Math.hypot(dx, dy) || 1;
+      return {
+        x: s.x1 + dx * clamped,
+        y: s.y1 + dy * clamped,
+        tx: dx / len,
+        ty: dy / len,
+      };
     }
-    half -= s.len;
+    walked += s.len;
   }
   const last = segs[segs.length - 1];
-  return { x: last.x2, y: last.y2 };
+  const dx = last.x2 - last.x1;
+  const dy = last.y2 - last.y1;
+  const len = Math.hypot(dx, dy) || 1;
+  return { x: last.x2, y: last.y2, tx: dx / len, ty: dy / len };
+}
+
+function pointInsideObstacle(
+  x: number,
+  y: number,
+  obstacles: Obstacle[],
+  pad = 10
+): boolean {
+  for (const o of obstacles) {
+    if (
+      x >= o.x - pad &&
+      x <= o.x + o.width + pad &&
+      y >= o.y - pad &&
+      y <= o.y + o.height + pad
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Pick a label position along the path that stays outside node boxes when possible.
+ * Tries several arc fractions + perpendicular offsets (keeps "no" visible past Process).
+ */
+export function placeEdgeLabelPoint(
+  points: number[],
+  obstacles: Obstacle[],
+  preferredT = 0.36,
+  preferredOffset = 0
+): { x: number; y: number } {
+  const ts = [preferredT, 0.2, 0.28, 0.42, 0.15, 0.55];
+  const offs = [
+    preferredOffset,
+    preferredOffset === 0 ? -14 : -preferredOffset,
+    preferredOffset + 12,
+    -(Math.abs(preferredOffset) + 12),
+    18,
+    -18,
+    0,
+  ];
+  for (const t of ts) {
+    const at = pathPointAt(points, t);
+    const nx = -at.ty;
+    const ny = at.tx;
+    for (const off of offs) {
+      const x = at.x + nx * off;
+      const y = at.y + ny * off - 4;
+      if (!pointInsideObstacle(x, y, obstacles, 12)) {
+        return { x, y };
+      }
+    }
+  }
+  const fallback = pathPointAt(points, preferredT);
+  return {
+    x: fallback.x - fallback.ty * (preferredOffset || -16),
+    y: fallback.y + fallback.tx * (preferredOffset || -16) - 4,
+  };
 }
 
 function addArrowMarker(
@@ -151,8 +242,9 @@ function addArrowMarker(
         points: arrowHeadPoints(tipX, tipY, angle, arrowSize),
         fill: stroke,
         stroke: stroke,
-        strokeWidth: getActiveDiagram().stroke.arrow,
+        strokeWidth: Math.max(getActiveDiagram().stroke.arrow, 1.5),
         listening: false,
+        zIndex: 5,
       })
     );
     return;
@@ -163,10 +255,11 @@ function addArrowMarker(
         points: openArrowPoints(tipX, tipY, angle, arrowSize),
         fill: null,
         stroke,
-        strokeWidth: Math.max(strokeWidth, 1.75),
+        strokeWidth: Math.max(strokeWidth + 0.5, 2.25),
         lineCap: 'round',
         lineJoin: 'round',
         listening: false,
+        zIndex: 5,
       })
     );
     return;
@@ -212,7 +305,8 @@ export function createConnector(
   const useGlow = options.glow === true;
   const arrowEnd = options.arrowEnd ?? 'filled';
   const arrowStart = options.arrowStart ?? 'none';
-  const arrowSize = Math.max(9, Math.min(14, strokeWidth * 5.5));
+  // Larger heads so they stay readable on dark canvases / dashed strokes
+  const arrowSize = Math.max(13, Math.min(20, strokeWidth * 7 + 4));
   const style = options.style ?? 'smart';
   const obstacles = options.obstacles ?? [];
   const waypoints = options.waypoints?.filter((w) => Number.isFinite(w.x) && Number.isFinite(w.y)) ?? [];
@@ -232,8 +326,10 @@ export function createConnector(
         );
   const group = app.group({ listening: false }) as Group;
 
-  const trimEnd = arrowEnd !== 'none' ? arrowSize * 0.72 : 0;
-  const trimStart = arrowStart !== 'none' ? arrowSize * 0.72 : 0;
+  // Pull tip slightly off the node border so the head sits outside (visible), not buried in the stroke
+  const tipPull = Math.max(4, strokeWidth + 2);
+  const trimEnd = arrowEnd !== 'none' ? arrowSize * 0.92 + tipPull : 0;
+  const trimStart = arrowStart !== 'none' ? arrowSize * 0.92 + tipPull : 0;
   let display = points;
   if (trimEnd > 0) display = shortenPathEnd(display, trimEnd);
   if (trimStart > 0 && display.length >= 4) {
@@ -242,7 +338,7 @@ export function createConnector(
     const x1s = display[2];
     const y1s = display[3];
     const len = Math.hypot(x1s - x0, y1s - y0);
-    const t = Math.min(trimStart / Math.max(len, 1), 0.45);
+    const t = Math.min(trimStart / Math.max(len, 1), 0.65);
     display[0] = x0 + (x1s - x0) * t;
     display[1] = y0 + (y1s - y0) * t;
   }
@@ -283,23 +379,42 @@ export function createConnector(
     display[display.length - 1]
   );
   const startAngle = segmentAngle(display[0], display[1], display[2], display[3]);
+  const safeEndAngle = Number.isFinite(endAngle) ? endAngle : 0;
+  const safeStartAngle = Number.isFinite(startAngle) ? startAngle : 0;
 
-  addArrowMarker(app, group, arrowEnd, x2, y2, endAngle, stroke, strokeWidth, arrowSize);
+  // Tip sits just outside the target border (back along incoming direction)
+  const tipX = x2 - Math.cos(safeEndAngle) * tipPull;
+  const tipY = y2 - Math.sin(safeEndAngle) * tipPull;
+  const startTipX = x1 + Math.cos(safeStartAngle) * tipPull;
+  const startTipY = y1 + Math.sin(safeStartAngle) * tipPull;
+
+  addArrowMarker(app, group, arrowEnd, tipX, tipY, safeEndAngle, stroke, strokeWidth, arrowSize);
   addArrowMarker(
     app,
     group,
     arrowStart,
-    x1,
-    y1,
-    startAngle + Math.PI,
+    startTipX,
+    startTipY,
+    safeStartAngle + Math.PI,
     stroke,
     strokeWidth,
     arrowSize
   );
 
   if (options.label) {
-    const mid = pathMidpoint(display.length >= 4 ? display : points);
-    group.add(createEdgeLabel(app, options.label, mid.x, mid.y - 6, stroke));
+    const labelT = options.labelT ?? 0.36;
+    const labelOff = options.labelOffset ?? 0;
+    const pathForLabel = display.length >= 4 ? display : points;
+    const placed = placeEdgeLabelPoint(pathForLabel, obstacles, labelT, labelOff);
+    const label = createEdgeLabel(
+      app,
+      options.label,
+      placed.x,
+      placed.y,
+      options.labelColor ?? stroke
+    );
+    label.zIndex = 8;
+    group.add(label);
   }
 
   if (options.edgeId) group.metadata.edgeId = options.edgeId;
@@ -460,12 +575,18 @@ export function connectNodePairs(
   );
 
   const out: Group[] = [];
+  let labeledIndex = 0;
   for (let i = 0; i < pairs.length; i++) {
     const p = pairs[i];
     const key =
       p.options?.edgeId ??
       `${String(p.from.metadata?.diagramId)}->${String(p.to.metadata?.diagramId)}#${i}`;
     const fan = plan.get(key);
+    const hasLabel = !!(p.options?.label ?? shared.label);
+    const labelOffset =
+      p.options?.labelOffset ??
+      (hasLabel ? (labeledIndex % 2 === 0 ? -14 : 14) + Math.floor(labeledIndex / 2) * 4 : 0);
+    if (hasLabel) labeledIndex += 1;
     const pairOpts: ConnectorOptions = {
       ...shared,
       ...p.options,
@@ -476,6 +597,8 @@ export function connectNodePairs(
       fromAlong: fan?.fromAlong,
       toAlong: fan?.toAlong,
       railOffset: fan?.railOffset ?? p.options?.railOffset ?? 0,
+      labelT: p.options?.labelT ?? 0.36,
+      labelOffset,
       anchors: fan
         ? { x1: fan.x1, y1: fan.y1, x2: fan.x2, y2: fan.y2 }
         : undefined,

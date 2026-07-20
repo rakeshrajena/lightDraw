@@ -14,8 +14,26 @@ import type { DiagramEdge } from '../types';
 import type { EditorEdgeRecord } from './types';
 import { refreshDiagramFlow, stopDiagramFlow } from '../flow';
 
+export interface RerouteOptions {
+  /**
+   * Drop manual bend points on edges touching these node ids so intelligent
+   * port picking / orthogonal routing can reorganize while dragging.
+   */
+  clearWaypointsForNodes?: string[];
+  /**
+   * When true, ignore all stored waypoints and rebuild every wire with
+   * smart ports (used on drag end for a clean final layout).
+   */
+  forgetAllWaypoints?: boolean;
+}
+
 /** Rebuild all connectors in the diagram edge layer from stored edge metadata. */
-export function rerouteDiagramEdges(app: App, root: Group, edges?: EditorEdgeRecord[]): void {
+export function rerouteDiagramEdges(
+  app: App,
+  root: Group,
+  edges?: EditorEdgeRecord[],
+  opts?: RerouteOptions
+): void {
   stopDiagramFlow(root);
   const type = root.metadata?.diagramType as string | undefined;
 
@@ -47,7 +65,26 @@ export function rerouteDiagramEdges(app: App, root: Group, edges?: EditorEdgeRec
   const edgeLayer = findEdgeLayer(root);
   if (!edgeLayer) return;
 
-  const records = edges ?? collectEdgesFromLayer(edgeLayer);
+  const clearIds = new Set(opts?.clearWaypointsForNodes ?? []);
+  if (clearIds.size > 0) {
+    for (const id of clearIds) clearEdgeWaypointsForNode(root, id);
+  }
+
+  const records = (edges ?? collectEdgesFromLayer(edgeLayer)).map((edge) => {
+    const touchesCleared =
+      opts?.forgetAllWaypoints ||
+      clearIds.has(edge.from) ||
+      clearIds.has(edge.to);
+    if (!touchesCleared) return edge;
+    return {
+      ...edge,
+      waypoints: undefined,
+      options: edge.options
+        ? { ...edge.options, waypoints: undefined }
+        : edge.options,
+    };
+  });
+
   const nodeMap = new Map(collectEditableNodes(root).map((n) => [n.metadata.diagramId as string, n]));
 
   for (const child of [...edgeLayer.children]) {
@@ -62,6 +99,9 @@ export function rerouteDiagramEdges(app: App, root: Group, edges?: EditorEdgeRec
     const from = findNodeByDiagramId(root, edge.from) ?? nodeMap.get(edge.from);
     const to = findNodeByDiagramId(root, edge.to) ?? nodeMap.get(edge.to);
     if (!from || !to) continue;
+    const waypoints = opts?.forgetAllWaypoints
+      ? undefined
+      : edge.waypoints ?? edge.options?.waypoints;
     pairs.push({
       from,
       to,
@@ -75,7 +115,7 @@ export function rerouteDiagramEdges(app: App, root: Group, edges?: EditorEdgeRec
         arrowStart: edge.options?.arrowStart ?? 'none',
         dash: edge.options?.dash,
         cornerRadius: edge.options?.cornerRadius ?? 10,
-        waypoints: edge.waypoints ?? edge.options?.waypoints,
+        waypoints,
         edgeId: edge.id,
         fromId: edge.from,
         toId: edge.to,

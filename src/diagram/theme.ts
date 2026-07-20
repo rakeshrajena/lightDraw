@@ -204,7 +204,7 @@ export const DIAGRAM = {
     edgeThin: 1.5,
     edgeGlow: 5,
     label: 1,
-    arrow: 1.25,
+    arrow: 1.75,
   },
 } as const;
 

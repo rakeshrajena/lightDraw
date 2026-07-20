@@ -204,14 +204,22 @@ export class DiagramEditor implements DiagramEditorHandle {
         node.x = Math.round(node.x / grid) * grid;
         node.y = Math.round(node.y / grid) * grid;
       }
-      // Live wire follow — coalesce to one reroute per frame
+      // Live intelligent reconnect — free ports + drop bends on wires touching this node
       if (this.dragRaf) cancelAnimationFrame(this.dragRaf);
       this.dragRaf = requestAnimationFrame(() => {
         this.dragRaf = 0;
         if (this.destroyed) return;
-        rerouteDiagramEdges(this.app, this.root);
-        this.refreshOverlay();
-        this.app.requestRender();
+        const draggedId = nodeDiagramId(node);
+        rerouteDiagramEdges(
+          this.app,
+          this.root,
+          undefined,
+          draggedId ? { clearWaypointsForNodes: [draggedId] } : undefined
+        );
+      // After live reroute, re-bind edge hit targets (nodes were rebuilt)
+      this.wireEdges();
+      this.refreshOverlay();
+      this.app.requestRender();
       });
     };
 
@@ -220,8 +228,15 @@ export class DiagramEditor implements DiagramEditorHandle {
         cancelAnimationFrame(this.dragRaf);
         this.dragRaf = 0;
       }
-      rerouteDiagramEdges(this.app, this.root);
+      const draggedId = nodeDiagramId(node);
+      rerouteDiagramEdges(
+        this.app,
+        this.root,
+        undefined,
+        draggedId ? { clearWaypointsForNodes: [draggedId] } : undefined
+      );
       syncPositionsToState(this.root);
+      syncEdgesToState(this.root);
       this.wireEdges();
       this.refreshOverlay();
       this.emitChange();
@@ -252,6 +267,9 @@ export class DiagramEditor implements DiagramEditorHandle {
 
     // Edge layers are created listening:false; without this, hitTest skips all wires.
     edgeLayer.listening = true;
+
+    // Drop handlers for edges destroyed by reroute (prevents leak on every drag frame)
+    this.pruneDetachedEdgeHandlers(edgeLayer);
 
     for (const child of edgeLayer.children) {
       const from = child.metadata?.edgeFrom as string | undefined;
@@ -289,6 +307,32 @@ export class DiagramEditor implements DiagramEditorHandle {
         this.handlers.push({ node: child, type: 'dblclick', fn: onDblClick as never });
       }
     }
+  }
+
+  /** Remove listeners bound to edge nodes that were destroyed during reroute. */
+  private pruneDetachedEdgeHandlers(edgeLayer: Group): void {
+    const live = new Set(edgeLayer.children);
+    const kept: typeof this.handlers = [];
+    for (const h of this.handlers) {
+      const isEdgeHandler =
+        h.node.metadata?.edgeFrom != null ||
+        h.node.metadata?.edgeId != null ||
+        h.node.metadata?.edgeHitAttached === true;
+      if (!isEdgeHandler) {
+        kept.push(h);
+        continue;
+      }
+      if (live.has(h.node) && h.node.parent) {
+        kept.push(h);
+        continue;
+      }
+      try {
+        h.node.off(h.type as never, h.fn as never);
+      } catch {
+        /* already destroyed */
+      }
+    }
+    this.handlers = kept;
   }
 
   deleteSelectedEdge(): void {
@@ -795,12 +839,26 @@ export class DiagramEditor implements DiagramEditorHandle {
           node.x = startNodeX + (next.x - startBox.x);
           node.y = startNodeY + (next.y - startBox.y);
           node.markDirty();
-          rerouteDiagramEdges(this.app, this.root);
+          const resizedId = nodeDiagramId(node);
+          rerouteDiagramEdges(
+            this.app,
+            this.root,
+            undefined,
+            resizedId ? { clearWaypointsForNodes: [resizedId] } : undefined
+          );
           this.refreshOverlay();
           this.app.requestRender();
         },
         () => {
+          const resizedId = nodeDiagramId(node);
+          rerouteDiagramEdges(
+            this.app,
+            this.root,
+            undefined,
+            resizedId ? { clearWaypointsForNodes: [resizedId] } : undefined
+          );
           syncPositionsToState(this.root);
+          syncEdgesToState(this.root);
           this.wireEdges();
           this.refreshOverlay();
           this.emitChange();

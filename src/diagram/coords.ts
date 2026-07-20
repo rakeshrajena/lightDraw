@@ -486,7 +486,247 @@ export function planEdgeFanAnchors(
       railOffset: railOffset.get(e.key) ?? 0,
     });
   }
+
+  // If an arrow/edge would override a symbol border or land on an occupied port,
+  // snap that end to the nearest free port on the same symbol.
+  return resolvePortsAwayFromBorderOverrides(out, prelim, parent);
+}
+
+export interface PortCandidate {
+  side: CardSide;
+  along: number;
+  x: number;
+  y: number;
+}
+
+/** Sample ports around a card border (4 sides × several along slots). */
+export function enumerateCardPorts(
+  node: Node,
+  parent: Group,
+  alongSamples: number[] = [0.15, 0.3, 0.5, 0.7, 0.85]
+): PortCandidate[] {
+  const sides: CardSide[] = ['top', 'right', 'bottom', 'left'];
+  const out: PortCandidate[] = [];
+  for (const side of sides) {
+    for (const along of alongSamples) {
+      const p = getCardSideAnchor(node, parent, side, along);
+      out.push({ side, along, x: p.x, y: p.y });
+    }
+  }
   return out;
+}
+
+function portOccupancyRadius(node: Node, parent: Group): number {
+  const box = getNodeBoxInParent(node, parent);
+  return Math.max(14, Math.min(28, Math.min(box.width, box.height) * 0.18));
+}
+
+function portsTooClose(
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  minDist: number
+): boolean {
+  return Math.hypot(ax - bx, ay - by) < minDist;
+}
+
+/**
+ * True when the first route stub from an attachment point goes into the card
+ * interior (arrow/edge overrides the border) instead of leaving cleanly.
+ */
+export function attachmentOverridesBorder(
+  attachX: number,
+  attachY: number,
+  peerX: number,
+  peerY: number,
+  box: { x: number; y: number; width: number; height: number },
+  side: CardSide
+): boolean {
+  const outward =
+    side === 'top'
+      ? { x: 0, y: -1 }
+      : side === 'bottom'
+        ? { x: 0, y: 1 }
+        : side === 'left'
+          ? { x: -1, y: 0 }
+          : { x: 1, y: 0 };
+
+  const towardPeerX = peerX - attachX;
+  const towardPeerY = peerY - attachY;
+  const plen = Math.hypot(towardPeerX, towardPeerY) || 1;
+  // Positive = leaving the card toward the peer; negative = aiming back into the symbol
+  const outwardDot =
+    outward.x * (towardPeerX / plen) + outward.y * (towardPeerY / plen);
+  if (outwardDot < -0.2) return true;
+
+  // Attachment must sit on the border, not deep inside the fill
+  const slop = 4;
+  const onBorder =
+    Math.abs(attachX - box.x) <= slop ||
+    Math.abs(attachX - (box.x + box.width)) <= slop ||
+    Math.abs(attachY - box.y) <= slop ||
+    Math.abs(attachY - (box.y + box.height)) <= slop;
+  const deepInside =
+    attachX > box.x + slop &&
+    attachX < box.x + box.width - slop &&
+    attachY > box.y + slop &&
+    attachY < box.y + box.height - slop;
+  if (deepInside && !onBorder) return true;
+  return false;
+}
+
+/**
+ * Pick nearest free port on the same symbol that faces the peer and is not
+ * already taken by another edge endpoint.
+ */
+export function nearestFreePortOnSymbol(
+  node: Node,
+  parent: Group,
+  peerX: number,
+  peerY: number,
+  occupied: Array<{ x: number; y: number }>,
+  preferSide?: CardSide
+): PortCandidate | null {
+  const box = getNodeBoxInParent(node, parent);
+  const minDist = portOccupancyRadius(node, parent);
+  const center = getCardSideAnchor(node, parent, 'center');
+  const faceSide = preferredExitSide(peerX - center.x, peerY - center.y);
+  const preferred = preferSide ?? faceSide;
+
+  const candidates = enumerateCardPorts(node, parent);
+  // Rank: free → facing side → not overriding → closest to ideal mid of preferred side
+  const ideal = getCardSideAnchor(node, parent, preferred, 0.5);
+
+  let best: PortCandidate | null = null;
+  let bestScore = Infinity;
+
+  for (const c of candidates) {
+    const taken = occupied.some((o) => portsTooClose(c.x, c.y, o.x, o.y, minDist));
+    if (taken) continue;
+    if (attachmentOverridesBorder(c.x, c.y, peerX, peerY, box, c.side)) continue;
+
+    const sidePenalty = c.side === preferred ? 0 : c.side === faceSide ? 40 : 120;
+    const distIdeal = Math.hypot(c.x - ideal.x, c.y - ideal.y);
+    const distPeer = Math.hypot(c.x - peerX, c.y - peerY);
+    const score = sidePenalty + distIdeal * 0.5 + distPeer * 0.15;
+    if (score < bestScore) {
+      bestScore = score;
+      best = c;
+    }
+  }
+
+  // Fallback: any free port even if slightly imperfect
+  if (!best) {
+    for (const c of candidates) {
+      const taken = occupied.some((o) => portsTooClose(c.x, c.y, o.x, o.y, minDist));
+      if (taken) continue;
+      const dist = Math.hypot(c.x - ideal.x, c.y - ideal.y);
+      if (dist < bestScore) {
+        bestScore = dist;
+        best = c;
+      }
+    }
+  }
+  return best;
+}
+
+type PrelEdge = {
+  key: string;
+  from: Node;
+  to: Node;
+  fromId: string;
+  toId: string;
+  fromSide: CardSide;
+  toSide: CardSide;
+};
+
+/**
+ * Second pass: when an endpoint overrides a symbol border or collides with
+ * another arrow on the same component, reconnect to the nearest free port
+ * on that same symbol.
+ */
+function resolvePortsAwayFromBorderOverrides(
+  plan: Map<string, EdgeFanPlan>,
+  prelim: PrelEdge[],
+  parent: Group
+): Map<string, EdgeFanPlan> {
+  const occupiedByNode = new Map<string, Array<{ x: number; y: number; key: string; end: 'from' | 'to' }>>();
+
+  const take = (nodeId: string, x: number, y: number, key: string, end: 'from' | 'to') => {
+    const list = occupiedByNode.get(nodeId) ?? [];
+    list.push({ x, y, key, end });
+    occupiedByNode.set(nodeId, list);
+  };
+
+  // Process twice so target-side snaps can free source conflicts on the next pass
+  for (let pass = 0; pass < 2; pass++) {
+    occupiedByNode.clear();
+    for (const e of prelim) {
+      const cur = plan.get(e.key);
+      if (!cur) continue;
+      let fromSide = cur.fromSide;
+      let toSide = cur.toSide;
+      let fromAlong = cur.fromAlong;
+      let toAlong = cur.toAlong;
+      let x1 = cur.x1;
+      let y1 = cur.y1;
+      let x2 = cur.x2;
+      let y2 = cur.y2;
+
+      const fromBox = getNodeBoxInParent(e.from, parent);
+      const toBox = getNodeBoxInParent(e.to, parent);
+      const fromMin = portOccupancyRadius(e.from, parent);
+      const toMin = portOccupancyRadius(e.to, parent);
+
+      const fromOcc = (occupiedByNode.get(e.fromId) ?? []).map((o) => ({ x: o.x, y: o.y }));
+      const toOcc = (occupiedByNode.get(e.toId) ?? []).map((o) => ({ x: o.x, y: o.y }));
+
+      const fromConflict =
+        fromOcc.some((o) => portsTooClose(x1, y1, o.x, o.y, fromMin)) ||
+        attachmentOverridesBorder(x1, y1, x2, y2, fromBox, fromSide);
+
+      if (fromConflict) {
+        const next = nearestFreePortOnSymbol(e.from, parent, x2, y2, fromOcc, fromSide);
+        if (next) {
+          fromSide = next.side;
+          fromAlong = next.along;
+          x1 = next.x;
+          y1 = next.y;
+        }
+      }
+
+      const toConflict =
+        toOcc.some((o) => portsTooClose(x2, y2, o.x, o.y, toMin)) ||
+        attachmentOverridesBorder(x2, y2, x1, y1, toBox, toSide);
+
+      if (toConflict) {
+        const next = nearestFreePortOnSymbol(e.to, parent, x1, y1, toOcc, toSide);
+        if (next) {
+          toSide = next.side;
+          toAlong = next.along;
+          x2 = next.x;
+          y2 = next.y;
+        }
+      }
+
+      plan.set(e.key, {
+        ...cur,
+        fromSide,
+        toSide,
+        fromAlong,
+        toAlong,
+        x1,
+        y1,
+        x2,
+        y2,
+      });
+      take(e.fromId, x1, y1, e.key, 'from');
+      take(e.toId, x2, y2, e.key, 'to');
+    }
+  }
+
+  return plan;
 }
 
 function sortPeersAlongSide(
