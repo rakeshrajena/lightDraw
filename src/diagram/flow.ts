@@ -1,11 +1,12 @@
 /**
  * Diagram wire-flow animation: marching dashes, traveling packets, node highlight.
- * Supports loop/once playback, pause, and explicit node-to-node paths.
+ * Supports loop/once playback, pause, explicit paths, and path status tinting.
  */
 import type { App } from '../App';
 import { AnimationEngine } from '../animation/Animation';
 import type { Node } from '../Node';
 import type { Group } from '../shapes/Group';
+import { colorWithAlpha } from '../utils/color';
 import { getNodeBoxInParent } from './coords';
 import { findEdgeLayer, findNodeByDiagramId, nodeDiagramId } from './editor/collect';
 import { getDiagramState, setDiagramState } from './helpers';
@@ -14,10 +15,19 @@ import { getActiveDiagram } from './theme';
 export type DiagramFlowMode = 'dash' | 'packet' | 'both';
 export type DiagramFlowHighlight = 'pulse' | 'breathe' | 'flash' | 'none';
 export type DiagramFlowPlayback = 'loop' | 'once';
+export type DiagramFlowNodeStatus = 'idle' | 'active' | 'done' | 'error';
 
 export interface DiagramFlowHop {
   from: string;
   to: string;
+}
+
+/** Soft status tint colors (path-driven runs). Partial overrides merge with defaults. */
+export interface DiagramFlowStatusColors {
+  idle?: string;
+  active?: string;
+  done?: string;
+  error?: string;
 }
 
 export interface DiagramFlowOptions {
@@ -31,8 +41,31 @@ export interface DiagramFlowOptions {
   playback?: DiagramFlowPlayback;
   /** Wire motion style. Default `both`. */
   mode?: DiagramFlowMode;
-  /** Node chrome while a step is active / on packet arrival. Default `pulse`. */
+  /** Motion chrome while a step is active / on packet arrival. Default `pulse`. */
   highlight?: DiagramFlowHighlight;
+  /**
+   * Soft idle/active/done/error tint on path nodes (additive with `highlight`).
+   * Defaults to `true` when a path/`paths`/`pathEdges` run is configured; otherwise `false`.
+   * Requires `mode: 'packet' | 'both'` so hops advance.
+   */
+  statusHighlight?: boolean;
+  /**
+   * Tint path edge strokes with the same status palette (idle / active / done).
+   * Defaults to `true` when `statusHighlight` is on.
+   */
+  statusEdges?: boolean;
+  /** Override status tint colors (`idle` grey, `active` yellow, `done` green, `error` red). */
+  statusColors?: DiagramFlowStatusColors;
+  /**
+   * Force status for specific node ids (merged after lifecycle paint).
+   * Useful for JSON snapshots or pinning an `error` node.
+   */
+  statusOverrides?: Record<string, DiagramFlowNodeStatus>;
+  /**
+   * When a declared hop has no matching edge, mark the source node `error` and pause.
+   * Default `true`.
+   */
+  statusPauseOnError?: boolean;
   /** diagramIds that show continuous pulse/breathe (when no path is driving highlight). */
   activeNodes?: string[];
   /**
@@ -78,6 +111,44 @@ interface FlowRuntime {
   playing: boolean;
 }
 
+interface FlowStatusSnapshot {
+  nodes: Record<string, DiagramFlowNodeStatus>;
+  edges: Record<string, DiagramFlowNodeStatus>;
+}
+
+function readStatusSnapshot(root: Group): FlowStatusSnapshot | undefined {
+  const snap = root.metadata?.[FLOW_STATUS_SNAP_KEY] as FlowStatusSnapshot | undefined;
+  if (!snap || typeof snap !== 'object') return undefined;
+  if (!snap.nodes || typeof snap.nodes !== 'object') return undefined;
+  return {
+    nodes: { ...snap.nodes },
+    edges: snap.edges && typeof snap.edges === 'object' ? { ...snap.edges } : {},
+  };
+}
+
+function writeStatusSnapshot(
+  root: Group,
+  nodes: Record<string, DiagramFlowNodeStatus>,
+  edges: Record<string, DiagramFlowNodeStatus> = {}
+): void {
+  root.metadata[FLOW_STATUS_SNAP_KEY] = { nodes: { ...nodes }, edges: { ...edges } };
+}
+
+function clearStatusSnapshot(root: Group): void {
+  delete root.metadata[FLOW_STATUS_SNAP_KEY];
+}
+
+function mapFromRecord(rec: Record<string, DiagramFlowNodeStatus>): Map<string, DiagramFlowNodeStatus> {
+  return new Map(Object.entries(rec));
+}
+
+interface ResolvedStatusColors {
+  idle: string;
+  active: string;
+  done: string;
+  error: string;
+}
+
 interface NormalizedFlow extends DiagramFlowOptions {
   enabled: boolean;
   speed: number;
@@ -85,6 +156,11 @@ interface NormalizedFlow extends DiagramFlowOptions {
   playback: DiagramFlowPlayback;
   mode: DiagramFlowMode;
   highlight: DiagramFlowHighlight;
+  statusHighlight: boolean;
+  statusEdges: boolean;
+  statusColors: ResolvedStatusColors;
+  statusOverrides?: Record<string, DiagramFlowNodeStatus>;
+  statusPauseOnError: boolean;
   dashPattern: number[];
   /** Flattened hops (all runs) — used for dash filtering. */
   pathEdges?: DiagramFlowHop[];
@@ -97,12 +173,131 @@ interface NormalizedFlow extends DiagramFlowOptions {
 const FLOW_OVERLAY_KEY = 'diagramFlowOverlay';
 const FLOW_PACKET_KEY = 'diagramFlowPacket';
 const FLOW_RUNTIME_KEY = 'diagramFlowRuntime';
+const FLOW_STATUS_KEY = 'flowStatusChrome';
+/** Last painted node/edge status — kept across soft pause. */
+const FLOW_STATUS_SNAP_KEY = 'diagramFlowStatusSnapshot';
 const DEFAULT_DASH = [10, 8];
 const BASE_DASH_MS = 1600;
 const BASE_PACKET_MS = 2400;
 const BASE_PULSE_MS = 1100;
 const FLASH_MS = 420;
 const DEFAULT_PATH_GAP_MS = 450;
+
+/** Default path-status tint palette. */
+export const DEFAULT_FLOW_STATUS_COLORS: ResolvedStatusColors = {
+  idle: '#94a3b8',
+  active: '#eab308',
+  done: '#22c55e',
+  error: '#ef4444',
+};
+
+export function resolveFlowStatusColors(
+  raw?: DiagramFlowStatusColors | null
+): ResolvedStatusColors {
+  return {
+    idle: typeof raw?.idle === 'string' && raw.idle ? raw.idle : DEFAULT_FLOW_STATUS_COLORS.idle,
+    active:
+      typeof raw?.active === 'string' && raw.active
+        ? raw.active
+        : DEFAULT_FLOW_STATUS_COLORS.active,
+    done: typeof raw?.done === 'string' && raw.done ? raw.done : DEFAULT_FLOW_STATUS_COLORS.done,
+    error:
+      typeof raw?.error === 'string' && raw.error ? raw.error : DEFAULT_FLOW_STATUS_COLORS.error,
+  };
+}
+
+/** Ordered unique node ids from a hop list (stable first-seen order). */
+export function nodeIdsFromHops(hops: DiagramFlowHop[]): string[] {
+  const ids: string[] = [];
+  for (const h of hops) {
+    if (!ids.includes(h.from)) ids.push(h.from);
+    if (!ids.includes(h.to)) ids.push(h.to);
+  }
+  return ids;
+}
+
+/** Stable edge key for status maps (`from->to`). */
+export function flowEdgeKey(from: string, to: string): string {
+  return `${from}->${to}`;
+}
+
+export function isDiagramFlowNodeStatus(v: unknown): v is DiagramFlowNodeStatus {
+  return v === 'idle' || v === 'active' || v === 'done' || v === 'error';
+}
+
+export function sanitizeStatusOverrides(
+  raw: unknown
+): Record<string, DiagramFlowNodeStatus> | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const out: Record<string, DiagramFlowNodeStatus> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof k === 'string' && k && isDiagramFlowNodeStatus(v)) out[k] = v;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+/**
+ * Pure idle → active → done transitions for a path run (no canvas).
+ * Used by the runtime and unit tests.
+ */
+export function createFlowStatusMap(): {
+  states: Map<string, DiagramFlowNodeStatus>;
+  edgeStates: Map<string, DiagramFlowNodeStatus>;
+  beginRun(ids: string[], edgeKeys?: string[]): void;
+  hopStart(from: string, to: string): void;
+  hopArrive(from: string, to: string, isLast: boolean): void;
+  setError(nodeId: string): void;
+  applyOverrides(overrides?: Record<string, DiagramFlowNodeStatus>): void;
+  reset(): void;
+  snapshot(): Record<string, DiagramFlowNodeStatus>;
+  edgeSnapshot(): Record<string, DiagramFlowNodeStatus>;
+} {
+  const states = new Map<string, DiagramFlowNodeStatus>();
+  const edgeStates = new Map<string, DiagramFlowNodeStatus>();
+  return {
+    states,
+    edgeStates,
+    beginRun(ids: string[], edgeKeys: string[] = []) {
+      states.clear();
+      edgeStates.clear();
+      for (const id of ids) states.set(id, 'idle');
+      if (ids.length > 0) states.set(ids[0], 'active');
+      for (const key of edgeKeys) edgeStates.set(key, 'idle');
+    },
+    hopStart(from: string, to: string) {
+      states.set(from, 'active');
+      edgeStates.set(flowEdgeKey(from, to), 'active');
+    },
+    hopArrive(from: string, to: string, isLast: boolean) {
+      states.set(from, 'done');
+      states.set(to, isLast ? 'done' : 'active');
+      edgeStates.set(flowEdgeKey(from, to), 'done');
+    },
+    setError(nodeId: string) {
+      states.set(nodeId, 'error');
+    },
+    applyOverrides(overrides?: Record<string, DiagramFlowNodeStatus>) {
+      if (!overrides) return;
+      for (const [id, status] of Object.entries(overrides)) {
+        states.set(id, status);
+      }
+    },
+    reset() {
+      states.clear();
+      edgeStates.clear();
+    },
+    snapshot() {
+      const out: Record<string, DiagramFlowNodeStatus> = {};
+      for (const [k, v] of states) out[k] = v;
+      return out;
+    },
+    edgeSnapshot() {
+      const out: Record<string, DiagramFlowNodeStatus> = {};
+      for (const [k, v] of edgeStates) out[k] = v;
+      return out;
+    },
+  };
+}
 
 function nodeListToHops(nodes: string[]): DiagramFlowHop[] {
   const hops: DiagramFlowHop[] = [];
@@ -167,6 +362,13 @@ function normalizeFlow(raw: DiagramFlowOptions | undefined): NormalizedFlow {
   }
 
   const pathEdges = pathRuns.length > 0 ? pathRuns.flat() : undefined;
+  const statusHighlight =
+    raw?.statusHighlight !== undefined ? raw.statusHighlight === true : pathRuns.length > 0;
+  const statusEdges =
+    raw?.statusEdges !== undefined ? raw.statusEdges === true : statusHighlight;
+  const statusColors = resolveFlowStatusColors(raw?.statusColors);
+  const statusOverrides = sanitizeStatusOverrides(raw?.statusOverrides);
+  const statusPauseOnError = raw?.statusPauseOnError !== false;
 
   return {
     enabled: raw?.enabled !== false,
@@ -178,6 +380,11 @@ function normalizeFlow(raw: DiagramFlowOptions | undefined): NormalizedFlow {
       highlight === 'pulse' || highlight === 'breathe' || highlight === 'flash' || highlight === 'none'
         ? highlight
         : 'pulse',
+    statusHighlight,
+    statusEdges,
+    statusColors,
+    statusOverrides,
+    statusPauseOnError,
     activeNodes: Array.isArray(raw?.activeNodes) ? raw!.activeNodes!.slice() : undefined,
     activeEdges: Array.isArray(raw?.activeEdges) ? raw!.activeEdges!.slice() : undefined,
     path,
@@ -259,6 +466,108 @@ function clearPulseOnly(overlay: Group): void {
   }
 }
 
+function clearStatusOnly(overlay: Group): void {
+  for (const child of [...overlay.children]) {
+    if (child.metadata?.[FLOW_STATUS_KEY]) {
+      overlay.remove(child);
+      child.destroy();
+    }
+  }
+}
+
+function addStatusChrome(
+  app: App,
+  root: Group,
+  overlay: Group,
+  nodeId: string,
+  status: DiagramFlowNodeStatus,
+  colors: ResolvedStatusColors
+): void {
+  const node = findNodeByDiagramId(root, nodeId);
+  if (!node) return;
+  const box = getNodeBoxInParent(node, root);
+  const color = colors[status];
+  const alpha = status === 'active' ? 0.28 : status === 'done' ? 0.2 : status === 'error' ? 0.24 : 0.12;
+  const fill = colorWithAlpha(color, alpha) ?? color;
+  const pad = status === 'active' ? 5 : 3;
+  const ring = app.rect({
+    x: box.x - pad,
+    y: box.y - pad,
+    width: box.width + pad * 2,
+    height: box.height + pad * 2,
+    fill,
+    stroke: color,
+    strokeWidth: status === 'active' ? 2.5 : status === 'error' ? 2.25 : 1.75,
+    cornerRadius: 10,
+    opacity: 1,
+    listening: false,
+    metadata: {
+      [FLOW_STATUS_KEY]: true,
+      flowStatusNodeId: nodeId,
+      flowStatus: status,
+    },
+  });
+  overlay.add(ring);
+}
+
+function syncStatusChrome(
+  app: App,
+  root: Group,
+  getOverlay: () => Group,
+  states: Map<string, DiagramFlowNodeStatus>,
+  colors: ResolvedStatusColors
+): void {
+  const overlay = getOverlay();
+  clearStatusOnly(overlay);
+  for (const [id, status] of states) {
+    addStatusChrome(app, root, overlay, id, status, colors);
+  }
+}
+
+function restoreEdgeStatusTints(edgeLayer: Group): void {
+  for (const edgeChild of edgeLayer.children) {
+    const edge = edgeChild as Group;
+    if (edge.metadata?.flowStrokePrior === undefined) continue;
+    const stroke = getEdgeStrokePolyline(edge);
+    if (stroke) {
+      stroke.stroke = edge.metadata.flowStrokePrior as string | null;
+      stroke.markDirty?.();
+    }
+    delete edge.metadata.flowStrokePrior;
+    delete edge.metadata.flowEdgeStatus;
+  }
+}
+
+function applyEdgeStatusTint(
+  edge: Group,
+  status: DiagramFlowNodeStatus,
+  colors: ResolvedStatusColors
+): void {
+  const stroke = getEdgeStrokePolyline(edge);
+  if (!stroke) return;
+  if (edge.metadata.flowStrokePrior === undefined) {
+    edge.metadata.flowStrokePrior = stroke.stroke ?? null;
+  }
+  stroke.stroke = colors[status];
+  edge.metadata.flowEdgeStatus = status;
+  stroke.markDirty?.();
+}
+
+function syncEdgeStatusTints(
+  edgeLayer: Group,
+  edgeStates: Map<string, DiagramFlowNodeStatus>,
+  colors: ResolvedStatusColors
+): void {
+  for (const [key, status] of edgeStates) {
+    const sep = key.indexOf('->');
+    if (sep < 0) continue;
+    const from = key.slice(0, sep);
+    const to = key.slice(sep + 2);
+    const edge = findEdgeByHop(edgeLayer, from, to);
+    if (edge) applyEdgeStatusTint(edge, status, colors);
+  }
+}
+
 /** Stop running flow animations; keep `diagramState.flow` unless `clearState`. */
 export function stopDiagramFlow(root: Group, opts: { clearState?: boolean } = {}): void {
   const rt = root.metadata?.[FLOW_RUNTIME_KEY] as FlowRuntime | undefined;
@@ -276,6 +585,7 @@ export function stopDiagramFlow(root: Group, opts: { clearState?: boolean } = {}
 
   const edgeLayer = findEdgeLayer(root);
   if (edgeLayer) {
+    restoreEdgeStatusTints(edgeLayer);
     for (const edge of edgeLayer.children) {
       const stroke = getEdgeStrokePolyline(edge as Group);
       if (stroke && typeof stroke.dashOffset === 'number') {
@@ -294,6 +604,7 @@ export function stopDiagramFlow(root: Group, opts: { clearState?: boolean } = {}
   }
 
   if (opts.clearState) {
+    clearStatusSnapshot(root);
     const state = getDiagramState(root);
     if (state.flow) {
       const next = { ...state };
@@ -535,7 +846,13 @@ function startPathSequence(
   pathGapMs: number,
   handles: StopHandle[],
   getOverlay: () => Group,
-  onFinished?: () => void
+  onFinished?: () => void,
+  statusOpts?: {
+    colors: ResolvedStatusColors;
+    edges: boolean;
+    edgeLayer: Group;
+    overrides?: Record<string, DiagramFlowNodeStatus>;
+  } | null
 ): void {
   const validRuns = runs.filter((r) => r.length > 0);
   if (validRuns.length === 0) return;
@@ -551,6 +868,25 @@ function startPathSequence(
   let control: StopHandle | null = null;
   let gapTimer: ReturnType<typeof setTimeout> | null = null;
   const pulseHandles: StopHandle[] = [];
+  const statusMap = statusOpts ? createFlowStatusMap() : null;
+
+  const paintStatus = (): void => {
+    if (!statusMap || !statusOpts) return;
+    statusMap.applyOverrides(statusOpts.overrides);
+    syncStatusChrome(app, root, getOverlay, statusMap.states, statusOpts.colors);
+    if (statusOpts.edges) {
+      syncEdgeStatusTints(statusOpts.edgeLayer, statusMap.edgeStates, statusOpts.colors);
+    }
+    writeStatusSnapshot(root, statusMap.snapshot(), statusMap.edgeSnapshot());
+  };
+
+  const beginStatusRun = (hops: Array<{ from: string; to: string }>): void => {
+    if (!statusMap) return;
+    if (statusOpts?.edges) restoreEdgeStatusTints(statusOpts.edgeLayer);
+    const edgeKeys = hops.map((h) => flowEdgeKey(h.from, h.to));
+    statusMap.beginRun(nodeIdsFromHops(hops), edgeKeys);
+    paintStatus();
+  };
 
   const stopPulseHandles = (): void => {
     for (const h of pulseHandles) {
@@ -605,7 +941,10 @@ function startPathSequence(
     }
     const go = (): void => {
       gapTimer = null;
-      if (!stopped) runHop();
+      if (stopped) return;
+      const next = validRuns[runIndex];
+      if (next) beginStatusRun(next);
+      runHop();
     };
     if (pathGapMs > 0) {
       gapTimer = setTimeout(go, pathGapMs);
@@ -622,6 +961,10 @@ function startPathSequence(
       return;
     }
     const hop = hops[hopIndex];
+    if (statusMap) {
+      statusMap.hopStart(hop.from, hop.to);
+      paintStatus();
+    }
     showHopHighlight(hop.from, hop.to);
     const node = placePacket(hop.edge);
     control = AnimationEngine.animate(node as unknown as Record<string, unknown>, {
@@ -633,6 +976,11 @@ function startPathSequence(
         if (stopped) return;
         if (highlight !== 'none') {
           flashNode(app, root, getOverlay(), hop.to, handles);
+        }
+        const isLast = hopIndex + 1 >= hops.length;
+        if (statusMap) {
+          statusMap.hopArrive(hop.from, hop.to, isLast);
+          paintStatus();
         }
         hopIndex += 1;
         runHop();
@@ -657,7 +1005,9 @@ function startPathSequence(
     },
   });
 
-  const first = validRuns[0]?.[0];
+  const firstRun = validRuns[0];
+  if (firstRun) beginStatusRun(firstRun);
+  const first = firstRun?.[0];
   if (highlight !== 'none' && highlight !== 'flash' && first) {
     showHopHighlight(first.from, first.to);
   }
@@ -701,6 +1051,11 @@ export function applyDiagramFlow(
       playback: merged.playback,
       mode: merged.mode,
       highlight: merged.highlight,
+      statusHighlight: merged.statusHighlight,
+      statusEdges: merged.statusEdges,
+      statusColors: merged.statusColors,
+      statusOverrides: merged.statusOverrides,
+      statusPauseOnError: merged.statusPauseOnError,
       activeNodes: merged.activeNodes,
       activeEdges: merged.activeEdges,
       path: merged.path,
@@ -718,16 +1073,45 @@ export function applyDiagramFlow(
   const hopsSpec = merged.pathEdges;
   const isPlaying = merged.enabled && !merged.paused && merged.speed > 0;
 
+  let overlay: Group | null = null;
+  const getOverlay = (): Group => {
+    if (!overlay) overlay = ensureOverlay(app, root);
+    return overlay;
+  };
+
+  const paintStaticStatus = (
+    states: Map<string, DiagramFlowNodeStatus>,
+    edgeStates?: Map<string, DiagramFlowNodeStatus>
+  ): void => {
+    if (!merged.statusHighlight) return;
+    syncStatusChrome(app, root, getOverlay, states, merged.statusColors);
+    if (merged.statusEdges && edgeLayer && edgeStates) {
+      syncEdgeStatusTints(edgeLayer, edgeStates, merged.statusColors);
+    }
+  };
+
   if (!merged.enabled) {
+    clearStatusSnapshot(root);
     root.metadata[FLOW_RUNTIME_KEY] = { handles: [], options: merged, playing: false };
     root.markDirty();
     return;
   }
 
-  // Paused / speed 0: keep dash preview on path edges
+  // Paused / speed 0: keep dash preview + last status chrome (soft pause)
   if (!isPlaying) {
     if (edgeLayer && (merged.mode === 'dash' || merged.mode === 'both')) {
       applyStaticDashes(edgeLayer, merged, hopsSpec);
+    }
+    if (merged.statusHighlight) {
+      const snap = readStatusSnapshot(root);
+      if (snap) {
+        paintStaticStatus(mapFromRecord(snap.nodes), mapFromRecord(snap.edges));
+      } else if (merged.statusOverrides) {
+        const map = createFlowStatusMap();
+        map.applyOverrides(merged.statusOverrides);
+        paintStaticStatus(map.states);
+        writeStatusSnapshot(root, map.snapshot());
+      }
     }
     root.metadata[FLOW_RUNTIME_KEY] = { handles: [], options: merged, playing: false };
     root.markDirty();
@@ -743,28 +1127,69 @@ export function applyDiagramFlow(
   const dashDur = durationMs(BASE_DASH_MS, merged.speed);
   const loopDash = merged.playback === 'loop';
 
-  let overlay: Group | null = null;
-  const getOverlay = (): Group => {
-    if (!overlay) overlay = ensureOverlay(app, root);
-    return overlay;
-  };
-
   const pathRunsResolved: Array<Array<{ edge: Group; from: string; to: string; pathD: string }>> =
     [];
+  const missingHops: DiagramFlowHop[] = [];
   if (edgeLayer && merged.pathRuns.length > 0) {
     for (const run of merged.pathRuns) {
       const resolved: Array<{ edge: Group; from: string; to: string; pathD: string }> = [];
       for (const hop of run) {
         const edge = findEdgeByHop(edgeLayer, hop.from, hop.to);
-        if (!edge) continue;
+        if (!edge) {
+          missingHops.push(hop);
+          continue;
+        }
         const points = edge.metadata?.edgePoints as number[] | undefined;
         const d = edgePointsToPathD(points ?? []);
-        if (!d) continue;
+        if (!d) {
+          missingHops.push(hop);
+          continue;
+        }
         resolved.push({ edge, from: hop.from, to: hop.to, pathD: d });
       }
       if (resolved.length > 0) pathRunsResolved.push(resolved);
     }
   }
+
+  // Missing hops: mark error (wins over statusOverrides); pause only when nothing is playable
+  const errorOverrides: Record<string, DiagramFlowNodeStatus> = {
+    ...(merged.statusOverrides ?? {}),
+  };
+  if (missingHops.length > 0) {
+    for (const hop of missingHops) {
+      errorOverrides[hop.from] = 'error';
+    }
+  }
+  const declaredPathButEmpty =
+    merged.pathRuns.length > 0 && pathRunsResolved.length === 0;
+  if (merged.statusHighlight && (missingHops.length > 0 || declaredPathButEmpty)) {
+    const map = createFlowStatusMap();
+    const ids = nodeIdsFromHops(merged.pathRuns.flat());
+    map.beginRun(ids, merged.pathRuns.flat().map((h) => flowEdgeKey(h.from, h.to)));
+    map.applyOverrides(merged.statusOverrides);
+    for (const hop of missingHops) map.setError(hop.from);
+    paintStaticStatus(map.states, map.edgeStates);
+    writeStatusSnapshot(root, map.snapshot(), map.edgeSnapshot());
+    if (merged.statusPauseOnError && declaredPathButEmpty) {
+      setDiagramState(root, {
+        flow: { ...(getDiagramState(root).flow as object), paused: true },
+      });
+      root.metadata[FLOW_RUNTIME_KEY] = { handles: [], options: merged, playing: false };
+      root.markDirty();
+      app.requestRender?.();
+      return;
+    }
+  }
+
+  const statusRuntimeOpts =
+    merged.statusHighlight && edgeLayer
+      ? {
+          colors: merged.statusColors,
+          edges: merged.statusEdges,
+          edgeLayer,
+          overrides: Object.keys(errorOverrides).length > 0 ? errorOverrides : undefined,
+        }
+      : null;
 
   const markFinished = (): void => {
     const rt = root.metadata[FLOW_RUNTIME_KEY] as FlowRuntime | undefined;
@@ -805,19 +1230,23 @@ export function applyDiagramFlow(
     }
 
     if (usePacket) {
-      if (pathRunsResolved.length > 0) {
-        startPathSequence(
-          app,
-          root,
-          pathRunsResolved,
-          merged.speed,
-          merged.highlight,
-          merged.playback,
-          merged.pathGapMs,
-          handles,
-          getOverlay,
-          merged.playback === 'once' ? markFinished : undefined
-        );
+      if (merged.pathRuns.length > 0) {
+        // Declared path(s): never fall through to ambient all-edge packets
+        if (pathRunsResolved.length > 0) {
+          startPathSequence(
+            app,
+            root,
+            pathRunsResolved,
+            merged.speed,
+            merged.highlight,
+            merged.playback,
+            merged.pathGapMs,
+            handles,
+            getOverlay,
+            merged.playback === 'once' ? markFinished : undefined,
+            statusRuntimeOpts
+          );
+        }
       } else {
         let remaining = 0;
         for (const edgeChild of edgeLayer.children) {
@@ -847,6 +1276,17 @@ export function applyDiagramFlow(
         }
       }
     }
+  }
+
+  // Static overrides without a path-driven packet run
+  if (
+    merged.statusHighlight &&
+    merged.statusOverrides &&
+    !(pathRunsResolved.length > 0 && usePacket)
+  ) {
+    const map = createFlowStatusMap();
+    map.applyOverrides(merged.statusOverrides);
+    paintStaticStatus(map.states);
   }
 
   // Static activeNodes pulse when not driven by path sequence

@@ -33,6 +33,20 @@ Docs: [automotive-widgets-schema.md](./docs/automotive-widgets-schema.md) · [au
 - Opt-in `exportJSON({ compact: true })` / `toJSON(node, { compact: true })` omits identity defaults
 - Docs: [json-format.md](./docs/json-format.md)
 
+### Added — Diagram wire flow status tint
+
+- Path-driven soft **status highlight**: idle (grey) → active (yellow) → done (green); error (red) on missing hops
+- **Edge tint** (`statusEdges`, default on with status): wires follow the same palette
+- **`statusOverrides`**: pin per-node status from JSON (e.g. `{ check: 'error' }`)
+- Soft **pause keeps** the last status snapshot (nodes + edges)
+- Missing hops skipped with error mark; pause only when no hops resolve; declared paths never fall through to ambient packets
+- Defaults on when `path` / `paths` / `pathEdges` are set; `statusHighlight: false` restores motion-only chrome
+- Optional `statusColors: { idle, active, done, error }`; greens persist until run complete, then reset before next loop/run
+- Additive with existing `highlight: pulse | breathe | flash | none`
+- Diagram demo: **Status tint** checkbox; paths for Flowchart, State, Pipeline, Network, UML
+
+Docs: [diagram-flow.md](./docs/diagram-flow.md) · [diagram-module-schema.md](./docs/diagram-module-schema.md)
+
 ### Added — Diagram wire flow
 
 - `Diagram.applyFlow` / `stopFlow` / `refreshFlow` — marching dashes, traveling packets, node pulse/flash

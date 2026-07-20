@@ -60,6 +60,15 @@ export { createSymbol, buildSchematic, rewireSchematic, Symbols } from './symbol
 export { diagramToJSON, fitDiagramToBounds, resolveGridLayout, readCanvasSize } from './helpers';
 export { installDiagramEditor, uninstallDiagramEditor, DiagramEditor } from './editor';
 
+export type {
+  DiagramFlowOptions,
+  DiagramFlowMode,
+  DiagramFlowHighlight,
+  DiagramFlowPlayback,
+  DiagramFlowHop,
+  DiagramFlowNodeStatus,
+  DiagramFlowStatusColors,
+} from './flow';
 export {
   applyDiagramFlow,
   stopDiagramFlow,
@@ -71,13 +80,13 @@ export {
   isDiagramFlowPlaying,
   edgePointsToPathD,
   getEdgeStrokePolyline,
-} from './flow';
-export type {
-  DiagramFlowOptions,
-  DiagramFlowMode,
-  DiagramFlowHighlight,
-  DiagramFlowPlayback,
-  DiagramFlowHop,
+  DEFAULT_FLOW_STATUS_COLORS,
+  resolveFlowStatusColors,
+  createFlowStatusMap,
+  nodeIdsFromHops,
+  flowEdgeKey,
+  sanitizeStatusOverrides,
+  isDiagramFlowNodeStatus,
 } from './flow';
 
 export type {
