@@ -29,6 +29,8 @@ interface AnimationState {
   onComplete?: () => void;
   frameId: number;
   active: boolean;
+  /** Wall-clock ms since startTime when pause() was called; null when running. */
+  pausedElapsed: number | null;
 }
 
 let nextId = 1;
@@ -233,6 +235,7 @@ export class AnimationEngine {
       onComplete: options.onComplete,
       frameId: 0,
       active: true,
+      pausedElapsed: null,
     };
 
     options.onStart?.();
@@ -242,20 +245,26 @@ export class AnimationEngine {
     return {
       stop: () => {
         state.active = false;
+        state.pausedElapsed = null;
         const idx = activeAnimations.indexOf(state);
         if (idx >= 0) activeAnimations.splice(idx, 1);
         if (!activeAnimations.some((a) => a.active)) cancelPendingTick();
       },
       pause: () => {
+        if (!state.active) return;
+        state.pausedElapsed = Math.max(0, now() - state.startTime);
         state.active = false;
         if (!activeAnimations.some((a) => a.active)) cancelPendingTick();
       },
       resume: () => {
-        if (!state.active) {
-          state.startTime = now() - state.duration * (state.iteration > 0 ? 1 : 0);
-          state.active = true;
-          scheduleTick();
-        }
+        if (state.active) return;
+        const idx = activeAnimations.indexOf(state);
+        if (idx < 0) return; // stopped
+        const elapsed = state.pausedElapsed ?? 0;
+        state.startTime = now() - elapsed;
+        state.pausedElapsed = null;
+        state.active = true;
+        scheduleTick();
       },
     };
   }

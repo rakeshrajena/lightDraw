@@ -1,6 +1,6 @@
 # Diagram wire-flow animation
 
-Animate diagram connectors to show **direction of travel**, with optional **node highlight**, **play/pause**, and **ordered multi-path runs**.
+Animate diagram connectors to show **direction of travel**, with optional **motion highlight**, **path status tint** (idle / active / done), **play/pause**, and **ordered multi-path runs**.
 
 Related: [Diagram module schema](./diagram-module-schema.md) · [Animation guide](./animation-guide.md) (low-level `dashOffset` / `motionPath`) · Live: [Diagram playground](https://rakeshrajena.github.io/lightDraw/#diagram)
 
@@ -16,7 +16,9 @@ const chart = LightDraw.Diagram.flowchart(app, data, {
     enabled: true,
     mode: 'both',          // 'dash' | 'packet' | 'both'
     playback: 'loop',      // or 'once'
-    highlight: 'pulse',    // 'pulse' | 'breathe' | 'flash' | 'none'
+    highlight: 'pulse',    // motion chrome: 'pulse' | 'breathe' | 'flash' | 'none'
+    // statusHighlight: true by default when paths are set
+    // statusColors: { idle, active, done, error }  // optional overrides
     paths: [
       ['start', 'check', 'process', 'end'],
       ['start', 'check', 'end'],
@@ -53,13 +55,51 @@ Options persist under `diagramState.flow` and round-trip via `Diagram.toJSON` / 
 | `loop` | Continuous; after the last path run, restart at run `0` |
 | `once` | Play all path runs in order, then auto-pause |
 
-| `highlight` | Behavior |
-|-------------|----------|
+| `highlight` | Behavior (motion chrome) |
+|-------------|--------------------------|
 | `pulse` | Soft ring on the active hop endpoints |
 | `breathe` | Opacity pulse on active nodes |
 | `flash` | Brief flash on packet arrival only |
-| `none` | No node chrome |
+| `none` | No motion chrome |
 
+---
+
+## Path status tint
+
+When a path / `paths` / `pathEdges` run is configured, nodes get a soft **status tint** by default (`statusHighlight: true`):
+
+| Status | Default color | When |
+|--------|---------------|------|
+| `idle` | grey `#94a3b8` | On the current run, not yet visited |
+| `active` | yellow `#eab308` | One node at a time — current step |
+| `done` | green `#22c55e` | Visited; stays until the run finishes |
+| `error` | red `#ef4444` | Missing hop (no matching edge) or `statusOverrides` |
+
+Greens persist through the run (and the `pathGapMs` pause). Before the next run or loop restart, statuses **reset** (idle + first node active again). After `playback: 'once'` finishes, the final greens remain until stop / replay.
+
+**Edges** follow the same palette when `statusEdges` is on (default with status highlight): idle muted, active amber, done green.
+
+Status tint is **additive** with `highlight` (pulse / breathe / flash). Turn it off with `statusHighlight: false` for the previous motion-only look. Status advances with packet hops, so use `mode: 'packet'` or `'both'`.
+
+```javascript
+{
+  paths: [['a', 'b', 'c']],
+  statusHighlight: true, // default when paths are set
+  statusEdges: true,     // default with statusHighlight
+  statusColors: {
+    idle: '#64748b',
+    active: '#facc15',
+    done: '#4ade80',
+    error: '#f87171',
+  },
+  // Pin a node (JSON snapshot / forced error):
+  statusOverrides: { c: 'error' },
+  // Missing hop → red on source + pause (default):
+  // statusPauseOnError: true,
+}
+```
+
+Missing hops: the source node is marked `error` (takes precedence over `statusOverrides`). Skipped hops do not block other valid runs. With `statusPauseOnError` (default `true`), flow pauses only when **no** declared hops can be resolved.
 ---
 
 ## Paths (single + multiple runs)
@@ -96,9 +136,9 @@ Shorthand: `path: [['a','b'],['a','c']]` is treated like `paths`.
 ] }
 ```
 
-Edges must exist on the diagram (`edgeFrom` / `edgeTo` on connectors). Missing hops are skipped.
+Edges must exist on the diagram (`edgeFrom` / `edgeTo` on connectors). Missing hops are **skipped**; their source node is marked `error`. If **no** hops in the declared path(s) resolve, flow pauses when `statusPauseOnError` is true (default). Valid runs still play when other hops are missing.
 
-Without any path, packets animate on all edges (or `activeEdges` filter).
+Without any path, packets animate on all edges (or `activeEdges` filter). Status tint stays off unless you set `statusHighlight: true` with a path. Declared paths never fall through to ambient all-edge packets.
 
 ---
 
@@ -107,17 +147,19 @@ Without any path, packets animate on all edges (or `activeEdges` filter).
 | API | Purpose |
 |-----|---------|
 | `Diagram.applyFlow(app, root, opts)` | Start / update options |
-| `Diagram.pauseFlow(app, root)` | Soft pause (keeps options) |
-| `Diagram.resumeFlow(app, root)` | Resume |
+| `Diagram.pauseFlow(app, root)` | Soft pause in place (resume continues mid-step) |
+| `Diagram.resumeFlow(app, root)` | Resume from paused step |
 | `Diagram.toggleFlowPause(app, root)` | Toggle; returns whether playing |
 | `Diagram.replayFlow(app, root)` | Restart from the beginning |
 | `Diagram.stopFlow(root)` | Stop animations (optional `clearState`) |
 | `Diagram.isFlowPlaying(root)` | Current playing state |
 | `Diagram.refreshFlow(app, root)` | Re-apply from `diagramState.flow` |
 
-`speed`: playback rate (`1` = default, `2` = 2×). `paused: true` or `speed: 0` pauses while keeping a static dash preview when enabled.
+`speed`: playback rate (`1` = default, `2` = 2×). `paused: true` or `speed: 0` pauses.
 
-The **diagram demo** shows ▶ / ⏸ / ↻ on the canvas toolbar when Flow is on, plus sidebar Loop / Once / mode / speed.
+**Pause / resume:** `pauseFlow` freezes packets, dashes, and status **in place**; `resumeFlow` continues from that step (including mid-hop and between-run gaps). After `playback: 'once'` finishes, use `replayFlow` to start over. Changing mode/path via `applyFlow` still rebuilds from the start.
+
+The **diagram demo** shows ▶ / ⏸ / ↻ on the canvas toolbar when Flow is on, plus sidebar Loop / Once / mode / speed / Status tint.
 
 ---
 
@@ -135,5 +177,6 @@ Org / mind-map / schematic re-route still call `refreshFlow` when `diagramState.
 
 - Prefer **one packet + a defined `paths` list** for storytelling; ambient all-edge packets get noisy on large networks.
 - Use `playback: 'once'` + `replayFlow` for step-through demos.
+- Keep `statusHighlight` on (default with paths) so viewers can see progress at a glance; use `highlight: 'none'` if you only want status tint.
 - Combine with the diagram editor: users can bend wires; flow re-binds to updated `edgePoints` after reroute.
 - Low-level stroke motion without diagrams: see [Animation guide](./animation-guide.md) (`dashOffset`, `motionPath`).

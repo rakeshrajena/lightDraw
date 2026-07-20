@@ -13,7 +13,7 @@
     <header class="demo-header">
       <span class="demo-badge">Diagram Module</span>
       <h1>Diagram Gallery</h1>
-      <p>Drag nodes to move. Select a node to resize or rotate. Double-click wires for bends. Use <strong>Flow</strong> to animate wires and highlight active steps.</p>
+      <p>Drag nodes to move. Select a node to resize or rotate. Double-click wires for bends. Use <strong>Flow</strong> for dashes/packets plus grey→yellow→green status tint on the active path.</p>
     </header>
     <main class="demo-main">
       <div class="demo-layout-split">
@@ -48,6 +48,10 @@
               <input type="checkbox" id="flow-enabled" checked>
             </label>
             <label class="demo-flow-row">
+              <span>Status tint</span>
+              <input type="checkbox" id="flow-status" checked title="Idle grey → active yellow → done green on path nodes and edges">
+            </label>
+            <label class="demo-flow-row">
               <span>Mode</span>
               <select id="flow-mode">
                 <option value="both" selected>Dash + packet</option>
@@ -67,6 +71,9 @@
               <input type="range" id="flow-speed" min="0.25" max="3" step="0.25" value="1">
               <span id="flow-speed-label">1×</span>
             </label>
+            <p class="demo-diagram-info__desc" style="margin:0.35rem 0 0;font-size:0.75rem;opacity:0.8">
+              Status tint needs packet or dash+packet mode. Paths are set for Flowchart, State, Pipeline, Network, and UML.
+            </p>
           </div>
         </aside>
         <div class="demo-canvas-wrap demo-canvas-diagram" id="diagram-canvas-wrap">
@@ -110,7 +117,7 @@
       network: {
         category: 'Systems',
         title: 'Network Topology',
-        desc: 'Standard Cisco/Visio-style icons — routers, firewalls, servers, cloud, IoT, and more.',
+        desc: 'Cisco/Visio-style icons with wire flow — traffic paths tint grey→yellow→green as packets travel.',
       },
       can: {
         category: 'Systems',
@@ -130,7 +137,7 @@
       uml: {
         category: 'Structure',
         title: 'UML Class',
-        desc: 'Classes with compartments and inheritance or association connectors.',
+        desc: 'Classes with inheritance/composition; Flow animates relation paths with status tint.',
       },
       org: {
         category: 'Structure',
@@ -242,6 +249,26 @@
           path: ['ingest', 'validate', 'transform', 'build', 'deploy'],
         };
       }
+      if (sampleKey === 'network') {
+        return {
+          paths: [
+            ['inet', 'fw', 'r1', 'sw', 'db', 'redis'],
+            ['inet', 'fw', 'r1', 'sw', 'lb', 'ap', 'pc'],
+            ['cloud', 'fw', 'r1', 'sw', 'web', 'app', 'db'],
+          ],
+          pathGapMs: 500,
+        };
+      }
+      if (sampleKey === 'uml') {
+        return {
+          paths: [
+            ['shape', 'node'],
+            ['group', 'node'],
+            ['group', 'shape'],
+          ],
+          pathGapMs: 450,
+        };
+      }
       return {};
     }
 
@@ -253,12 +280,15 @@
         playback: document.getElementById('flow-playback')?.value || 'loop',
         paused: false,
         highlight: 'pulse',
+        statusHighlight: document.getElementById('flow-status')?.checked !== false,
+        statusEdges: document.getElementById('flow-status')?.checked !== false,
         ...defaultFlowPath(currentDiagram),
       };
       return { width: canvasW, height: canvasH, flow, ...extra };
     }
 
     function readFlowUi() {
+      const statusOn = document.getElementById('flow-status')?.checked !== false;
       return {
         enabled: document.getElementById('flow-enabled').checked,
         speed: Number(document.getElementById('flow-speed').value),
@@ -266,6 +296,8 @@
         playback: document.getElementById('flow-playback').value,
         highlight: 'pulse',
         paused: false,
+        statusHighlight: statusOn,
+        statusEdges: statusOn,
         ...defaultFlowPath(currentDiagram),
       };
     }
@@ -300,6 +332,7 @@
 
     function wireFlowControls() {
       const enabled = document.getElementById('flow-enabled');
+      const status = document.getElementById('flow-status');
       const mode = document.getElementById('flow-mode');
       const playback = document.getElementById('flow-playback');
       const speed = document.getElementById('flow-speed');
@@ -315,6 +348,7 @@
         applyFlowFromUi();
       };
       enabled.addEventListener('change', onChange);
+      status?.addEventListener('change', onChange);
       mode.addEventListener('change', onChange);
       playback.addEventListener('change', onChange);
       speed.addEventListener('input', onChange);

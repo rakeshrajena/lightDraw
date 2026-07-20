@@ -9,12 +9,23 @@ import {
   isDiagramFlowPlaying,
   edgePointsToPathD,
   getEdgeStrokePolyline,
+  createFlowStatusMap,
+  nodeIdsFromHops,
+  DEFAULT_FLOW_STATUS_COLORS,
+  resolveFlowStatusColors,
 } from '../../src/diagram';
 import { AnimationEngine } from '../../src/animation/Animation';
 import { findEdgeLayer } from '../../src/diagram/editor/collect';
 import { createTestApp, createTestContainer } from '../helpers';
 import type { App } from '../../src/App';
 import type { Group } from '../../src/shapes/Group';
+import type { Node } from '../../src/Node';
+
+function statusChrome(root: Group): Node[] {
+  const overlay = root.children.find((c) => c.metadata?.diagramFlowOverlay) as Group | undefined;
+  if (!overlay) return [];
+  return overlay.children.filter((c) => c.metadata?.flowStatusChrome);
+}
 
 function tinyFlow(app: App) {
   return Diagram.flowchart(
@@ -169,12 +180,19 @@ describe('diagram flow animation', () => {
     app.add(root);
     applyDiagramFlow(app, root, { enabled: true, mode: 'dash', highlight: 'none' });
     expect(isDiagramFlowPlaying(root)).toBe(true);
+    const rtBefore = root.metadata.diagramFlowRuntime as { softPaused?: boolean; handles?: unknown[] };
+    expect(rtBefore?.handles?.length).toBeGreaterThan(0);
     pauseDiagramFlow(app, root);
     expect(isDiagramFlowPlaying(root)).toBe(false);
     const paused = (root.metadata.diagramState as { flow?: { paused?: boolean } }).flow;
     expect(paused?.paused).toBe(true);
+    const rtPaused = root.metadata.diagramFlowRuntime as { softPaused?: boolean; handles?: unknown[] };
+    expect(rtPaused?.softPaused).toBe(true);
+    expect(rtPaused?.handles?.length).toBe(rtBefore.handles!.length);
     resumeDiagramFlow(app, root);
     expect(isDiagramFlowPlaying(root)).toBe(true);
+    const rtResumed = root.metadata.diagramFlowRuntime as { softPaused?: boolean };
+    expect(rtResumed?.softPaused).toBe(false);
   });
 
   it('replay restarts after once', () => {
@@ -218,5 +236,229 @@ describe('diagram flow animation', () => {
     const flow = (root.metadata.diagramState as { flow?: { enabled?: boolean } }).flow;
     expect(flow?.enabled).toBe(true);
     expect(isDiagramFlowPlaying(root)).toBe(true);
+  });
+
+  it('createFlowStatusMap tracks idle → active → done and reset', () => {
+    const map = createFlowStatusMap();
+    expect(nodeIdsFromHops([{ from: 'a', to: 'b' }, { from: 'b', to: 'c' }])).toEqual([
+      'a',
+      'b',
+      'c',
+    ]);
+    map.beginRun(['a', 'b', 'c'], ['a->b', 'b->c']);
+    expect(map.snapshot()).toEqual({ a: 'active', b: 'idle', c: 'idle' });
+    expect(map.edgeSnapshot()).toEqual({ 'a->b': 'idle', 'b->c': 'idle' });
+    map.hopStart('a', 'b');
+    expect(map.edgeSnapshot()['a->b']).toBe('active');
+    map.hopArrive('a', 'b', false);
+    expect(map.snapshot()).toEqual({ a: 'done', b: 'active', c: 'idle' });
+    expect(map.edgeSnapshot()['a->b']).toBe('done');
+    map.hopArrive('b', 'c', true);
+    expect(map.snapshot()).toEqual({ a: 'done', b: 'done', c: 'done' });
+    map.reset();
+    expect(map.snapshot()).toEqual({});
+    map.beginRun(['a', 'b', 'c']);
+    expect(map.snapshot().a).toBe('active');
+    map.setError('b');
+    expect(map.snapshot().b).toBe('error');
+    map.applyOverrides({ c: 'done' });
+    expect(map.snapshot().c).toBe('done');
+  });
+
+  it('statusHighlight defaults on with paths and paints idle/active chrome', () => {
+    const root = tinyFlow(app);
+    app.add(root);
+    applyDiagramFlow(app, root, {
+      enabled: true,
+      mode: 'packet',
+      highlight: 'none',
+      path: ['a', 'b', 'c'],
+      statusColors: { active: '#ffcc00', idle: '#8899aa' },
+    });
+    const flow = root.metadata.diagramState as {
+      flow?: {
+        statusHighlight?: boolean;
+        statusEdges?: boolean;
+        statusColors?: { active?: string };
+      };
+    };
+    expect(flow.flow?.statusHighlight).toBe(true);
+    expect(flow.flow?.statusEdges).toBe(true);
+    expect(flow.flow?.statusColors?.active).toBe('#ffcc00');
+    expect(resolveFlowStatusColors(flow.flow?.statusColors).idle).toBe('#8899aa');
+    expect(resolveFlowStatusColors(undefined).done).toBe(DEFAULT_FLOW_STATUS_COLORS.done);
+
+    const chrome = statusChrome(root);
+    expect(chrome.length).toBe(3);
+    const byId = Object.fromEntries(
+      chrome.map((c) => [c.metadata?.flowStatusNodeId as string, c.metadata?.flowStatus as string])
+    );
+    expect(byId).toEqual({ a: 'active', b: 'idle', c: 'idle' });
+    const active = chrome.find((c) => c.metadata?.flowStatusNodeId === 'a');
+    expect(active?.stroke).toBe('#ffcc00');
+
+    const edgeLayer = findEdgeLayer(root)!;
+    const firstEdge = edgeLayer.children[0] as Group;
+    expect(firstEdge.metadata?.flowEdgeStatus).toBe('active');
+    const stroke = getEdgeStrokePolyline(firstEdge);
+    expect(stroke?.stroke).toBe('#ffcc00');
+  });
+
+  it('statusHighlight: false skips status chrome', () => {
+    const root = tinyFlow(app);
+    app.add(root);
+    applyDiagramFlow(app, root, {
+      enabled: true,
+      mode: 'packet',
+      highlight: 'none',
+      path: ['a', 'b', 'c'],
+      statusHighlight: false,
+    });
+    const flow = root.metadata.diagramState as { flow?: { statusHighlight?: boolean } };
+    expect(flow.flow?.statusHighlight).toBe(false);
+    expect(statusChrome(root).length).toBe(0);
+  });
+
+  it('statusHighlight defaults off without paths', () => {
+    const root = tinyFlow(app);
+    app.add(root);
+    applyDiagramFlow(app, root, {
+      enabled: true,
+      mode: 'dash',
+      highlight: 'none',
+    });
+    const flow = root.metadata.diagramState as { flow?: { statusHighlight?: boolean } };
+    expect(flow.flow?.statusHighlight).toBe(false);
+    expect(statusChrome(root).length).toBe(0);
+  });
+
+  it('missing hop marks error and pauses when nothing resolves', () => {
+    const root = tinyFlow(app);
+    app.add(root);
+    applyDiagramFlow(app, root, {
+      enabled: true,
+      mode: 'packet',
+      highlight: 'none',
+      path: ['a', 'missing', 'c'],
+    });
+    const flow = root.metadata.diagramState as { flow?: { paused?: boolean } };
+    expect(flow.flow?.paused).toBe(true);
+    expect(isDiagramFlowPlaying(root)).toBe(false);
+    const chrome = statusChrome(root);
+    const err = chrome.find((c) => c.metadata?.flowStatus === 'error');
+    expect(err?.metadata?.flowStatusNodeId).toBe('a');
+  });
+
+  it('missing hop in a later run does not block a valid first run', () => {
+    const root = tinyFlow(app);
+    app.add(root);
+    applyDiagramFlow(app, root, {
+      enabled: true,
+      mode: 'packet',
+      highlight: 'none',
+      paths: [
+        ['a', 'b', 'c'],
+        ['a', 'missing', 'c'],
+      ],
+      pathGapMs: 0,
+    });
+    const flow = root.metadata.diagramState as { flow?: { paused?: boolean } };
+    expect(flow.flow?.paused).not.toBe(true);
+    expect(isDiagramFlowPlaying(root)).toBe(true);
+    const chrome = statusChrome(root);
+    expect(chrome.some((c) => c.metadata?.flowStatusNodeId === 'a')).toBe(true);
+  });
+
+  it('declared path never falls through to ambient packets', () => {
+    const root = tinyFlow(app);
+    app.add(root);
+    applyDiagramFlow(app, root, {
+      enabled: true,
+      mode: 'packet',
+      highlight: 'none',
+      statusPauseOnError: false,
+      path: ['a', 'missing', 'c'],
+    });
+    const edgeLayer = findEdgeLayer(root)!;
+    const packets = edgeLayer.children.flatMap((e) =>
+      (e as Group).children.filter((c) => c.metadata?.diagramFlowPacket)
+    );
+    expect(packets.length).toBe(0);
+  });
+
+  it('pause keeps status chrome and the same in-flight packet', () => {
+    const root = tinyFlow(app);
+    app.add(root);
+    applyDiagramFlow(app, root, {
+      enabled: true,
+      mode: 'packet',
+      highlight: 'none',
+      path: ['a', 'b', 'c'],
+    });
+    expect(statusChrome(root).length).toBe(3);
+    const edgeLayer = findEdgeLayer(root)!;
+    const packetBefore = edgeLayer.children.flatMap((e) =>
+      (e as Group).children.filter((c) => c.metadata?.diagramFlowPacket)
+    )[0];
+    expect(packetBefore).toBeTruthy();
+    const xBefore = packetBefore.x;
+    const yBefore = packetBefore.y;
+
+    pauseDiagramFlow(app, root);
+    expect(isDiagramFlowPlaying(root)).toBe(false);
+    const chrome = statusChrome(root);
+    expect(chrome.length).toBe(3);
+    const byId = Object.fromEntries(
+      chrome.map((c) => [c.metadata?.flowStatusNodeId as string, c.metadata?.flowStatus as string])
+    );
+    expect(byId.a).toBe('active');
+
+    const packetPaused = edgeLayer.children.flatMap((e) =>
+      (e as Group).children.filter((c) => c.metadata?.diagramFlowPacket)
+    )[0];
+    expect(packetPaused).toBe(packetBefore);
+    expect(packetPaused.x).toBe(xBefore);
+    expect(packetPaused.y).toBe(yBefore);
+
+    resumeDiagramFlow(app, root);
+    expect(isDiagramFlowPlaying(root)).toBe(true);
+    const packetResumed = edgeLayer.children.flatMap((e) =>
+      (e as Group).children.filter((c) => c.metadata?.diagramFlowPacket)
+    )[0];
+    expect(packetResumed).toBe(packetBefore);
+  });
+
+  it('statusOverrides pin node status from JSON', () => {
+    const root = tinyFlow(app);
+    app.add(root);
+    applyDiagramFlow(app, root, {
+      enabled: true,
+      mode: 'packet',
+      highlight: 'none',
+      path: ['a', 'b', 'c'],
+      statusOverrides: { c: 'error' },
+    });
+    const flow = root.metadata.diagramState as {
+      flow?: { statusOverrides?: Record<string, string> };
+    };
+    expect(flow.flow?.statusOverrides?.c).toBe('error');
+    const chrome = statusChrome(root);
+    const pinned = chrome.find((c) => c.metadata?.flowStatusNodeId === 'c');
+    expect(pinned?.metadata?.flowStatus).toBe('error');
+    expect(pinned?.stroke).toBe(DEFAULT_FLOW_STATUS_COLORS.error);
+  });
+
+  it('missing-hop error wins over statusOverrides on the same node', () => {
+    const root = tinyFlow(app);
+    app.add(root);
+    applyDiagramFlow(app, root, {
+      enabled: true,
+      mode: 'packet',
+      highlight: 'none',
+      path: ['a', 'missing', 'c'],
+      statusOverrides: { a: 'done' },
+    });
+    const err = statusChrome(root).find((c) => c.metadata?.flowStatusNodeId === 'a');
+    expect(err?.metadata?.flowStatus).toBe('error');
   });
 });

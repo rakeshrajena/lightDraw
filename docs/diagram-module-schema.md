@@ -95,7 +95,7 @@ JSON `rotation` is persisted on flowchart / network / pipeline / state / class /
 
 ## Wire flow animation
 
-Animate connectors to show direction of travel, with optional node highlight:
+Animate connectors to show direction of travel, with optional motion highlight and path status tint:
 
 ```javascript
 LightDraw.Diagram.applyFlow(app, chart, {
@@ -104,7 +104,9 @@ LightDraw.Diagram.applyFlow(app, chart, {
   paused: false,
   playback: 'loop',      // or 'once'
   mode: 'both',          // 'dash' | 'packet' | 'both'
-  highlight: 'pulse',    // 'pulse' | 'breathe' | 'flash' | 'none'
+  highlight: 'pulse',    // motion chrome: 'pulse' | 'breathe' | 'flash' | 'none'
+  // statusHighlight: true by default when paths are set
+  // statusColors: { idle, active, done, error },
   // Ordered node path (single run):
   // path: ['start', 'check', 'process', 'end'],
   // Multiple runs in index order (run 0, then run 1, …):
@@ -135,8 +137,13 @@ LightDraw.Diagram.stopFlow(chart);
 | `pathEdges` / `pathsEdges` | Same idea with `{ from, to }` hops |
 | `mode: 'dash'` | Marching dashes on path edges |
 | `mode: 'packet'` | Dot travels hops; flashes target on arrival |
-| `highlight: 'pulse'` | Soft ring on active hop endpoints |
-| `paused` / canvas ▶⏸ | Pause without clearing options |
+| `highlight: 'pulse'` | Soft ring on active hop endpoints (motion chrome) |
+| `statusHighlight` | Soft idle/active/done tint on path nodes (default on with paths) |
+| `statusEdges` | Tint path wires with the same palette (default on with status) |
+| `statusColors` | Optional `{ idle, active, done, error }` color overrides |
+| `statusOverrides` | Force `{ [nodeId]: status }` after lifecycle paint |
+| `statusPauseOnError` | Pause when a declared path resolves to zero playable hops (default true) |
+| `paused` / canvas ▶⏸ | Soft pause in place; resume continues mid-step |
 
 Persist under builder options / JSON: `{ flow: { enabled, playback, paths, … } }`.
 Editor re-route keeps `diagramState.flow` and restarts when not paused.

@@ -41,7 +41,7 @@ const DEMOS = [
   {
     id: 'diagram',
     title: 'Diagram',
-    blurb: 'Flowcharts, networks, org charts — drag, resize, rotate, wire flow, live JSON.',
+    blurb: 'Flowcharts, networks, org charts — drag, resize, rotate, wire flow + status tint, live JSON.',
     src: 'examples/demo-diagram.html?embed=1',
     full: 'examples/demo-diagram.html',
   },
