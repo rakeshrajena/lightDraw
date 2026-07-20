@@ -147,17 +147,19 @@ Without any path, packets animate on all edges (or `activeEdges` filter). Status
 | API | Purpose |
 |-----|---------|
 | `Diagram.applyFlow(app, root, opts)` | Start / update options |
-| `Diagram.pauseFlow(app, root)` | Soft pause (keeps options) |
-| `Diagram.resumeFlow(app, root)` | Resume |
+| `Diagram.pauseFlow(app, root)` | Soft pause in place (resume continues mid-step) |
+| `Diagram.resumeFlow(app, root)` | Resume from paused step |
 | `Diagram.toggleFlowPause(app, root)` | Toggle; returns whether playing |
 | `Diagram.replayFlow(app, root)` | Restart from the beginning |
 | `Diagram.stopFlow(root)` | Stop animations (optional `clearState`) |
 | `Diagram.isFlowPlaying(root)` | Current playing state |
 | `Diagram.refreshFlow(app, root)` | Re-apply from `diagramState.flow` |
 
-`speed`: playback rate (`1` = default, `2` = 2×). `paused: true` or `speed: 0` pauses while keeping a static dash preview when enabled.
+`speed`: playback rate (`1` = default, `2` = 2×). `paused: true` or `speed: 0` pauses.
 
-The **diagram demo** shows ▶ / ⏸ / ↻ on the canvas toolbar when Flow is on, plus sidebar Loop / Once / mode / speed.
+**Pause / resume:** `pauseFlow` freezes packets, dashes, and status **in place**; `resumeFlow` continues from that step (including mid-hop and between-run gaps). After `playback: 'once'` finishes, use `replayFlow` to start over. Changing mode/path via `applyFlow` still rebuilds from the start.
+
+The **diagram demo** shows ▶ / ⏸ / ↻ on the canvas toolbar when Flow is on, plus sidebar Loop / Once / mode / speed / Status tint.
 
 ---
 

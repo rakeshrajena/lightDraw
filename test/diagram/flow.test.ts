@@ -180,12 +180,19 @@ describe('diagram flow animation', () => {
     app.add(root);
     applyDiagramFlow(app, root, { enabled: true, mode: 'dash', highlight: 'none' });
     expect(isDiagramFlowPlaying(root)).toBe(true);
+    const rtBefore = root.metadata.diagramFlowRuntime as { softPaused?: boolean; handles?: unknown[] };
+    expect(rtBefore?.handles?.length).toBeGreaterThan(0);
     pauseDiagramFlow(app, root);
     expect(isDiagramFlowPlaying(root)).toBe(false);
     const paused = (root.metadata.diagramState as { flow?: { paused?: boolean } }).flow;
     expect(paused?.paused).toBe(true);
+    const rtPaused = root.metadata.diagramFlowRuntime as { softPaused?: boolean; handles?: unknown[] };
+    expect(rtPaused?.softPaused).toBe(true);
+    expect(rtPaused?.handles?.length).toBe(rtBefore.handles!.length);
     resumeDiagramFlow(app, root);
     expect(isDiagramFlowPlaying(root)).toBe(true);
+    const rtResumed = root.metadata.diagramFlowRuntime as { softPaused?: boolean };
+    expect(rtResumed?.softPaused).toBe(false);
   });
 
   it('replay restarts after once', () => {
@@ -379,7 +386,7 @@ describe('diagram flow animation', () => {
     expect(packets.length).toBe(0);
   });
 
-  it('pause keeps status chrome from the last snapshot', () => {
+  it('pause keeps status chrome and the same in-flight packet', () => {
     const root = tinyFlow(app);
     app.add(root);
     applyDiagramFlow(app, root, {
@@ -389,6 +396,14 @@ describe('diagram flow animation', () => {
       path: ['a', 'b', 'c'],
     });
     expect(statusChrome(root).length).toBe(3);
+    const edgeLayer = findEdgeLayer(root)!;
+    const packetBefore = edgeLayer.children.flatMap((e) =>
+      (e as Group).children.filter((c) => c.metadata?.diagramFlowPacket)
+    )[0];
+    expect(packetBefore).toBeTruthy();
+    const xBefore = packetBefore.x;
+    const yBefore = packetBefore.y;
+
     pauseDiagramFlow(app, root);
     expect(isDiagramFlowPlaying(root)).toBe(false);
     const chrome = statusChrome(root);
@@ -397,6 +412,20 @@ describe('diagram flow animation', () => {
       chrome.map((c) => [c.metadata?.flowStatusNodeId as string, c.metadata?.flowStatus as string])
     );
     expect(byId.a).toBe('active');
+
+    const packetPaused = edgeLayer.children.flatMap((e) =>
+      (e as Group).children.filter((c) => c.metadata?.diagramFlowPacket)
+    )[0];
+    expect(packetPaused).toBe(packetBefore);
+    expect(packetPaused.x).toBe(xBefore);
+    expect(packetPaused.y).toBe(yBefore);
+
+    resumeDiagramFlow(app, root);
+    expect(isDiagramFlowPlaying(root)).toBe(true);
+    const packetResumed = edgeLayer.children.flatMap((e) =>
+      (e as Group).children.filter((c) => c.metadata?.diagramFlowPacket)
+    )[0];
+    expect(packetResumed).toBe(packetBefore);
   });
 
   it('statusOverrides pin node status from JSON', () => {

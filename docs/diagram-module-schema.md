@@ -143,7 +143,7 @@ LightDraw.Diagram.stopFlow(chart);
 | `statusColors` | Optional `{ idle, active, done, error }` color overrides |
 | `statusOverrides` | Force `{ [nodeId]: status }` after lifecycle paint |
 | `statusPauseOnError` | Pause when a declared path resolves to zero playable hops (default true) |
-| `paused` / canvas ▶⏸ | Pause without clearing options |
+| `paused` / canvas ▶⏸ | Soft pause in place; resume continues mid-step |
 
 Persist under builder options / JSON: `{ flow: { enabled, playback, paths, … } }`.
 Editor re-route keeps `diagramState.flow` and restarts when not paused.

@@ -109,6 +109,8 @@ interface FlowRuntime {
   handles: StopHandle[];
   options: NormalizedFlow;
   playing: boolean;
+  /** True when paused via soft pause (handles still alive; resume continues mid-step). */
+  softPaused?: boolean;
 }
 
 interface FlowStatusSnapshot {
@@ -828,6 +830,14 @@ function startAmbientPacket(
       stopped = true;
       control?.stop();
     },
+    pause: () => {
+      if (stopped) return;
+      control?.pause?.();
+    },
+    resume: () => {
+      if (stopped) return;
+      control?.resume?.();
+    },
   });
   run();
 }
@@ -867,6 +877,9 @@ function startPathSequence(
   let packet: Node | null = null;
   let control: StopHandle | null = null;
   let gapTimer: ReturnType<typeof setTimeout> | null = null;
+  let gapDeadline: number | null = null;
+  let gapRemainingMs: number | null = null;
+  let softPaused = false;
   const pulseHandles: StopHandle[] = [];
   const statusMap = statusOpts ? createFlowStatusMap() : null;
 
@@ -897,6 +910,26 @@ function startPathSequence(
       }
     }
     pulseHandles.length = 0;
+  };
+
+  const pausePulseHandles = (): void => {
+    for (const h of pulseHandles) {
+      try {
+        h.pause?.();
+      } catch {
+        /* ignore */
+      }
+    }
+  };
+
+  const resumePulseHandles = (): void => {
+    for (const h of pulseHandles) {
+      try {
+        h.resume?.();
+      } catch {
+        /* ignore */
+      }
+    }
   };
 
   const placePacket = (edge: Group): Node => {
@@ -941,12 +974,16 @@ function startPathSequence(
     }
     const go = (): void => {
       gapTimer = null;
-      if (stopped) return;
+      gapDeadline = null;
+      gapRemainingMs = null;
+      if (stopped || softPaused) return;
       const next = validRuns[runIndex];
       if (next) beginStatusRun(next);
       runHop();
     };
     if (pathGapMs > 0) {
+      gapDeadline = Date.now() + pathGapMs;
+      gapRemainingMs = pathGapMs;
       gapTimer = setTimeout(go, pathGapMs);
     } else {
       go();
@@ -954,7 +991,7 @@ function startPathSequence(
   };
 
   const runHop = (): void => {
-    if (stopped) return;
+    if (stopped || softPaused) return;
     const hops = validRuns[runIndex];
     if (!hops || hopIndex >= hops.length) {
       advanceAfterRun();
@@ -973,7 +1010,7 @@ function startPathSequence(
       duration: dur,
       easing: 'linear',
       onComplete: () => {
-        if (stopped) return;
+        if (stopped || softPaused) return;
         if (highlight !== 'none') {
           flashNode(app, root, getOverlay(), hop.to, handles);
         }
@@ -991,16 +1028,56 @@ function startPathSequence(
   handles.push({
     stop: () => {
       stopped = true;
+      softPaused = false;
       control?.stop();
       stopPulseHandles();
       if (gapTimer != null) {
         clearTimeout(gapTimer);
         gapTimer = null;
       }
+      gapDeadline = null;
+      gapRemainingMs = null;
       if (packet?.parent) {
         (packet.parent as Group).remove(packet);
         packet.destroy();
         packet = null;
+      }
+    },
+    pause: () => {
+      if (stopped || softPaused) return;
+      softPaused = true;
+      control?.pause?.();
+      pausePulseHandles();
+      if (gapTimer != null && gapDeadline != null) {
+        clearTimeout(gapTimer);
+        gapTimer = null;
+        gapRemainingMs = Math.max(0, gapDeadline - Date.now());
+        gapDeadline = null;
+      }
+    },
+    resume: () => {
+      if (stopped || !softPaused) return;
+      softPaused = false;
+      control?.resume?.();
+      resumePulseHandles();
+      if (gapRemainingMs != null) {
+        const wait = gapRemainingMs;
+        gapRemainingMs = null;
+        const go = (): void => {
+          gapTimer = null;
+          gapDeadline = null;
+          if (stopped || softPaused) return;
+          const next = validRuns[runIndex];
+          if (next) beginStatusRun(next);
+          runHop();
+        };
+        if (wait > 0) {
+          gapDeadline = Date.now() + wait;
+          gapRemainingMs = wait;
+          gapTimer = setTimeout(go, wait);
+        } else {
+          go();
+        }
       }
     },
   });
@@ -1097,7 +1174,7 @@ export function applyDiagramFlow(
     return;
   }
 
-  // Paused / speed 0: keep dash preview + last status chrome (soft pause)
+  // Soft pause keeps mid-hop progress; hard pause (no runtime) still shows last status snapshot.
   if (!isPlaying) {
     if (edgeLayer && (merged.mode === 'dash' || merged.mode === 'both')) {
       applyStaticDashes(edgeLayer, merged, hopsSpec);
@@ -1346,18 +1423,60 @@ export function maybeApplyDiagramFlow(
   applyDiagramFlow(app, root, flow as DiagramFlowOptions);
 }
 
-/** Pause flow (keeps options; dashes stay as preview). */
+/** Pause flow in place (packet / dashes / status keep position; resume continues). */
 export function pauseDiagramFlow(app: App, root: Group): void {
   const prev = (getDiagramState(root).flow as DiagramFlowOptions | undefined) ?? {};
   if (prev.enabled === false) return;
+
+  const rt = root.metadata?.[FLOW_RUNTIME_KEY] as FlowRuntime | undefined;
+  if (rt?.playing && rt.handles.length > 0) {
+    for (const h of rt.handles) {
+      try {
+        h.pause?.();
+      } catch {
+        /* ignore */
+      }
+    }
+    rt.playing = false;
+    rt.softPaused = true;
+    setDiagramState(root, {
+      flow: { ...prev, paused: true },
+    });
+    root.markDirty();
+    app.requestRender?.();
+    return;
+  }
+
+  // Fallback: no live runtime (already stopped) — persist paused flag + static chrome
   applyDiagramFlow(app, root, { ...prev, paused: true });
 }
 
-/** Resume flow from paused state. */
+/** Resume flow from the paused step (soft pause) or restart if no live runtime. */
 export function resumeDiagramFlow(app: App, root: Group): void {
   const prev = (getDiagramState(root).flow as DiagramFlowOptions | undefined) ?? {};
   if (prev.enabled === false) return;
   const speed = typeof prev.speed === 'number' && prev.speed > 0 ? prev.speed : 1;
+
+  const rt = root.metadata?.[FLOW_RUNTIME_KEY] as FlowRuntime | undefined;
+  if (rt?.softPaused && rt.handles.length > 0) {
+    for (const h of rt.handles) {
+      try {
+        h.resume?.();
+      } catch {
+        /* ignore */
+      }
+    }
+    rt.playing = true;
+    rt.softPaused = false;
+    setDiagramState(root, {
+      flow: { ...prev, paused: false, speed },
+    });
+    root.markDirty();
+    app.requestRender?.();
+    return;
+  }
+
+  // Fallback: rebuild from the start (e.g. after once finished / hard stop)
   applyDiagramFlow(app, root, { ...prev, paused: false, speed });
 }
 

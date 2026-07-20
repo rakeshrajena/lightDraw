@@ -38,7 +38,7 @@ Docs: [automotive-widgets-schema.md](./docs/automotive-widgets-schema.md) · [au
 - Path-driven soft **status highlight**: idle (grey) → active (yellow) → done (green); error (red) on missing hops
 - **Edge tint** (`statusEdges`, default on with status): wires follow the same palette
 - **`statusOverrides`**: pin per-node status from JSON (e.g. `{ check: 'error' }`)
-- Soft **pause keeps** the last status snapshot (nodes + edges)
+- Soft **pause keeps** the last status snapshot (nodes + edges); live pause freezes mid-hop and **resume continues** from that step
 - Missing hops skipped with error mark; pause only when no hops resolve; declared paths never fall through to ambient packets
 - Defaults on when `path` / `paths` / `pathEdges` are set; `statusHighlight: false` restores motion-only chrome
 - Optional `statusColors: { idle, active, done, error }`; greens persist until run complete, then reset before next loop/run
