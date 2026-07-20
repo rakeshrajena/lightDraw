@@ -11,12 +11,13 @@ import {
   createDiagramGroup,
   normalizeDiagramData,
   readCanvasSize,
+  separateOverlappingNodes,
 } from '../helpers';
 import {
   createNetworkNode,
 } from '../primitives';
 import { collectObstacles } from '../router';
-import { connectNodes } from '../connectors';
+import { connectNodePairs } from '../connectors';
 import { listNetworkIconKinds } from '../networkIcons';
 import type { DiagramData } from '../types';
 import { maybeApplyDiagramFlow } from '../flow';
@@ -45,26 +46,44 @@ export function createNetworkDiagram(
     group.add(nodeGroup);
   }
 
+  separateOverlappingNodes([...nodeMap.values()], {
+    gap: 20,
+    canvasW: canvas.width,
+    canvasH: canvas.height,
+  });
+
   const allNodes = [...nodeMap.values()];
   const obstacles = collectObstacles(allNodes);
   const edgeLayer = app.group({ zIndex: -10, listening: false }) as Group;
   edgeLayer.metadata.diagramEdgeLayer = true;
+  const pairs = [];
   for (const edge of edges) {
     const from = nodeMap.get(edge.from);
     const to = nodeMap.get(edge.to);
     if (!from || !to) continue;
-    edgeLayer.add(
-      connectNodes(app, from, to, obstacles, {
-        parent: group,
-        obstacleNodes: allNodes,
-        stroke: getActiveDiagram().edge,
-        glowColor: getActiveDiagram().edgeGlow,
-        glow: false,
-        strokeWidth: edgeWidth,
+    pairs.push({
+      from,
+      to,
+      options: {
         label: edge.label,
-        cornerRadius: 12,
-      })
-    );
+        edgeId: `${edge.from}->${edge.to}`,
+        fromId: edge.from,
+        toId: edge.to,
+      },
+    });
+  }
+  for (const g of connectNodePairs(app, pairs, {
+    parent: group,
+    obstacleNodes: allNodes,
+    obstacles,
+    stroke: getActiveDiagram().edge,
+    glowColor: getActiveDiagram().edgeGlow,
+    glow: false,
+    strokeWidth: edgeWidth,
+    cornerRadius: 10,
+    style: 'smart',
+  })) {
+    edgeLayer.add(g);
   }
   group.add(edgeLayer);
 

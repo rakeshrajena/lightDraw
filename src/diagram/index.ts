@@ -57,7 +57,7 @@ export {
 export { routeConnector, collectObstacles, collectObstaclesInParent, getAnchor } from './router';
 export type { RouteStyle } from './router';
 export { createSymbol, buildSchematic, rewireSchematic, Symbols } from './symbols';
-export { diagramToJSON, fitDiagramToBounds, resolveGridLayout, readCanvasSize } from './helpers';
+export { diagramToJSON, fitDiagramToBounds, resolveGridLayout, readCanvasSize, separateOverlappingNodes } from './helpers';
 export { installDiagramEditor, uninstallDiagramEditor, DiagramEditor } from './editor';
 
 export type {

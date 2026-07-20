@@ -4,7 +4,7 @@ import type { Group } from '../shapes/Group';
 import { getActiveDiagram } from './theme';
 import type { Obstacle } from './types';
 import { computeRoutePoints, getAnchor, collectObstaclesInParent, type RouteStyle } from './router';
-import { getConnectorAnchors, getCardSideAnchor } from './coords';
+import { getConnectorAnchors, getCardSideAnchor, planEdgeFanAnchors } from './coords';
 import { createEdgeLabel } from './primitives';
 import { quadraticPathD, quadraticToPoints, mermaidHorizontalLink, mermaidOrgBusPaths, pathThroughWaypoints } from './pathUtils';
 
@@ -32,6 +32,14 @@ export interface ConnectorOptions {
   fromId?: string;
   toId?: string;
   cornerRadius?: number;
+  /** 0..1 fan position on the source card side (0.5 = mid). */
+  fromAlong?: number;
+  /** 0..1 fan position on the target card side (0.5 = mid). */
+  toAlong?: number;
+  /** Precomputed anchors (from fan planner); skips getConnectorAnchors. */
+  anchors?: { x1: number; y1: number; x2: number; y2: number };
+  /** Shift orthogonal mid-rails so parallel wires stay visually separate. */
+  railOffset?: number;
 }
 
 /** Angle of segment from (x1,y1) to (x2,y2) in radians */
@@ -212,7 +220,16 @@ export function createConnector(
   const points =
     waypoints.length > 0
       ? pathThroughWaypoints(x1, y1, waypoints, x2, y2, 16)
-      : computeRoutePoints(x1, y1, x2, y2, style, obstacles, options.cornerRadius);
+      : computeRoutePoints(
+          x1,
+          y1,
+          x2,
+          y2,
+          style,
+          obstacles,
+          options.cornerRadius,
+          options.railOffset ?? 0
+        );
   const group = app.group({ listening: false }) as Group;
 
   const trimEnd = arrowEnd !== 'none' ? arrowSize * 0.72 : 0;
@@ -355,7 +372,7 @@ export function createCurvedConnector(
   return group;
 }
 
-/** Connect two diagram nodes with smart routing */
+/** Connect two diagram nodes with orthogonal (or curved) routing */
 export function connectNodes(
   app: App,
   from: Node,
@@ -370,8 +387,19 @@ export function connectNodes(
   let y2: number;
   let routeObstacles = obstacles;
 
-  if (parent) {
-    const anchors = getConnectorAnchors(from, to, parent);
+  if (options.anchors) {
+    x1 = options.anchors.x1;
+    y1 = options.anchors.y1;
+    x2 = options.anchors.x2;
+    y2 = options.anchors.y2;
+    if (parent && options.obstacleNodes && options.obstacleNodes.length > 0) {
+      routeObstacles = collectObstaclesInParent(options.obstacleNodes, parent, [from, to]);
+    }
+  } else if (parent) {
+    const anchors = getConnectorAnchors(from, to, parent, {
+      fromAlong: options.fromAlong,
+      toAlong: options.toAlong,
+    });
     x1 = anchors.x1;
     y1 = anchors.y1;
     x2 = anchors.x2;
@@ -390,7 +418,7 @@ export function connectNodes(
   }
 
   return createConnector(app, x1, y1, x2, y2, {
-    style: 'smart',
+    style: options.style ?? 'smart',
     fromId: options.fromId ?? (from.metadata?.diagramId as string | undefined),
     toId: options.toId ?? (to.metadata?.diagramId as string | undefined),
     edgeId:
@@ -400,6 +428,61 @@ export function connectNodes(
     waypoints: options.waypoints,
     obstacles: routeObstacles,
   });
+}
+
+export interface ConnectPairSpec {
+  from: Node;
+  to: Node;
+  options?: ConnectorOptions;
+}
+
+/**
+ * Connect many node pairs with shared fan-out planning so wires that leave
+ * or enter the same card side do not stack on top of each other.
+ * Mind-map / org bus wiring should not use this helper.
+ */
+export function connectNodePairs(
+  app: App,
+  pairs: ConnectPairSpec[],
+  shared: ConnectorOptions & { parent: Group; obstacleNodes?: Node[] }
+): Group[] {
+  const parent = shared.parent;
+  const obstacleNodes = shared.obstacleNodes ?? [];
+  const baseObstacles = shared.obstacles ?? [];
+
+  const plan = planEdgeFanAnchors(
+    pairs.map((p, i) => ({
+      key: p.options?.edgeId ?? `${String(p.from.metadata?.diagramId)}->${String(p.to.metadata?.diagramId)}#${i}`,
+      from: p.from,
+      to: p.to,
+    })),
+    parent
+  );
+
+  const out: Group[] = [];
+  for (let i = 0; i < pairs.length; i++) {
+    const p = pairs[i];
+    const key =
+      p.options?.edgeId ??
+      `${String(p.from.metadata?.diagramId)}->${String(p.to.metadata?.diagramId)}#${i}`;
+    const fan = plan.get(key);
+    const pairOpts: ConnectorOptions = {
+      ...shared,
+      ...p.options,
+      parent,
+      obstacleNodes,
+      obstacles: baseObstacles,
+      style: p.options?.style ?? shared.style ?? 'smart',
+      fromAlong: fan?.fromAlong,
+      toAlong: fan?.toAlong,
+      railOffset: fan?.railOffset ?? p.options?.railOffset ?? 0,
+      anchors: fan
+        ? { x1: fan.x1, y1: fan.y1, x2: fan.x2, y2: fan.y2 }
+        : undefined,
+    };
+    out.push(connectNodes(app, p.from, p.to, baseObstacles, pairOpts));
+  }
+  return out;
 }
 
 /** Draw a clean stroke polyline (Mermaid-like — no glow). */

@@ -1,6 +1,6 @@
 import type { App } from '../../App';
 import type { Group } from '../../shapes/Group';
-import { connectNodes, wireOrgChartConnectors, wireMindMapConnectors } from '../connectors';
+import { connectNodePairs, wireOrgChartConnectors, wireMindMapConnectors } from '../connectors';
 import { getActiveDiagram } from '../theme';
 import { collectObstacles } from '../router';
 import { rewireSchematic } from '../symbols';
@@ -19,7 +19,7 @@ export function rerouteDiagramEdges(app: App, root: Group, edges?: EditorEdgeRec
   stopDiagramFlow(root);
   const type = root.metadata?.diagramType as string | undefined;
 
-  // Keep Mermaid-style wiring for org / mind maps
+  // Keep Mermaid-style wiring for org / mind maps (mindmap stays curved branches)
   if (type === 'orgChart') {
     wireOrgChartConnectors(app, root);
     root.markDirty();
@@ -57,14 +57,15 @@ export function rerouteDiagramEdges(app: App, root: Group, edges?: EditorEdgeRec
 
   const obstacles = collectObstacles([...nodeMap.values()]);
   const allNodes = [...nodeMap.values()];
+  const pairs = [];
   for (const edge of records) {
     const from = findNodeByDiagramId(root, edge.from) ?? nodeMap.get(edge.from);
     const to = findNodeByDiagramId(root, edge.to) ?? nodeMap.get(edge.to);
     if (!from || !to) continue;
-    edgeLayer.add(
-      connectNodes(app, from, to, obstacles, {
-        parent: root,
-        obstacleNodes: allNodes,
+    pairs.push({
+      from,
+      to,
+      options: {
         stroke: edge.options?.stroke ?? getActiveDiagram().edge,
         glowColor: edge.options?.glowColor ?? getActiveDiagram().edgeGlow,
         strokeWidth: edge.options?.strokeWidth ?? getActiveDiagram().stroke.edge,
@@ -73,14 +74,24 @@ export function rerouteDiagramEdges(app: App, root: Group, edges?: EditorEdgeRec
         arrowEnd: edge.options?.arrowEnd ?? 'filled',
         arrowStart: edge.options?.arrowStart ?? 'none',
         dash: edge.options?.dash,
-        cornerRadius: edge.options?.cornerRadius ?? 16,
+        cornerRadius: edge.options?.cornerRadius ?? 10,
         waypoints: edge.waypoints ?? edge.options?.waypoints,
         edgeId: edge.id,
         fromId: edge.from,
         toId: edge.to,
-      })
-    );
+      },
+    });
   }
+
+  const wired = connectNodePairs(app, pairs, {
+    parent: root,
+    obstacleNodes: allNodes,
+    obstacles,
+    style: 'smart',
+    glow: false,
+  });
+  for (const g of wired) edgeLayer.add(g);
+
   root.markDirty();
   refreshDiagramFlow(app, root);
 }

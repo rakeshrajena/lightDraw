@@ -343,15 +343,19 @@ export class DiagramEditor implements DiagramEditorHandle {
     edgeLayer.add(
       connectNodes(this.app, fromNode, toNode, obstacles, {
         parent: this.root,
+        style: 'smart',
         stroke: getActiveDiagram().edge,
         glowColor: getActiveDiagram().edgeGlow,
         strokeWidth: getActiveDiagram().stroke.edge,
+        cornerRadius: 10,
         edgeId: id,
         fromId: from,
         toId: to,
       })
     );
     syncEdgesToState(this.root);
+    // Rebuild with fan-out so multiple wires from one side stay separated
+    rerouteDiagramEdges(this.app, this.root);
     this.wireEdges();
     this.selectEdge(id);
     this.emitChange();

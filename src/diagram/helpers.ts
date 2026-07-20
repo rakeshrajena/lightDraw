@@ -162,6 +162,86 @@ export function autoLayoutNodesResponsive(
   });
 }
 
+/**
+ * Push overlapping diagram nodes apart so symbols do not stack on render.
+ * Uses card metadata sizes when available; iterates a few times for stability.
+ * Skips mind-map / org nested trees (call only on flat diagram node lists).
+ */
+export function separateOverlappingNodes(
+  nodes: Node[],
+  opts?: { gap?: number; iterations?: number; canvasW?: number; canvasH?: number }
+): void {
+  if (nodes.length < 2) return;
+  const gap = opts?.gap ?? 16;
+  const iterations = opts?.iterations ?? 8;
+  const canvasW = opts?.canvasW;
+  const canvasH = opts?.canvasH;
+
+  const sizeOf = (n: Node): { w: number; h: number } => {
+    const w =
+      (n.metadata?.diagramCardWidth as number | undefined) ??
+      (n.metadata?.orgCardWidth as number | undefined) ??
+      120;
+    const h =
+      (n.metadata?.diagramCardHeight as number | undefined) ??
+      (n.metadata?.orgCardHeight as number | undefined) ??
+      48;
+    return { w: Math.max(24, w), h: Math.max(20, h) };
+  };
+
+  for (let iter = 0; iter < iterations; iter++) {
+    let moved = false;
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const a = nodes[i];
+        const b = nodes[j];
+        const sa = sizeOf(a);
+        const sb = sizeOf(b);
+        const ax1 = a.x;
+        const ay1 = a.y;
+        const ax2 = a.x + sa.w;
+        const ay2 = a.y + sa.h;
+        const bx1 = b.x;
+        const by1 = b.y;
+        const bx2 = b.x + sb.w;
+        const by2 = b.y + sb.h;
+        const overlapX = Math.min(ax2, bx2) - Math.max(ax1, bx1);
+        const overlapY = Math.min(ay2, by2) - Math.max(ay1, by1);
+        if (overlapX <= -gap || overlapY <= -gap) continue;
+
+        // Separate along the smaller penetration axis
+        const acx = a.x + sa.w / 2;
+        const acy = a.y + sa.h / 2;
+        const bcx = b.x + sb.w / 2;
+        const bcy = b.y + sb.h / 2;
+        const needX = overlapX + gap;
+        const needY = overlapY + gap;
+        if (needX < needY) {
+          const dir = bcx >= acx ? 1 : -1;
+          const push = needX / 2;
+          a.x -= dir * push;
+          b.x += dir * push;
+        } else {
+          const dir = bcy >= acy ? 1 : -1;
+          const push = needY / 2;
+          a.y -= dir * push;
+          b.y += dir * push;
+        }
+        moved = true;
+      }
+    }
+    if (canvasW != null || canvasH != null) {
+      for (const n of nodes) {
+        const s = sizeOf(n);
+        if (canvasW != null) n.x = Math.max(8, Math.min(canvasW - s.w - 8, n.x));
+        if (canvasH != null) n.y = Math.max(8, Math.min(canvasH - s.h - 8, n.y));
+      }
+    }
+    if (!moved) break;
+  }
+  for (const n of nodes) n.markDirty?.();
+}
+
 /** Union bounds of diagram content nodes (excludes connector layers). */
 /**
  * Axis-aligned content box in the node's own local space.
