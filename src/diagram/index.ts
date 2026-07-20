@@ -56,6 +56,7 @@ export {
 
 export { routeConnector, collectObstacles, collectObstaclesInParent, getAnchor } from './router';
 export type { RouteStyle } from './router';
+export { canBusHopPoints, ensureCanNetworkFlowEdges, CAN_BUS_TAP } from './canFlow';
 export { createSymbol, buildSchematic, rewireSchematic, Symbols } from './symbols';
 export { diagramToJSON, fitDiagramToBounds, resolveGridLayout, readCanvasSize, separateOverlappingNodes } from './helpers';
 export { installDiagramEditor, uninstallDiagramEditor, DiagramEditor } from './editor';

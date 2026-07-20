@@ -167,9 +167,42 @@ The **diagram demo** shows ▶ / ⏸ / ↻ on the canvas toolbar when Flow is on
 
 `flow` on builder options is applied for:
 
-- Flowchart · State machine · Network · Pipeline · Class diagram
+- Flowchart · State machine · Network · Pipeline · Class diagram · **CAN bus**
 
 Org / mind-map / schematic re-route still call `refreshFlow` when `diagramState.flow` is set.
+
+### CAN bus message flow
+
+`Diagram.canNetwork` has no pairwise wires — ECUs share one bus. When you call `applyFlow` (or pass `flow` on the builder), LightDraw builds **virtual bus-rail hops** (ECU tap → rail → peer tap) so packets can travel:
+
+```javascript
+LightDraw.Diagram.canNetwork(app, {
+  busLabel: 'CAN HS · 500 kbps',
+  ecus: [
+    { id: 'ecm', label: 'ECM', address: '0x7E0' },
+    { id: 'tcu', label: 'TCU', address: '0x7E1' },
+    { id: 'abs', label: 'ABS', address: '0x7E2' },
+  ],
+}, {
+  width: 800,
+  height: 400,
+  flow: {
+    enabled: true,
+    mode: 'both',
+    playback: 'loop',
+    statusHighlight: true,
+    paths: [
+      ['ecm', 'tcu', 'abs'],
+      ['abs', 'ecm'],
+    ],
+    pathGapMs: 550,
+  },
+});
+```
+
+Helpers (advanced): `ensureCanNetworkFlowEdges`, `canBusHopPoints` from `lightdraw/diagram`.
+
+**Serial / USB-CAN adapters** are out of scope here — feed decoded frames as path updates later; the visual layer is ready.
 
 ---
 
@@ -178,5 +211,5 @@ Org / mind-map / schematic re-route still call `refreshFlow` when `diagramState.
 - Prefer **one packet + a defined `paths` list** for storytelling; ambient all-edge packets get noisy on large networks.
 - Use `playback: 'once'` + `replayFlow` for step-through demos.
 - Keep `statusHighlight` on (default with paths) so viewers can see progress at a glance; use `highlight: 'none'` if you only want status tint.
-- Combine with the diagram editor: users can bend wires; flow re-binds to updated `edgePoints` after reroute.
+- Combine with the diagram editor: users can bend wires; flow re-binds to updated `edgePoints` after reroute. On **drag**, wires clear temporary bends and **smart-reconnect** to free ports on the same symbol.
 - Low-level stroke motion without diagrams: see [Animation guide](./animation-guide.md) (`dashOffset`, `motionPath`).

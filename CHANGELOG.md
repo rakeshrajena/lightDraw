@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — CAN bus wire flow
+
+- `Diagram.canNetwork` supports the same `flow` / `applyFlow` API as other builders
+- Virtual **bus-rail hops** (ECU → rail → ECU) so packets travel without pairwise wires
+- Helpers: `ensureCanNetworkFlowEdges`, `canBusHopPoints`
+- Demo + audit samples include CAN message paths (e.g. ECM → TCU → ABS)
+
+Docs: [diagram-flow.md](./docs/diagram-flow.md#can-bus-message-flow) · [diagram-module-schema.md](./docs/diagram-module-schema.md)
+
+### Changed — Diagram connector routing polish
+
+- `orthogonal` / `smart` use true Manhattan 90° elbows (optional fillet); `curved` for soft bends
+- Free-port planning: preferred exit side, fan slots along a side, snap off overlapping / border-override anchors
+- Arrowheads larger and tip pulled clear of the card border; edge labels near source with obstacle avoidance
+- On node drag / resize, connected bends clear and wires smart-reconnect to free ports
+- Overlapping nodes separated on flowchart / network / state / class create
+
+Docs: [diagram-module-schema.md](./docs/diagram-module-schema.md)
+
 ### Added — Dashboard multi-series + dataTable
 
 - Multi-series charts: omit `series[].color` → unique theme palette colors per series

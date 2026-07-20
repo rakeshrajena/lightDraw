@@ -61,6 +61,12 @@ export function rerouteDiagramEdges(
     refreshDiagramFlow(app, root);
     return;
   }
+  if (type === 'canNetwork') {
+    // applyDiagramFlow rebuilds bus-rail hop edges from current ECU positions
+    root.markDirty();
+    refreshDiagramFlow(app, root);
+    return;
+  }
 
   const edgeLayer = findEdgeLayer(root);
   if (!edgeLayer) return;
