@@ -26,11 +26,31 @@ describe('diagram professional path polish', () => {
     expect(rounded.length).toBe(raw.length);
   });
 
-  it('smart routes apply corner rounding', () => {
+  it('orthogonal routes keep filleted 90° elbows', () => {
     const pts = computeRoutePoints(10, 10, 100, 80, 'orthogonal', [], 8);
     expect(pts.length).toBeGreaterThan(8);
     expect(pts[0]).toBe(10);
+    expect(pts[1]).toBe(10);
+    expect(pts[pts.length - 2]).toBe(100);
     expect(pts[pts.length - 1]).toBe(80);
+  });
+
+  it('orthogonal with cornerRadius 0 stays sharp Manhattan', () => {
+    const pts = computeRoutePoints(10, 10, 100, 80, 'orthogonal', [], 0);
+    // dx > dy → horizontal-then-vertical C skeleton
+    expect(pts).toEqual([10, 10, 55, 10, 55, 80, 100, 80]);
+    // All segments axis-aligned
+    for (let i = 0; i < pts.length - 2; i += 2) {
+      const orth = pts[i] === pts[i + 2] || pts[i + 1] === pts[i + 3];
+      expect(orth).toBe(true);
+    }
+  });
+
+  it('curved style uses soft string bends', () => {
+    const pts = computeRoutePoints(10, 10, 100, 80, 'curved', [], 8);
+    expect(pts.length).toBeGreaterThan(8);
+    expect(pts[0]).toBe(10);
+    expect(pts[pts.length - 2]).toBe(100);
   });
 
   it('quadratic helpers produce path + samples', () => {

@@ -11,6 +11,7 @@ import { getNodeBoxInParent } from './coords';
 import { findEdgeLayer, findNodeByDiagramId, nodeDiagramId } from './editor/collect';
 import { getDiagramState, setDiagramState } from './helpers';
 import { getActiveDiagram } from './theme';
+import { ensureCanNetworkFlowEdges } from './canFlow';
 
 export type DiagramFlowMode = 'dash' | 'packet' | 'both';
 export type DiagramFlowHighlight = 'pulse' | 'breathe' | 'flash' | 'none';
@@ -1145,6 +1146,13 @@ export function applyDiagramFlow(
   });
 
   stopDiagramFlow(root);
+
+  // CAN: build virtual bus-rail edges so path/ambient packets have geometry
+  if (root.metadata?.diagramType === 'canNetwork') {
+    const hopList =
+      merged.pathRuns.length > 0 ? merged.pathRuns.flat() : undefined;
+    ensureCanNetworkFlowEdges(app, root, hopList);
+  }
 
   const edgeLayer = findEdgeLayer(root);
   const hopsSpec = merged.pathEdges;

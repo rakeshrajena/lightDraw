@@ -203,25 +203,35 @@ export function localPointToParent(
 
 export type CardSide = 'top' | 'bottom' | 'left' | 'right' | 'center';
 
-/** Connection port on a node edge (mid-side), in parent local space — respects rotation. */
-export function getCardSideAnchor(node: Node, parent: Group, side: CardSide): { x: number; y: number } {
+/**
+ * Connection port on a node edge, in parent local space — respects rotation.
+ * @param along 0..1 position along the side (0.5 = mid). Top/bottom: left→right;
+ *              left/right: top→bottom. Ignored for `center`.
+ */
+export function getCardSideAnchor(
+  node: Node,
+  parent: Group,
+  side: CardSide,
+  along = 0.5
+): { x: number; y: number } {
   const card = getDiagramCardSize(node) ?? { width: 40, height: 32 };
   const w = card.width;
   const h = card.height;
+  const t = Math.max(0.05, Math.min(0.95, along));
   let lx = w / 2;
   let ly = h / 2;
   if (side === 'top') {
-    lx = w / 2;
+    lx = w * t;
     ly = 0;
   } else if (side === 'bottom') {
-    lx = w / 2;
+    lx = w * t;
     ly = h;
   } else if (side === 'left') {
     lx = 0;
-    ly = h / 2;
+    ly = h * t;
   } else if (side === 'right') {
     lx = w;
-    ly = h / 2;
+    ly = h * t;
   }
   return nodeLocalToParent(node, parent, lx, ly);
 }
@@ -295,12 +305,16 @@ export function getCardObstacle(node: Node): Obstacle | null {
  * Anchor points between two nodes in parent group's local coordinates.
  * Chooses facing mid-side ports on the rotated cards so wires attach cleanly
  * after move/resize/rotate; users can still add manual bend points later.
+ *
+ * Optional `fromAlong` / `toAlong` (0..1) fan multiple wires off the same side
+ * so decision branches and parallel connectors do not stack on one point.
  */
 export function getConnectorAnchors(
   from: Node,
   to: Node,
-  parent: Group
-): { x1: number; y1: number; x2: number; y2: number } {
+  parent: Group,
+  opts?: { fromAlong?: number; toAlong?: number }
+): { x1: number; y1: number; x2: number; y2: number; fromSide: CardSide; toSide: CardSide } {
   const sides: CardSide[] = ['top', 'right', 'bottom', 'left'];
   const fromC = getCardSideAnchor(from, parent, 'center');
   const toC = getCardSideAnchor(to, parent, 'center');
@@ -337,9 +351,413 @@ export function getConnectorAnchors(
     bestTo = picked.toSide;
   }
 
-  const a = getCardSideAnchor(from, parent, bestFrom);
-  const b = getCardSideAnchor(to, parent, bestTo);
-  return { x1: a.x, y1: a.y, x2: b.x, y2: b.y };
+  const fromAlong = opts?.fromAlong ?? 0.5;
+  const toAlong = opts?.toAlong ?? 0.5;
+  const a = getCardSideAnchor(from, parent, bestFrom, fromAlong);
+  const b = getCardSideAnchor(to, parent, bestTo, toAlong);
+  return { x1: a.x, y1: a.y, x2: b.x, y2: b.y, fromSide: bestFrom, toSide: bestTo };
+}
+
+/** Evenly spaced `along` values in (0.2, 0.8) so stacked ports stay on the card edge. */
+export function fanAlongSlots(count: number): number[] {
+  if (count <= 1) return [0.5];
+  const lo = 0.2;
+  const hi = 0.8;
+  return Array.from({ length: count }, (_, i) => lo + ((hi - lo) * i) / (count - 1));
+}
+
+export interface EdgeFanPlan {
+  fromAlong: number;
+  toAlong: number;
+  fromSide: CardSide;
+  toSide: CardSide;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  /** Parallel-rail offset (px) so stacked orthogonal paths do not coincide. */
+  railOffset: number;
+}
+
+/**
+ * Assign connection ports so wires use free sides of each symbol when possible.
+ *
+ * Rules:
+ * 1. Each edge prefers the side facing its peer (left target → left port, etc.).
+ * 2. Edges that share the same side fan along that side (distinct along slots).
+ * 3. Parallel routes get a railOffset so mid-segments do not paint on top of each other.
+ *
+ * Does not force every outbound edge onto one side — free sides stay available.
+ */
+export function planEdgeFanAnchors(
+  edges: Array<{ key: string; from: Node; to: Node }>,
+  parent: Group
+): Map<string, EdgeFanPlan> {
+  type Prel = {
+    key: string;
+    from: Node;
+    to: Node;
+    fromId: string;
+    toId: string;
+    fromSide: CardSide;
+    toSide: CardSide;
+  };
+
+  const prelim: Prel[] = edges.map((e) => {
+    const fromC = getCardSideAnchor(e.from, parent, 'center');
+    const toC = getCardSideAnchor(e.to, parent, 'center');
+    const fromSide = preferredExitSide(toC.x - fromC.x, toC.y - fromC.y);
+    const toSide = preferredExitSide(fromC.x - toC.x, fromC.y - toC.y);
+    return {
+      key: e.key,
+      from: e.from,
+      to: e.to,
+      fromId: String(e.from.metadata?.diagramId ?? e.from.id ?? ''),
+      toId: String(e.to.metadata?.diagramId ?? e.to.id ?? ''),
+      fromSide,
+      toSide,
+    };
+  });
+
+  const fromAlong = new Map<string, number>();
+  const toAlong = new Map<string, number>();
+  const railOffset = new Map<string, number>();
+
+  // Fan along each (node, side) group — do NOT collapse all edges onto one side
+  const fromGroups = new Map<string, Prel[]>();
+  for (const e of prelim) {
+    const gkey = `${e.fromId}::${e.fromSide}`;
+    const list = fromGroups.get(gkey) ?? [];
+    list.push(e);
+    fromGroups.set(gkey, list);
+  }
+  for (const [, group] of fromGroups) {
+    const side = group[0].fromSide;
+    group.sort((a, b) => sortPeersAlongSide(a.to, b.to, parent, side));
+    const slots = fanAlongSlots(group.length);
+    group.forEach((e, i) => fromAlong.set(e.key, slots[i]));
+  }
+
+  const toGroups = new Map<string, Prel[]>();
+  for (const e of prelim) {
+    const gkey = `${e.toId}::${e.toSide}`;
+    const list = toGroups.get(gkey) ?? [];
+    list.push(e);
+    toGroups.set(gkey, list);
+  }
+  for (const [, group] of toGroups) {
+    const side = group[0].toSide;
+    group.sort((a, b) => sortPeersAlongSide(a.from, b.from, parent, side));
+    const slots = fanAlongSlots(group.length);
+    group.forEach((e, i) => toAlong.set(e.key, slots[i]));
+  }
+
+  // Lane offsets for edges that share an exit corridor (same from node + side)
+  for (const [, group] of fromGroups) {
+    if (group.length <= 1) {
+      railOffset.set(group[0].key, 0);
+      continue;
+    }
+    const gap = 14;
+    const mid = (group.length - 1) / 2;
+    group.forEach((e, i) => {
+      railOffset.set(e.key, (i - mid) * gap);
+    });
+  }
+  for (const e of prelim) {
+    if (!railOffset.has(e.key)) railOffset.set(e.key, 0);
+  }
+
+  const out = new Map<string, EdgeFanPlan>();
+  for (const e of prelim) {
+    const fa = fromAlong.get(e.key) ?? 0.5;
+    const ta = toAlong.get(e.key) ?? 0.5;
+    const a = getCardSideAnchor(e.from, parent, e.fromSide, fa);
+    const b = getCardSideAnchor(e.to, parent, e.toSide, ta);
+    out.set(e.key, {
+      fromAlong: fa,
+      toAlong: ta,
+      fromSide: e.fromSide,
+      toSide: e.toSide,
+      x1: a.x,
+      y1: a.y,
+      x2: b.x,
+      y2: b.y,
+      railOffset: railOffset.get(e.key) ?? 0,
+    });
+  }
+
+  // If an arrow/edge would override a symbol border or land on an occupied port,
+  // snap that end to the nearest free port on the same symbol.
+  return resolvePortsAwayFromBorderOverrides(out, prelim, parent);
+}
+
+export interface PortCandidate {
+  side: CardSide;
+  along: number;
+  x: number;
+  y: number;
+}
+
+/** Sample ports around a card border (4 sides × several along slots). */
+export function enumerateCardPorts(
+  node: Node,
+  parent: Group,
+  alongSamples: number[] = [0.15, 0.3, 0.5, 0.7, 0.85]
+): PortCandidate[] {
+  const sides: CardSide[] = ['top', 'right', 'bottom', 'left'];
+  const out: PortCandidate[] = [];
+  for (const side of sides) {
+    for (const along of alongSamples) {
+      const p = getCardSideAnchor(node, parent, side, along);
+      out.push({ side, along, x: p.x, y: p.y });
+    }
+  }
+  return out;
+}
+
+function portOccupancyRadius(node: Node, parent: Group): number {
+  const box = getNodeBoxInParent(node, parent);
+  return Math.max(14, Math.min(28, Math.min(box.width, box.height) * 0.18));
+}
+
+function portsTooClose(
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  minDist: number
+): boolean {
+  return Math.hypot(ax - bx, ay - by) < minDist;
+}
+
+/**
+ * True when the first route stub from an attachment point goes into the card
+ * interior (arrow/edge overrides the border) instead of leaving cleanly.
+ */
+export function attachmentOverridesBorder(
+  attachX: number,
+  attachY: number,
+  peerX: number,
+  peerY: number,
+  box: { x: number; y: number; width: number; height: number },
+  side: CardSide
+): boolean {
+  const outward =
+    side === 'top'
+      ? { x: 0, y: -1 }
+      : side === 'bottom'
+        ? { x: 0, y: 1 }
+        : side === 'left'
+          ? { x: -1, y: 0 }
+          : { x: 1, y: 0 };
+
+  const towardPeerX = peerX - attachX;
+  const towardPeerY = peerY - attachY;
+  const plen = Math.hypot(towardPeerX, towardPeerY) || 1;
+  // Positive = leaving the card toward the peer; negative = aiming back into the symbol
+  const outwardDot =
+    outward.x * (towardPeerX / plen) + outward.y * (towardPeerY / plen);
+  if (outwardDot < -0.2) return true;
+
+  // Attachment must sit on the border, not deep inside the fill
+  const slop = 4;
+  const onBorder =
+    Math.abs(attachX - box.x) <= slop ||
+    Math.abs(attachX - (box.x + box.width)) <= slop ||
+    Math.abs(attachY - box.y) <= slop ||
+    Math.abs(attachY - (box.y + box.height)) <= slop;
+  const deepInside =
+    attachX > box.x + slop &&
+    attachX < box.x + box.width - slop &&
+    attachY > box.y + slop &&
+    attachY < box.y + box.height - slop;
+  if (deepInside && !onBorder) return true;
+  return false;
+}
+
+/**
+ * Pick nearest free port on the same symbol that faces the peer and is not
+ * already taken by another edge endpoint.
+ */
+export function nearestFreePortOnSymbol(
+  node: Node,
+  parent: Group,
+  peerX: number,
+  peerY: number,
+  occupied: Array<{ x: number; y: number }>,
+  preferSide?: CardSide
+): PortCandidate | null {
+  const box = getNodeBoxInParent(node, parent);
+  const minDist = portOccupancyRadius(node, parent);
+  const center = getCardSideAnchor(node, parent, 'center');
+  const faceSide = preferredExitSide(peerX - center.x, peerY - center.y);
+  const preferred = preferSide ?? faceSide;
+
+  const candidates = enumerateCardPorts(node, parent);
+  // Rank: free → facing side → not overriding → closest to ideal mid of preferred side
+  const ideal = getCardSideAnchor(node, parent, preferred, 0.5);
+
+  let best: PortCandidate | null = null;
+  let bestScore = Infinity;
+
+  for (const c of candidates) {
+    const taken = occupied.some((o) => portsTooClose(c.x, c.y, o.x, o.y, minDist));
+    if (taken) continue;
+    if (attachmentOverridesBorder(c.x, c.y, peerX, peerY, box, c.side)) continue;
+
+    const sidePenalty = c.side === preferred ? 0 : c.side === faceSide ? 40 : 120;
+    const distIdeal = Math.hypot(c.x - ideal.x, c.y - ideal.y);
+    const distPeer = Math.hypot(c.x - peerX, c.y - peerY);
+    const score = sidePenalty + distIdeal * 0.5 + distPeer * 0.15;
+    if (score < bestScore) {
+      bestScore = score;
+      best = c;
+    }
+  }
+
+  // Fallback: any free port even if slightly imperfect
+  if (!best) {
+    for (const c of candidates) {
+      const taken = occupied.some((o) => portsTooClose(c.x, c.y, o.x, o.y, minDist));
+      if (taken) continue;
+      const dist = Math.hypot(c.x - ideal.x, c.y - ideal.y);
+      if (dist < bestScore) {
+        bestScore = dist;
+        best = c;
+      }
+    }
+  }
+  return best;
+}
+
+type PrelEdge = {
+  key: string;
+  from: Node;
+  to: Node;
+  fromId: string;
+  toId: string;
+  fromSide: CardSide;
+  toSide: CardSide;
+};
+
+/**
+ * Second pass: when an endpoint overrides a symbol border or collides with
+ * another arrow on the same component, reconnect to the nearest free port
+ * on that same symbol.
+ */
+function resolvePortsAwayFromBorderOverrides(
+  plan: Map<string, EdgeFanPlan>,
+  prelim: PrelEdge[],
+  parent: Group
+): Map<string, EdgeFanPlan> {
+  const occupiedByNode = new Map<string, Array<{ x: number; y: number; key: string; end: 'from' | 'to' }>>();
+
+  const take = (nodeId: string, x: number, y: number, key: string, end: 'from' | 'to') => {
+    const list = occupiedByNode.get(nodeId) ?? [];
+    list.push({ x, y, key, end });
+    occupiedByNode.set(nodeId, list);
+  };
+
+  // Process twice so target-side snaps can free source conflicts on the next pass
+  for (let pass = 0; pass < 2; pass++) {
+    occupiedByNode.clear();
+    for (const e of prelim) {
+      const cur = plan.get(e.key);
+      if (!cur) continue;
+      let fromSide = cur.fromSide;
+      let toSide = cur.toSide;
+      let fromAlong = cur.fromAlong;
+      let toAlong = cur.toAlong;
+      let x1 = cur.x1;
+      let y1 = cur.y1;
+      let x2 = cur.x2;
+      let y2 = cur.y2;
+
+      const fromBox = getNodeBoxInParent(e.from, parent);
+      const toBox = getNodeBoxInParent(e.to, parent);
+      const fromMin = portOccupancyRadius(e.from, parent);
+      const toMin = portOccupancyRadius(e.to, parent);
+
+      const fromOcc = (occupiedByNode.get(e.fromId) ?? []).map((o) => ({ x: o.x, y: o.y }));
+      const toOcc = (occupiedByNode.get(e.toId) ?? []).map((o) => ({ x: o.x, y: o.y }));
+
+      const fromConflict =
+        fromOcc.some((o) => portsTooClose(x1, y1, o.x, o.y, fromMin)) ||
+        attachmentOverridesBorder(x1, y1, x2, y2, fromBox, fromSide);
+
+      if (fromConflict) {
+        const next = nearestFreePortOnSymbol(e.from, parent, x2, y2, fromOcc, fromSide);
+        if (next) {
+          fromSide = next.side;
+          fromAlong = next.along;
+          x1 = next.x;
+          y1 = next.y;
+        }
+      }
+
+      const toConflict =
+        toOcc.some((o) => portsTooClose(x2, y2, o.x, o.y, toMin)) ||
+        attachmentOverridesBorder(x2, y2, x1, y1, toBox, toSide);
+
+      if (toConflict) {
+        const next = nearestFreePortOnSymbol(e.to, parent, x1, y1, toOcc, toSide);
+        if (next) {
+          toSide = next.side;
+          toAlong = next.along;
+          x2 = next.x;
+          y2 = next.y;
+        }
+      }
+
+      plan.set(e.key, {
+        ...cur,
+        fromSide,
+        toSide,
+        fromAlong,
+        toAlong,
+        x1,
+        y1,
+        x2,
+        y2,
+      });
+      take(e.fromId, x1, y1, e.key, 'from');
+      take(e.toId, x2, y2, e.key, 'to');
+    }
+  }
+
+  return plan;
+}
+
+function sortPeersAlongSide(
+  a: Node,
+  b: Node,
+  parent: Group,
+  side: CardSide
+): number {
+  const ac = getCardSideAnchor(a, parent, 'center');
+  const bc = getCardSideAnchor(b, parent, 'center');
+  if (side === 'top' || side === 'bottom') return ac.x - bc.x || ac.y - bc.y;
+  return ac.y - bc.y || ac.x - bc.x;
+}
+
+/**
+ * Prefer the card side facing the peer. Uses a lower lateral threshold so
+ * left/right ports are chosen when free instead of stacking everything on bottom/top.
+ */
+export function preferredExitSide(dx: number, dy: number): CardSide {
+  const ax = Math.abs(dx);
+  const ay = Math.abs(dy);
+  // Significant horizontal component → use free left/right ports
+  if (ax >= ay * 0.55) return dx >= 0 ? 'right' : 'left';
+  if (ay >= ax * 0.55) return dy >= 0 ? 'bottom' : 'top';
+  if (ay >= ax) return dy >= 0 ? 'bottom' : 'top';
+  return dx >= 0 ? 'right' : 'left';
+}
+
+/** @deprecated use preferredExitSide — kept for call-site clarity in older notes */
+export function dominantSideFromDelta(dx: number, dy: number): CardSide {
+  return preferredExitSide(dx, dy);
 }
 
 /** Legacy world-space anchors (when no parent group is provided). */

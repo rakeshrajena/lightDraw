@@ -86,6 +86,55 @@ describe('Diagram editor', () => {
     app.destroy();
   });
 
+  it('drag-style reroute clears bends and picks free ports by new position', () => {
+    const container = createTestContainer(800, 500);
+    const app = createTestApp(container, { renderer: 'canvas', width: 800, height: 500 });
+    const diagram = createFlowchart(
+      app,
+      {
+        nodes: [
+          { id: 'hub', label: 'Hub', x: 300, y: 40 },
+          { id: 'left', label: 'Left', x: 80, y: 200 },
+          { id: 'right', label: 'Right', x: 520, y: 200 },
+        ],
+        edges: [
+          { from: 'hub', to: 'left', label: 'L' },
+          { from: 'hub', to: 'right', label: 'R' },
+        ],
+      },
+      { width: 800, height: 500 }
+    );
+    app.add(diagram);
+    app.render();
+
+    const edgeLayer = findEdgeLayer(diagram)!;
+    // Simulate a manual bend stuck on one edge
+    const first = edgeLayer.children.find((c) => c.metadata?.edgeLabel === 'L');
+    expect(first).toBeTruthy();
+    first!.metadata.edgeWaypoints = [{ x: 200, y: 120 }];
+
+    // Move hub far right so both peers should use left-ish / distinct ports
+    const hub = findNodeByDiagramId(diagram, 'hub')!;
+    hub.x = 600;
+    hub.y = 40;
+
+    rerouteDiagramEdges(app, diagram, undefined, {
+      clearWaypointsForNodes: ['hub'],
+    });
+    app.render();
+
+    const edges = edgeLayer.children.filter((c) => c.metadata?.edgePoints);
+    expect(edges.length).toBe(2);
+    for (const e of edges) {
+      expect(e.metadata?.edgeWaypoints).toBeUndefined();
+    }
+    const a = edges[0].metadata.edgePoints as number[];
+    const b = edges[1].metadata.edgePoints as number[];
+    // Starts should differ (free ports / fan), not stacked on one point
+    expect(Math.hypot(a[0] - b[0], a[1] - b[1])).toBeGreaterThan(4);
+    app.destroy();
+  });
+
   it('installDiagramEditor wires without error', () => {
     const container = createTestContainer(800, 500);
     const app = createTestApp(container, { renderer: 'canvas', width: 800, height: 500 });

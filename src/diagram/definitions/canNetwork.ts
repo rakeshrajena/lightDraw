@@ -9,11 +9,13 @@ import {
   createDiagramGroup,
   measureTextWidth,
   readCanvasSize,
+  setDiagramState,
 } from '../helpers';
 import {
   createCanEcuNode,
 } from '../primitives';
 import type { CanNetworkData } from '../types';
+import { maybeApplyDiagramFlow } from '../flow';
 
 /** Create CAN network diagram */
 export function createCanNetwork(
@@ -33,6 +35,8 @@ export function createCanNetwork(
   const busWidth = Math.max(280, canvas.width - margin * 2);
   const busLabel = data.busLabel ?? 'CAN Bus';
 
+  // Persist for flow hop geometry (packet rides this rail)
+  setDiagramState(group, { canBusY: busY });
   const busGlow = getActiveDiagram().canBusGlow;
   const busFill = getActiveDiagram().canBus;
   group.add(
@@ -132,5 +136,6 @@ export function createCanNetwork(
     group.add(ecuGroup);
   }
 
+  maybeApplyDiagramFlow(app, group, options as Record<string, unknown>);
   return group;
 }

@@ -168,7 +168,8 @@ LightDraw.Diagram.installEditor(app, net, { mode: 'arrange', allowResize: true }
 
 | Feature | Behavior |
 |---------|----------|
-| Wire flow | Marching dashes + packets; `paths` / play·pause; see [diagram-flow.md](./docs/diagram-flow.md) |
+| Wire flow | Marching dashes + packets; status tint; `paths` / play·pause; **CAN bus** hops; see [diagram-flow.md](./docs/diagram-flow.md) |
+| Smart routers | 90° orthogonal / obstacle-aware; free-port fan-out; live re-route on drag |
 | Wire bends | Double-click a wire → drag bend handles |
 | 8-handle resize | Edges + corners, grow/shrink |
 | Rotate | Handle above selection; Shift = free angle |
@@ -271,10 +272,10 @@ At 1 000 nodes, **render stays under 0.5 ms** — headroom for 60 FPS on mid-ran
 | Package | Size | Typical use |
 |---------|-----:|-------------|
 | `lightdraw/core` | ~43 KB | Games, custom canvas apps |
-| `lightdraw` (full) | ~163 KB | All modules, CDN one-liner |
+| `lightdraw` (full) | ~167 KB | All modules, CDN one-liner |
 | `lightdraw/dashboard` | ~43 KB | Charts + gauges + dataTable |
 | `lightdraw/automotive` | ~31 KB | Cluster + 160+ widgets |
-| `lightdraw/diagram` | ~67 KB | Diagram types + editor (resize, bends, rotate, flow + status) |
+| `lightdraw/diagram` | ~71 KB | Diagram types + editor (resize, bends, rotate, flow + status, CAN) |
 | `lightdraw/ui` | ~16 KB | Form controls (pair with HTML renderer) |
 
 ---
@@ -302,7 +303,7 @@ Honest positioning — pick the right tool for the job.
 
 Full notes: [docs/v1.1-release-notes.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/v1.1-release-notes.md) · [CHANGELOG](./CHANGELOG.md)
 
-- Interactive diagram editor: drag, **8-handle resize**, **wire bend points**, rotate, wire flow
+- Interactive diagram editor: drag, **8-handle resize**, **wire bend points**, rotate, wire flow (+ CAN bus hops, status tint, smart 90° ports)
 - Professional **network device icons** and **org chart** minimize with descendant counts
 - **Unique branch colors** for any number of org teams
 - Live playground JSON shows real `{ type, props }` diagram state

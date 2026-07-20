@@ -10,12 +10,13 @@ import {
   autoLayoutNodesResponsive,
   createDiagramGroup,
   readCanvasSize,
+  separateOverlappingNodes,
 } from '../helpers';
 import {
   createStateNode,
 } from '../primitives';
 import { collectObstacles } from '../router';
-import { connectNodes } from '../connectors';
+import { connectNodePairs } from '../connectors';
 import type { StateMachineData } from '../types';
 import { maybeApplyDiagramFlow } from '../flow';
 
@@ -47,26 +48,44 @@ export function createStateMachine(
     nodeMap.set(s.id, nodeGroup);
   }
 
+  separateOverlappingNodes([...nodeMap.values()], {
+    gap: 18,
+    canvasW: canvas.width,
+    canvasH: canvas.height,
+  });
+
   const edgeLayer = app.group({ zIndex: -10, listening: false }) as Group;
   edgeLayer.metadata.diagramEdgeLayer = true;
   const allNodes = [...nodeMap.values()];
   const obstacles = collectObstacles(allNodes);
+  const pairs = [];
   for (const t of data.transitions) {
     const from = nodeMap.get(t.from);
     const to = nodeMap.get(t.to);
     if (!from || !to) continue;
-    edgeLayer.add(
-      connectNodes(app, from, to, obstacles, {
-        parent: group,
-        obstacleNodes: allNodes,
-        stroke: getActiveDiagram().edge,
-        glowColor: getActiveDiagram().edgeGlow,
-        glow: false,
-        strokeWidth: edgeWidth,
+    pairs.push({
+      from,
+      to,
+      options: {
         label: t.label,
-        cornerRadius: 14,
-      })
-    );
+        edgeId: `${t.from}->${t.to}`,
+        fromId: t.from,
+        toId: t.to,
+      },
+    });
+  }
+  for (const g of connectNodePairs(app, pairs, {
+    parent: group,
+    obstacleNodes: allNodes,
+    obstacles,
+    stroke: getActiveDiagram().edge,
+    glowColor: getActiveDiagram().edgeGlow,
+    glow: false,
+    strokeWidth: edgeWidth,
+    cornerRadius: 10,
+    style: 'smart',
+  })) {
+    edgeLayer.add(g);
   }
   group.add(edgeLayer);
 

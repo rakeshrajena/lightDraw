@@ -72,7 +72,7 @@
               <span id="flow-speed-label">1×</span>
             </label>
             <p class="demo-diagram-info__desc" style="margin:0.35rem 0 0;font-size:0.75rem;opacity:0.8">
-              Status tint needs packet or dash+packet mode. Paths are set for Flowchart, State, Pipeline, Network, and UML.
+              Status tint needs packet or dash+packet mode. Paths are set for Flowchart, State, Pipeline, Network, UML, and CAN Bus.
             </p>
           </div>
         </aside>
@@ -122,7 +122,7 @@
       can: {
         category: 'Systems',
         title: 'CAN Bus',
-        desc: 'Automotive ECU layout on a high-speed CAN backbone with address tags.',
+        desc: 'Automotive ECU layout on a high-speed CAN backbone — Flow animates frames along the bus (ECM→TCU→ABS).',
       },
       schematic: {
         category: 'Systems',
@@ -267,6 +267,16 @@
             ['group', 'shape'],
           ],
           pathGapMs: 450,
+        };
+      }
+      if (sampleKey === 'can') {
+        return {
+          paths: [
+            ['ecm', 'tcu', 'abs'],
+            ['bcm', 'icu', 'ecm'],
+            ['abs', 'bcm'],
+          ],
+          pathGapMs: 550,
         };
       }
       return {};

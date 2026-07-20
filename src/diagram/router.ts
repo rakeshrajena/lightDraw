@@ -7,10 +7,17 @@ import { roundOrthogonalCorners, stringCurveFromOrthogonal } from './pathUtils';
 import type { Obstacle } from './types';
 import { getActiveDiagram } from './theme';
 
-export type RouteStyle = 'straight' | 'orthogonal' | 'smart';
+/**
+ * Wire route styles:
+ * - `straight` — single segment
+ * - `orthogonal` — Manhattan 90° elbows (optional corner fillet via cornerRadius)
+ * - `smart` — obstacle-aware Manhattan 90° elbows (same finish as orthogonal)
+ * - `curved` — soft string / cable bends (cubic), not hard 90°
+ */
+export type RouteStyle = 'straight' | 'orthogonal' | 'smart' | 'curved';
 
-/** Default fillet radius for orthogonal / smart routes (px). */
-export const ROUTE_CORNER_RADIUS = 18;
+/** Default fillet radius for orthogonal / smart routes (px). 0 = sharp 90°. */
+export const ROUTE_CORNER_RADIUS = 10;
 
 /** Check if a horizontal segment intersects a rectangle */
 function hSegIntersectsRect(
@@ -72,7 +79,8 @@ function smartOrthogonalRoute(
   y1: number,
   x2: number,
   y2: number,
-  obstacles: Obstacle[]
+  obstacles: Obstacle[],
+  railOffset: number = 0
 ): number[] {
   const padded = obstacles.map((o) => padObstacle(o, 10));
   const dx = x2 - x1;
@@ -82,8 +90,8 @@ function smartOrthogonalRoute(
   // Adaptive stub length — grows with separation for a cable-like bend
   const stubX = Math.min(72, Math.max(18, absDx * 0.28));
   const stubY = Math.min(72, Math.max(18, absDy * 0.28));
-  const midX = (x1 + x2) / 2;
-  const midY = (y1 + y2) / 2;
+  const midX = (x1 + x2) / 2 + railOffset;
+  const midY = (y1 + y2) / 2 + railOffset;
   const dirX = dx >= 0 ? 1 : -1;
   const dirY = dy >= 0 ? 1 : -1;
 
@@ -206,7 +214,9 @@ export function computeRoutePoints(
   y2: number,
   style: RouteStyle = 'orthogonal',
   obstacles: Obstacle[] = [],
-  cornerRadius: number = ROUTE_CORNER_RADIUS
+  cornerRadius: number = ROUTE_CORNER_RADIUS,
+  /** Shift mid rails so parallel wires do not paint on top of each other. */
+  railOffset: number = 0
 ): number[] {
   // Near-colinear → straight segment (avoids zero-width elbows / kink artifacts)
   if (Math.abs(x1 - x2) < 1.5 || Math.abs(y1 - y2) < 1.5) {
@@ -215,22 +225,36 @@ export function computeRoutePoints(
   if (style === 'straight') {
     return [x1, y1, x2, y2];
   }
+
   let points: number[];
-  if (style === 'smart') {
-    points = smartOrthogonalRoute(x1, y1, x2, y2, obstacles);
+  if (style === 'smart' || (style === 'curved' && obstacles.length > 0)) {
+    points = smartOrthogonalRoute(x1, y1, x2, y2, obstacles, railOffset);
   } else {
-    // Orthogonal default: prefer a soft U rail between ports
-    const midY = (y1 + y2) / 2;
-    points = [x1, y1, x1, midY, x2, midY, x2, y2];
+    // Prefer vertical-then-horizontal U when dy dominates (flowchart TB);
+    // otherwise horizontal-then-vertical C (LR pipelines / class links).
+    const absDx = Math.abs(x2 - x1);
+    const absDy = Math.abs(y2 - y1);
+    if (absDy >= absDx) {
+      const midY = (y1 + y2) / 2 + railOffset;
+      points = [x1, y1, x1, midY, x2, midY, x2, y2];
+    } else {
+      const midX = (x1 + x2) / 2 + railOffset;
+      points = [x1, y1, midX, y1, midX, y2, x2, y2];
+    }
   }
   points = collapseColinearPoints(points);
   if (points.length <= 4) return points;
 
-  // String-like U / L / S bends (cubic) — stretches smoothly while dragging
-  if (style === 'smart' || style === 'orthogonal') {
+  // Soft cable bends (explicit curved style)
+  if (style === 'curved') {
     return stringCurveFromOrthogonal(points, 30);
   }
-  return cornerRadius > 0 ? roundOrthogonalCorners(points, cornerRadius, 12) : points;
+
+  // Orthogonal / smart: true 90° elbows; fillet when cornerRadius > 0
+  if (cornerRadius > 0) {
+    return roundOrthogonalCorners(points, cornerRadius, 12);
+  }
+  return points;
 }
 
 /** Drop zero-length / colinear intermediate vertices before filleting */

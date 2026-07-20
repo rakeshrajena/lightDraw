@@ -148,7 +148,36 @@ LightDraw.Diagram.stopFlow(chart);
 Persist under builder options / JSON: `{ flow: { enabled, playback, paths, … } }`.
 Editor re-route keeps `diagramState.flow` and restarts when not paused.
 
+**CAN bus:** `Diagram.canNetwork` supports the same `flow` / `applyFlow` API. Virtual hop edges are created along the bus rail (ECU → bus → ECU). See [diagram-flow.md](./diagram-flow.md#can-bus-message-flow).
+
 **Full guide:** [diagram-flow.md](./diagram-flow.md)
+
+## Smart connector routing
+
+```javascript
+import { routeConnector, collectObstacles } from 'lightdraw/diagram';
+
+const obstacles = collectObstacles(nodeGroups);
+const edge = routeConnector(app, x1, y1, x2, y2, 'smart', obstacles);
+```
+
+| Style | Behavior |
+|-------|----------|
+| `straight` | Single segment |
+| `orthogonal` | Manhattan **90°** elbows (optional `cornerRadius` fillet; `0` = sharp) |
+| `smart` | Obstacle-aware **90°** elbows (default for most builders) |
+| `curved` | Soft string / cable bends |
+
+**Port intelligence (editor + builders):**
+
+- Wires prefer **free sides** facing the peer (left/right/top/bottom), not one stacked mid-point
+- Multiple edges on the same side **fan along** the side; parallel rails get a small offset
+- If an arrow would override a border or land on an occupied port, it **snaps to the nearest free port** on that symbol
+- On **node drag / resize**, bends on connected wires are cleared so smart ports reorganize live
+
+Labels sit near the source and offset to avoid sitting under nodes (e.g. decision `yes` / `no`). Arrowheads are pulled just outside the card border for visibility.
+
+Mind-map branches stay curved (Mermaid-style); org charts keep shared bus connectors.
 
 ## Network icons
 
@@ -267,17 +296,6 @@ const positions = forceDirectedLayout(nodes, edges, {
 
 applyForceLayout(diagramGroup, edges, { seed: 42 });
 ```
-
-## Smart connector routing
-
-```javascript
-import { routeConnector, collectObstacles } from 'lightdraw/diagram';
-
-const obstacles = collectObstacles(nodeGroups);
-const edge = routeConnector(app, x1, y1, x2, y2, 'smart', obstacles);
-```
-
-Styles: `straight`, `orthogonal`, `smart` (avoids node bounding boxes).
 
 ## Electrical symbols
 

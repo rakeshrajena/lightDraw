@@ -13,6 +13,7 @@ window.DIAGRAM_AUDIT_SAMPLES = {
         edges: [
           { from: 'start', to: 'check' },
           { from: 'check', to: 'process', label: 'yes' },
+          { from: 'check', to: 'end', label: 'no' },
           { from: 'process', to: 'end' },
         ],
       },
@@ -79,7 +80,23 @@ window.DIAGRAM_AUDIT_SAMPLES = {
           { id: 'icu', label: 'ICU', address: '0x7E4' },
         ],
       },
-      { width: w, height: h, x: 0, y: 80 }
+      {
+        width: w,
+        height: h,
+        x: 0,
+        y: 80,
+        flow: {
+          enabled: true,
+          mode: 'both',
+          playback: 'loop',
+          statusHighlight: true,
+          paths: [
+            ['ecm', 'tcu', 'abs'],
+            ['bcm', 'icu', 'ecm'],
+          ],
+          pathGapMs: 550,
+        },
+      }
     );
   },
   pipeline(app, w, h) {

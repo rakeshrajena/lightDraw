@@ -8,12 +8,14 @@ import type { NodeOptions } from '../../types';
 import { getActiveDiagram } from '../theme';
 import {
   createDiagramGroup,
+  separateOverlappingNodes,
+  readCanvasSize,
 } from '../helpers';
 import {
   createClassNode,
 } from '../primitives';
 import { collectObstacles } from '../router';
-import { connectNodes } from '../connectors';
+import { connectNodePairs } from '../connectors';
 import type { ClassDiagramData } from '../types';
 import { maybeApplyDiagramFlow } from '../flow';
 
@@ -36,59 +38,81 @@ export function createClassDiagram(
     group.add(nodeGroup);
   }
 
+  const canvas = readCanvasSize(options as Record<string, unknown>);
+  separateOverlappingNodes([...nodeMap.values()], {
+    gap: 24,
+    canvasW: canvas.width,
+    canvasH: canvas.height,
+  });
+
   const allNodes = [...nodeMap.values()];
   const edgeLayer = app.group({ zIndex: -10, listening: false }) as Group;
   edgeLayer.metadata.diagramEdgeLayer = true;
+  const pairs = [];
   for (const rel of data.relations) {
     const from = nodeMap.get(rel.from);
     const to = nodeMap.get(rel.to);
     if (!from || !to) continue;
-    const pairObstacles = collectObstacles(allNodes, [from, to]);
     const common = {
-      parent: group,
-      obstacleNodes: allNodes,
       glow: false,
-      cornerRadius: 12,
-    } as const;
+      cornerRadius: 10,
+      style: 'smart' as const,
+      edgeId: `${rel.from}->${rel.to}:${rel.type ?? 'rel'}`,
+      fromId: rel.from,
+      toId: rel.to,
+    };
     if (rel.type === 'inheritance') {
-      edgeLayer.add(
-        connectNodes(app, from, to, pairObstacles, {
+      pairs.push({
+        from,
+        to,
+        options: {
           ...common,
-          style: 'orthogonal',
           stroke: getActiveDiagram().umlInheritance,
-          arrowEnd: 'hollow',
-        })
-      );
+          arrowEnd: 'hollow' as const,
+        },
+      });
     } else if (rel.type === 'association') {
-      edgeLayer.add(
-        connectNodes(app, from, to, pairObstacles, {
+      pairs.push({
+        from,
+        to,
+        options: {
           ...common,
-          style: 'orthogonal',
           stroke: getActiveDiagram().umlAssociation,
-          arrowEnd: 'open',
-        })
-      );
+          arrowEnd: 'open' as const,
+        },
+      });
     } else if (rel.type === 'composition') {
-      edgeLayer.add(
-        connectNodes(app, from, to, pairObstacles, {
+      pairs.push({
+        from,
+        to,
+        options: {
           ...common,
-          style: 'orthogonal',
           stroke: getActiveDiagram().umlComposition,
-          arrowStart: 'diamond',
-          arrowEnd: 'none',
-        })
-      );
+          arrowStart: 'diamond' as const,
+          arrowEnd: 'none' as const,
+        },
+      });
     } else {
-      edgeLayer.add(
-        connectNodes(app, from, to, pairObstacles, {
+      pairs.push({
+        from,
+        to,
+        options: {
           ...common,
-          style: 'orthogonal',
           stroke: getActiveDiagram().umlImplements,
           dash: rel.type === 'implements' ? [6, 4] : undefined,
-          arrowEnd: 'hollow',
-        })
-      );
+          arrowEnd: 'hollow' as const,
+        },
+      });
     }
+  }
+  for (const g of connectNodePairs(app, pairs, {
+    parent: group,
+    obstacleNodes: allNodes,
+    obstacles: collectObstacles(allNodes),
+    style: 'smart',
+    glow: false,
+  })) {
+    edgeLayer.add(g);
   }
   group.add(edgeLayer);
 
