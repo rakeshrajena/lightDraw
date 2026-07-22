@@ -51,9 +51,11 @@ describe('Phase UI-10 — Documentation & release', () => {
     expect(changelog).toContain('Phase UI-10');
   });
 
-  it('CHANGELOG and release notes cover v1.1.0', () => {
+  it('CHANGELOG and release notes cover v1.2.0', () => {
     const changelog = readFileSync(resolve(ROOT, 'CHANGELOG.md'), 'utf8');
+    expect(changelog).toContain('## [1.2.0]');
     expect(changelog).toContain('## [1.1.0]');
+    expect(existsSync(resolve(ROOT, 'docs/v1.2-release-notes.md'))).toBe(true);
     expect(existsSync(resolve(ROOT, 'docs/v1.1-release-notes.md'))).toBe(true);
   });
 

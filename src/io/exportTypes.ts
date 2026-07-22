@@ -22,6 +22,8 @@ export interface ExportOptions {
   background?: string;
   /** Validate JSON against scene schema on json export */
   validate?: boolean;
+  /** Omit identity defaults on json/html scene payloads */
+  compact?: boolean;
   /** PDF page count (multi-page diagram export) */
   pages?: number;
 }

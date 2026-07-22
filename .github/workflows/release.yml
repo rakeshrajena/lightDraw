@@ -39,7 +39,7 @@ jobs:
         with:
           files: lightdraw-dist.zip
           generate_release_notes: true
-          body_path: docs/v1.1-release-notes.md
+          body_path: docs/v1.2-release-notes.md
 
       - name: Publish to npm
         env:

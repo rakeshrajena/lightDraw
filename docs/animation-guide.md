@@ -126,12 +126,13 @@ await parallel([
 
 ## Diagram wire flow
 
-For **flowchart / network / pipeline** connectors (marching dashes, traveling packets, multi-path runs, play/pause), use the diagram API — not raw `dashOffset` alone:
+For **flowchart / network / pipeline / CAN** connectors (marching dashes, traveling packets, status tint, multi-path runs, play/pause), use the diagram API — not raw `dashOffset` alone:
 
 ```javascript
 LightDraw.Diagram.applyFlow(app, chart, {
   mode: 'both',
   playback: 'loop',
+  statusHighlight: true,
   paths: [['a', 'b', 'c'], ['a', 'd', 'c']],
   pathGapMs: 500,
 });

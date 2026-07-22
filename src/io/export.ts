@@ -74,7 +74,7 @@ export function exportScene(
 }
 
 function exportJson(app: App, options: ExportOptions): ExportResult {
-  const json = app.exportJSON();
+  const json = app.exportJSON({ compact: options.compact });
   if (options.validate) {
     const validation = validateSceneJSON(json);
     if (!validation.valid) {
@@ -159,7 +159,7 @@ function exportPdf(app: App, options: ExportOptions): ExportResult {
 }
 
 function exportHtml(app: App, options: ExportOptions): ExportResult {
-  const json = exportStageJSON(app.stage);
+  const json = exportStageJSON(app.stage, { compact: options.compact });
   if (options.validate) {
     const validation = validateSceneJSON(json);
     if (!validation.valid) {

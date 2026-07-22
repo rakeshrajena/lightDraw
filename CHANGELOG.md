@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-07-22
+
 ### Added — CAN bus wire flow
 
 - `Diagram.canNetwork` supports the same `flow` / `applyFlow` API as other builders
@@ -51,7 +53,8 @@ Docs: [automotive-widgets-schema.md](./docs/automotive-widgets-schema.md) · [au
 
 - `toJSON` / `app.exportJSON()` keep module widgets as opaque `{ type, props }` leaves (no visual-tree expansion)
 - Opt-in `exportJSON({ compact: true })` / `toJSON(node, { compact: true })` omits identity defaults
-- Docs: [json-format.md](./docs/json-format.md)
+- `app.export({ format: 'json' | 'html', compact: true })` passes the same option through the unified export API
+- Docs: [json-format.md](./docs/json-format.md) · [export-pipeline.md](./docs/export-pipeline.md)
 
 ### Added — Diagram wire flow status tint
 

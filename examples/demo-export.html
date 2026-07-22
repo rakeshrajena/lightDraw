@@ -13,7 +13,7 @@
     <header class="demo-header">
       <span class="demo-badge">Export Pipeline</span>
       <h1>Scene Export</h1>
-      <p>PNG, JPEG, SVG, PDF, JSON, and offline HTML via unified <code>app.export()</code>. Edit Scene JSON below for live updates.</p>
+      <p>PNG, JPEG, SVG, PDF, JSON, and offline HTML via unified <code>app.export()</code>. Module widgets stay opaque <code>{ type, props }</code>; use <strong>Compact JSON</strong> to omit identity defaults. Edit Scene JSON below for live updates.</p>
     </header>
     <main class="demo-main demo-layout-aside">
       <div class="demo-canvas-wrap">
@@ -31,6 +31,7 @@
         <label>Pixel ratio <input type="number" id="pixelRatio" min="1" max="3" value="2"></label>
         <label><input type="checkbox" id="cropRegion"> Crop to blue rect</label>
         <label><input type="checkbox" id="validateJson" checked> Validate JSON</label>
+        <label><input type="checkbox" id="compactJson"> Compact JSON (omit defaults)</label>
         <p id="status" class="demo-aside-hint" style="border-top:none;padding-top:0;margin-top:0.5rem">Ready</p>
       </aside>
     </main>
@@ -126,6 +127,7 @@
           quality: parseFloat(document.getElementById('quality').value),
           pixelRatio: parseInt(document.getElementById('pixelRatio').value, 10),
           validate: document.getElementById('validateJson').checked,
+          compact: document.getElementById('compactJson')?.checked === true,
           region: document.getElementById('cropRegion').checked ? target : undefined,
           pages: format === 'pdf' ? 1 : undefined,
         };
