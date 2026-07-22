@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — Diagram built-in flow / zoom toolbar
+
+- When `flow.enabled` is on, LightDraw mounts an HTML overlay on the App host: ▶/⏸, ↻, zoom −/%/+, Fit
+- Opt out with `flow.chrome: false`, or customize via `chrome: { flow, zoom }`
+- Manual API: `Diagram.installToolbar` / `uninstallToolbar`
+- `App.getContainer()` exposes the host element for overlays
+- Size gates raised for toolbar: diagram ≤ 75 KB, full ≤ 172 KB gzip
+
+Docs: [diagram-flow.md](./docs/diagram-flow.md) · [diagram-module-schema.md](./docs/diagram-module-schema.md)
+
 ## [1.2.0] - 2026-07-22
 
 ### Added — CAN bus wire flow

@@ -131,6 +131,7 @@ const flow = LightDraw.Diagram.flowchart(app, data, {
     mode: 'both',
     playback: 'loop',
     statusHighlight: true, // idle → active → done tint
+    // chrome: true by default — built-in ▶⏸↻ + zoom on the canvas
     paths: [
       ['start', 'check', 'process', 'end'],
       ['start', 'check', 'end'],

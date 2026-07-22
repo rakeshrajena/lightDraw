@@ -80,6 +80,7 @@ Consumer-facing surface of LightDraw. For generated class/method pages run `npm 
 | `Diagram.refreshFlow(app, root)` | Rebind after editor re-route |
 | `Diagram.pauseFlow` / `resumeFlow` / `toggleFlowPause` / `replayFlow` | Playback control (resume continues mid-step) |
 | `Diagram.stopFlow` / `isFlowPlaying` | Stop / query |
+| `Diagram.installToolbar` / `uninstallToolbar` | Built-in ▶⏸↻ + zoom overlay (`flow.chrome`) |
 | `ensureCanNetworkFlowEdges` / `canBusHopPoints` | CAN bus virtual rail hops |
 
 See [diagram-flow.md](./diagram-flow.md).

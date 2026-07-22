@@ -293,6 +293,7 @@
         statusHighlight: document.getElementById('flow-status')?.checked !== false,
         statusEdges: document.getElementById('flow-status')?.checked !== false,
         ...defaultFlowPath(currentDiagram),
+        chrome: false,
       };
       return { width: canvasW, height: canvasH, flow, ...extra };
     }
@@ -309,6 +310,7 @@
         statusHighlight: statusOn,
         statusEdges: statusOn,
         ...defaultFlowPath(currentDiagram),
+        chrome: false,
       };
     }
 
