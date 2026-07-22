@@ -1,6 +1,6 @@
 # LightDraw.js Documentation
 
-**Version:** 1.2.0 · `npm install lightdraw@1.2.0`  
+**Version:** 1.2.1 · `npm install lightdraw@1.2.1`  
 **Live:** [Playground](https://rakeshrajena.github.io/lightDraw/) · [Help](https://rakeshrajena.github.io/lightDraw/help.html) · [API](https://rakeshrajena.github.io/lightDraw/docs/api/index.html)
 
 This folder is the **single source of truth** for guides and schemas. The website copies them into `website/public/docs/` via `npm run prepare:website`.
@@ -16,8 +16,9 @@ This folder is the **single source of truth** for guides and schemas. The websit
 | [Architecture](./architecture.md) | Entry points, `src/` layout, plugins |
 | [API overview](./api-overview.md) | Key functions (TypeDoc for full detail) |
 | [Root README](../README.md) | Product overview, use cases, CDN / npm |
-| [v1.2 release notes](./v1.2-release-notes.md) | What changed in the current minor |
-| [v1.1 release notes](./v1.1-release-notes.md) | Previous minor (diagram studio) |
+| [v1.2.1 release notes](./v1.2.1-release-notes.md) | What changed in the current patch |
+| [v1.2 release notes](./v1.2-release-notes.md) | v1.2.0 minor highlights |
+| [v1.1 release notes](./v1.1-release-notes.md) | Diagram studio minor |
 
 ---
 
@@ -81,7 +82,8 @@ This folder is the **single source of truth** for guides and schemas. The websit
 | `docs/repo-modularity.md` | **Keep → fold into architecture** | Done roadmap; replace with short `architecture.md` later |
 | `docs/v1-release-notes.md` | **Keep** | Linked from tests / migration |
 | `docs/v1.1-release-notes.md` | **Keep** | Historical minor |
-| `docs/v1.2-release-notes.md` | **Keep** | Current minor |
+| `docs/v1.2-release-notes.md` | **Keep** | Historical minor |
+| `docs/v1.2.1-release-notes.md` | **Keep** | Current patch |
 | `docs/api/` | **Generated** | `npm run docs:api` — gitignored |
 | `DATA_FEED_PLAN.md`, `*_PLAN.md`, `PROJECT_STATUS.md` | **Drop** | Gitignored internals — do not publish |
 | Root `*.pid`, empty `node` / `npm` / `lightdraw@*` | **Drop** | Accidental leftovers |

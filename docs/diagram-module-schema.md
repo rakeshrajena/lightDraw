@@ -144,9 +144,12 @@ LightDraw.Diagram.stopFlow(chart);
 | `statusOverrides` | Force `{ [nodeId]: status }` after lifecycle paint |
 | `statusPauseOnError` | Pause when a declared path resolves to zero playable hops (default true) |
 | `paused` / canvas ▶⏸ | Soft pause in place; resume continues mid-step |
+| `chrome` | Built-in overlay toolbar: play/pause/replay + zoom (default **on** when flow is enabled). Set `false` to hide. |
 
 Persist under builder options / JSON: `{ flow: { enabled, playback, paths, … } }`.
 Editor re-route keeps `diagramState.flow` and restarts when not paused.
+
+**Built-in toolbar:** when `flow.enabled` (and `chrome` is not `false`), LightDraw mounts an HTML overlay on the App host with ▶/⏸, ↻, zoom −/%/+, and Fit. Opt out with `chrome: false`, or call `Diagram.installToolbar(app, root, { flow, zoom })` manually.
 
 **CAN bus:** `Diagram.canNetwork` supports the same `flow` / `applyFlow` API. Virtual hop edges are created along the bus rail (ECU → bus → ECU). See [diagram-flow.md](./diagram-flow.md#can-bus-message-flow).
 

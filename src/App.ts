@@ -373,6 +373,11 @@ export class App extends EventEmitter {
     return this.renderer;
   }
 
+  /** Host DOM element passed to `createApp` / constructor. */
+  getContainer(): HTMLElement {
+    return this.container;
+  }
+
   setBackground(color: string): this {
     this.background = color;
     const renderer = this.renderer as Renderer & {

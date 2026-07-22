@@ -9,7 +9,7 @@ import '../../dashboard/definitions';
 
 export const dashboardPlugin: Plugin = {
   name: 'lightdraw-dashboard',
-  version: '1.2.0',
+  version: '1.2.1',
   install(LD: LightDrawStatic) {
     registerJSONResolver((type, props, app) => createDashboardFromJSON(type, props, app));
     (LD as LightDrawStatic & { registerDashboard: typeof registerDashboard }).registerDashboard =

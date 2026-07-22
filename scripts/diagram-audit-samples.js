@@ -95,6 +95,7 @@ window.DIAGRAM_AUDIT_SAMPLES = {
             ['bcm', 'icu', 'ecm'],
           ],
           pathGapMs: 550,
+          chrome: false,
         },
       }
     );

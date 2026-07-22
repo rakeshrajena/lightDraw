@@ -9,7 +9,7 @@ import '../../automotive/definitions';
 
 export const automotivePlugin: Plugin = {
   name: 'lightdraw-automotive',
-  version: '1.2.0',
+  version: '1.2.1',
   install(LD: LightDrawStatic) {
     registerJSONResolver((type, props, app) => createAutomotiveFromJSON(type, props, app));
     (LD as LightDrawStatic & { registerAutomotive: typeof registerAutomotive }).registerAutomotive =

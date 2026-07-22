@@ -19,6 +19,7 @@ const chart = LightDraw.Diagram.flowchart(app, data, {
     highlight: 'pulse',    // motion chrome: 'pulse' | 'breathe' | 'flash' | 'none'
     // statusHighlight: true by default when paths are set
     // statusColors: { idle, active, done, error }  // optional overrides
+    // chrome: true,           // built-in ▶⏸↻ + zoom (default on; set false to hide)
     paths: [
       ['start', 'check', 'process', 'end'],
       ['start', 'check', 'end'],
@@ -36,6 +37,9 @@ LightDraw.Diagram.resumeFlow(app, chart);
 LightDraw.Diagram.toggleFlowPause(app, chart);
 LightDraw.Diagram.replayFlow(app, chart);
 LightDraw.Diagram.stopFlow(chart);
+// Manual toolbar (optional — also auto when chrome is on):
+// LightDraw.Diagram.installToolbar(app, chart);
+// LightDraw.Diagram.uninstallToolbar(chart);
 ```
 
 Options persist under `diagramState.flow` and round-trip via `Diagram.toJSON` / `fromJSON`. After the editor re-routes wires, flow restarts from saved options (unless paused / disabled).

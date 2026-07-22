@@ -69,6 +69,7 @@ export type {
   DiagramFlowHop,
   DiagramFlowNodeStatus,
   DiagramFlowStatusColors,
+  DiagramFlowChrome,
 } from './flow';
 export {
   applyDiagramFlow,
@@ -89,6 +90,14 @@ export {
   sanitizeStatusOverrides,
   isDiagramFlowNodeStatus,
 } from './flow';
+
+export type { DiagramToolbarOptions, DiagramToolbarHandle } from './toolbar';
+export {
+  installDiagramToolbar,
+  uninstallDiagramToolbar,
+  syncDiagramToolbar,
+  resolveDiagramChrome,
+} from './toolbar';
 
 export type {
   DiagramNode,
@@ -138,6 +147,10 @@ import {
   replayDiagramFlow,
   isDiagramFlowPlaying,
 } from './flow';
+import {
+  installDiagramToolbar,
+  uninstallDiagramToolbar,
+} from './toolbar';
 import { routeConnector } from './router';
 import { listNetworkIconKinds, resolveNetworkIconKind } from './networkIcons';
 import { listSchematicSymbols, resolveSchematicSymbolKind, listSchematicSymbolCategories } from './schematicIcons';
@@ -189,6 +202,9 @@ export const Diagram = {
   toggleFlowPause: toggleDiagramFlowPause,
   replayFlow: replayDiagramFlow,
   isFlowPlaying: isDiagramFlowPlaying,
+  /** Built-in overlay: play/pause/replay + zoom (also auto when `flow.chrome` is on). */
+  installToolbar: installDiagramToolbar,
+  uninstallToolbar: uninstallDiagramToolbar,
   listNetworkIcons: listNetworkIconKinds,
   resolveNetworkIcon: resolveNetworkIconKind,
   listSchematicSymbols,

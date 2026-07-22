@@ -12,11 +12,22 @@ import { findEdgeLayer, findNodeByDiagramId, nodeDiagramId } from './editor/coll
 import { getDiagramState, setDiagramState } from './helpers';
 import { getActiveDiagram } from './theme';
 import { ensureCanNetworkFlowEdges } from './canFlow';
+import { syncDiagramToolbar, uninstallDiagramToolbar } from './toolbar';
 
 export type DiagramFlowMode = 'dash' | 'packet' | 'both';
 export type DiagramFlowHighlight = 'pulse' | 'breathe' | 'flash' | 'none';
 export type DiagramFlowPlayback = 'loop' | 'once';
 export type DiagramFlowNodeStatus = 'idle' | 'active' | 'done' | 'error';
+
+/** Built-in overlay toolbar: `true` / omit = auto when flow on; `false` = hide; object = granular. */
+export type DiagramFlowChrome =
+  | boolean
+  | {
+      /** Play / pause / replay. Default true when flow is enabled. */
+      flow?: boolean;
+      /** Zoom − / % / + / Fit. Default true when toolbar is shown. */
+      zoom?: boolean;
+    };
 
 export interface DiagramFlowHop {
   from: string;
@@ -102,6 +113,11 @@ export interface DiagramFlowOptions {
   pathGapMs?: number;
   /** Dash pattern applied when an edge has no existing dash. */
   dashPattern?: number[];
+  /**
+   * Built-in HTML toolbar (play/pause/replay + zoom).
+   * Default: shown when flow is enabled. Set `false` to hide (e.g. custom demo chrome).
+   */
+  chrome?: DiagramFlowChrome;
 }
 
 type StopHandle = { stop: () => void; pause?: () => void; resume?: () => void };
@@ -388,18 +404,18 @@ function normalizeFlow(raw: DiagramFlowOptions | undefined): NormalizedFlow {
     statusColors,
     statusOverrides,
     statusPauseOnError,
-    activeNodes: Array.isArray(raw?.activeNodes) ? raw!.activeNodes!.slice() : undefined,
-    activeEdges: Array.isArray(raw?.activeEdges) ? raw!.activeEdges!.slice() : undefined,
+    activeNodes: raw?.activeNodes,
+    activeEdges: raw?.activeEdges,
     path,
     paths,
     pathEdges,
+    pathsEdges: Array.isArray(raw?.pathsEdges) ? pathRuns : undefined,
     pathRuns,
     pathGapMs,
-    pathsEdges: Array.isArray(raw?.pathsEdges) ? pathRuns : undefined,
-    dashPattern:
-      Array.isArray(raw?.dashPattern) && raw!.dashPattern!.length >= 2
-        ? raw!.dashPattern!.map(Number)
-        : DEFAULT_DASH.slice(),
+    dashPattern: Array.isArray(raw?.dashPattern) && raw!.dashPattern!.length >= 2
+      ? raw!.dashPattern!.map(Number)
+      : DEFAULT_DASH,
+    chrome: raw?.chrome,
   };
 }
 
@@ -614,6 +630,7 @@ export function stopDiagramFlow(root: Group, opts: { clearState?: boolean } = {}
       delete next.flow;
       root.metadata.diagramState = next;
     }
+    uninstallDiagramToolbar(root);
   }
   root.markDirty();
 }
@@ -1142,6 +1159,7 @@ export function applyDiagramFlow(
       pathsEdges: merged.pathsEdges,
       pathGapMs: merged.pathGapMs,
       dashPattern: merged.dashPattern,
+      chrome: merged.chrome,
     },
   });
 
@@ -1179,6 +1197,7 @@ export function applyDiagramFlow(
     clearStatusSnapshot(root);
     root.metadata[FLOW_RUNTIME_KEY] = { handles: [], options: merged, playing: false };
     root.markDirty();
+    syncDiagramToolbar(app, root);
     return;
   }
 
@@ -1201,6 +1220,7 @@ export function applyDiagramFlow(
     root.metadata[FLOW_RUNTIME_KEY] = { handles: [], options: merged, playing: false };
     root.markDirty();
     app.requestRender?.();
+    syncDiagramToolbar(app, root);
     return;
   }
 
@@ -1262,6 +1282,7 @@ export function applyDiagramFlow(
       root.metadata[FLOW_RUNTIME_KEY] = { handles: [], options: merged, playing: false };
       root.markDirty();
       app.requestRender?.();
+      syncDiagramToolbar(app, root);
       return;
     }
   }
@@ -1391,6 +1412,7 @@ export function applyDiagramFlow(
   root.metadata[FLOW_RUNTIME_KEY] = { handles, options: merged, playing: true };
   root.markDirty();
   app.requestRender?.();
+  syncDiagramToolbar(app, root);
 }
 
 function inferActiveNodes(root: Group, flow: DiagramFlowOptions): string[] {
@@ -1452,6 +1474,7 @@ export function pauseDiagramFlow(app: App, root: Group): void {
     });
     root.markDirty();
     app.requestRender?.();
+    syncDiagramToolbar(app, root);
     return;
   }
 
@@ -1481,6 +1504,7 @@ export function resumeDiagramFlow(app: App, root: Group): void {
     });
     root.markDirty();
     app.requestRender?.();
+    syncDiagramToolbar(app, root);
     return;
   }
 
