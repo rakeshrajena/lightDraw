@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - When `flow.enabled` is on, LightDraw mounts an HTML overlay on the App host: ▶/⏸, ↻, zoom −/%/+, Fit
 - Opt out with `flow.chrome: false`, or customize via `chrome: { flow, zoom }`
 - Manual API: `Diagram.installToolbar` / `uninstallToolbar`
+- Diagram demo uses the library overlay (no custom HTML ▶⏸↻/zoom bar)
 - `App.getContainer()` exposes the host element for overlays
 - Size gates raised for toolbar: diagram ≤ 75 KB, full ≤ 172 KB gzip
 
