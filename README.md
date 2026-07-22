@@ -143,71 +143,279 @@ const app = LightDraw.createApp('#app', { renderer: 'canvas' });
 
 ---
 
-## Diagram + wire flow (production example)
+## Diagram examples (JSON → LightDraw)
 
-Interactive flowchart with **status tint**, **built-in ▶/⏸/↻ + zoom**, and the **arrange editor** (drag / resize / rotate):
+Define a **scene object**, then load it. Same pattern for every diagram type.
 
 ```javascript
-const data = {
-  nodes: [
-    { id: 'start', label: 'Start', type: 'start', x: 360, y: 24 },
-    { id: 'check', label: 'Valid input?', type: 'decision', x: 360, y: 110 },
-    { id: 'process', label: 'Process data', type: 'process', x: 360, y: 210 },
-    { id: 'end', label: 'Complete', type: 'end', x: 360, y: 300 },
-  ],
-  edges: [
-    { from: 'start', to: 'check' },
-    { from: 'check', to: 'process', label: 'Yes' },
-    { from: 'check', to: 'end', label: 'No' },
-    { from: 'process', to: 'end' },
-  ],
-};
-
-const chart = LightDraw.Diagram.flowchart(app, data, {
+const app = LightDraw.createApp('#app', {
   width: 800,
   height: 480,
-  flow: {
-    enabled: true,
-    mode: 'both',           // 'dash' | 'packet' | 'both'
-    playback: 'loop',
-    statusHighlight: true,  // idle → active → done
-    paths: [
-      ['start', 'check', 'process', 'end'],
-      ['start', 'check', 'end'],
-    ],
-    // chrome: true by default → ▶⏸↻ + zoom on the host
-  },
+  background: '#0f172a',
+  renderer: 'canvas',
 });
-app.add(chart);
-LightDraw.Diagram.fitToBounds(chart, 800, 480, 24);
-LightDraw.Diagram.installEditor(app, chart, {
-  mode: 'arrange',
-  allowResize: true,
-  allowRotate: true,
-});
+
+function mountDiagram(scene) {
+  app.clear();
+  const chart = LightDraw.Diagram.fromJSON(scene.type, scene.props, app);
+  app.add(chart);
+  LightDraw.Diagram.fitToBounds(chart, 800, 480, 24);
+  LightDraw.Diagram.installEditor(app, chart, {
+    mode: 'arrange',
+    allowResize: true,
+    allowRotate: true,
+  });
+  return chart;
+}
+
+// Or: app.loadJSON(scene) when the root type is a registered diagram / group
 ```
 
-**Same scene via JSON** (`app.loadJSON`):
+| `type` | Notes |
+|--------|--------|
+| `flowchart` | Decisions, process, terminals + wire flow |
+| `stateMachine` | States + transitions |
+| `processPipeline` | Stages with status badges |
+| `networkTopology` | Visio/Cisco-style icons |
+| `canNetwork` | ECU bus + optional frame paths |
+| `electricalSchematic` | IEC symbols + wires |
+| `classDiagram` | UML classes + relations |
+| `mindMap` | Center + branches |
+| `orgChart` | Hierarchy cards (collapse in editor) |
+
+### Flowchart + wire flow
 
 ```javascript
-app.loadJSON({
+const flowchartScene = {
   type: 'flowchart',
   props: {
     width: 800,
     height: 480,
-    data,
+    data: {
+      nodes: [
+        { id: 'start', label: 'Start', type: 'start', x: 360, y: 24 },
+        { id: 'check', label: 'Valid input?', type: 'decision', x: 360, y: 110 },
+        { id: 'process', label: 'Process data', type: 'process', x: 360, y: 210 },
+        { id: 'end', label: 'Complete', type: 'end', x: 360, y: 300 },
+      ],
+      edges: [
+        { from: 'start', to: 'check' },
+        { from: 'check', to: 'process', label: 'Yes' },
+        { from: 'check', to: 'end', label: 'No' },
+        { from: 'process', to: 'end' },
+      ],
+    },
     flow: {
       enabled: true,
       mode: 'both',
-      paths: [['start', 'check', 'process', 'end']],
+      playback: 'loop',
+      statusHighlight: true,
+      paths: [
+        ['start', 'check', 'process', 'end'],
+        ['start', 'check', 'end'],
+      ],
+      // chrome: true by default → ▶⏸↻ + zoom
     },
   },
-});
-// Then: installEditor on the flowchart group if you want drag/resize/rotate
+};
+mountDiagram(flowchartScene);
+```
+
+### State machine
+
+```javascript
+const stateMachineScene = {
+  type: 'stateMachine',
+  props: {
+    width: 800,
+    height: 400,
+    data: {
+      states: [
+        { id: 'idle', label: 'Idle', x: 80, y: 120 },
+        { id: 'run', label: 'Running', x: 320, y: 120 },
+        { id: 'done', label: 'Done', x: 560, y: 120, kind: 'final' },
+      ],
+      transitions: [
+        { from: 'idle', to: 'run', label: 'start' },
+        { from: 'run', to: 'done', label: 'finish' },
+      ],
+    },
+    flow: {
+      enabled: true,
+      mode: 'both',
+      paths: [['idle', 'run', 'done']],
+    },
+  },
+};
+mountDiagram(stateMachineScene);
+```
+
+### Pipeline
+
+```javascript
+const pipelineScene = {
+  type: 'processPipeline',
+  props: {
+    width: 800,
+    height: 280,
+    stages: [
+      { id: 'ingest', label: 'Ingest', status: 'done', type: 'input' },
+      { id: 'build', label: 'Build', status: 'active', type: 'build' },
+      { id: 'deploy', label: 'Deploy', status: 'pending', type: 'deploy' },
+    ],
+    flow: {
+      enabled: true,
+      mode: 'both',
+      path: ['ingest', 'build', 'deploy'],
+    },
+  },
+};
+mountDiagram(pipelineScene);
+```
+
+### Network topology
+
+```javascript
+const networkScene = {
+  type: 'networkTopology',
+  props: {
+    width: 800,
+    height: 400,
+    data: {
+      nodes: [
+        { id: 'fw', label: 'NGFW', type: 'ngfw', x: 360, y: 40 },
+        { id: 'web', label: 'Web', type: 'server', x: 200, y: 180 },
+        { id: 'db', label: 'SQL', type: 'sql_database', x: 520, y: 180 },
+      ],
+      edges: [
+        { from: 'fw', to: 'web' },
+        { from: 'fw', to: 'db' },
+      ],
+    },
+    flow: {
+      enabled: true,
+      mode: 'both',
+      paths: [['fw', 'web'], ['fw', 'db']],
+    },
+  },
+};
+mountDiagram(networkScene);
+```
+
+### CAN bus
+
+```javascript
+const canScene = {
+  type: 'canNetwork',
+  props: {
+    width: 800,
+    height: 360,
+    x: 0,
+    y: 40,
+    data: {
+      busLabel: 'CAN HS · 500 kbps',
+      ecus: [
+        { id: 'ecm', label: 'ECM', address: '0x7E0' },
+        { id: 'tcu', label: 'TCU', address: '0x7E1' },
+        { id: 'abs', label: 'ABS', address: '0x7E2' },
+      ],
+    },
+    flow: {
+      enabled: true,
+      mode: 'both',
+      paths: [['ecm', 'tcu', 'abs']],
+    },
+  },
+};
+mountDiagram(canScene);
+```
+
+### Schematic
+
+```javascript
+const schematicScene = {
+  type: 'electricalSchematic',
+  props: {
+    width: 800,
+    height: 360,
+    components: [
+      { id: 'bat', type: 'battery', x: 80, y: 120 },
+      { id: 'sw', type: 'spst', x: 220, y: 120 },
+      { id: 'led', type: 'led', x: 360, y: 120 },
+      { id: 'gnd', type: 'ground', x: 360, y: 220 },
+    ],
+  },
+};
+mountDiagram(schematicScene);
+```
+
+### UML class diagram
+
+```javascript
+const umlScene = {
+  type: 'classDiagram',
+  props: {
+    width: 800,
+    height: 400,
+    data: {
+      classes: [
+        { id: 'shape', name: 'Shape', x: 120, y: 60, methods: ['draw()'] },
+        { id: 'rect', name: 'Rect', x: 400, y: 60, methods: ['draw()'] },
+      ],
+      relations: [{ from: 'rect', to: 'shape', type: 'inheritance' }],
+    },
+    flow: {
+      enabled: true,
+      mode: 'both',
+      paths: [['rect', 'shape']],
+    },
+  },
+};
+mountDiagram(umlScene);
+```
+
+### Mind map
+
+```javascript
+const mindMapScene = {
+  type: 'mindMap',
+  props: {
+    width: 800,
+    height: 400,
+    center: 'LightDraw',
+    branches: [
+      { label: 'Core', children: ['Shapes', 'Renderers'] },
+      { label: 'Modules', children: ['Diagram', 'Dashboard'] },
+    ],
+  },
+};
+mountDiagram(mindMapScene);
+```
+
+### Org chart
+
+```javascript
+const orgScene = {
+  type: 'orgChart',
+  props: {
+    width: 900,
+    height: 480,
+    root: {
+      name: 'CEO',
+      role: 'Chief Executive',
+      children: [
+        { name: 'CTO', role: 'Engineering', children: [{ name: 'Lead' }] },
+        { name: 'CFO', role: 'Finance' },
+      ],
+    },
+  },
+};
+mountDiagram(orgScene);
 ```
 
 | Library API | What it does |
 |-------------|--------------|
+| `Diagram.fromJSON` / `app.loadJSON` | Build from scene object |
 | `installEditor` | Drag, 8-handle resize, rotate, wire bends |
 | `applyFlow` / `pauseFlow` / `replayFlow` | Wire animation + status tint |
 | Built-in toolbar | Auto when `flow.enabled` (opt out: `chrome: false`) |
@@ -221,8 +429,18 @@ app.loadJSON({
 Low-level motion on any node — easing, path follow, stagger:
 
 ```javascript
-const dot = app.circle({ x: 80, y: 120, radius: 14, fill: '#38bdf8' });
-app.add(dot);
+const animationScene = {
+  type: 'group',
+  children: [
+    {
+      type: 'circle',
+      props: { id: 'dot', x: 80, y: 120, radius: 14, fill: '#38bdf8' },
+    },
+  ],
+};
+
+app.loadJSON(animationScene);
+const dot = app.stage.getChildById?.('dot') || app.stage.children[0]?.children?.[0];
 
 dot.animate({
   to: { x: 520, y: 120, scaleX: 1.4, scaleY: 1.4 },
@@ -231,11 +449,9 @@ dot.animate({
   yoyo: true,
   repeat: Infinity,
 });
-
-// Or timeline / motionPath — see docs/animation-guide.md
 ```
 
-Wire-level storytelling uses **diagram flow** (above), not raw `dashOffset`.  
+Wire-level storytelling uses **diagram `flow`** (above), not raw `dashOffset`.  
 **Demo:** [demo-animation.html](./examples/demo-animation.html) · **Guide:** [animation-guide.md](./docs/animation-guide.md)
 
 ---
@@ -245,7 +461,7 @@ Wire-level storytelling uses **diagram flow** (above), not raw `dashOffset`.
 ### IoT / ops dashboard
 
 ```javascript
-app.loadJSON({
+const dashboardScene = {
   type: 'group',
   children: [
     { type: 'thermometer', props: { value: 72, x: 24, y: 24 } },
@@ -264,16 +480,18 @@ app.loadJSON({
     },
     { type: 'gauge', props: { value: 68, diameter: 110, x: 480, y: 40 } },
   ],
-});
+};
+app.loadJSON(dashboardScene);
 ```
 
 ### Automotive cluster + drive feed
 
 ```javascript
-app.loadJSON({
+const clusterScene = {
   type: 'instrumentCluster',
   props: { theme: 'classic', width: 800, height: 480, speed: 0, rpm: 800, fuel: 100 },
-});
+};
+app.loadJSON(clusterScene);
 const cluster = app.stage.children[0];
 LightDraw.applyDriveState(cluster, { speed: 95, rpm: 3200, fuel: 68, checkEngine: true });
 app.requestRender();
@@ -287,14 +505,15 @@ app.requestRender();
 <script src="https://cdn.jsdelivr.net/npm/lightdraw@1/dist/lightdraw.min.js"></script>
 <script>
   const app = LightDraw.createApp('#app', { width: 480, height: 320, renderer: 'html' });
-  app.loadJSON({
+  const panelScene = {
     type: 'group',
     children: [
       { type: 'toggle', props: { label: 'Pump A', value: true, x: 20, y: 20 } },
       { type: 'slider', props: { value: 60, width: 200, x: 20, y: 70 } },
       { type: 'button', props: { label: 'Emergency stop', variant: 'danger', x: 20, y: 130 } },
     ],
-  });
+  };
+  app.loadJSON(panelScene);
 </script>
 ```
 
