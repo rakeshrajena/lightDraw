@@ -52,3 +52,4 @@ scripts/capture-blog-screenshots.mjs
 # Scratch HTML from widget/diagram audits
 docs/images/**/tmp-*.html
 docs/images/**/audit-page.html
+docs/images/.gif-frames/

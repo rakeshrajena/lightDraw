@@ -333,9 +333,14 @@ npm install lightdraw@1.2.0
 <p align="center"><em>Automotive — cluster, Individual dash, MIL / beams / ADAS lamps</em></p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/rakeshrajena/lightDraw/main/docs/images/diagram.png" alt="Diagrams" width="100%" />
+  <img src="https://raw.githubusercontent.com/rakeshrajena/lightDraw/main/docs/images/diagram-flow.gif" alt="Diagram wire flow animation with status tint" width="100%" />
 </p>
-<p align="center"><em>Diagrams — wire flow + status tint, CAN bus hops, network icons, org collapse</em></p>
+<p align="center"><em>Diagram wire flow — dashes + packets, idle→active→done status tint (v1.2)</em></p>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/rakeshrajena/lightDraw/main/docs/images/diagram.png" alt="Diagram studio" width="100%" />
+</p>
+<p align="center"><em>Diagram studio — flowchart, CAN, network, org collapse, rotate &amp; bends</em></p>
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/rakeshrajena/lightDraw/main/docs/images/ui-components.png" alt="UI components" width="100%" />
