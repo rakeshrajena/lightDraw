@@ -30,7 +30,7 @@
 
 ---
 
-## Screenshots
+## See it in action
 
 <p align="center">
   <img src="docs/images/diagram-flow.gif" alt="Diagram wire flow animation with status tint" width="100%" />
