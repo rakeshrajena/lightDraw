@@ -26,7 +26,7 @@
   ·
   <a href="https://github.com/rakeshrajena/lightDraw#install">Install</a>
   ·
-  <a href="https://github.com/rakeshrajena/lightDraw/blob/main/docs/v1.1-release-notes.md">v1.1 notes</a>
+  <a href="https://github.com/rakeshrajena/lightDraw/blob/main/docs/v1.2-release-notes.md">v1.2 notes</a>
 </p>
 
 ---
@@ -57,7 +57,7 @@ Building **interactive 2D graphics** in the browser usually means stacking tools
 | Benefit | What it means for you |
 |---------|------------------------|
 | **Zero runtime deps** | No `npm install react chart.js d3`. Smaller attack surface, simpler audits. |
-| **Pay for what you load** | `lightdraw/core` ~39 KB gzip; add `dashboard`, `automotive`, or `diagram` plugins only if needed. |
+| **Pay for what you load** | `lightdraw/core` ~43 KB gzip; add `dashboard`, `automotive`, or `diagram` plugins only if needed. |
 | **Ship faster** | `loadJSON(scene)` for whole dashboards; `app.setUiTheme({ preset: 'dark' })` — no custom CSS required. |
 | **AI-ready** | Schema docs + `validateSceneJSON` / `parseAndValidateSceneJSON` with path + expected-value hints — LLM output becomes a live UI in one call. |
 | **Embed anywhere** | CDN script tag, npm ESM, or ES5 UMD in Android WebView / Qt WebEngine. |
@@ -227,10 +227,10 @@ const app = LightDraw.createApp('#app', { renderer: 'html' });
 | Import path | Use case |
 |-------------|----------|
 | `lightdraw` | Everything in one bundle |
-| `lightdraw/core` | Shapes + canvas only (~39 KB gzip) |
-| `lightdraw/dashboard` | Charts & gauges |
-| `lightdraw/automotive` | Cluster & vehicle widgets |
-| `lightdraw/diagram` | Flowchart, network, org chart, interactive editor |
+| `lightdraw/core` | Shapes + canvas only (~43 KB gzip) |
+| `lightdraw/dashboard` | Charts, gauges, multi-series, dataTable |
+| `lightdraw/automotive` | Cluster, telltales, Individual dash |
+| `lightdraw/diagram` | Flowchart, network, CAN, org chart, editor + wire flow |
 | `lightdraw/legacy` | ES5 UMD for WebView |
 
 TypeScript types included. See [getting started](https://github.com/rakeshrajena/lightDraw/blob/main/docs/getting-started.md).
@@ -267,7 +267,7 @@ npm run build && npm run benchmark && npm run benchmark:compare
 
 At 1 000 nodes, **render stays under 0.5 ms** — headroom for 60 FPS on mid-range hardware. Spatial indexing kicks in at ≥100 nodes.
 
-### Bundle size (gzip, v1.1.0 measured)
+### Bundle size (gzip, v1.2.0 measured)
 
 | Package | Size | Typical use |
 |---------|-----:|-------------|
@@ -299,22 +299,23 @@ Honest positioning — pick the right tool for the job.
 
 ---
 
-## What's new in v1.1.0
+## What's new in v1.2.0
 
-Full notes: [docs/v1.1-release-notes.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/v1.1-release-notes.md) · [CHANGELOG](./CHANGELOG.md)
+Full notes: [docs/v1.2-release-notes.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/v1.2-release-notes.md) · [CHANGELOG](./CHANGELOG.md)
 
-- Interactive diagram editor: drag, **8-handle resize**, **wire bend points**, rotate, wire flow (+ CAN bus hops, status tint, smart 90° ports)
-- Professional **network device icons** and **org chart** minimize with descendant counts
-- **Unique branch colors** for any number of org teams
-- Live playground JSON shows real `{ type, props }` diagram state
-- Theme lab + Day/Night website hub with validated Scene / API docks
+- **Dashboard** — multi-series auto colors + grouped bars; **`dataTable`** (search + stripes)
+- **Automotive** — P0 telltales (MIL, beams, parking, pedestrian) + **Individual dash** demo
+- **Diagram wire flow** — dashes / packets, **status tint** (grey→yellow→green), play·pause·resume
+- **CAN bus flow** — virtual bus-rail hops (ECM→TCU→ABS); smart 90° ports + live re-route on drag
+- **Editor** — rotate handle; clearer arrowheads & edge labels
+- **JSON export** — opaque `{ type, props }` leaves; optional `exportJSON({ compact: true })`
 
-**Since v1.1 (unreleased):** multi-series charts with auto colors + grouped bars; dashboard **`dataTable`** (search + stripes); automotive P0 telltales + **Individual dash** demo. See [CHANGELOG](./CHANGELOG.md).
+**Earlier:** [v1.1 notes](https://github.com/rakeshrajena/lightDraw/blob/main/docs/v1.1-release-notes.md) — diagram studio, network icons, org collapse, playground hub.
 
-**Try it live:** [Playground](https://rakeshrajena.github.io/lightDraw/) · [Dashboard](https://rakeshrajena.github.io/lightDraw/#dashboard) · [Automotive](https://rakeshrajena.github.io/lightDraw/#automotive) · [Help](https://rakeshrajena.github.io/lightDraw/help.html)
+**Try it live:** [Playground](https://rakeshrajena.github.io/lightDraw/) · [Dashboard](https://rakeshrajena.github.io/lightDraw/#dashboard) · [Automotive](https://rakeshrajena.github.io/lightDraw/#automotive) · [Diagram](https://rakeshrajena.github.io/lightDraw/#diagram) · [Help](https://rakeshrajena.github.io/lightDraw/help.html)
 
 ```bash
-npm install lightdraw@1.1.0
+npm install lightdraw@1.2.0
 ```
 
 ---
@@ -334,7 +335,7 @@ npm install lightdraw@1.1.0
 <p align="center">
   <img src="https://raw.githubusercontent.com/rakeshrajena/lightDraw/main/docs/images/diagram.png" alt="Diagrams" width="100%" />
 </p>
-<p align="center"><em>Diagrams — flowchart, network icons, org chart with branch colors & collapse</em></p>
+<p align="center"><em>Diagrams — wire flow + status tint, CAN bus hops, network icons, org collapse</em></p>
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/rakeshrajena/lightDraw/main/docs/images/ui-components.png" alt="UI components" width="100%" />
@@ -388,7 +389,7 @@ Full guide: [ai-integration-guide.md](https://github.com/rakeshrajena/lightDraw/
 | **All guides & schemas** | [docs/README.md](https://github.com/rakeshrajena/lightDraw/blob/main/docs/README.md) |
 | Local | `npm run build && npm run prepare:website && npm run dev:website` → http://localhost:5173 |
 
-Quick reads: [Getting started](https://github.com/rakeshrajena/lightDraw/blob/main/docs/getting-started.md) · [UI themes](https://github.com/rakeshrajena/lightDraw/blob/main/docs/ui-theme-guide.md) · [AI + JSON](https://github.com/rakeshrajena/lightDraw/blob/main/docs/ai-integration-guide.md) · [v1.1 notes](https://github.com/rakeshrajena/lightDraw/blob/main/docs/v1.1-release-notes.md)
+Quick reads: [Getting started](https://github.com/rakeshrajena/lightDraw/blob/main/docs/getting-started.md) · [UI themes](https://github.com/rakeshrajena/lightDraw/blob/main/docs/ui-theme-guide.md) · [AI + JSON](https://github.com/rakeshrajena/lightDraw/blob/main/docs/ai-integration-guide.md) · [v1.2 notes](https://github.com/rakeshrajena/lightDraw/blob/main/docs/v1.2-release-notes.md)
 
 Demo HTML lives in [`examples/`](./examples/) (listed in the docs index). Night chrome + live JSON/API dock by default; Pages updates on `main`.
 

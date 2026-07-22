@@ -80,3 +80,14 @@ const json = app.export({ format: 'json' }).data;
 app.clear();
 app.loadJSON(json);
 ```
+
+### Opaque leaves & compact export
+
+Module widgets (diagram / dashboard / automotive / UI) export as opaque `{ type, props }` leaves — not expanded visual trees. Opt in to omit identity defaults:
+
+```javascript
+const scene = app.exportJSON({ compact: true });
+// or: app.export({ format: 'json', compact: true })
+```
+
+See [JSON format](./json-format.md).

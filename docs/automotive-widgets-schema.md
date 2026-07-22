@@ -119,4 +119,4 @@ const json = toJSON(speedoNode);
 
 - Full cluster live update: ≤ 32 ms per frame (canvas, 20 frames)
 - CAN viewer 100 signals: update ≤ 16 ms
-- Automotive bundle: ~14.8 KB gzip (160 widgets)
+- Automotive bundle: ~31 KB gzip (160+ widgets)

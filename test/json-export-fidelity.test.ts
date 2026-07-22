@@ -28,6 +28,7 @@ describe('scene JSON export fidelity', () => {
     const buttonNode = (exported.children ?? []).find((c) => c.type === 'button');
     expect(buttonNode?.props?.label).toBe('Save');
     expect(buttonNode?.children ?? []).toHaveLength(0);
+    expect(app.export({ format: 'json', compact: true }).data).toEqual(exported);
 
     app.clear();
     app.loadJSON(exported);

@@ -1,6 +1,6 @@
 # LightDraw.js Documentation
 
-**Version:** 1.1.0 · `npm install lightdraw@1.1.0`  
+**Version:** 1.2.0 · `npm install lightdraw@1.2.0`  
 **Live:** [Playground](https://rakeshrajena.github.io/lightDraw/) · [Help](https://rakeshrajena.github.io/lightDraw/help.html) · [API](https://rakeshrajena.github.io/lightDraw/docs/api/index.html)
 
 This folder is the **single source of truth** for guides and schemas. The website copies them into `website/public/docs/` via `npm run prepare:website`.
@@ -16,7 +16,8 @@ This folder is the **single source of truth** for guides and schemas. The websit
 | [Architecture](./architecture.md) | Entry points, `src/` layout, plugins |
 | [API overview](./api-overview.md) | Key functions (TypeDoc for full detail) |
 | [Root README](../README.md) | Product overview, use cases, CDN / npm |
-| [v1.1 release notes](./v1.1-release-notes.md) | What changed in the current minor |
+| [v1.2 release notes](./v1.2-release-notes.md) | What changed in the current minor |
+| [v1.1 release notes](./v1.1-release-notes.md) | Previous minor (diagram studio) |
 
 ---
 
@@ -25,7 +26,7 @@ This folder is the **single source of truth** for guides and schemas. The websit
 | Guide | Topic |
 |-------|--------|
 | [Animation](./animation-guide.md) | Easing, timelines, path motion, stagger |
-| [Diagram wire flow](./diagram-flow.md) | Dashes, packets, multi-path runs, play/pause |
+| [Diagram wire flow](./diagram-flow.md) | Dashes, packets, status tint, CAN hops, play/pause |
 | [Plugins](./plugin-guide.md) | `LightDraw.use`, custom components / renderers / JSON types |
 | [Performance](./performance-guide.md) | Spatial index, dirty regions, benchmarks |
 | [UI theme](./ui-theme-guide.md) | Presets, tokens, `applyTheme` — no mandatory CSS |
@@ -60,6 +61,7 @@ This folder is the **single source of truth** for guides and schemas. The websit
 | [Release](./RELEASE.md) | GitHub Release + npm publish |
 | [Changelog](../CHANGELOG.md) | Full history |
 | [v1.0 notes](./v1-release-notes.md) | Migration from 0.x |
+| [v1.2 notes](./v1.2-release-notes.md) | Current minor highlights |
 | [Diagram catalog layout](./diagram-pipeline-structure.md) | Pipeline / schematic / network glyph split |
 | [Repo modularity](./repo-modularity.md) | Completed R1–R7 split history |
 
@@ -78,6 +80,8 @@ This folder is the **single source of truth** for guides and schemas. The websit
 | `docs/legacy-ui-guide.md` | **Stub** | Redirects to legacy-browser-guide |
 | `docs/repo-modularity.md` | **Keep → fold into architecture** | Done roadmap; replace with short `architecture.md` later |
 | `docs/v1-release-notes.md` | **Keep** | Linked from tests / migration |
+| `docs/v1.1-release-notes.md` | **Keep** | Historical minor |
+| `docs/v1.2-release-notes.md` | **Keep** | Current minor |
 | `docs/api/` | **Generated** | `npm run docs:api` — gitignored |
 | `DATA_FEED_PLAN.md`, `*_PLAN.md`, `PROJECT_STATUS.md` | **Drop** | Gitignored internals — do not publish |
 | Root `*.pid`, empty `node` / `npm` / `lightdraw@*` | **Drop** | Accidental leftovers |
@@ -111,8 +115,8 @@ Source of truth for demos. Prepared copy lands in `website/public/examples/`.
 | `demo-ui.html` / `demo-ui-catalog.html` | UI components |
 | `demo-dashboard.html` / `demo-charts.html` | Charts, gauges, dataTable |
 | `demo-automotive.html` | Cluster + Individual dash + catalog |
-| `demo-diagram.html` | Interactive diagrams + wire flow (paths, play/pause) |
-| `demo-export.html` | Export formats |
+| `demo-diagram.html` | Interactive diagrams + wire flow (status tint, CAN bus, play/pause) |
+| `demo-export.html` | Export formats + compact JSON |
 | `demo-a11y.html` | Keyboard & ARIA |
 | `demo-theme.html` | Theme lab |
 | `demo-color-stops.html` | Conditional color stops |

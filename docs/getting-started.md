@@ -97,7 +97,7 @@ npm run prepare:website   # copies dist + examples into website/public (gitignor
 npm run dev:website       # http://localhost:5173
 ```
 
-- **Playground** — theme lab, UI, charts, automotive, **interactive diagrams** (drag / resize / rotate / **wire flow** / bends / org collapse) with a live Scene / API dock  
+- **Playground** — theme lab, UI, charts, automotive, **interactive diagrams** (drag / resize / rotate / **wire flow + status tint** / CAN / bends / org collapse) with a live Scene / API dock  
 - **Help** — `/help.html` topics with live embeds  
 - Site chrome defaults to **Night**; toggle Day/Night in the rail  
 
@@ -120,7 +120,7 @@ LightDraw.Diagram.installEditor(app, chart, {
 // Select a node → resize / rotate handles. Double-click wires for bends.
 ```
 
-### Wire flow (flowchart / network / pipeline)
+### Wire flow (flowchart / network / pipeline / CAN)
 
 ```javascript
 const flow = LightDraw.Diagram.flowchart(app, data, {
@@ -130,6 +130,7 @@ const flow = LightDraw.Diagram.flowchart(app, data, {
     enabled: true,
     mode: 'both',
     playback: 'loop',
+    statusHighlight: true, // idle → active → done tint
     paths: [
       ['start', 'check', 'process', 'end'],
       ['start', 'check', 'end'],
@@ -138,9 +139,11 @@ const flow = LightDraw.Diagram.flowchart(app, data, {
 });
 app.add(flow);
 // Canvas: ▶ / ⏸ / ↻ — or Diagram.pauseFlow / resumeFlow / replayFlow
+// CAN: Diagram.canNetwork(..., { flow: { paths: [['ecm','tcu']] } })
 ```
 
 See [Diagram wire-flow](./diagram-flow.md) and [Diagram module schema](./diagram-module-schema.md).
+
 ## Plugins
 
 ```javascript

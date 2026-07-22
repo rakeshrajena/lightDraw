@@ -24,8 +24,8 @@ Write / refresh `docs/vX.Y-release-notes.md` and point `.github/workflows/releas
 ### 2. GitHub Release
 
 ```bash
-git tag v1.1.0
-git push origin v1.1.0
+git tag v1.2.0
+git push origin v1.2.0
 ```
 
 The `.github/workflows/release.yml` workflow will:
