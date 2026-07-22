@@ -77,16 +77,8 @@
           </div>
         </aside>
         <div class="demo-canvas-wrap demo-canvas-diagram" id="diagram-canvas-wrap">
-          <div class="demo-canvas-toolbar" id="diagram-zoom-bar" aria-label="Canvas zoom">
-            <button type="button" class="demo-zoom-btn demo-flow-btn" id="flow-play-pause" title="Play / Pause flow" aria-label="Play or pause flow" hidden>⏸</button>
-            <button type="button" class="demo-zoom-btn demo-flow-btn" id="flow-replay" title="Replay flow" aria-label="Replay flow" hidden>↻</button>
-            <button type="button" class="demo-zoom-btn" id="zoom-out" title="Zoom out" aria-label="Zoom out">−</button>
-            <span class="demo-zoom-label" id="zoom-label">100%</span>
-            <button type="button" class="demo-zoom-btn" id="zoom-in" title="Zoom in" aria-label="Zoom in">+</button>
-            <button type="button" class="demo-zoom-btn demo-zoom-fit" id="zoom-fit" title="Fit to view" aria-label="Fit to view">Fit</button>
-          </div>
           <div id="app"></div>
-          <p class="demo-canvas-hint">Drag to move. Select a node → resize + rotate (wires auto-route; Shift = free angle). Double-click a wire for bends. Org: − / + to collapse.</p>
+          <p class="demo-canvas-hint">Drag to move. Select a node → resize + rotate (wires auto-route; Shift = free angle). Double-click a wire for bends. Org: − / + to collapse. Flow on → library ▶⏸↻ + zoom on the canvas.</p>
         </div>
       </div>
     </main>
@@ -166,27 +158,10 @@
     let currentGroup = null;
     let currentEditor = null;
     let resizeTimer = null;
-    const ZOOM_MIN = 0.35;
-    const ZOOM_MAX = 2.75;
-    const ZOOM_STEP = 1.18;
-
-    function updateZoomLabel() {
-      const pct = Math.round((app.camera.zoom || 1) * 100);
-      const el = document.getElementById('zoom-label');
-      if (el) el.textContent = pct + '%';
-    }
 
     function resetCamera() {
       app.camera.setZoom(1);
       app.camera.setPosition(0, 0);
-      updateZoomLabel();
-    }
-
-    function setCanvasZoom(next) {
-      const z = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, next));
-      app.camera.setZoom(z);
-      updateZoomLabel();
-      app.render();
     }
 
     function installArrangeEditor() {
@@ -293,7 +268,8 @@
         statusHighlight: document.getElementById('flow-status')?.checked !== false,
         statusEdges: document.getElementById('flow-status')?.checked !== false,
         ...defaultFlowPath(currentDiagram),
-        chrome: false,
+        // Use library overlay (▶⏸↻ + zoom); keep zoom when Flow is off
+        chrome: { flow: true, zoom: true },
       };
       return { width: canvasW, height: canvasH, flow, ...extra };
     }
@@ -310,25 +286,8 @@
         statusHighlight: statusOn,
         statusEdges: statusOn,
         ...defaultFlowPath(currentDiagram),
-        chrome: false,
+        chrome: { flow: true, zoom: true },
       };
-    }
-
-    function syncFlowToolbar() {
-      const playBtn = document.getElementById('flow-play-pause');
-      const replayBtn = document.getElementById('flow-replay');
-      const on = document.getElementById('flow-enabled').checked;
-      playBtn.hidden = !on;
-      replayBtn.hidden = !on;
-      if (!on || !currentGroup) {
-        playBtn.textContent = '▶';
-        return;
-      }
-      const playing = LightDraw.Diagram.isFlowPlaying
-        ? LightDraw.Diagram.isFlowPlaying(currentGroup)
-        : false;
-      playBtn.textContent = playing ? '⏸' : '▶';
-      playBtn.title = playing ? 'Pause flow' : 'Play flow';
     }
 
     function applyFlowFromUi(overrides) {
@@ -339,7 +298,6 @@
         else if (currentDiagram === 'stateMachine') opts.activeNodes = ['run'];
       }
       LightDraw.Diagram.applyFlow(app, currentGroup, opts);
-      syncFlowToolbar();
     }
 
     function wireFlowControls() {
@@ -349,8 +307,6 @@
       const playback = document.getElementById('flow-playback');
       const speed = document.getElementById('flow-speed');
       const speedLabel = document.getElementById('flow-speed-label');
-      const playBtn = document.getElementById('flow-play-pause');
-      const replayBtn = document.getElementById('flow-replay');
       const syncLabel = () => {
         speedLabel.textContent = Number(speed.value) + '×';
       };
@@ -364,26 +320,6 @@
       mode.addEventListener('change', onChange);
       playback.addEventListener('change', onChange);
       speed.addEventListener('input', onChange);
-      playBtn.addEventListener('click', () => {
-        if (!currentGroup || !LightDraw.Diagram.toggleFlowPause) return;
-        if (!enabled.checked) {
-          enabled.checked = true;
-          applyFlowFromUi({ paused: false });
-          return;
-        }
-        LightDraw.Diagram.toggleFlowPause(app, currentGroup);
-        syncFlowToolbar();
-      });
-      replayBtn.addEventListener('click', () => {
-        if (!currentGroup || !LightDraw.Diagram.replayFlow) return;
-        enabled.checked = true;
-        LightDraw.Diagram.replayFlow(app, currentGroup);
-        syncFlowToolbar();
-      });
-      // Keep play icon in sync when once-mode finishes
-      setInterval(() => {
-        if (currentGroup && enabled.checked) syncFlowToolbar();
-      }, 400);
     }
 
     function getDiagramScene() {
@@ -707,19 +643,6 @@
     window.showDiagram = showDiagram;
     window.pick = pick;
     window.showDiagramFromJSON = showDiagramFromJSON;
-
-    document.getElementById('zoom-in').addEventListener('click', () => {
-      setCanvasZoom((app.camera.zoom || 1) * ZOOM_STEP);
-    });
-    document.getElementById('zoom-out').addEventListener('click', () => {
-      setCanvasZoom((app.camera.zoom || 1) / ZOOM_STEP);
-    });
-    document.getElementById('zoom-fit').addEventListener('click', () => {
-      resetCamera();
-      fitCurrentDiagram();
-      app.render();
-    });
-    updateZoomLabel();
 
     let resizeRaf = 0;
     function scheduleResize() {
