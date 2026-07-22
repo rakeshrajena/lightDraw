@@ -26,7 +26,7 @@ Versions `0.1.0` through `0.9.0` were development releases. **v1.0.0** marks the
 
 ## Tags
 
-Release tags use the `v` prefix: `v1.0.0`, `v1.1.0`, `v1.2.0`.
+Release tags use the `v` prefix: `v1.0.0`, `v1.1.0`, `v1.2.0`, `v1.2.1`.
 
 GitHub Releases and npm publish **must use the same version string** (without `v` on npm).
 

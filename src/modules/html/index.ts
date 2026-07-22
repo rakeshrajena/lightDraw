@@ -4,7 +4,7 @@ import { registerRenderer } from '../../registry/renderers';
 
 export const htmlPlugin: Plugin = {
   name: 'lightdraw-html',
-  version: '1.2.0',
+  version: '1.2.1',
   install(_LD: LightDrawStatic) {
     registerRenderer('html', () => new HTMLRenderer());
   },

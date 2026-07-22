@@ -112,7 +112,8 @@ Original aspirational targets (8 KB core / 25 KB full) are documented in `IMPLEM
 
 ## Since v1.0.0
 
-- **[v1.2.0 release notes](./v1.2-release-notes.md)** — wire flow status tint, CAN hops, multi-series / dataTable, telltales, compact JSON (current)
+- **[v1.2.1 release notes](./v1.2.1-release-notes.md)** — built-in diagram flow/zoom toolbar (current)
+- **[v1.2.0 release notes](./v1.2-release-notes.md)** — wire flow status tint, CAN hops, multi-series / dataTable, telltales
 - **[v1.1.0 release notes](./v1.1-release-notes.md)** — diagram studio, playground, network icons
 
 ---

@@ -7,7 +7,7 @@ import {
 
 export const uiPlugin: Plugin = {
   name: 'lightdraw-ui',
-  version: '1.2.0',
+  version: '1.2.1',
   install(LD: LightDrawStatic) {
     registerJSONResolver((type, props, app) => createComponentFromJSON(type, props, app));
     (LD as LightDrawStatic & { registerComponent: typeof registerComponent }).registerComponent =

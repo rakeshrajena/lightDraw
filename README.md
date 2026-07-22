@@ -25,7 +25,7 @@
   ·
   <a href="https://www.npmjs.com/package/lightdraw">npm</a>
   ·
-  <a href="https://github.com/rakeshrajena/lightDraw/blob/main/docs/v1.2-release-notes.md">v1.2 notes</a>
+  <a href="https://github.com/rakeshrajena/lightDraw/blob/main/docs/v1.2.1-release-notes.md">v1.2.1 notes</a>
 </p>
 
 ---
@@ -553,18 +553,18 @@ npm run build && npm run benchmark && npm run benchmark:compare
 
 ---
 
-## What's new in v1.2
+## What's new in v1.2.1
 
-Full notes: [v1.2-release-notes.md](./docs/v1.2-release-notes.md) · [CHANGELOG](./CHANGELOG.md)
+Full notes: [v1.2.1-release-notes.md](./docs/v1.2.1-release-notes.md) · [CHANGELOG](./CHANGELOG.md)
 
-- Wire flow + **status tint**; **CAN bus** hops; smart 90° routing
-- Built-in diagram **▶/⏸/↻ + zoom** toolbar when `flow.enabled`
-- Editor: drag, resize, **rotate**, wire bends
-- Dashboard multi-series + **dataTable**; automotive P0 telltales
-- Opaque / compact JSON export
+- Built-in diagram **▶/⏸/↻ + zoom** toolbar when `flow.enabled` (`flow.chrome: false` to opt out)
+- Demo uses the library overlay (no duplicate HTML chrome)
+- README: JSON scene examples for **all** diagram types + wire-flow GIF
+
+**Earlier in v1.2.0:** wire flow status tint, CAN bus hops, smart routing, multi-series / dataTable, telltales, compact JSON — [v1.2 notes](./docs/v1.2-release-notes.md)
 
 ```bash
-npm install lightdraw@1.2.0
+npm install lightdraw@1.2.1
 ```
 
 ---

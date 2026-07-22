@@ -4,7 +4,7 @@ import { registerRenderer } from '../../registry/renderers';
 
 export const svgPlugin: Plugin = {
   name: 'lightdraw-svg',
-  version: '1.2.0',
+  version: '1.2.1',
   install(_LD: LightDrawStatic) {
     registerRenderer('svg', () => new SVGRenderer());
   },
