@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/rakeshrajena/lightDraw/main/docs/images/logo.svg" alt="LightDraw logo" width="96" height="96" />
+  <img src="docs/images/logo.svg" alt="LightDraw logo" width="96" height="96" />
 </p>
 
 <h1 align="center">LightDraw.js</h1>
@@ -323,27 +323,27 @@ npm install lightdraw@1.2.0
 ## Screenshots
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/rakeshrajena/lightDraw/main/docs/images/dashboard.png" alt="Dashboard widgets" width="100%" />
+  <img src="docs/images/dashboard.png" alt="Dashboard widgets" width="100%" />
 </p>
 <p align="center"><em>Dashboard — multi-series charts, gauges, dataTable</em></p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/rakeshrajena/lightDraw/main/docs/images/automotive.png" alt="Automotive cluster" width="100%" />
+  <img src="docs/images/automotive.png" alt="Automotive cluster" width="100%" />
 </p>
 <p align="center"><em>Automotive — cluster, Individual dash, MIL / beams / ADAS lamps</em></p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/rakeshrajena/lightDraw/main/docs/images/diagram-flow.gif" alt="Diagram wire flow animation with status tint" width="100%" />
+  <img src="docs/images/diagram-flow.gif" alt="Diagram wire flow animation with status tint" width="100%" />
 </p>
 <p align="center"><em>Diagram wire flow — dashes + packets, idle→active→done status tint (v1.2)</em></p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/rakeshrajena/lightDraw/main/docs/images/diagram.png" alt="Diagram studio" width="100%" />
+  <img src="docs/images/diagram.png" alt="Diagram studio" width="100%" />
 </p>
 <p align="center"><em>Diagram studio — flowchart, CAN, network, org collapse, rotate &amp; bends</em></p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/rakeshrajena/lightDraw/main/docs/images/ui-components.png" alt="UI components" width="100%" />
+  <img src="docs/images/ui-components.png" alt="UI components" width="100%" />
 </p>
 <p align="center"><em>UI — 17 components, theme presets, HTML renderer</em></p>
 
